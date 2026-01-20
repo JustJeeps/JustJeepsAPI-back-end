@@ -1,0 +1,38 @@
+node_modules
+# Keep environment variables out of version control
+.env
+
+# Logs
+logs/
+*.log
+prisma/logs/
+prisma/seeds/logs/
+prisma/seeds/seed-individual/logs/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+mydb.dump
+
+# Large data files - keeping essential config files
+*.csv
+*.xlsx
+*.xls
+!package.json
+!package-lock.json
+!tsconfig.json
+
+# Large JSON files (except essential configs)
+prisma/seeds/seed-individual/orders_all.json
+prisma/seeds/api-calls/wheelpros_enriched_output.csv
+prisma/seeds/api-calls/keystone_files/*.csv
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+
+# Prisma generated files
+.prisma/
+.node_modules

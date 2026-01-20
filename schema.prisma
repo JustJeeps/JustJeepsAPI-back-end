@@ -1,0 +1,193 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Order {
+  entity_id             Int             @id
+  id                    Int             @unique @default(autoincrement())
+  created_at            String
+  customer_email        String
+  coupon_code           String?
+  customer_firstname    String?
+  customer_lastname     String?
+  grand_total           Float
+  increment_id          String
+  order_currency_code   String
+  total_qty_ordered     Int
+  status                String?
+  base_total_due        Float?
+  shipping_amount       Float?
+  shipping_description  String?
+  custom_po_number      String?
+  weltpixel_fraud_score Float?
+  city                  String?
+  region                String?
+  method_title          String?
+  shipping_city         String?
+  shipping_country_id   String?
+  shipping_firstname    String?
+  shipping_lastname     String?
+  shipping_postcode     String?
+  shipping_region       String?
+  shipping_street1      String?
+  shipping_street2      String?
+  shipping_street3      String?
+  shipping_telephone    String?
+  shipping_company      String?
+  items                 OrderProduct[]
+  purchaseOrder         PurchaseOrder[]
+}
+
+model OrderProduct {
+  id                     Int            @id @default(autoincrement())
+  name                   String
+  sku                    String
+  order_id               Int
+  base_price             Float
+  base_price_incl_tax    Float?
+  discount_amount        Float
+  discount_invoiced      Float
+  discount_percent       Float
+  original_price         Float
+  price                  Float
+  price_incl_tax         Float?
+  product_id             Int?
+  qty_ordered            Int
+  selected_supplier      String?
+  selected_supplier_cost String?
+  vendor_product_id      Int?
+  order                  Order          @relation(fields: [order_id], references: [entity_id], onDelete: Cascade)
+  product                Product        @relation(fields: [sku], references: [sku], onDelete: Cascade)
+  vendorProduct          VendorProduct? @relation(fields: [vendor_product_id], references: [id], onDelete: Cascade)
+}
+
+model Product {
+  sku                String              @id @unique
+  status             Int?
+  name               String
+  price              Float
+  searchableSku      String
+  searchable_sku     String?
+  jj_prefix          String?
+  premier_code    String?
+  t14_code           String?
+  t14_id             String?
+  meyer_code         String?
+  keystone_code      String?
+  omix_code          String?
+  vendors            String?
+  brand_name         String?
+  image              String?
+  weight             Float?
+  url_path           String?
+  quadratec_code     String?
+  rough_country_code String?
+  gentecdirect_code  String?
+  MAP                Float?
+  partStatus_meyer   String?
+  black_friday_sale    String?
+  height             Float?
+  length             Float?
+  width              Float?
+  meyer_height       Float?
+  meyer_length       Float?
+  meyer_weight       Float?
+  meyer_width        Float?
+  tdot_code          String?
+  shippingFreight    String?
+  part               String?
+  thumbnail          String?
+  ctp_code           String?
+  partsEngine_code   String?
+  keystone_code_site String?
+  tdot_url           String?
+  keystone_ftp_brand String?
+  competitorProducts CompetitorProduct[]
+  orderProducts      OrderProduct[]
+  vendorProducts     VendorProduct[]
+}
+
+model VendorProduct {
+  id                      Int            @id @default(autoincrement())
+  product_sku             String
+  vendor_id               Int
+  vendor_sku              String
+  vendor_cost             Float
+  vendor_inventory        Float?
+  partStatus_meyer        String?
+  vendor_inventory_string String?
+  quadratec_sku           String?
+  manufacturer_sku        String?
+  orderProducts           OrderProduct[]
+  product                 Product        @relation(fields: [product_sku], references: [sku], onDelete: Cascade)
+  vendor                  Vendor         @relation(fields: [vendor_id], references: [id])
+}
+
+model Vendor {
+  id             Int             @id @default(autoincrement())
+  name           String
+  website        String
+  address        String?
+  phone_number   String?
+  main_contact   String
+  username       String
+  password       String
+  purchaseOrders PurchaseOrder[]
+  vendorProducts VendorProduct[]
+}
+
+model User {
+  id             Int             @id @default(autoincrement())
+  firstname      String
+  lastname       String
+  username       String
+  email          String
+  password       String
+  purchaseOrders PurchaseOrder[]
+}
+
+model PurchaseOrder {
+  id                     Int                     @id @default(autoincrement())
+  created_at             DateTime                @default(now())
+  user_id                Int
+  order_id               Int
+  vendor_id              Int
+  order                  Order                   @relation(fields: [order_id], references: [entity_id])
+  user                   User                    @relation(fields: [user_id], references: [id])
+  vendor                 Vendor                  @relation(fields: [vendor_id], references: [id])
+  purchaseOrderLineItems PurchaseOrderLineItem[]
+}
+
+model PurchaseOrderLineItem {
+  id                 Int           @id @default(autoincrement())
+  purchase_order_id  Int
+  vendor_product_id  Int?
+  quantity_purchased Int
+  vendor_cost        Float?
+  product_sku        String?
+  vendor_sku         String?
+  purchaseOrder      PurchaseOrder @relation(fields: [purchase_order_id], references: [id])
+}
+
+model Competitor {
+  id                 Int                 @id @default(autoincrement())
+  name               String
+  website            String
+  competitorProducts CompetitorProduct[]
+}
+
+model CompetitorProduct {
+  id               Int        @id @default(autoincrement())
+  product_sku      String
+  competitor_id    Int
+  product_url      String?
+  competitor_price Float
+  competitor_sku   String?
+  competitor       Competitor @relation(fields: [competitor_id], references: [id])
+  product          Product    @relation(fields: [product_sku], references: [sku], onDelete: Cascade)
+}

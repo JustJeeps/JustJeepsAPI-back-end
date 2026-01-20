@@ -1,0 +1,2440 @@
+[
+  {
+    "title": "MetalCloak JK Wrangler Front Bumper - Heavy Duty Steel",
+    "productCode": "MC-JK-FB-001",
+    "category": "Bumpers",
+    "mapPriceNumeric": 899.99,
+    "yourPriceNumeric": 675,
+    "productUrl": "https://jobber.metalcloak.com/products/jk-front-bumper",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-29T14:59:50.074Z"
+  },
+  {
+    "title": "MetalCloak TJ Rock Rails - Black Powder Coat",
+    "productCode": "MC-TJ-RR-002",
+    "category": "Rock Rails",
+    "mapPriceNumeric": 549.99,
+    "yourPriceNumeric": 412.5,
+    "productUrl": "https://jobber.metalcloak.com/products/tj-rock-rails",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-29T14:59:50.096Z"
+  },
+  {
+    "title": "Bronco 6G 2.5\"- 4\" Game-Changer Suspension & Lift Kit, RockSport BLACK Edition",
+    "productCode": "B0312",
+    "mapPrice": "$7,399.00",
+    "yourPrice": "$4,069.45",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:49.675Z"
+  },
+  {
+    "title": "Bronco 6G Front Bumper System",
+    "productCode": "*B0205",
+    "mapPrice": "$1,758.00",
+    "yourPrice": "$1,142.70",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:49.937Z"
+  },
+  {
+    "title": "Bronco 6G Front Bumper System, Non-Winch Edition",
+    "productCode": "*B0219",
+    "mapPrice": "$1,583.00",
+    "yourPrice": "$1,028.95",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:49.947Z"
+  },
+  {
+    "title": "Bronco 6G Max Clearance Kit",
+    "productCode": "B0240",
+    "mapPrice": "$79.00",
+    "yourPrice": "$51.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:49.956Z"
+  },
+  {
+    "title": "Bronco 6G Overline Rocker Rails, 4-Door",
+    "productCode": "*B0200",
+    "mapPrice": "$834.00",
+    "yourPrice": "$542.10",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:49.965Z"
+  },
+  {
+    "title": "Bronco 6G Overline Rocker Rails, 2-Door",
+    "productCode": "*B0201",
+    "mapPrice": "$749.00",
+    "yourPrice": "$486.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:49.974Z"
+  },
+  {
+    "title": "Bronco6G 2-Door Fender Delete & Tire Clearance Front & Rear Kit",
+    "productCode": "B0230*",
+    "mapPrice": "$166.00",
+    "yourPrice": "$107.90",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:50.008Z"
+  },
+  {
+    "title": "Bronco6G 4-Door Fender Delete & Tire Clearance Front & Rear Kit",
+    "productCode": "B0231*",
+    "mapPrice": "$166.00",
+    "yourPrice": "$107.90",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:50.018Z"
+  },
+  {
+    "title": "Jeep JT Gladiator 2.5\" Game-Changer Suspension & Lift Kit",
+    "productCode": "A3230*",
+    "mapPrice": "$2,972.00",
+    "yourPrice": "$1,866.50",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:50.072Z"
+  },
+  {
+    "title": "Jeep JT Gladiator 3.5\" Game-Changer Suspension & Lift Kit",
+    "productCode": "A3235*",
+    "mapPrice": "$3,002.00",
+    "yourPrice": "$1,651.10",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:50.082Z"
+  },
+  {
+    "title": "Jeep JT Gladiator 4.5\" Game-Changer Suspension & Lift Kit",
+    "productCode": "A3245*",
+    "mapPrice": "$3,562.00",
+    "yourPrice": "$1,959.10",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:50.092Z"
+  },
+  {
+    "title": "Jeep JT Gladiator 2.5\" True Dual Rate Lift Kit",
+    "productCode": "A3130*",
+    "mapPrice": "$1,872.00",
+    "yourPrice": "$1,151.50",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:50.101Z"
+  },
+  {
+    "title": "Jeep JT Gladiator 3.5\" True Dual Rate Lift Kit",
+    "productCode": "A3135*",
+    "mapPrice": "$1,902.00",
+    "yourPrice": "$1,046.10",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:50.110Z"
+  },
+  {
+    "title": "Jeep JT Gladiator Leveling Suspension & Lift Kit",
+    "productCode": "A3125*",
+    "mapPrice": "$1,051.00",
+    "yourPrice": "$606.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:50.119Z"
+  },
+  {
+    "title": "JT Gladiator True Dual Rate to Game Changer Upgrade Kit",
+    "productCode": "A3100*",
+    "mapPrice": "$1,107.00",
+    "yourPrice": "$719.55",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:50.128Z"
+  },
+  {
+    "title": "Jeep JT Mojave Gladiator 2.5\" Game-Changer Suspension & Lift Kit",
+    "productCode": "A7225*",
+    "mapPrice": "$2,978.00",
+    "yourPrice": "$1,637.90",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:50.141Z"
+  },
+  {
+    "title": "Jeep JT Gladiator Mojave 3.5\" Game-Changer Suspension & Lift Kit",
+    "productCode": "A7235*",
+    "mapPrice": "$3,068.00",
+    "yourPrice": "$1,687.40",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:50.153Z"
+  },
+  {
+    "title": "Jeep JT Gladiator Mojave 4.5\" Game-Changer Suspension & Lift Kit",
+    "productCode": "A7245*",
+    "mapPrice": "$3,748.00",
+    "yourPrice": "$2,424.30",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:50.163Z"
+  },
+  {
+    "title": "Jeep JT Gladiator 2.5\" Rocklander® Overland Suspension & Lift Kit",
+    "productCode": "A3830*",
+    "mapPrice": "$3,002.00",
+    "yourPrice": "$1,883.00",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:50.173Z"
+  },
+  {
+    "title": "Jeep JT Gladiator 3.5\" Rocklander® Overland Suspension & Lift Kit",
+    "productCode": "A3835*",
+    "mapPrice": "$3,032.00",
+    "yourPrice": "$1,667.60",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:50.182Z"
+  },
+  {
+    "title": "Jeep JT Gladiator 4.5\" 4-Link, Bolt-On Long Arm Suspension & Lift Kit",
+    "productCode": "A3645*",
+    "mapPrice": "$5,207.00",
+    "yourPrice": "$2,863.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:50.192Z"
+  },
+  {
+    "title": "Jeep JT Gladiator 3.5\" 4-Link, Bolt-On Long Arm Suspension & Lift Kit",
+    "productCode": "A3635*",
+    "mapPrice": "$4,647.00",
+    "yourPrice": "$2,827.75",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:50.202Z"
+  },
+  {
+    "title": "Jeep JT Gladiator Mojave 3.5\" 4-Link, Bolt-On Long Arm Suspension & Lift Kit",
+    "productCode": "A7635*",
+    "mapPrice": "$4,713.00",
+    "yourPrice": "$2,927.05",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:50.210Z"
+  },
+  {
+    "title": "Jeep JT Gladiator Mojave 4.5\" 4-Link, Bolt-On Long Arm Suspension & Lift Kit",
+    "productCode": "A7645*",
+    "mapPrice": "$5,253.00",
+    "yourPrice": "$3,278.05",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:50.221Z"
+  },
+  {
+    "title": "Jeep JL Wrangler & JT Gladiator Bolt-On 4-Link Front System, 4-Door",
+    "productCode": "7288*",
+    "mapPrice": "$1,983.00",
+    "yourPrice": "$1,257.05",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:50.230Z"
+  },
+  {
+    "title": "JK, JL, JT, TJ True Dual Rate Coil Sleeves, Front, Set of Four",
+    "productCode": "7704",
+    "mapPrice": "$29.00",
+    "yourPrice": "$15.95",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:50.851Z"
+  },
+  {
+    "title": "RockSport RED Steering Stabilizer \"NO HARDWARE\", JL Wrangler | JT Gladiator",
+    "productCode": "7637",
+    "mapPrice": "$89.00",
+    "yourPrice": "$48.95",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:50.870Z"
+  },
+  {
+    "title": "JT Gladiator Rear Lower Control Arm Frame Skids",
+    "productCode": "6420",
+    "mapPrice": "$169.00",
+    "yourPrice": "$92.95",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:50.881Z"
+  },
+  {
+    "title": "RockSport Slate Front Shocks, Pair, JL Wrangler & JT Gladiator",
+    "productCode": "1030*",
+    "mapPrice": "$198.00",
+    "yourPrice": "$128.70",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:50.892Z"
+  },
+  {
+    "title": "MetalCloak HD Steering System, JL Wrangler | JT Gladiator, RockSport RED Edition for the Rubicon|Max-Tow|4XE|High Altitude|Mojave|392",
+    "productCode": "7667*",
+    "mapPrice": "$858.00",
+    "yourPrice": "$471.90",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:51.224Z"
+  },
+  {
+    "title": "MetalCloak HD Steering System, JL Wrangler | JT Gladiator, Non-Rubicon, RockSport RED Edition",
+    "productCode": "7668*",
+    "mapPrice": "$858.00",
+    "yourPrice": "$471.90",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:51.232Z"
+  },
+  {
+    "title": "Dog-Legged Tie Rod & RockSport RED Stabilizer Kit, JL Wrangler | JT Gladiator for the Rubicon|Max-Tow|4XE|High Altitude|Mojave|392 Edition",
+    "productCode": "*7623",
+    "mapPrice": "$658.00",
+    "yourPrice": "$361.90",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:51.241Z"
+  },
+  {
+    "title": "Dog-Legged Tie Rod & RockSport RED Stabilizer Kit, JL Wrangler | JT Gladiator, Non-Rubicon Edition",
+    "productCode": "*7629",
+    "mapPrice": "$648.00",
+    "yourPrice": "$415.30",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:51.277Z"
+  },
+  {
+    "title": "MetalCloak Chromoly Dog-Legged Tie Rod, JL Wrangler/JT Gladiator for the Rubicon |Max-Tow|4XE|High Altitude|Mojave|392 Edition",
+    "productCode": "*7622",
+    "mapPrice": "$464.00",
+    "yourPrice": "$255.20",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:51.306Z"
+  },
+  {
+    "title": "HD Chromoly Dog-Legged Tie Rod, JL Wrangler/JT Gladiator, Sport",
+    "productCode": "*7628",
+    "mapPrice": "$459.00",
+    "yourPrice": "$252.45",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:51.316Z"
+  },
+  {
+    "title": "JL/JT RockSport RED Axle Disconnect Skid Plate Upgrade Kit",
+    "productCode": "*6374",
+    "mapPrice": "$284.00",
+    "yourPrice": "$178.70",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:51.344Z"
+  },
+  {
+    "title": "RockSport RED Steering Stabilizer Kit, JL Wrangler, JT Gladiator",
+    "productCode": "*7681",
+    "mapPrice": "$198.00",
+    "yourPrice": "$122.80",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:51.354Z"
+  },
+  {
+    "title": "Front Track Bar Reinforcement Bracket, JL Wrangler | JT Gladiator",
+    "productCode": "7688*",
+    "mapPrice": "$149.00",
+    "yourPrice": "$81.95",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:52.047Z"
+  },
+  {
+    "title": "HD Control Arm Pro'lignment Kit, JL Wrangler | JT Gladiator",
+    "productCode": "7674*",
+    "mapPrice": "$349.00",
+    "yourPrice": "$191.95",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:52.153Z"
+  },
+  {
+    "title": "JT Gladiator 2.5\", JL Wrangler 4 Door, 3.5\"/ 2 Door 4.5\" True Dual Rate Coils, Front",
+    "productCode": "7607*",
+    "mapPrice": "$303.00",
+    "yourPrice": "$193.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:52.394Z"
+  },
+  {
+    "title": "JT Gladiator 3.5\", JL Wrangler 4 Door, 4.5\"/ 2 Door 5.5\" True Dual Rate Coils, Front",
+    "productCode": "7671*",
+    "mapPrice": "$303.00",
+    "yourPrice": "$166.65",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:52.413Z"
+  },
+  {
+    "title": "JL Wrangler 4 Door 5.5\", JT Gladiator 4.5\", Front TDR Coils, Pair",
+    "productCode": "7675*",
+    "mapPrice": "$303.00",
+    "yourPrice": "$166.65",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:52.433Z"
+  },
+  {
+    "title": "JL Wrangler | JT Gladiator Front Differential Cover & Glide Skid System [ M210 | 3rd Gen D44 ] Rubicon Edition",
+    "productCode": "*6375",
+    "mapPrice": "$209.00",
+    "yourPrice": "$114.95",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:52.546Z"
+  },
+  {
+    "title": "Overland Tube Fenders, JL Wrangler | JT Gladiator, Front, Pair",
+    "productCode": "6200*",
+    "mapPrice": "$1,049.00",
+    "yourPrice": "$681.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:53.153Z"
+  },
+  {
+    "title": "Aluminum Overland Tube Fenders, JL Wrangler/JT Gladiator, Front, Pair",
+    "productCode": "6200-AL*",
+    "mapPrice": "$1,346.00",
+    "yourPrice": "$874.90",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:53.174Z"
+  },
+  {
+    "title": "Aluminum Rocker ExoSkin, No Bolts, Pair, 4-Door, JL Wrangler | JT Gladiator",
+    "productCode": "6324*",
+    "mapPrice": "$209.00",
+    "yourPrice": "$135.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:53.193Z"
+  },
+  {
+    "title": "Aluminum Rocker ExoSkin, No Bolts, Pair, Full Kit, JT Gladiator",
+    "productCode": "6330*",
+    "mapPrice": "$319.00",
+    "yourPrice": "$207.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:53.207Z"
+  },
+  {
+    "title": "JL/JT Rubicon Fender Gutz Delete & Clearance Bracket",
+    "productCode": "6220*",
+    "mapPrice": "$339.00",
+    "yourPrice": "$220.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:53.218Z"
+  },
+  {
+    "title": "JL Wrangler | JT Gladiator Hi-Clearance Replacement Inner Fender Front Set, Aluminum",
+    "productCode": "6290*",
+    "mapPrice": "$416.00",
+    "yourPrice": "$270.40",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:53.233Z"
+  },
+  {
+    "title": "JT Gladiator Replacement Aluminum Inner Fender Set, Rear, Pair",
+    "productCode": "6292*",
+    "mapPrice": "$494.00",
+    "yourPrice": "$321.10",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:53.245Z"
+  },
+  {
+    "title": "Overland Tube Fenders, JT Gladiator, Rear, Pair",
+    "productCode": "6500*",
+    "mapPrice": "$749.00",
+    "yourPrice": "$486.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:53.259Z"
+  },
+  {
+    "title": "Aluminum Overland Tube Fenders, JT Gladiator, Rear, Pair",
+    "productCode": "6500-AL*",
+    "mapPrice": "$1,249.00",
+    "yourPrice": "$811.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:53.280Z"
+  },
+  {
+    "title": "Aluminum Rocker ExoSkin, Pair, 4-Door, JL Wrangler | JT Gladiator",
+    "productCode": "6320*",
+    "mapPrice": "$249.00",
+    "yourPrice": "$161.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:53.298Z"
+  },
+  {
+    "title": "Overline Rocker Rails, JT Gladiator, Pair",
+    "productCode": "6322*",
+    "mapPrice": "$1,389.00",
+    "yourPrice": "$902.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:53.316Z"
+  },
+  {
+    "title": "Aluminum Rocker ExoSkin Extensions, Jeep JT Gladiator",
+    "productCode": "6319*",
+    "mapPrice": "$114.00",
+    "yourPrice": "$74.10",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:53.342Z"
+  },
+  {
+    "title": "Aluminum Rocker ExoSkin Full Kit, JT Gladiator",
+    "productCode": "6329*",
+    "mapPrice": "$364.00",
+    "yourPrice": "$236.60",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:53.367Z"
+  },
+  {
+    "title": "Overland Rocker & Flip Step Kit, JT Gladiator, Pair",
+    "productCode": "6353*",
+    "mapPrice": "$1,339.00",
+    "yourPrice": "$870.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:53.386Z"
+  },
+  {
+    "title": "Overland Rocker, JT Gladiator",
+    "productCode": "6323*",
+    "mapPrice": "$966.00",
+    "yourPrice": "$627.90",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:53.397Z"
+  },
+  {
+    "title": "JT Gladiator Rear Lower Shock Skid Plates, Pair",
+    "productCode": "6422",
+    "mapPrice": "$159.00",
+    "yourPrice": "$103.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:53.446Z"
+  },
+  {
+    "title": "Stock Front Diff Cover Skid Plate JL Wrangler | JT Gladiator",
+    "productCode": "6393*",
+    "mapPrice": "$156.00",
+    "yourPrice": "$101.40",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:53.505Z"
+  },
+  {
+    "title": "Front Axle Disconnect Skid Plate System/Stabilizer Relocation, JL/JT",
+    "productCode": "*6372",
+    "mapPrice": "$228.00",
+    "yourPrice": "$142.30",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:53.562Z"
+  },
+  {
+    "title": "Aluminum Open Frame Tube Doors, JL & JT, Front, Pair",
+    "productCode": "4200*",
+    "mapPrice": "$929.00",
+    "yourPrice": "$603.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:53.619Z"
+  },
+  {
+    "title": "MetalCloak Rocklander Hinge Step, Pair, JK Wrangler | JL Wrangler | JT Gladiator",
+    "productCode": "R60265*",
+    "mapPrice": "$179.00",
+    "yourPrice": "$116.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:53.628Z"
+  },
+  {
+    "title": "Frame-Built Bumper #2501, JL Wrangler, JT Gladiator",
+    "productCode": "FB-JL-2501*",
+    "mapPrice": "$1,279.00",
+    "yourPrice": "$831.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:53.682Z"
+  },
+  {
+    "title": "Frame-Built Bumper #2500, JL Wrangler, JT Gladiator",
+    "productCode": "FB-JL-2500*",
+    "mapPrice": "$1,006.00",
+    "yourPrice": "$653.90",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:53.692Z"
+  },
+  {
+    "title": "Frame-Built Bumper #2502, JL Wrangler, JT Gladiator",
+    "productCode": "FB-JL-2502*",
+    "mapPrice": "$1,446.00",
+    "yourPrice": "$939.90",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:53.702Z"
+  },
+  {
+    "title": "Frame-Built Bumper #2504, JL Wrangler, JT Gladiator",
+    "productCode": "FB-JL-2504*",
+    "mapPrice": "$1,274.00",
+    "yourPrice": "$828.10",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:53.713Z"
+  },
+  {
+    "title": "Frame-Built Bumper #2400, JL Wrangler, JT Gladiator",
+    "productCode": "FB-JL-2400*",
+    "mapPrice": "$1,029.00",
+    "yourPrice": "$668.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:53.724Z"
+  },
+  {
+    "title": "Frame-Built Bumper #2401, JL Wrangler, JT Gladiator",
+    "productCode": "FB-JL-2401*",
+    "mapPrice": "$1,299.00",
+    "yourPrice": "$844.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:53.734Z"
+  },
+  {
+    "title": "Frame-Built Bumper #2402, JL Wrangler, JT Gladiator",
+    "productCode": "FB-JL-2402*",
+    "mapPrice": "$1,469.00",
+    "yourPrice": "$954.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:53.742Z"
+  },
+  {
+    "title": "Frame-Built Bumper #2404, JL Wrangler, JT Gladiator",
+    "productCode": "FB-JL-2404*",
+    "mapPrice": "$1,294.00",
+    "yourPrice": "$841.10",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:53.751Z"
+  },
+  {
+    "title": "Frame-Built Bumper #2200, JL Wrangler, JT Gladiator",
+    "productCode": "FB-JL-2200*",
+    "mapPrice": "$789.00",
+    "yourPrice": "$512.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:53.761Z"
+  },
+  {
+    "title": "Frame-Built Bumper #2201, JL Wrangler, JT Gladiator",
+    "productCode": "FB-JL-2201*",
+    "mapPrice": "$1,059.00",
+    "yourPrice": "$688.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:53.770Z"
+  },
+  {
+    "title": "Frame-Built Bumper #2202, JL Wrangler, JT Gladiator",
+    "productCode": "FB-JL-2202*",
+    "mapPrice": "$1,229.00",
+    "yourPrice": "$798.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:54.303Z"
+  },
+  {
+    "title": "Frame-Built Bumper #2204, JL Wrangler, JT Gladiator",
+    "productCode": "FB-JL-2204*",
+    "mapPrice": "$1,054.00",
+    "yourPrice": "$685.10",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:54.318Z"
+  },
+  {
+    "title": "JT Gladiator Lo Profile Modular Rear Bumper",
+    "productCode": "6800*",
+    "mapPrice": "$956.00",
+    "yourPrice": "$621.40",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:54.330Z"
+  },
+  {
+    "title": "Jeep JL Wrangler 3.5\" 4-Link, Bolt-On Long Arm Suspension & Lift Kit, 4-Door",
+    "productCode": "A4435*",
+    "mapPrice": "$4,728.00",
+    "yourPrice": "$2,887.30",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:54.597Z"
+  },
+  {
+    "title": "Jeep JL Wrangler 4.5\" 4-Link, Bolt-On Long Arm Suspension & Lift Kit, 4-Door",
+    "productCode": "A4445*",
+    "mapPrice": "$5,268.00",
+    "yourPrice": "$3,294.20",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:54.607Z"
+  },
+  {
+    "title": "Jeep JL Wrangler 5.5\" 4-Link, Bolt-On Long Arm Suspension & Lift Kit, 4-Door",
+    "productCode": "A4455*",
+    "mapPrice": "$5,288.00",
+    "yourPrice": "$3,307.20",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:54.619Z"
+  },
+  {
+    "title": "Jeep JL Wrangler 392 3.5\" 4-Link, Bolt-On Long Arm Suspension & Lift Kit",
+    "productCode": "A5435*",
+    "mapPrice": "$5,473.00",
+    "yourPrice": "$3,552.05",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:54.630Z"
+  },
+  {
+    "title": "Jeep JL Wrangler 392 4.5\" 4-Link, Bolt-On Long Arm Suspension & Lift Kit",
+    "productCode": "A5445*",
+    "mapPrice": "$6,003.00",
+    "yourPrice": "$3,301.65",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:54.641Z"
+  },
+  {
+    "title": "Jeep JL Wrangler 2.5\" Game-Changer Suspension & Lift Kit",
+    "productCode": "A2225*",
+    "mapPrice": "$2,941.00",
+    "yourPrice": "$1,617.55",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:54.693Z"
+  },
+  {
+    "title": "Jeep JL Wrangler 3.5\" Game-Changer Suspension & Lift Kit",
+    "productCode": "A2235*",
+    "mapPrice": "$2,941.00",
+    "yourPrice": "$1,617.55",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:54.703Z"
+  },
+  {
+    "title": "Jeep JL Wrangler 4.5\" Game-Changer Suspension & Lift Kit",
+    "productCode": "A2245*",
+    "mapPrice": "$3,502.00",
+    "yourPrice": "$1,926.10",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:54.714Z"
+  },
+  {
+    "title": "Jeep JL Wrangler 5.5\" Game-Changer Suspension & Lift Kit",
+    "productCode": "A2255*",
+    "mapPrice": "$3,502.00",
+    "yourPrice": "$1,982.00",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:54.725Z"
+  },
+  {
+    "title": "Jeep JL Wrangler 2.5\" True Dual Rate Lift Kit",
+    "productCode": "A2125*",
+    "mapPrice": "$1,741.00",
+    "yourPrice": "$957.55",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:54.736Z"
+  },
+  {
+    "title": "Jeep JL Wrangler 3.5\" True Dual Rate Lift Kit",
+    "productCode": "A2135*",
+    "mapPrice": "$1,741.00",
+    "yourPrice": "$957.55",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:54.747Z"
+  },
+  {
+    "title": "JL Wrangler Dual Rate to Game Changer Upgrade Kit",
+    "productCode": "A2100*",
+    "mapPrice": "$1,199.00",
+    "yourPrice": "$779.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:54.756Z"
+  },
+  {
+    "title": "Jeep JL Wrangler 4xE 2.5\" Game-Changer Suspension & Lift Kit",
+    "productCode": "A6225*",
+    "mapPrice": "$2,982.00",
+    "yourPrice": "$1,924.00",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:54.766Z"
+  },
+  {
+    "title": "Jeep JL Wrangler 4xE 3.5\" Game-Changer Suspension & Lift Kit",
+    "productCode": "A6235*",
+    "mapPrice": "$3,002.00",
+    "yourPrice": "$1,937.00",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:54.776Z"
+  },
+  {
+    "title": "Jeep JL Wrangler 4xE 2.5\" True Dual Rate Lift Kit",
+    "productCode": "A6125*",
+    "mapPrice": "$1,782.00",
+    "yourPrice": "$1,144.00",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:54.786Z"
+  },
+  {
+    "title": "Jeep JL Wrangler 4xE 3.5\" True Dual Rate Lift Kit",
+    "productCode": "A6135*",
+    "mapPrice": "$1,802.00",
+    "yourPrice": "$1,157.00",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:54.795Z"
+  },
+  {
+    "title": "Jeep JL Wrangler 392 2.5\" Game-Changer Suspension & Lift Kit",
+    "productCode": "A5225*",
+    "mapPrice": "$2,903.00",
+    "yourPrice": "$1,596.65",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:54.806Z"
+  },
+  {
+    "title": "Jeep JL Wrangler 392 3.5\" Game-Changer Suspension & Lift Kit",
+    "productCode": "A5235*",
+    "mapPrice": "$2,903.00",
+    "yourPrice": "$1,596.65",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:54.816Z"
+  },
+  {
+    "title": "Jeep JL Wrangler 392 4.5\" Game-Changer Suspension",
+    "productCode": "A5245*",
+    "mapPrice": "$3,443.00",
+    "yourPrice": "$2,232.55",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:54.824Z"
+  },
+  {
+    "title": "Jeep JL Wrangler 392 2.5\" True Dual Rate Lift Kit",
+    "productCode": "A5125*",
+    "mapPrice": "$1,703.00",
+    "yourPrice": "$1,101.55",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:54.832Z"
+  },
+  {
+    "title": "Jeep JL Wrangler 392 3.5\" True Dual Rate Lift Kit",
+    "productCode": "A5135*",
+    "mapPrice": "$1,713.00",
+    "yourPrice": "$1,108.05",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:54.841Z"
+  },
+  {
+    "title": "Jeep JL Wrangler 2.5\" Rocklander® Overland Suspension & Lift Kit",
+    "productCode": "A2825*",
+    "mapPrice": "$2,941.00",
+    "yourPrice": "$1,617.55",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:54.850Z"
+  },
+  {
+    "title": "Jeep JL Wrangler 3.5\" Rocklander® Overland Suspension & Lift Kit",
+    "productCode": "A2835*",
+    "mapPrice": "$2,941.00",
+    "yourPrice": "$1,617.55",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:54.861Z"
+  },
+  {
+    "title": "Jeep JL Wrangler 4.5\" Rocklander® Overland Suspension & Lift Kit",
+    "productCode": "A2845*",
+    "mapPrice": "$3,522.00",
+    "yourPrice": "$2,226.00",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:54.871Z"
+  },
+  {
+    "title": "4xE JL Wrangler Upper Coil Isolators",
+    "productCode": "7259",
+    "mapPrice": "$79.00",
+    "yourPrice": "$43.45",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:55.449Z"
+  },
+  {
+    "title": "RockSport Silver 2.0 Aluminum Shocks, JL Wrangler, Front, Pair",
+    "productCode": "1020*",
+    "mapPrice": "$439.00",
+    "yourPrice": "$285.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:55.501Z"
+  },
+  {
+    "title": "RockSport Slate Rear Shocks, Pair, JL Wrangler",
+    "productCode": "1031",
+    "mapPrice": "$198.00",
+    "yourPrice": "$108.90",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:55.520Z"
+  },
+  {
+    "title": "JL Wrangler 4 Door, 2.5\"/ 2 Door 3.5\" True Dual Rate Coils, Front",
+    "productCode": "7609*",
+    "mapPrice": "$303.00",
+    "yourPrice": "$193.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:56.936Z"
+  },
+  {
+    "title": "JL Wrangler True Dual Rate™ Coils, 4-Door 2.5\" / 2 Door 3.5\", Rear, Pair",
+    "productCode": "7611*",
+    "mapPrice": "$249.00",
+    "yourPrice": "$161.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:56.945Z"
+  },
+  {
+    "title": "JL Wrangler True Dual Rate™ Coils, 4-Door 3.5\" / 2 Door 4.5\", Rear, Pair",
+    "productCode": "7608*",
+    "mapPrice": "$249.00",
+    "yourPrice": "$161.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:56.962Z"
+  },
+  {
+    "title": "JL Wrangler 2 Door, 2.5\", True Dual Rate Coils, Front",
+    "productCode": "7617*",
+    "mapPrice": "$311.00",
+    "yourPrice": "$197.75",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:57.014Z"
+  },
+  {
+    "title": "JL Wrangler Replacement Aluminum Inner Fender Set, Rear",
+    "productCode": "6291*",
+    "mapPrice": "$349.00",
+    "yourPrice": "$226.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:57.833Z"
+  },
+  {
+    "title": "Overland Tube Fenders, JL Wrangler, Rear",
+    "productCode": "6400*",
+    "mapPrice": "$729.00",
+    "yourPrice": "$473.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:57.842Z"
+  },
+  {
+    "title": "Aluminum Overland Tube Fenders, JL Wrangler, Rear, Pair",
+    "productCode": "6400-AL*",
+    "mapPrice": "$1,029.00",
+    "yourPrice": "$668.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:57.851Z"
+  },
+  {
+    "title": "Overline Rocker Rail, Pair, JL, 4-Door",
+    "productCode": "6315*",
+    "mapPrice": "$726.00",
+    "yourPrice": "$471.90",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:57.860Z"
+  },
+  {
+    "title": "JL Wrangler 2-Door Overline Rocker Rails",
+    "productCode": "6316*",
+    "mapPrice": "$659.00",
+    "yourPrice": "$428.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:57.869Z"
+  },
+  {
+    "title": "Aluminum Rocker ExoSkin, Pair, JL Wrangler, JL 2-Door",
+    "productCode": "6321*",
+    "mapPrice": "$209.00",
+    "yourPrice": "$135.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:57.894Z"
+  },
+  {
+    "title": "JL Overland Rocker Flip Step Kit, 2-Door",
+    "productCode": "6352*",
+    "mapPrice": "$1,019.00",
+    "yourPrice": "$662.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:57.904Z"
+  },
+  {
+    "title": "JL 4-Door Overland Rocker & Flip Step Kit",
+    "productCode": "6351*",
+    "mapPrice": "$1,204.00",
+    "yourPrice": "$782.60",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:57.913Z"
+  },
+  {
+    "title": "Overland Flip Step, Pair, JK/JL, 2-Door",
+    "productCode": "3322*",
+    "mapPrice": "$374.00",
+    "yourPrice": "$243.10",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:57.922Z"
+  },
+  {
+    "title": "Overland Flip Step, Pair, JK/JL Wrangler, JT Gladiator, 4-Door",
+    "productCode": "3327*",
+    "mapPrice": "$369.00",
+    "yourPrice": "$239.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:57.931Z"
+  },
+  {
+    "title": "Overland Rocker Base, JL, 4-Door",
+    "productCode": "6317*",
+    "mapPrice": "$834.00",
+    "yourPrice": "$542.10",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:57.940Z"
+  },
+  {
+    "title": "Overland Rocker Base, JL, 2-Door",
+    "productCode": "6318*",
+    "mapPrice": "$656.00",
+    "yourPrice": "$426.40",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:57.949Z"
+  },
+  {
+    "title": "UnderCloak Integrated Armor System, 4-Door, JL Wrangler",
+    "productCode": "6360*",
+    "mapPrice": "$1,589.00",
+    "yourPrice": "$1,032.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:57.957Z"
+  },
+  {
+    "title": "UnderCloak Integrated Armor System, 2-Door, JL Wrangler",
+    "productCode": "6362*",
+    "mapPrice": "$1,489.00",
+    "yourPrice": "$967.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:57.966Z"
+  },
+  {
+    "title": "UnderCloak Integrated Armor System, JL Wrangler, 4-Door, Diesel",
+    "productCode": "6379*",
+    "mapPrice": "$1,509.00",
+    "yourPrice": "$980.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:57.974Z"
+  },
+  {
+    "title": "UnderCloak Integrated Armor System, JL Wrangler, 392",
+    "productCode": "6387*",
+    "mapPrice": "$1,638.00",
+    "yourPrice": "$1,064.70",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:57.983Z"
+  },
+  {
+    "title": "Jeep JL Wrangler Heavy Duty SportGate Tire Carrier",
+    "productCode": "6951*",
+    "mapPrice": "$1,108.00",
+    "yourPrice": "$720.20",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:58.987Z"
+  },
+  {
+    "title": "Jeep JL Wrangler Casual Duty SportGate Tire Carrier",
+    "productCode": "6950*",
+    "mapPrice": "$688.00",
+    "yourPrice": "$447.20",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:58.996Z"
+  },
+  {
+    "title": "Jeep JK Wrangler 4.5\" 4-Link, Bolt-On Long Arm Suspension & Lift Kit",
+    "productCode": "A1645*",
+    "mapPrice": "$5,557.00",
+    "yourPrice": "$3,056.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:59.893Z"
+  },
+  {
+    "title": "Jeep JK Wrangler 4.5\" 4-Link, Bolt-On Long Arm Suspension & Lift Kit, Right Hand Drive",
+    "productCode": "A1645R*",
+    "mapPrice": "$5,697.00",
+    "yourPrice": "$3,621.25",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:59.908Z"
+  },
+  {
+    "title": "Jeep JK Wrangler 5.5\" 4-Link, Bolt-On Long Arm Suspension & Lift Kit",
+    "productCode": "A1655*",
+    "mapPrice": "$5,557.00",
+    "yourPrice": "$3,106.25",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:59.938Z"
+  },
+  {
+    "title": "Jeep JK Wrangler 4.5\" 4-Link & DB3, Bolt-On Long Arm Compound Suspension & Lift Kit",
+    "productCode": "A1445*",
+    "mapPrice": "$4,557.00",
+    "yourPrice": "$2,506.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:59.961Z"
+  },
+  {
+    "title": "Jeep JK Wrangler 5.5\" 4-Link & DB3, Bolt-On Long Arm Compound Suspension & Lift Kit",
+    "productCode": "A1455*",
+    "mapPrice": "$5,067.00",
+    "yourPrice": "$2,836.75",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:59.983Z"
+  },
+  {
+    "title": "Jeep JK Wrangler FRONT Four Link Long Arm Set",
+    "productCode": "7278*",
+    "mapPrice": "$1,362.00",
+    "yourPrice": "$872.70",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:40:59.997Z"
+  },
+  {
+    "title": "Jeep JK Wrangler 2.5\" Game-Changer Suspension & Lift Kit",
+    "productCode": "A1225*",
+    "mapPrice": "$3,430.00",
+    "yourPrice": "$1,886.50",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:00.030Z"
+  },
+  {
+    "title": "Jeep JK Wrangler 3.5\" Game-Changer Suspension & Lift Kit",
+    "productCode": "A1235*",
+    "mapPrice": "$3,430.00",
+    "yourPrice": "$1,886.50",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:00.048Z"
+  },
+  {
+    "title": "Jeep JK Wrangler 3.5\" Game-Changer Suspension & Lift Kit, Right Hand Drive",
+    "productCode": "A1235R*",
+    "mapPrice": "$3,610.00",
+    "yourPrice": "$2,272.40",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:00.061Z"
+  },
+  {
+    "title": "Jeep JK Wrangler 4.5\" Game-Changer Suspension & Lift Kit",
+    "productCode": "A1245*",
+    "mapPrice": "$3,900.00",
+    "yourPrice": "$2,145.00",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:00.072Z"
+  },
+  {
+    "title": "Jeep JK Wrangler 5.5\" Game-Changer Bolt-On Suspension & Lift Kit",
+    "productCode": "A1255*",
+    "mapPrice": "$4,751.00",
+    "yourPrice": "$2,662.95",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:00.088Z"
+  },
+  {
+    "title": "Jeep JK Wrangler 2.5\" True Dual Rate Lift Kit",
+    "productCode": "A1125*",
+    "mapPrice": "$1,850.00",
+    "yourPrice": "$1,017.50",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:00.101Z"
+  },
+  {
+    "title": "Jeep JK Wrangler 3.5\" True Dual Rate Lift Kit",
+    "productCode": "A1135*",
+    "mapPrice": "$1,850.00",
+    "yourPrice": "$1,017.50",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:00.112Z"
+  },
+  {
+    "title": "JK Wrangler Dual Rate to Game Changer Upgrade Kit",
+    "productCode": "A1100*",
+    "mapPrice": "$1,599.00",
+    "yourPrice": "$1,039.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:00.123Z"
+  },
+  {
+    "title": "4.5\" Front Fox/BDS Shocks, Pair | JK Wrangler | [PN 98224922]",
+    "productCode": "1005",
+    "mapPrice": "$399.00",
+    "yourPrice": "$219.45",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:00.149Z"
+  },
+  {
+    "title": "JK Wrangler 6Pak Long Travel Upgrade Kit, 3.5\"",
+    "productCode": "7119*",
+    "mapPrice": "$3,263.00",
+    "yourPrice": "$3,263.00",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:00.162Z"
+  },
+  {
+    "title": "JK Wrangler 6Pak Shock Upgrade System",
+    "productCode": "7130*",
+    "mapPrice": "$2,873.00",
+    "yourPrice": "$1,856.55",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:00.174Z"
+  },
+  {
+    "title": "4.5\" Rear Fox/BDS Shocks, Pair | JK Wrangler | [PN 98224959]",
+    "productCode": "1006",
+    "mapPrice": "$399.00",
+    "yourPrice": "$219.45",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:00.187Z"
+  },
+  {
+    "title": "JK Wrangler Coils, 4 Door 3.5\" / 2 Door 4.5\" True Dual Rate Coils, Front",
+    "productCode": "7007*",
+    "mapPrice": "$259.00",
+    "yourPrice": "$168.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:00.208Z"
+  },
+  {
+    "title": "JK Wrangler Coils, 4-Door 4.5\", 2-Door 5.5\" True Dual Rate Coils, Front",
+    "productCode": "7183*",
+    "mapPrice": "$259.00",
+    "yourPrice": "$168.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:00.218Z"
+  },
+  {
+    "title": "JK Wrangler Coils, 4 Door 5.5\", True Dual Rate Coils, Front",
+    "productCode": "7208*",
+    "mapPrice": "$279.00",
+    "yourPrice": "$181.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:00.230Z"
+  },
+  {
+    "title": "JK Wrangler Coils, 2 Door 2.5\", True Dual Rate Coils, Front",
+    "productCode": "7058*",
+    "mapPrice": "$249.00",
+    "yourPrice": "$161.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:00.245Z"
+  },
+  {
+    "title": "JK Wrangler Coils, 2 Door 3.5\"/ 4 Door 2.5\", True Dual Rate Coils, Front",
+    "productCode": "7030*",
+    "mapPrice": "$249.00",
+    "yourPrice": "$136.95",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:00.257Z"
+  },
+  {
+    "title": "JK Wrangler RockSport BLACK Reservoir Mount Relocation Bracket, Rear",
+    "productCode": "1626",
+    "mapPrice": "$79.00",
+    "yourPrice": "$43.45",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:00.266Z"
+  },
+  {
+    "title": "RockSport BLACK 4.5\"/5.5\" JK Wrangler Reservoir Long Travel Shocks, Adjustable, Front, Pair",
+    "productCode": "1612*",
+    "mapPrice": "$1,499.00",
+    "yourPrice": "$824.45",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:00.376Z"
+  },
+  {
+    "title": "RockSport BLACK 2.5\"/3.5\" JK Wrangler Reservoir Long Travel Shocks, Adjustable, Front, Pair",
+    "productCode": "1611*",
+    "mapPrice": "$1,499.00",
+    "yourPrice": "$824.45",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:00.390Z"
+  },
+  {
+    "title": "MetalCloak HD Steering System, JK Wrangler, RockSport RED Edition",
+    "productCode": "*7134",
+    "mapPrice": "$858.00",
+    "yourPrice": "$471.90",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:01.148Z"
+  },
+  {
+    "title": "MetalCloak Chromoly Dog-Legged Tie Rod, JK Wrangler",
+    "productCode": "*7222",
+    "mapPrice": "$439.00",
+    "yourPrice": "$241.45",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:01.158Z"
+  },
+  {
+    "title": "Overline Tube Fender, Pair, JK",
+    "productCode": "3214*",
+    "mapPrice": "$919.00",
+    "yourPrice": "$597.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:02.736Z"
+  },
+  {
+    "title": "Overline Hi-Clearance Quick-Release Front Flare, Narrow Edition, Pair, JK",
+    "productCode": "3280*",
+    "mapPrice": "$329.00",
+    "yourPrice": "$213.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:02.746Z"
+  },
+  {
+    "title": "Overline Hi-Clearance Quick-Release Front Flare, Standard Edition, Pair, JK",
+    "productCode": "3281*",
+    "mapPrice": "$314.00",
+    "yourPrice": "$204.10",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:02.755Z"
+  },
+  {
+    "title": "Overline Hi-Clearance Quick-Release Front Flare, Wide Edition, Pair, JK",
+    "productCode": "3282*",
+    "mapPrice": "$569.00",
+    "yourPrice": "$369.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:02.765Z"
+  },
+  {
+    "title": "JK Vented Aluminum Replacement Inner Fender Set",
+    "productCode": "3291*",
+    "mapPrice": "$289.00",
+    "yourPrice": "$187.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:02.775Z"
+  },
+  {
+    "title": "JK Reservoir Cut Vented Aluminum Replacement Inner Fender Set",
+    "productCode": "3293*",
+    "mapPrice": "$289.00",
+    "yourPrice": "$187.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:02.784Z"
+  },
+  {
+    "title": "Overline Rear Flare Mounting ExoSkin, Pair, JK, 4-Door",
+    "productCode": "3410*",
+    "mapPrice": "$489.00",
+    "yourPrice": "$317.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:02.794Z"
+  },
+  {
+    "title": "Overline Rear Flare Mounting ExoSkin, Pair, JK, 2-Door",
+    "productCode": "3411*",
+    "mapPrice": "$469.00",
+    "yourPrice": "$304.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:02.803Z"
+  },
+  {
+    "title": "Overline Hi-Clearance Dovetailed & Removable Rear Flare, Narrow Edition, Pair, JK",
+    "productCode": "3425*",
+    "mapPrice": "$389.00",
+    "yourPrice": "$252.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:02.812Z"
+  },
+  {
+    "title": "Overline Hi-Clearance Dovetailed & Removable Rear Flare, Standard Edition, Pair, JK",
+    "productCode": "3426*",
+    "mapPrice": "$429.00",
+    "yourPrice": "$278.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:02.821Z"
+  },
+  {
+    "title": "Overline Hi-Clearance Dovetailed & Removable Rear Flare, Wide Edition, Pair, JK",
+    "productCode": "3427*",
+    "mapPrice": "$574.00",
+    "yourPrice": "$373.10",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:02.830Z"
+  },
+  {
+    "title": "Overline Rocker Exo Skin, Pair, JK, 2-Door",
+    "productCode": "3311*",
+    "mapPrice": "$159.00",
+    "yourPrice": "$103.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:02.840Z"
+  },
+  {
+    "title": "Overline Rocker Exo Skin, Pair, JK, 4-Door",
+    "productCode": "3316*",
+    "mapPrice": "$219.00",
+    "yourPrice": "$142.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:02.849Z"
+  },
+  {
+    "title": "Rocker Rail, Pair, JK, 2-Door",
+    "productCode": "3310*",
+    "mapPrice": "$594.00",
+    "yourPrice": "$386.10",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:02.870Z"
+  },
+  {
+    "title": "Rocker Rail, Pair, JK, 4-Door",
+    "productCode": "3315*",
+    "mapPrice": "$759.00",
+    "yourPrice": "$493.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:02.884Z"
+  },
+  {
+    "title": "Overland Tube Fenders, JK Wrangler, Front",
+    "productCode": "3200*",
+    "mapPrice": "$1,009.00",
+    "yourPrice": "$655.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:02.959Z"
+  },
+  {
+    "title": "Aluminum Overland Tube Fenders, JK Wrangler, Front",
+    "productCode": "3200-AL*",
+    "mapPrice": "$1,259.00",
+    "yourPrice": "$818.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:02.971Z"
+  },
+  {
+    "title": "JK Wrangler Extended ExoSkin, Rear, 2-Door",
+    "productCode": "3414*",
+    "mapPrice": "$259.00",
+    "yourPrice": "$168.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:03.619Z"
+  },
+  {
+    "title": "JK Wrangler Extended ExoSkin, Rear, 4-Door",
+    "productCode": "3415*",
+    "mapPrice": "$229.00",
+    "yourPrice": "$148.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:03.633Z"
+  },
+  {
+    "title": "Overland Tube Fenders, JK Wrangler, Rear",
+    "productCode": "3400*",
+    "mapPrice": "$709.00",
+    "yourPrice": "$460.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:03.643Z"
+  },
+  {
+    "title": "Aluminum Overland Tube Fenders, JK Wrangler, Rear",
+    "productCode": "3400-AL*",
+    "mapPrice": "$1,074.00",
+    "yourPrice": "$698.10",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:03.653Z"
+  },
+  {
+    "title": "Overland Aluminum Rocker ExoSkin, Pair, JK, 4-Door",
+    "productCode": "3318*",
+    "mapPrice": "$364.00",
+    "yourPrice": "$236.60",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:03.662Z"
+  },
+  {
+    "title": "Overland Rocker Base, Pair, JK, 4-Door",
+    "productCode": "3317*",
+    "mapPrice": "$659.00",
+    "yourPrice": "$428.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:03.672Z"
+  },
+  {
+    "title": "Overland Rocker & Flip Step Kit, Pair, JK, 2-Door",
+    "productCode": "3350*",
+    "mapPrice": "$969.00",
+    "yourPrice": "$629.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:03.701Z"
+  },
+  {
+    "title": "Overland Rocker & Flip Step Kit, Pair, JK, 4-Door",
+    "productCode": "3351*",
+    "mapPrice": "$1,029.00",
+    "yourPrice": "$668.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:03.711Z"
+  },
+  {
+    "title": "Overland Rocker Base, Pair, JK, 2-Door",
+    "productCode": "3312*",
+    "mapPrice": "$596.00",
+    "yourPrice": "$387.40",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:03.753Z"
+  },
+  {
+    "title": "Overland Aluminum Rocker ExoSkin, Pair, JK, 2-Door",
+    "productCode": "3313*",
+    "mapPrice": "$229.00",
+    "yourPrice": "$148.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:03.763Z"
+  },
+  {
+    "title": "UnderCloak Integrated Armor System, JK, 4-Door",
+    "productCode": "3366*",
+    "mapPrice": "$1,939.00",
+    "yourPrice": "$1,260.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:03.773Z"
+  },
+  {
+    "title": "UnderCloak Integrated Armor System, JK, 2-Door",
+    "productCode": "3365*",
+    "mapPrice": "$1,779.00",
+    "yourPrice": "$1,156.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:03.782Z"
+  },
+  {
+    "title": "Aluminum Open Frame Tube Doors, JK, Front, Pair",
+    "productCode": "4100*",
+    "mapPrice": "$939.00",
+    "yourPrice": "$610.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:03.883Z"
+  },
+  {
+    "title": "Fender to Grill Reinforcement Bracket, Pair, JK",
+    "productCode": "3201*",
+    "mapPrice": "$46.00",
+    "yourPrice": "$29.90",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:03.941Z"
+  },
+  {
+    "title": "JK Vented Aluminum Replacement Inner Fender",
+    "productCode": "3292*",
+    "mapPrice": "$74.00",
+    "yourPrice": "$48.10",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:03.949Z"
+  },
+  {
+    "title": "JK Wrangler Reservoir Cut Vented Aluminum Inner Fender Replacement Panel, Pair",
+    "productCode": "3294*",
+    "mapPrice": "$94.00",
+    "yourPrice": "$61.10",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:03.958Z"
+  },
+  {
+    "title": "Frame-Built Bumper #1500, JK Wrangler",
+    "productCode": "FB-JK-1500*",
+    "mapPrice": "$874.00",
+    "yourPrice": "$568.10",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:04.059Z"
+  },
+  {
+    "title": "Frame-Built Bumper #1501, JK Wrangler",
+    "productCode": "FB-JK-1501*",
+    "mapPrice": "$1,146.00",
+    "yourPrice": "$744.90",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:04.070Z"
+  },
+  {
+    "title": "Frame-Built Bumper #1502, JK Wrangler",
+    "productCode": "FB-JK-1502*",
+    "mapPrice": "$1,314.00",
+    "yourPrice": "$854.10",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:04.080Z"
+  },
+  {
+    "title": "Frame-Built Bumper #1504, JK Wrangler",
+    "productCode": "FB-JK-1504*",
+    "mapPrice": "$1,139.00",
+    "yourPrice": "$740.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:04.092Z"
+  },
+  {
+    "title": "Frame-Built Bumper #1400, JK Wrangler",
+    "productCode": "FB-JK-1400*",
+    "mapPrice": "$894.00",
+    "yourPrice": "$581.10",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:04.101Z"
+  },
+  {
+    "title": "Frame-Built Bumper #1401, JK Wrangler",
+    "productCode": "FB-JK-1401*",
+    "mapPrice": "$1,169.00",
+    "yourPrice": "$759.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:04.111Z"
+  },
+  {
+    "title": "Frame-Built Bumper #1402, JK Wrangler",
+    "productCode": "FB-JK-1402*",
+    "mapPrice": "$1,336.00",
+    "yourPrice": "$868.40",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:04.120Z"
+  },
+  {
+    "title": "Frame-Built Bumper #1404, JK Wrangler",
+    "productCode": "FB-JK-1404*",
+    "mapPrice": "$1,159.00",
+    "yourPrice": "$753.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:04.129Z"
+  },
+  {
+    "title": "Frame-Built Bumper #1200, JK Wrangler",
+    "productCode": "FB-JK-1200*",
+    "mapPrice": "$654.00",
+    "yourPrice": "$425.10",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:04.138Z"
+  },
+  {
+    "title": "Frame-Built Bumper #1201, JK Wrangler",
+    "productCode": "FB-JK-1201*",
+    "mapPrice": "$929.00",
+    "yourPrice": "$603.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:04.147Z"
+  },
+  {
+    "title": "Frame-Built Bumper #1202, JK Wrangler",
+    "productCode": "FB-JK-1202*",
+    "mapPrice": "$1,094.00",
+    "yourPrice": "$711.10",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:04.681Z"
+  },
+  {
+    "title": "Frame-Built Bumper #1204, JK Wrangler",
+    "productCode": "FB-JK-1204*",
+    "mapPrice": "$919.00",
+    "yourPrice": "$597.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:04.699Z"
+  },
+  {
+    "title": "JK Wrangler Tub Mount Tire Carrier",
+    "productCode": "3970*",
+    "mapPrice": "$1,883.00",
+    "yourPrice": "$1,223.95",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:04.713Z"
+  },
+  {
+    "title": "MetalCloak SportGate Tire Carrier, JK Wrangler",
+    "productCode": "3956*",
+    "mapPrice": "$783.00",
+    "yourPrice": "$508.95",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:04.724Z"
+  },
+  {
+    "title": "JK Wrangler Full Duty Rear Bumper, Wide Edition",
+    "productCode": "3904*",
+    "mapPrice": "$689.00",
+    "yourPrice": "$447.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:04.736Z"
+  },
+  {
+    "title": "JK Wrangler Full Duty Rear Bumper, Crawler Edition",
+    "productCode": "3905*",
+    "mapPrice": "$689.00",
+    "yourPrice": "$447.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:04.749Z"
+  },
+  {
+    "title": "JK Frame-Built Combo Bumper Base",
+    "productCode": "3160*",
+    "mapPrice": "$454.00",
+    "yourPrice": "$295.10",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:04.794Z"
+  },
+  {
+    "title": "JK Wrangler Tail Gate \"Finish\" Plate",
+    "productCode": "2449*",
+    "mapPrice": "$104.00",
+    "yourPrice": "$67.60",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:05.250Z"
+  },
+  {
+    "title": "Jeep TJ/LJ Wrangler 3.5\" Long Travel, Short Arm Suspension & Lift Kit",
+    "productCode": "A0235*",
+    "mapPrice": "$2,908.00",
+    "yourPrice": "$1,599.40",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:05.289Z"
+  },
+  {
+    "title": "Jeep LJ Wrangler 5.5\" Lock-N-Load Long Arm Radius Suspension & Lift Kit",
+    "productCode": "A4660*",
+    "mapPrice": "$5,689.00",
+    "yourPrice": "$3,128.95",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:05.337Z"
+  },
+  {
+    "title": "Jeep LJ Wrangler 4.5\" Lock-N-Load Long Arm Suspension & Lift Kit",
+    "productCode": "A4645*",
+    "mapPrice": "$5,634.00",
+    "yourPrice": "$3,098.70",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:05.349Z"
+  },
+  {
+    "title": "Jeep TJ Wrangler 5.5\" Lock-N-Load Long Arm Suspension & Lift Kit",
+    "productCode": "A0660*",
+    "mapPrice": "$5,628.00",
+    "yourPrice": "$3,095.40",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:05.399Z"
+  },
+  {
+    "title": "Jeep TJ Wrangler 4.5\" Lock-N-Load Long Arm Suspension & Lift Kit",
+    "productCode": "A0645*",
+    "mapPrice": "$5,573.00",
+    "yourPrice": "$3,065.15",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:05.452Z"
+  },
+  {
+    "title": "Jeep TJ Wrangler Lock-N-Load Radius Long-Arm Upgrade Kit",
+    "productCode": "7141*",
+    "mapPrice": "$3,658.00",
+    "yourPrice": "$3,658.00",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:05.484Z"
+  },
+  {
+    "title": "\"Rubicon Express\" Extreme-Duty Long-Arm Bolt-In Upgrade Kit, TJ Wrangler",
+    "productCode": "7149*",
+    "mapPrice": "$2,459.00",
+    "yourPrice": "$1,352.45",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:05.500Z"
+  },
+  {
+    "title": "\"Rubicon Express\" Extreme-Duty Long-Arm Bolt-In Upgrade Kit, LJ Wrangler",
+    "productCode": "7156*",
+    "mapPrice": "$2,519.00",
+    "yourPrice": "$1,385.45",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:05.513Z"
+  },
+  {
+    "title": "TJ Wrangler \"Rubicon Express\" Rear Upper Long Arm Replacement/Upgrade Kit",
+    "productCode": "7148",
+    "mapPrice": "$699.00",
+    "yourPrice": "$384.45",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:06.140Z"
+  },
+  {
+    "title": "MetalCloak HD Steering System, TJ Wrangler |LJ Wrangler |XJ Cherokee |MJ Comanche |ZJ Cherokee",
+    "productCode": "7694*",
+    "mapPrice": "$709.00",
+    "yourPrice": "$389.95",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:06.236Z"
+  },
+  {
+    "title": "Arched Tube Fender, Pair, TJ/LJ",
+    "productCode": "2210*",
+    "mapPrice": "$889.00",
+    "yourPrice": "$577.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:08.028Z"
+  },
+  {
+    "title": "Arched Tube Fender, Pair, TJ/LJ, Aluminum",
+    "productCode": "2210-AL*",
+    "mapPrice": "$1,139.00",
+    "yourPrice": "$740.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:08.037Z"
+  },
+  {
+    "title": "Overline Tube Fender, Pair, TJ/LJ",
+    "productCode": "2214*",
+    "mapPrice": "$889.00",
+    "yourPrice": "$577.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:08.045Z"
+  },
+  {
+    "title": "Overline Tube Fender, Pair, TJ/LJ, Aluminum",
+    "productCode": "2214-AL*",
+    "mapPrice": "$1,099.00",
+    "yourPrice": "$714.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:08.055Z"
+  },
+  {
+    "title": "1 1/2\" Overline Rub Rail, Pair, TJ/LJ/YJ",
+    "productCode": "2221*",
+    "mapPrice": "$209.00",
+    "yourPrice": "$135.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:08.071Z"
+  },
+  {
+    "title": "4\" Overline Flat Flare, Pair, TJ-LJ-YJ",
+    "productCode": "2241*",
+    "mapPrice": "$284.00",
+    "yourPrice": "$184.60",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:08.083Z"
+  },
+  {
+    "title": "6\" Overline Front Flare, Pair, TJ/LJ/YJ",
+    "productCode": "2261*",
+    "mapPrice": "$334.00",
+    "yourPrice": "$217.10",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:08.094Z"
+  },
+  {
+    "title": "8\" Overline Front Flare, Pair, TJ/LJ/YJ",
+    "productCode": "2264*",
+    "mapPrice": "$459.00",
+    "yourPrice": "$298.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:08.104Z"
+  },
+  {
+    "title": "4\" Arched Front Flare, Pair, TJ/LJ/YJ",
+    "productCode": "2240*",
+    "mapPrice": "$309.00",
+    "yourPrice": "$200.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:08.115Z"
+  },
+  {
+    "title": "6\" Arched Front Flare, Pair, TJ/LJ/YJ",
+    "productCode": "2260*",
+    "mapPrice": "$314.00",
+    "yourPrice": "$204.10",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:08.125Z"
+  },
+  {
+    "title": "Rocker Rail, Pair, TJ",
+    "productCode": "2312*",
+    "mapPrice": "$584.00",
+    "yourPrice": "$379.60",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:08.134Z"
+  },
+  {
+    "title": "Rocker Rail, Pair, TJ Unlimited/LJ and CJ-8",
+    "productCode": "2313*",
+    "mapPrice": "$639.00",
+    "yourPrice": "$415.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:08.144Z"
+  },
+  {
+    "title": "1 1/2\" Rear Fender Rub Rail, Pair, TJ/LJ/YJ/CJ7/CJ8",
+    "productCode": "2421*",
+    "mapPrice": "$279.00",
+    "yourPrice": "$181.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:08.153Z"
+  },
+  {
+    "title": "4\" Rear Flare, Pair, TJ/LJ/YJ/CJ",
+    "productCode": "2424*",
+    "mapPrice": "$374.00",
+    "yourPrice": "$243.10",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:08.162Z"
+  },
+  {
+    "title": "6\" Rear Flare, Pair, TJ/LJ/YJ/CJ5-8",
+    "productCode": "2426*",
+    "mapPrice": "$389.00",
+    "yourPrice": "$252.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:08.170Z"
+  },
+  {
+    "title": "8\" Rear Flare, Pair, TJ/LJ/YJ/CJ5-8",
+    "productCode": "2427*",
+    "mapPrice": "$504.00",
+    "yourPrice": "$327.60",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:08.181Z"
+  },
+  {
+    "title": "Rear Flare Mounting Plate, Pair, TJ/LJ Stock Cut",
+    "productCode": "2410*",
+    "mapPrice": "$179.00",
+    "yourPrice": "$116.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:08.190Z"
+  },
+  {
+    "title": "Rear Flare Mounting Plate, Pair, TJ, Mod Cut",
+    "productCode": "2411*",
+    "mapPrice": "$179.00",
+    "yourPrice": "$116.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:08.200Z"
+  },
+  {
+    "title": "Rear Flare Mounting Plate, Pair, LJ Mod Cut",
+    "productCode": "2415*",
+    "mapPrice": "$179.00",
+    "yourPrice": "$116.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:08.208Z"
+  },
+  {
+    "title": "Aluminum Open Frame Tube Doors, TJ/LJ Wrangler, Pair",
+    "productCode": "4150*",
+    "mapPrice": "$1,109.00",
+    "yourPrice": "$720.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:08.891Z"
+  },
+  {
+    "title": "Billet Aluminum LED Replacement Lo-Profile Taillights, Jeep CJ/YJ/TJ/LJ",
+    "productCode": "2843*",
+    "mapPrice": "$324.00",
+    "yourPrice": "$210.60",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:08.953Z"
+  },
+  {
+    "title": "Molded LED Replacement Lo-Profile Taillights, Jeep CJ/YJ/TJ/LJ",
+    "productCode": "2844*",
+    "mapPrice": "$89.00",
+    "yourPrice": "$57.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:08.966Z"
+  },
+  {
+    "title": "Frame-Built Bumper #231000, TJ",
+    "productCode": "FB-TJ-231000*",
+    "mapPrice": "$434.00",
+    "yourPrice": "$282.10",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:09.075Z"
+  },
+  {
+    "title": "Frame-Built Bumper #231001, TJ",
+    "productCode": "FB-TJ-231001*",
+    "mapPrice": "$686.00",
+    "yourPrice": "$445.90",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:09.088Z"
+  },
+  {
+    "title": "Frame-Built Bumper #231002, TJ",
+    "productCode": "FB-TJ-231002*",
+    "mapPrice": "$854.00",
+    "yourPrice": "$555.10",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:09.100Z"
+  },
+  {
+    "title": "Frame-Built Bumper #270000, TJ",
+    "productCode": "FB-TJ-270000*",
+    "mapPrice": "$354.00",
+    "yourPrice": "$230.10",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:09.109Z"
+  },
+  {
+    "title": "Frame-Built Bumper #270001, TJ",
+    "productCode": "FB-TJ-270001*",
+    "mapPrice": "$604.00",
+    "yourPrice": "$392.60",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:09.119Z"
+  },
+  {
+    "title": "TJ/LJ/YJ/CJ7 Wrangler Tub Mount Tire Carrier",
+    "productCode": "2840*",
+    "mapPrice": "$1,604.00",
+    "yourPrice": "$1,042.60",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:09.129Z"
+  },
+  {
+    "title": "Frame-Built Base, Hot Rolled Steel, YJ/TJ/LJ",
+    "productCode": "2109*",
+    "mapPrice": "$199.00",
+    "yourPrice": "$129.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:09.155Z"
+  },
+  {
+    "title": "Jeep TJ/LJ Wrangler License Plate Relocation Bracket",
+    "productCode": "2181*",
+    "mapPrice": "$119.00",
+    "yourPrice": "$77.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:09.363Z"
+  },
+  {
+    "title": "Overline Tube Fender, Pair, YJ",
+    "productCode": "2215*",
+    "mapPrice": "$769.00",
+    "yourPrice": "$499.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:09.372Z"
+  },
+  {
+    "title": "Rocker Rail, Pair, YJ/CJ-7",
+    "productCode": "2311*",
+    "mapPrice": "$609.00",
+    "yourPrice": "$395.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:09.417Z"
+  },
+  {
+    "title": "Rear Flare Mounting Plate, Pair, YJ Mod Cut",
+    "productCode": "2413*",
+    "mapPrice": "$179.00",
+    "yourPrice": "$116.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:10.030Z"
+  },
+  {
+    "title": "2-Door Rocklander Rack System | JL Wrangler",
+    "productCode": "R74010*",
+    "mapPrice": "$2,268.00",
+    "yourPrice": "$1,474.20",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:11.463Z"
+  },
+  {
+    "title": "2-Door Rocklander Stealth Rack System| JL Wrangler",
+    "productCode": "R74110*",
+    "mapPrice": "$3,678.00",
+    "yourPrice": "$2,390.70",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:11.473Z"
+  },
+  {
+    "title": "4-Door Rocklander Rack System | JL Wrangler",
+    "productCode": "R74000*",
+    "mapPrice": "$2,478.00",
+    "yourPrice": "$1,610.70",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:11.483Z"
+  },
+  {
+    "title": "4-Door Rocklander Stealth Rack System | JL Wrangler",
+    "productCode": "R74100*",
+    "mapPrice": "$3,893.00",
+    "yourPrice": "$2,530.45",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:11.492Z"
+  },
+  {
+    "title": "4-Door Rocklander Sky One-Touch Top Rack System | JL Wrangler",
+    "productCode": "R74005*",
+    "mapPrice": "$2,345.00",
+    "yourPrice": "$1,524.25",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:11.501Z"
+  },
+  {
+    "title": "4-Door Rocklander Rack System | Jeep JL 392 Wrangler",
+    "productCode": "R74040*",
+    "mapPrice": "$2,369.00",
+    "yourPrice": "$1,539.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:11.511Z"
+  },
+  {
+    "title": "Jeep 392 JL Wrangler 4-Door Rocklander Rack System, Sky One-Touch Top Edition",
+    "productCode": "R74045*",
+    "mapPrice": "$2,318.00",
+    "yourPrice": "$1,506.70",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:11.520Z"
+  },
+  {
+    "title": "Jeep 4xE JL Wrangler 4-Door Rocklander Rack System, Sky One-Touch Top Edition",
+    "productCode": "R74035*",
+    "mapPrice": "$2,328.00",
+    "yourPrice": "$1,513.20",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:11.529Z"
+  },
+  {
+    "title": "Jeep 4xE JL Wrangler 4-Door Rocklander Rack System",
+    "productCode": "R74030*",
+    "mapPrice": "$2,463.00",
+    "yourPrice": "$1,600.95",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:11.540Z"
+  },
+  {
+    "title": "Rocklander Front Hoop | Jeep 4xE JL Wrangler",
+    "productCode": "R75600*",
+    "mapPrice": "$1,039.00",
+    "yourPrice": "$675.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:11.550Z"
+  },
+  {
+    "title": "Rocklander Rear Hoop | JL Wrangler",
+    "productCode": "R75040*",
+    "mapPrice": "$603.00",
+    "yourPrice": "$391.95",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:11.607Z"
+  },
+  {
+    "title": "JL Wrangler Tailgate Molle Panel",
+    "productCode": "R77006*",
+    "mapPrice": "$239.00",
+    "yourPrice": "$155.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:11.641Z"
+  },
+  {
+    "title": "OverCab Rack System | JT Gladiator",
+    "productCode": "R74020*",
+    "mapPrice": "$2,156.00",
+    "yourPrice": "$1,401.40",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:11.650Z"
+  },
+  {
+    "title": "Jeep JT Mojave OverCab Rack System",
+    "productCode": "R74050*",
+    "mapPrice": "$2,126.00",
+    "yourPrice": "$1,381.90",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:11.660Z"
+  },
+  {
+    "title": "BakPak Bed Rack System, JT Gladiator",
+    "productCode": "R77700*",
+    "mapPrice": "$929.00",
+    "yourPrice": "$603.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:11.703Z"
+  },
+  {
+    "title": "Jeep JT Gladiator BakPak Bed Rack Short Hoop System",
+    "productCode": "R77706*",
+    "mapPrice": "$1,289.00",
+    "yourPrice": "$837.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:11.716Z"
+  },
+  {
+    "title": "Rocklander Front Hoop, JL Wrangler | JT Gladiator",
+    "productCode": "R75002*",
+    "mapPrice": "$1,056.00",
+    "yourPrice": "$686.40",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:12.736Z"
+  },
+  {
+    "title": "JT Gladiator Truck Bed Molle Gear Storage Panel, Driver Side",
+    "productCode": "R77002*",
+    "mapPrice": "$269.00",
+    "yourPrice": "$174.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:12.864Z"
+  },
+  {
+    "title": "JT Gladiator Truck Bed Passenger Side Molle Panel",
+    "productCode": "R77003*",
+    "mapPrice": "$269.00",
+    "yourPrice": "$174.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:12.873Z"
+  },
+  {
+    "title": "JT Gladiator Truck Bed Cab Molle Panel",
+    "productCode": "R77004*",
+    "mapPrice": "$269.00",
+    "yourPrice": "$174.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:12.882Z"
+  },
+  {
+    "title": "JT Gladiator Truck Bed Molle Gear Storage Panel, Full System",
+    "productCode": "R77005*",
+    "mapPrice": "$789.00",
+    "yourPrice": "$512.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:12.890Z"
+  },
+  {
+    "title": "Rocklander Cross Beam Awning Mount, Pair",
+    "productCode": "R75412*",
+    "mapPrice": "$89.00",
+    "yourPrice": "$57.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:12.917Z"
+  },
+  {
+    "title": "Forged Duroflex Builder Joint, 2 5/8\" x 9/16\" BH x 2 5/8\" Housing x 1 1/4\" Straight Shank",
+    "productCode": "7353*",
+    "mapPrice": "$89.00",
+    "yourPrice": "$48.95",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:13.912Z"
+  },
+  {
+    "title": "JL Wrangler & JT Gladiator Z-Locker Controller, OEM",
+    "productCode": "8038",
+    "mapPrice": "$207.00",
+    "yourPrice": "$134.55",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:14.824Z"
+  },
+  {
+    "title": "JL Wrangler & JT Gladiator Z-Locker Controller, Eaton",
+    "productCode": "8039",
+    "mapPrice": "$207.00",
+    "yourPrice": "$134.55",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:14.835Z"
+  },
+  {
+    "title": "Metalcloak Rescue M1 Recovery Shackle",
+    "productCode": "8910*",
+    "mapPrice": "$149.00",
+    "yourPrice": "$96.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:15.008Z"
+  },
+  {
+    "title": "Metalcloak \"Baller\" Joint Custom Wrench",
+    "productCode": "1999",
+    "mapPrice": "$14.00",
+    "yourPrice": "$9.10",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:15.033Z"
+  },
+  {
+    "title": "RockSport BLACK 2.5 Ineos Grenadier Reservoir Long Travel Shocks, Adjustable, Front, Pair",
+    "productCode": "1700",
+    "mapPrice": "$1,499.00",
+    "yourPrice": "$824.45",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:17.364Z"
+  },
+  {
+    "title": "Ram 2500 4.5\" Lock-N-Load Radius Suspension & Lift Kit, [Diesel 2019 +]",
+    "productCode": "8058*",
+    "mapPrice": "$3,914.00",
+    "yourPrice": "$2,508.60",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:17.735Z"
+  },
+  {
+    "title": "Ram 2500 3.5\" Lock-N-Load Radius Arm Suspension & Lift Kit, [Diesel 2019+]",
+    "productCode": "8057*",
+    "mapPrice": "$4,388.00",
+    "yourPrice": "$2,832.30",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:17.744Z"
+  },
+  {
+    "title": "Fox Shock Set, Ram 2500, 1994 - 2018",
+    "productCode": "1086",
+    "mapPrice": "$649.00",
+    "yourPrice": "$356.95",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:17.763Z"
+  },
+  {
+    "title": "Fox Shock Set, Ram 2500, 2019 - Current",
+    "productCode": "1085",
+    "mapPrice": "$649.00",
+    "yourPrice": "$356.95",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:17.773Z"
+  },
+  {
+    "title": "Ram 2500 4.5\" Lock-N-Load Radius Suspension & Lift Kit, [Diesel 2014 - 2018]",
+    "productCode": "8052*",
+    "mapPrice": "$3,934.00",
+    "yourPrice": "$2,163.70",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:17.781Z"
+  },
+  {
+    "title": "3\" Front Track Bar Drop Bracket, Ram 2500/3500 ('19 - Current)",
+    "productCode": "8073*",
+    "mapPrice": "$159.00",
+    "yourPrice": "$87.45",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:18.627Z"
+  },
+  {
+    "title": "Front Track Bar Bracket, 2500/3500 Ram ('14 - '18)",
+    "productCode": "8041*",
+    "mapPrice": "$179.00",
+    "yourPrice": "$116.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:18.636Z"
+  },
+  {
+    "title": "INEOS Grenadier Suspension Upgrade Kit",
+    "productCode": "8225*",
+    "mapPrice": "$2,384.00",
+    "yourPrice": "$1,549.60",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:21.133Z"
+  },
+  {
+    "title": "Grenadier 2.5\" Game Changer, RockSport Black Edition",
+    "productCode": "8228",
+    "mapPrice": "$5,999.00",
+    "yourPrice": "$3,899.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:21.284Z"
+  },
+  {
+    "title": "INEOS Grenadier 2.5 Game-Changer Suspension & Lift Kit",
+    "productCode": "8227*",
+    "mapPrice": "$2,899.00",
+    "yourPrice": "$1,884.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:21.295Z"
+  },
+  {
+    "title": "INEOS Grenadier Rocker Rail, Slider & Integrated Step, Pair",
+    "productCode": "8260*",
+    "mapPrice": "$1,299.00",
+    "yourPrice": "$844.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:22.548Z"
+  },
+  {
+    "title": "Woman's Super Soft Watercolor V-Neck Tee",
+    "productCode": "9154",
+    "mapPrice": "$18.00",
+    "yourPrice": "$11.70",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:23.908Z"
+  },
+  {
+    "title": "Jeepin' M, Men's Super Soft Tee, Black",
+    "productCode": "9153",
+    "mapPrice": "$24.00",
+    "yourPrice": "$15.60",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:23.918Z"
+  },
+  {
+    "title": "Metalcloak Jobber Counter Mat, Black + Baller",
+    "productCode": "9902",
+    "mapPrice": "$29.00",
+    "yourPrice": "$18.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:23.929Z"
+  },
+  {
+    "title": "MetalCloak Camo Mesh Back Trucker Ball Cap, Snap Back Fit",
+    "productCode": "9156",
+    "mapPrice": "$26.00",
+    "yourPrice": "$16.90",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:23.940Z"
+  },
+  {
+    "title": "MetalCloak Rubber Keychain",
+    "productCode": "9500",
+    "mapPrice": "$2.00",
+    "yourPrice": "$1.30",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:23.951Z"
+  },
+  {
+    "title": "Authorized Installer Window Decal, 10\" x 10\"",
+    "productCode": "9904",
+    "mapPrice": "$9.00",
+    "yourPrice": "$5.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:23.974Z"
+  },
+  {
+    "title": "Carbon TJ Rear D44 30 Spline Axle Kit",
+    "productCode": "C0001*",
+    "mapPrice": "$699.00",
+    "yourPrice": "$699.00",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:24.016Z"
+  },
+  {
+    "title": "Carbon TJ Rear D44 35 Spline Axle Kit",
+    "productCode": "C0002*",
+    "mapPrice": "$755.00",
+    "yourPrice": "$755.00",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:24.025Z"
+  },
+  {
+    "title": "INEOS Grenadier 2.5\" True Dual Rate Coils, Front, Pair",
+    "productCode": "8208",
+    "mapPrice": "$239.00",
+    "yourPrice": "$155.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:24.167Z"
+  },
+  {
+    "title": "INEOS Grenadier 2.5\" True Dual Rate Coils, Rear, Pair",
+    "productCode": "8209",
+    "mapPrice": "$269.00",
+    "yourPrice": "$174.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:24.181Z"
+  },
+  {
+    "title": "INEOS Grenadier 2.5\" Eibach Coils, Full Set",
+    "productCode": "8210*",
+    "mapPrice": "$499.00",
+    "yourPrice": "$324.35",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:24.218Z"
+  },
+  {
+    "title": "INEOS Grenadier Muffler Skid Reinforcement Bracket",
+    "productCode": "8242",
+    "mapPrice": "$289.00",
+    "yourPrice": "$187.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:24.890Z"
+  },
+  {
+    "title": "3.5\" - 5.5\" Fox Shocks, Rear, Pair | JL Wrangler",
+    "productCode": "1003",
+    "mapPrice": "$409.00",
+    "yourPrice": "$265.85",
+    "needsManualMapping": true,
+    "addedAt": "2025-10-30T00:41:25.361Z"
+  },
+  {
+    "title": "RockSport Black Shock Seal Rebuild Kit",
+    "productCode": "1604",
+    "category": "Tools & Accessories",
+    "mapPrice": "$49.00",
+    "mapPriceNumeric": 49,
+    "yourPrice": "$36.75",
+    "yourPriceNumeric": 36.75,
+    "productUrl": "https://jobber.metalcloak.com/1604-rocksport-black-shock-seal-rebuild-kit.html",
+    "scrapedAt": "2025-11-10T16:00:55.843Z",
+    "needsManualMapping": true,
+    "addedAt": "2025-11-10T16:02:58.105Z"
+  },
+  {
+    "title": "RockSport Black Shock Seal Head Rebuild Kit",
+    "productCode": "1605",
+    "category": "Tools & Accessories",
+    "mapPrice": "$49.00",
+    "mapPriceNumeric": 49,
+    "yourPrice": "$36.75",
+    "yourPriceNumeric": 36.75,
+    "productUrl": "https://jobber.metalcloak.com/1605-rocksport-black-shock-seal-head-rebuild-kit.html",
+    "scrapedAt": "2025-11-10T16:00:55.843Z",
+    "needsManualMapping": true,
+    "addedAt": "2025-11-10T16:02:58.117Z"
+  }
+]
