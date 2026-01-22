@@ -3,9 +3,9 @@ const vendorsData = require("./hard-code_data/vendors_data");
 const userData = require("./hard-code_data/users_data.js");
 const competitorData = require("./hard-code_data/competitors_data.js");
 const magentoRecentOrders = require("./api-calls/magento-recentOrders.js");
-const seedAllProducts = require("../seeds/seed-individual/seed-allProducts.js");
-const seedMeyer = require("../seeds/seed-individual/seed-meyer.js");
-const seedKeystone = require("../seeds/seed-individual/seed-keystone.js");
+const seedAllProducts = require("./seed-individual/seed-allProducts.js");
+const seedMeyer = require("./seed-individual/seed-meyer.js");
+const seedKeystone = require("./seed-individual/seed-keystone.js");
 const seedOmix = require("./seed-individual/seed-omix.js");
 
 
