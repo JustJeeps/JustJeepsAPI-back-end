@@ -1,6 +1,63 @@
-node_modules
-.git
+# =============================================================================
+# JustJeeps API - Docker Ignore Configuration
+# =============================================================================
+# Files and directories to exclude from Docker build context
+# =============================================================================
+
+# Dependencies (will be installed in container)
+node_modules/
+.node_modules/
+
+# Environment & Secrets (SECURITY CRITICAL)
 .env
+.env.*
+*.pem
+*.key
+*.crt
+secrets/
+credentials/
+
+# Git
+.git/
+.gitignore
+
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+.claude/
+
+# Logs
+logs/
 *.log
-prisma/logs
+prisma/logs/
+prisma/seeds/logs/
+
+# OS Files
 .DS_Store
+Thumbs.db
+
+# Documentation (not needed in container)
+*.md
+!README.md
+docs/
+
+# Test files
+coverage/
+.nyc_output/
+__tests__/
+*.test.js
+*.spec.js
+
+# Docker files (prevent recursive inclusion)
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Large data files
+*.csv
+*.xlsx
+*.xls
+*.sql.gz
+mydb.dump

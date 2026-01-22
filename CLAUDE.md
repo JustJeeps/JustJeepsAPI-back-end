@@ -11,6 +11,22 @@ npm start            # Start production server
 npx prisma studio    # Open Prisma Studio (browser-based DB UI)
 ```
 
+### Docker Development
+```bash
+# First time setup
+cp .env.example .env                    # Copy and configure environment variables
+docker compose up -d                     # Start all services
+
+# Development with hot-reload
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+# View logs
+docker compose logs -f api
+
+# Stop services
+docker compose down
+```
+
 ### Database Setup
 ```bash
 npx prisma generate           # Generate Prisma client after schema changes
@@ -63,12 +79,23 @@ prisma/seeds/
 
 ## Environment Variables
 
+Copy `.env.example` to `.env` and configure your values. See `SECURITY.md` for best practices.
+
+**Required variables:**
+- `POSTGRES_USER` - Database username
+- `POSTGRES_PASSWORD` - Database password (use strong passwords)
+- `JWT_SECRET` - Secret key for JWT tokens (min 32 chars, see SECURITY.md)
+
+**Optional variables:**
+- `POSTGRES_DB` - Database name (default: justjeeps)
+- `PORT` - API port (default: 8080)
+- `ENABLE_AUTH` - Enable JWT authentication (default: false)
+- `JWT_EXPIRES_IN` - Token expiration (default: 24h)
+- `MAGENTO_KEY` - Magento API key for integration
+
+**Generate a secure JWT secret:**
 ```bash
-DATABASE_URL="postgresql://development:development@localhost:5432/FINAL_PROJECT?schema=public"
-PORT=8080
-ENABLE_AUTH=false              # Set to 'true' to enable authentication
-JWT_SECRET=your-secret-key     # Required when ENABLE_AUTH=true
-JWT_EXPIRES_IN=24h
+node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 ```
 
 ## API Structure
@@ -95,3 +122,14 @@ JWT_EXPIRES_IN=24h
 Core models: `Product`, `Order`, `OrderProduct`, `Vendor`, `VendorProduct`, `PurchaseOrder`, `PurchaseOrderLineItem`, `User`, `Competitor`, `CompetitorProduct`
 
 Products contain 20,000+ SKUs with multi-vendor support. Schema has 50+ migrations tracking evolution.
+
+## Security
+
+See `SECURITY.md` for complete security documentation.
+
+**Key points:**
+- Never commit `.env` files (use `.env.example` as template)
+- Use strong, unique passwords for all environments
+- Enable `ENABLE_AUTH=true` in production
+- Rotate secrets after team changes or suspected breaches
+- Run `npm audit` regularly to check for vulnerabilities

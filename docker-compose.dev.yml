@@ -1,4 +1,15 @@
+# =============================================================================
+# JustJeeps API - Development Docker Compose Configuration
+# =============================================================================
+# Use with: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+# SECURITY: Requires .env file - copy from .env.example
+# =============================================================================
+
 services:
+  db:
+    ports:
+      - "${DB_PORT:-5433}:5432"
+
   api:
     build:
       context: .
@@ -6,4 +17,7 @@ services:
     volumes:
       - .:/app
       - /app/node_modules
+    environment:
+      NODE_ENV: development
+      ENABLE_AUTH: ${ENABLE_AUTH:-false}
     command: npm run dev
