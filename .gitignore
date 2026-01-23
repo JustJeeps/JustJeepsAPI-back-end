@@ -107,3 +107,11 @@ tmp/
 temp/
 *.tmp
 *.temp
+
+# -----------------------------------------------------------------------------
+# Kamal Deploy
+# -----------------------------------------------------------------------------
+# Secrets file with actual values (template .kamal/secrets is ok to commit)
+.kamal/secrets.local
+.env.local-to-production
+ca-certificate.crt

@@ -26,7 +26,7 @@ app.use(
   cors({
     origin: [
       "http://localhost:5173", // local frontend
-      "https://justjeeps.ngrok.app", // ngrok frontend
+      "https://orderapi.nunchisolucoes.com/", // ngrok frontend
     ],
     credentials: true,
   })
@@ -42,6 +42,25 @@ app.use(Express.static('public'));
 
 // 🔐 Authentication routes (safe - disabled by default via ENABLE_AUTH=false)
 app.use('/api/auth', authRoutes);
+
+// Health check endpoint para Kamal/Load Balancer
+app.get('/api/health', async (req, res) => {
+	try {
+		// Verifica conexao com o banco
+		await prisma.$queryRaw`SELECT 1`;
+		res.status(200).json({
+			status: 'healthy',
+			timestamp: new Date().toISOString(),
+			uptime: process.uptime(),
+		});
+	} catch (error) {
+		res.status(503).json({
+			status: 'unhealthy',
+			error: 'Database connection failed',
+			timestamp: new Date().toISOString(),
+		});
+	}
+});
 
 // Sample GET route
 app.get('/', (req, res) =>

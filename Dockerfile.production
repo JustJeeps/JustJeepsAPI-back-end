@@ -1,0 +1,111 @@
+# =============================================================================
+# Dockerfile Multi-Stage para JustJeeps API (Kamal Deploy)
+# =============================================================================
+# Build otimizado para producao com suporte a Prisma e Puppeteer
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Stage 1: Dependencies
+# -----------------------------------------------------------------------------
+FROM node:20-slim AS deps
+
+WORKDIR /app
+
+# Copia apenas arquivos de dependencia para aproveitar cache
+COPY package.json package-lock.json ./
+
+# Instala dependencias de producao
+RUN npm ci --only=production --ignore-scripts && \
+    npm cache clean --force
+
+# -----------------------------------------------------------------------------
+# Stage 2: Builder (Prisma Generate)
+# -----------------------------------------------------------------------------
+FROM node:20-slim AS builder
+
+WORKDIR /app
+
+# Copia dependencias do stage anterior
+COPY --from=deps /app/node_modules ./node_modules
+
+# Copia schema do Prisma e gera o client
+COPY prisma ./prisma/
+COPY schema.prisma ./
+
+RUN npx prisma generate
+
+# -----------------------------------------------------------------------------
+# Stage 3: Production Runtime
+# -----------------------------------------------------------------------------
+FROM node:20-slim AS production
+
+WORKDIR /app
+
+# Instala dependencias do sistema para Puppeteer/Chromium
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    chromium \
+    fonts-liberation \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libcups2 \
+    libdbus-1-3 \
+    libdrm2 \
+    libgbm1 \
+    libgtk-3-0 \
+    libnspr4 \
+    libnss3 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    xdg-utils \
+    # Utilitarios para healthcheck
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Usuario nao-root para seguranca
+RUN groupadd -r nodejs && useradd -r -g nodejs nodejs
+
+# Variaveis de ambiente para Puppeteer
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium \
+    NODE_ENV=production \
+    PORT=8080
+
+# Copia node_modules com Prisma Client gerado
+COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
+
+# Copia codigo da aplicacao
+COPY --chown=nodejs:nodejs . .
+
+# Remove arquivos desnecessarios
+RUN rm -rf \
+    .git \
+    .env \
+    .env.* \
+    docker-compose*.yml \
+    Dockerfile* \
+    .dockerignore \
+    README*.md \
+    CLAUDE.md \
+    SECURITY.md \
+    .vscode \
+    .claude
+
+# Muda para usuario nao-root
+USER nodejs
+
+# Expoe porta da aplicacao
+EXPOSE 8080
+
+# Healthcheck integrado
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8080/api/health || exit 1
+
+# Entrypoint que executa migracoes antes de iniciar
+COPY --chown=nodejs:nodejs docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+ENTRYPOINT ["docker-entrypoint.sh"]

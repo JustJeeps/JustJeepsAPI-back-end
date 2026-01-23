@@ -1,0 +1,76 @@
+# =============================================================================
+# Kamal 2.x Deploy Configuration - JustJeeps API Backend
+# =============================================================================
+
+service: justjeeps-api
+
+image: ricardotassionunchi/justjeeps-api
+
+# =============================================================================
+# SERVIDORES
+# =============================================================================
+servers:
+  web:
+    hosts:
+      - 138.197.173.222
+    labels:
+      traefik.http.routers.justjeeps-api.rule: Host(`orderapi.nunchisolucoes.com`)
+      traefik.http.routers.justjeeps-api-secure.entrypoints: websecure
+      traefik.http.routers.justjeeps-api-secure.rule: Host(`orderapi.nunchisolucoes.com`)
+      traefik.http.routers.justjeeps-api-secure.tls: true
+      traefik.http.routers.justjeeps-api-secure.tls.certresolver: letsencrypt
+    options:
+      memory: 1g
+      cpus: 1
+
+# =============================================================================
+# PROXY (Traefik)
+# =============================================================================
+proxy:
+  ssl: true
+  host: orderapi.nunchisolucoes.com
+  app_port: 8080
+  healthcheck:
+    path: /api/health
+    interval: 3
+    timeout: 30
+
+# =============================================================================
+# REGISTRY
+# =============================================================================
+registry:
+  server: ghcr.io
+  username:
+    - KAMAL_REGISTRY_USERNAME
+  password:
+    - KAMAL_REGISTRY_PASSWORD
+
+# =============================================================================
+# VARIAVEIS DE AMBIENTE
+# =============================================================================
+env:
+  clear:
+    PORT: 8080
+    NODE_ENV: production
+    ENABLE_AUTH: "true"
+    JWT_EXPIRES_IN: 24h
+    PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: "true"
+    PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium
+  secret:
+    - DATABASE_URL
+    - JWT_SECRET
+    - MAGENTO_KEY
+
+# =============================================================================
+# SSH
+# =============================================================================
+ssh:
+  user: root
+
+# =============================================================================
+# BUILDER
+# =============================================================================
+builder:
+  arch: amd64
+  dockerfile: Dockerfile.production
+  context: .
