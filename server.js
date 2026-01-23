@@ -21,12 +21,12 @@ const authRoutes = require('./routes/auth');
 const { authenticateToken, optionalAuth } = require('./middleware/auth');
 require('dotenv').config();
 
-// Use cors middleware - allow both local and ngrok
+// Use cors middleware
 app.use(
   cors({
     origin: [
       "http://localhost:5173", // local frontend
-      "https://orderapi.nunchisolucoes.com/", // ngrok frontend
+      "https://lionfish-app-v8v9s.ondigitalocean.app", // production frontend
     ],
     credentials: true,
   })
