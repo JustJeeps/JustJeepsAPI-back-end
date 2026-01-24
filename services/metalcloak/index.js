@@ -1,19 +1,19 @@
 const fs = require('fs');
 const path = require('path');
-const { PrismaClient } = require('@prisma/client');
+const prisma = require('../../lib/prisma');
 
 /**
  * MetalCloak Database Integration Service
- * 
+ *
  * This service processes scraped MetalCloak data and integrates it into the database.
  * Since MetalCloak requires manual login (CAPTCHA), this is designed for batch processing
  * of scraped data files rather than real-time API integration.
- * 
+ *
  * Note: MetalCloak prices are in USD and are automatically converted to CAD by multiplying by 1.50
  */
 class MetalCloakService {
   constructor() {
-    this.prisma = new PrismaClient();
+    this.prisma = prisma; // Use singleton instead of new instance
     this.vendorId = 17; // MetalCloak is 17th position in vendors_data.js, will get vendor_id 17
     this.vendorName = 'MetalCloak';
   }

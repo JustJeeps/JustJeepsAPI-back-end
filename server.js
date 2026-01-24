@@ -4,14 +4,8 @@ const app = Express();
 const BodyParser = require('body-parser');
 const PORT = process.env.PORT || 8080
 const cors = require('cors');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient({
-  datasources: {
-    db: {
-      url: process.env.DATABASE_URL,
-    },
-  },
-});
+const logger = require('./utils/logger');
+const prisma = require('./lib/prisma');
 const seedOrders = require('./prisma/seeds/seed-individual/seed-orders.js');
 const quadratecProducts = require('./prisma/seeds/api-calls/quadratec-excel.js');
 const { getWheelProsSkus, makeApiRequestsInChunks } = require('./prisma/seeds/api-calls/wheelPros-api.js');
@@ -39,6 +33,19 @@ app.use(
 app.use(BodyParser.urlencoded({ extended: false }));
 app.use(BodyParser.json());
 app.use(Express.static('public'));
+
+// Request logging middleware (Axiom)
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    // Only log non-health-check requests to reduce noise
+    if (req.path !== '/api/health') {
+      logger.request(req, res, duration);
+    }
+  });
+  next();
+});
 
 // 🔐 Authentication routes (safe - disabled by default via ENABLE_AUTH=false)
 app.use('/api/auth', authRoutes);
@@ -1072,8 +1079,33 @@ app.get('/toppopularproduct', async (req, res) => {
 	}
 });
 
+// Global error handler (Axiom)
+app.use((err, req, res, next) => {
+	logger.apiError(err, req);
+	res.status(err.status || 500).json({
+		error: process.env.NODE_ENV === 'production'
+			? 'Internal Server Error'
+			: err.message,
+	});
+});
+
+// Graceful shutdown - disconnect Prisma and flush logs before exit
+async function gracefulShutdown(signal) {
+	logger.info(`${signal} received, shutting down gracefully`);
+	try {
+		await prisma.$disconnect();
+		await logger.flush();
+	} catch (e) {
+		console.error('Error during shutdown:', e);
+	}
+	process.exit(0);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
 app.listen(PORT, () => {
-	// eslint-disable-next-line no-console
+	logger.info(`Server started on port ${PORT}`, { port: PORT, env: process.env.NODE_ENV });
 	console.log(
 		`Express seems to be listening on port ${PORT} so that's pretty good 👍`
 	);

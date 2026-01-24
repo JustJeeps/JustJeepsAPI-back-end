@@ -1,28 +1,22 @@
-const { PrismaClient } = require("@prisma/client");
 const magentoRecentOrders = require("../api-calls/magento-recentOrders.js");
 
-const prisma = new PrismaClient();
+// Use singleton when running inside server.js, create new instance for standalone
+const prisma = require('../../../lib/prisma');
 
 // Seed orders
 const seedOrders = async () => {
-  // const deleteOrders = async () => {
-  //   try {
-  //     await prisma.order.deleteMany();
-  //     console.log("Orders deleted successfully.");
-  //   } catch (error) {
-  //     console.error("Error deleting orders:", error);
-  //   } finally {
-  //     await prisma.$disconnect();
-  //   }
-  // };
-
-  // deleteOrders();
-
   try {
     // Fetch orders from API
     const response = await magentoRecentOrders(400);
     const orders = response.data.items;
+
+    // Counters for statistics
     let orderCount = 0;
+    let newOrderCount = 0;
+    let updatedOrderCount = 0;
+    let orderProductCount = 0;
+    let skippedProductCount = 0;
+    const missingSkus = new Set();
 
     for (const orderData of orders) {
       orderCount++;
@@ -133,15 +127,28 @@ const seedOrders = async () => {
           const createdOrder = await prisma.order.create({
             data: { ...orderDataWithCustomAttributes, entity_id },
           });
+          newOrderCount++;
 
+          // Create OrderProducts only for SKUs that exist in Product table
           for (const itemData of items) {
-            await prisma.orderProduct.create({
-              data: {
-                ...itemData,
-                order_id: createdOrder.entity_id,
-                sku: itemData.sku,
-              },
+            const productExists = await prisma.product.findUnique({
+              where: { sku: itemData.sku },
+              select: { sku: true },
             });
+
+            if (productExists) {
+              await prisma.orderProduct.create({
+                data: {
+                  ...itemData,
+                  order_id: createdOrder.entity_id,
+                  sku: itemData.sku,
+                },
+              });
+              orderProductCount++;
+            } else {
+              missingSkus.add(itemData.sku);
+              skippedProductCount++;
+            }
           }
         } catch (error) {
           console.error(`Error seeding new order ${entity_id}:`, error);
@@ -153,33 +160,27 @@ const seedOrders = async () => {
             where: { entity_id },
             data: { ...orderDataWithCustomAttributes },
           });
+          updatedOrderCount++;
 
-          console.log(
-            `Order ${entity_id} exists. Updating and refreshing products...`
-          );
-
+          // Delete existing OrderProducts and recreate only for valid SKUs
           await prisma.orderProduct.deleteMany({ where: { order_id: entity_id } });
+
           for (const itemData of items) {
-            await prisma.orderProduct.create({
-              data: { ...itemData, order_id: entity_id, sku: itemData.sku },
+            const productExists = await prisma.product.findUnique({
+              where: { sku: itemData.sku },
+              select: { sku: true },
             });
+
+            if (productExists) {
+              await prisma.orderProduct.create({
+                data: { ...itemData, order_id: entity_id, sku: itemData.sku },
+              });
+              orderProductCount++;
+            } else {
+              missingSkus.add(itemData.sku);
+              skippedProductCount++;
+            }
           }
-
-          // // Delete all existing orderProducts for this order
-          // await prisma.orderProduct.deleteMany({
-          //   where: { order_id: entity_id },
-          // });
-
-          // // Recreate all orderProducts
-          // for (const itemData of items) {
-          //   await prisma.orderProduct.create({
-          //     data: {
-          //       ...itemData,
-          //       order_id: entity_id,
-          //       sku: itemData.sku,
-          //     },
-          //   });
-          // }
         } catch (error) {
           console.error(`Error updating order ${entity_id}:`, error);
           continue;
@@ -187,8 +188,23 @@ const seedOrders = async () => {
       }
     }
 
-    console.log("Orders seeded successfully");
+    // Print summary
+    console.log("\n========== SEED ORDERS SUMMARY ==========");
     console.log(`Total orders processed: ${orderCount}`);
+    console.log(`  - New orders created: ${newOrderCount}`);
+    console.log(`  - Orders updated: ${updatedOrderCount}`);
+    console.log(`OrderProducts created: ${orderProductCount}`);
+    console.log(`OrderProducts skipped (SKU not found): ${skippedProductCount}`);
+
+    if (missingSkus.size > 0) {
+      console.log(`\nMissing SKUs (${missingSkus.size} unique):`);
+      const skuArray = Array.from(missingSkus).slice(0, 20);
+      skuArray.forEach(sku => console.log(`  - ${sku}`));
+      if (missingSkus.size > 20) {
+        console.log(`  ... and ${missingSkus.size - 20} more`);
+      }
+    }
+    console.log("==========================================\n");
   } catch (error) {
     console.error("Error during seeding:", error);
   }

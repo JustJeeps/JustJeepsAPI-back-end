@@ -1,8 +1,7 @@
 const jwt = require('jsonwebtoken');
-const { PrismaClient } = require('@prisma/client');
 require('dotenv').config();
 
-const prisma = new PrismaClient();
+const prisma = require('../lib/prisma');
 
 // Safe authentication middleware with feature flag
 const authenticateToken = (req, res, next) => {
