@@ -111,7 +111,21 @@ temp/
 # -----------------------------------------------------------------------------
 # Kamal Deploy
 # -----------------------------------------------------------------------------
-# Secrets file with actual values (template .kamal/secrets is ok to commit)
+# Kamal secrets (contains references to env vars)
+.kamal/secrets
 .kamal/secrets.local
 .env.local-to-production
 ca-certificate.crt
+
+# -----------------------------------------------------------------------------
+# Scraper Data
+# -----------------------------------------------------------------------------
+# Session cookies (contain auth tokens)
+*-cookies.json
+
+# Scraper output files
+prisma/seeds/scrapping/**/results.csv
+prisma/seeds/scrapping/**/*_products.csv
+prisma/seeds/scrapping/**/*_checkpoint.json
+prisma/seeds/scrapping/**/failed-urls.txt
+prisma/seeds/scrapping/**/resume-progress.json
