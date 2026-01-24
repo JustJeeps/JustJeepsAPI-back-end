@@ -255,15 +255,7 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 
 ### Test User Accounts
 
-The system comes with pre-seeded test accounts:
-
-| Username | Password | Role |
-|----------|----------|------|
-| admin | adminpassword | Administrator |
-| johndoe | mypassword1 | User |
-| janesmith | mypassword2 | User |
-| davidbrown | mypassword3 | User |
-| alicejohnson | mypassword4 | User |
+After running `npm run seed-users`, test accounts are available. Check `prisma/seeds/hard-code_data/users_data.js` for credentials.
 
 ### Testing Routes
 

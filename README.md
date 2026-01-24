@@ -1,22 +1,130 @@
-## Setup Instructions for backend
+# JustJeeps API Backend
 
-1. Install dependencies by running the following command: `npm install`.
+RESTful API backend for the JustJeeps automotive parts e-commerce platform.
 
-2. Create a PostgreSQL database with the name "FINAL_PROJECT" using the following command in your PostgreSQL terminal: CREATE DATABASE FINAL_PROJECT;
-Make sure to use the username "development" and password "development" for your PostgreSQL database.
+## Tech Stack
 
-3. Set up your environment variables in a `.env` file. 
+- **Runtime**: Node.js + Express.js
+- **Database**: PostgreSQL with Prisma ORM
+- **Authentication**: JWT with feature flags
+- **Deployment**: Docker + Kamal
+- **Monitoring**: Axiom (logging & error tracking)
 
-`DATABASE_URL="postgresql://development:development@localhost:5432/FINAL_PROJECT?schema=public"`
+## Quick Start
 
-4. Generate the Prisma client by running the following command: `npx prisma generate`. This will update the generated client files based on the latest schema.
+### Prerequisites
 
-5. Run Prisma migrations to create the necessary database schema by running the following command: `npx prisma migrate dev --name init`.
+- Node.js 20+
+- PostgreSQL 14+
+- Docker (for production deployment)
 
-6. Seed the database with data using one of the following commands:
-- To seed the data using hard-coded data, run: `npm run seed-hard-code`. This will execute a script with hard-coded data to seed the database.
-- To seed the data using an API, run: `npm run seed-api`. This will execute the API endpoints to seed the data.
+### Development Setup
 
-7. Once the database is seeded, you can check the tables and data using Prisma Studio. 
-Start Prisma Studio by running the following command: `npx prisma studio`. This will open Prisma Studio in your default web browser, where you can interact with the seeded data and verify the tables.
-# JustJeepsAPI-back-end
+```bash
+# Install dependencies
+npm install
+
+# Copy environment template
+cp .env.example .env
+
+# Generate Prisma client
+npx prisma generate
+
+# Run database migrations
+npx prisma migrate dev
+
+# Seed essential data
+npm run seed-hard-code
+
+# Start development server
+npm run dev
+```
+
+### Environment Variables
+
+Copy `.env.example` to `.env` and configure:
+
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `PORT` | Server port (default: 8080) |
+| `JWT_SECRET` | Secret for JWT signing |
+| `ENABLE_AUTH` | Enable authentication (default: false) |
+
+See `.env.example` for full list of available variables.
+
+## Available Scripts
+
+| Script | Description |
+|--------|-------------|
+| `npm run dev` | Start with hot-reload |
+| `npm start` | Start production server |
+| `npm run seed-hard-code` | Seed vendors, users, competitors |
+| `npm run seed-orders` | Seed order data |
+| `npx prisma studio` | Open database browser |
+
+## API Endpoints
+
+### Core Resources
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/health` | Health check |
+| GET | `/api/products` | List products |
+| GET | `/api/orders` | List orders |
+| GET | `/api/vendors` | List vendors |
+| GET | `/api/vendor_products` | Product-vendor mappings |
+
+### Authentication (when enabled)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/auth/login` | User login |
+| POST | `/api/auth/register` | User registration |
+| GET | `/api/auth/status` | Auth status check |
+| GET | `/api/auth/me` | Current user info |
+
+## Project Structure
+
+```
+├── server.js           # Main Express application
+├── lib/
+│   └── prisma.js       # Database client singleton
+├── routes/
+│   └── auth.js         # Authentication routes
+├── middleware/
+│   └── auth.js         # JWT middleware
+├── services/           # External API integrations
+├── utils/
+│   └── logger.js       # Axiom logging utility
+├── prisma/
+│   ├── schema.prisma   # Database schema
+│   └── seeds/          # Data seeding scripts
+└── config/
+    └── deploy.yml      # Kamal deployment config
+```
+
+## Deployment
+
+This project uses [Kamal](https://kamal-deploy.org/) for Docker-based deployments.
+
+```bash
+# Deploy to production
+kamal deploy
+
+# View logs
+kamal app logs
+
+# Run console
+kamal app exec -i sh
+```
+
+## Documentation
+
+- [Authentication Guide](./README-AUTHENTICATION.md)
+- [Security Guidelines](./SECURITY.md)
+- [API Documentation](./docs/)
+
+## License
+
+Proprietary - All rights reserved.
