@@ -57,9 +57,38 @@ env:
     PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: "true"
     PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium
   secret:
+    # Database & Auth
     - DATABASE_URL
     - JWT_SECRET
+    # Magento
     - MAGENTO_KEY
+    # Keystone
+    - KEYSTONE_KEY
+    - KEYSTONE_ACCOUNT
+    - KEYSTONE_ACCOUNT_DS
+    - KEYSTONE_KEY_DS
+    - KEYSTONE_FTP_USER
+    - KEYSTONE_FTP_PASS
+    # Meyer
+    - MEYER_USERNAME
+    - MEYER_PASSWORD
+    - MEYER_KEY
+    # Turn14
+    - TURN14_CLIENT_ID
+    - TURN14_CLIENT_SECRET
+    - TURN14_ENVIRONMENT
+    # Premier
+    - PREMIER_API_KEY
+    - PREMIER_BASE_URL
+    # WheelPros
+    - WHEELPROS_USER
+    - WHEELPROS_PASS
+    # Other APIs
+    - PARSEHUB_KEY_NORTHRIDGE
+    - FREIGHTCOM_API_KEY
+    # Axiom (Error Monitoring)
+    - AXIOM_TOKEN
+    - AXIOM_DATASET
 
 # =============================================================================
 # SSH
