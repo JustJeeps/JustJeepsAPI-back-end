@@ -1,17 +1,10 @@
 const XLSX = require("xlsx");
 const path = require("path");
-const fs = require("fs");
 
 const quadratecCost = () => {
   // Step 1: Load Excel file
   // Construct the absolute file path using __dirname and the file name
   const filePath = path.join(__dirname, "pricingSheet_quad.xlsx");
-
-  // Check if file exists before reading
-  if (!fs.existsSync(filePath)) {
-    console.warn(`Warning: ${filePath} not found. Quadratec pricing data not loaded.`);
-    return [];
-  }
 
   // Read the file using the updated file path
   const workbook = XLSX.readFile(filePath);

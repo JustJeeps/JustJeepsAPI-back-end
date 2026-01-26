@@ -2,9 +2,7 @@ const puppeteer = require("puppeteer");
 const fs = require("fs");
 const { stringify } = require("csv-stringify/sync");
 const path = require("path");
-const logger = require("../../../../utils/logger");
 
-const SCRIPT_NAME = "stinger-scraping";
 const OUTPUT_DIR = __dirname;
 
 const CATEGORY_URLS = [
@@ -67,12 +65,6 @@ async function safeGoto(page, url, { retries = MAX_RETRIES, label = "page" } = {
     }
   }
   console.error(`❌ Failed to load ${url} after ${retries} retries`);
-  logger.warn("Navigation failed", {
-    script: SCRIPT_NAME,
-    url,
-    label,
-    retries
-  });
   return false;
 }
 
@@ -170,12 +162,6 @@ async function scrapeProduct(browser, url, category) {
     return data;
   } catch (e) {
     console.warn(`⚠️ Error scraping product ${url}: ${e.message}`);
-    logger.error("Product scrape failed", {
-      script: SCRIPT_NAME,
-      url,
-      category,
-      error: e.message
-    });
     return null;
   } finally {
     await page.close().catch(() => {});
@@ -183,13 +169,6 @@ async function scrapeProduct(browser, url, category) {
 }
 
 (async () => {
-  const startTime = Date.now();
-  logger.info("Scraping started", {
-    script: SCRIPT_NAME,
-    categories: CATEGORY_URLS.length,
-    checkpoint: CHECKPOINT_FILE
-  });
-
   const browser = await puppeteer.launch({
     headless: true,
     args: [
@@ -209,27 +188,20 @@ async function scrapeProduct(browser, url, category) {
   const visited = checkpoint.visited || {};
   const scrapedData = checkpoint.data || [];
 
-  function gracefulExit(code = 0, reason = "manual") {
-    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+  function gracefulExit(code = 0) {
     try {
       saveCheckpoint({ visited, data: scrapedData });
       flushCSV(scrapedData);
-      logger.info("Scraping interrupted", {
-        script: SCRIPT_NAME,
-        reason,
-        productsScraped: scrapedData.length,
-        duration: `${duration}s`
-      });
     } catch (_) {}
     process.exit(code);
   }
   process.on("SIGINT", () => {
     console.log("\n👋 Caught SIGINT (Ctrl+C) — saving files before exit…");
-    gracefulExit(0, "SIGINT");
+    gracefulExit(0);
   });
   process.on("SIGTERM", () => {
     console.log("\n👋 Caught SIGTERM — saving files before exit…");
-    gracefulExit(0, "SIGTERM");
+    gracefulExit(0);
   });
 
   let grandCount = scrapedData.length;
@@ -241,12 +213,6 @@ async function scrapeProduct(browser, url, category) {
 
     const categoryMatch = categoryUrl.match(/collections\/([^/?#]+)/i);
     const category = categoryMatch ? categoryMatch[1] : "unknown";
-
-    logger.info("Starting category", {
-      script: SCRIPT_NAME,
-      category,
-      url: categoryUrl
-    });
 
     while (currentPage) {
       if (!(await safeGoto(catPage, currentPage, { label: "category" }))) break;
@@ -294,11 +260,6 @@ async function scrapeProduct(browser, url, category) {
     }
 
     console.log(`✅ Finished category: ${categoryUrl} | Total scraped here: ${categoryCount}`);
-    logger.info("Category completed", {
-      script: SCRIPT_NAME,
-      category,
-      productsScraped: categoryCount
-    });
   }
 
   saveCheckpoint({ visited, data: scrapedData });
@@ -307,19 +268,8 @@ async function scrapeProduct(browser, url, category) {
   await browser.close();
 
   const unique = new Set(scrapedData.map((r) => (r.sku || "").trim())).size;
-  const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-
   console.log(`\n🎯 TOTAL SKUs SCRAPED (unique): ${unique}`);
   console.log(`✅ Data saved to ${path.join(OUTPUT_DIR, CSV_FILE)} | Checkpoint: ${path.join(OUTPUT_DIR, CHECKPOINT_FILE)}`);
-
-  logger.info("Scraping completed", {
-    script: SCRIPT_NAME,
-    totalProducts: scrapedData.length,
-    uniqueSkus: unique,
-    categoriesScraped: CATEGORY_URLS.length,
-    duration: `${duration}s`,
-    outputFile: CSV_FILE
-  });
 })();
 
 

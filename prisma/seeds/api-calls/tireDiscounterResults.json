@@ -1,0 +1,2338 @@
+[
+  {
+    "ourSku": "BFG-18380",
+    "theirSku": "BF-18380",
+    "price": 368.06,
+    "msrp": 453,
+    "map": null,
+    "inventory": 27
+  },
+  {
+    "ourSku": "BFG-58075",
+    "theirSku": "BF-58075",
+    "price": 502.27,
+    "msrp": 622,
+    "map": null,
+    "inventory": 48
+  },
+  {
+    "ourSku": "BFG-86520",
+    "theirSku": "BF-86520",
+    "price": 443.63,
+    "msrp": 546,
+    "map": null,
+    "inventory": 18
+  },
+  {
+    "ourSku": "NIT-224170",
+    "theirSku": "NT-224170",
+    "price": 242.25,
+    "msrp": 323,
+    "map": null,
+    "inventory": 12
+  },
+  {
+    "ourSku": "NIT-223980",
+    "theirSku": "NT-223980",
+    "price": 316.94,
+    "msrp": 424,
+    "map": null,
+    "inventory": 12
+  },
+  {
+    "ourSku": "NIT-224000",
+    "theirSku": "NT-224000",
+    "price": 378.98,
+    "msrp": 507,
+    "map": null,
+    "inventory": 3
+  },
+  {
+    "ourSku": "NIT-223970",
+    "theirSku": "NT-223970",
+    "price": 316.94,
+    "msrp": 424,
+    "map": null,
+    "inventory": 12
+  },
+  {
+    "ourSku": "NIT-224010",
+    "theirSku": "NT-224010",
+    "price": 276,
+    "msrp": 368,
+    "map": null,
+    "inventory": 19
+  },
+  {
+    "ourSku": "NIT-224200",
+    "theirSku": "NT-224200",
+    "price": 252,
+    "msrp": 336,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-223870",
+    "theirSku": "NT-223870",
+    "price": 313.2,
+    "msrp": 419,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-224210",
+    "theirSku": "NT-224210",
+    "price": 291,
+    "msrp": 388,
+    "map": null,
+    "inventory": 8
+  },
+  {
+    "ourSku": "BFG-78075",
+    "theirSku": "BF-78075",
+    "price": 381.06,
+    "msrp": 469,
+    "map": null,
+    "inventory": 283
+  },
+  {
+    "ourSku": "NIT-224140",
+    "theirSku": "NT-224140",
+    "price": 295.5,
+    "msrp": 394,
+    "map": null,
+    "inventory": 20
+  },
+  {
+    "ourSku": "BFG-08884",
+    "theirSku": "BF-08884",
+    "price": 490.15,
+    "msrp": 607,
+    "map": null,
+    "inventory": 101
+  },
+  {
+    "ourSku": "NIT-224100",
+    "theirSku": "NT-224100",
+    "price": 325.91,
+    "msrp": 436,
+    "map": null,
+    "inventory": 32
+  },
+  {
+    "ourSku": "NIT-224020",
+    "theirSku": "NT-224020",
+    "price": 279.75,
+    "msrp": 373,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-224120",
+    "theirSku": "NT-224120",
+    "price": 249.75,
+    "msrp": 333,
+    "map": null,
+    "inventory": 4
+  },
+  {
+    "ourSku": "BFG-64364",
+    "theirSku": "BF-64364",
+    "price": 387.56,
+    "msrp": 477,
+    "map": null,
+    "inventory": 82
+  },
+  {
+    "ourSku": "NIT-205030",
+    "theirSku": "NT-205030",
+    "price": 334.13,
+    "msrp": 447,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-224230",
+    "theirSku": "NT-224230",
+    "price": 275.25,
+    "msrp": 367,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205160",
+    "theirSku": "NT-205160",
+    "price": 258.75,
+    "msrp": 345,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205270",
+    "theirSku": "NT-205270",
+    "price": 208.5,
+    "msrp": 278,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-206910",
+    "theirSku": "NT-206910",
+    "price": 376.74,
+    "msrp": 504,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205000",
+    "theirSku": "NT-205000",
+    "price": 542.36,
+    "msrp": 728,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205360",
+    "theirSku": "NT-205360",
+    "price": 352.07,
+    "msrp": 479,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-206860",
+    "theirSku": "NT-206860",
+    "price": 370.01,
+    "msrp": 495,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205370",
+    "theirSku": "NT-205370",
+    "price": 306.48,
+    "msrp": 410,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-206950",
+    "theirSku": "NT-206950",
+    "price": 400.66,
+    "msrp": 536,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-201040",
+    "theirSku": "NT-201040",
+    "price": 407.39,
+    "msrp": 545,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-200600",
+    "theirSku": "NT-200600",
+    "price": 522.99,
+    "msrp": 702,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-200720",
+    "theirSku": "NT-200720",
+    "price": 845.71,
+    "msrp": 1139,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-200540",
+    "theirSku": "NT-200540",
+    "price": 634.84,
+    "msrp": 855,
+    "map": null,
+    "inventory": 2
+  },
+  {
+    "ourSku": "NIT-200520",
+    "theirSku": "NT-200520",
+    "price": 965.99,
+    "msrp": 1301,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-223810",
+    "theirSku": "NT-223810",
+    "price": 394.68,
+    "msrp": 528,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205890",
+    "theirSku": "NT-205890",
+    "price": 337.12,
+    "msrp": 451,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-206850",
+    "theirSku": "NT-206850",
+    "price": 842,
+    "msrp": 1134,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205820",
+    "theirSku": "NT-205820",
+    "price": 849.42,
+    "msrp": 1144,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205430",
+    "theirSku": "NT-205430",
+    "price": 721.71,
+    "msrp": 972,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205700",
+    "theirSku": "NT-205700",
+    "price": 501.39,
+    "msrp": 673,
+    "map": null,
+    "inventory": 32
+  },
+  {
+    "ourSku": "NIT-223880",
+    "theirSku": "NT-223880",
+    "price": 305.73,
+    "msrp": 409,
+    "map": null,
+    "inventory": 16
+  },
+  {
+    "ourSku": "NIT-200670",
+    "theirSku": "NT-200670",
+    "price": 458.18,
+    "msrp": 615,
+    "map": null,
+    "inventory": 1
+  },
+  {
+    "ourSku": "NIT-206940",
+    "theirSku": "NT-206940",
+    "price": 315.45,
+    "msrp": 422,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205920",
+    "theirSku": "NT-205920",
+    "price": 411.13,
+    "msrp": 550,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205850",
+    "theirSku": "NT-205850",
+    "price": 349.08,
+    "msrp": 467,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205130",
+    "theirSku": "NT-205130",
+    "price": 261,
+    "msrp": 348,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205760",
+    "theirSku": "NT-205760",
+    "price": 572.91,
+    "msrp": 769,
+    "map": null,
+    "inventory": 6
+  },
+  {
+    "ourSku": "NIT-201050",
+    "theirSku": "NT-201050",
+    "price": 408.14,
+    "msrp": 546,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-200570",
+    "theirSku": "NT-200570",
+    "price": 558.01,
+    "msrp": 749,
+    "map": null,
+    "inventory": 12
+  },
+  {
+    "ourSku": "NIT-224060",
+    "theirSku": "NT-224060",
+    "price": 328.15,
+    "msrp": 439,
+    "map": null,
+    "inventory": 36
+  },
+  {
+    "ourSku": "NIT-223800",
+    "theirSku": "NT-223800",
+    "price": 355.81,
+    "msrp": 476,
+    "map": null,
+    "inventory": 16
+  },
+  {
+    "ourSku": "NIT-200580",
+    "theirSku": "NT-200580",
+    "price": 467.12,
+    "msrp": 627,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205730",
+    "theirSku": "NT-205730",
+    "price": 452.96,
+    "msrp": 608,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-350720",
+    "theirSku": "TY-350720",
+    "price": 280.13,
+    "msrp": 498,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-223830",
+    "theirSku": "NT-223830",
+    "price": 325.16,
+    "msrp": 435,
+    "map": null,
+    "inventory": 4
+  },
+  {
+    "ourSku": "NIT-200550",
+    "theirSku": "NT-200550",
+    "price": 497.66,
+    "msrp": 668,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-200770",
+    "theirSku": "NT-200770",
+    "price": 630.38,
+    "msrp": 849,
+    "map": null,
+    "inventory": 2
+  },
+  {
+    "ourSku": "BFG-03069",
+    "theirSku": "BF-03069",
+    "price": 388.38,
+    "msrp": 478,
+    "map": null,
+    "inventory": 160
+  },
+  {
+    "ourSku": "FKL-28516921",
+    "theirSku": "FK-28516921",
+    "price": 549.81,
+    "msrp": 1145.44,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-360430",
+    "theirSku": "TY-360430",
+    "price": 354.01,
+    "msrp": 657,
+    "map": null,
+    "inventory": 3
+  },
+  {
+    "ourSku": "BFG-62187",
+    "theirSku": "BF-62187",
+    "price": 398.13,
+    "msrp": 490,
+    "map": null,
+    "inventory": 25
+  },
+  {
+    "ourSku": "TO-360560",
+    "theirSku": "TY-360560",
+    "price": 469.07,
+    "msrp": 849,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-360380",
+    "theirSku": "TY-360380",
+    "price": 583.44,
+    "msrp": 1056,
+    "map": null,
+    "inventory": 2
+  },
+  {
+    "ourSku": "TO-360390",
+    "theirSku": "TY-360390",
+    "price": 634.82,
+    "msrp": 1149,
+    "map": null,
+    "inventory": 6
+  },
+  {
+    "ourSku": "TO-350690",
+    "theirSku": "TY-350690",
+    "price": 503.88,
+    "msrp": 912,
+    "map": null,
+    "inventory": 1
+  },
+  {
+    "ourSku": "NIT-200690",
+    "theirSku": "NT-200690",
+    "price": 482.02,
+    "msrp": 647,
+    "map": null,
+    "inventory": 3
+  },
+  {
+    "ourSku": "NIT-205800",
+    "theirSku": "NT-205800",
+    "price": 594,
+    "msrp": 800,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205750",
+    "theirSku": "NT-205750",
+    "price": 544.6,
+    "msrp": 731,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205940",
+    "theirSku": "NT-205940",
+    "price": 449.24,
+    "msrp": 603,
+    "map": null,
+    "inventory": 3
+  },
+  {
+    "ourSku": "NIT-205110",
+    "theirSku": "NT-205110",
+    "price": 285.75,
+    "msrp": 381,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-350190",
+    "theirSku": "TY-350190",
+    "price": 475.15,
+    "msrp": 860,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "BFG-05260",
+    "theirSku": "BF-05260",
+    "price": 377,
+    "msrp": 464,
+    "map": null,
+    "inventory": 51
+  },
+  {
+    "ourSku": "BFG-62023",
+    "theirSku": "BF-62023",
+    "price": 314.74,
+    "msrp": 385,
+    "map": null,
+    "inventory": 25
+  },
+  {
+    "ourSku": "BFG-66539",
+    "theirSku": "BF-66539",
+    "price": 473.69,
+    "msrp": 583,
+    "map": null,
+    "inventory": 57
+  },
+  {
+    "ourSku": "NIT-217530",
+    "theirSku": "NT-217530",
+    "price": 420.84,
+    "msrp": 563,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-360110",
+    "theirSku": "TY-360110",
+    "price": 376.87,
+    "msrp": 700,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-360300",
+    "theirSku": "TY-360300",
+    "price": 533.16,
+    "msrp": 965,
+    "map": null,
+    "inventory": 5
+  },
+  {
+    "ourSku": "BFG-72204",
+    "theirSku": "BF-72204",
+    "price": 517.61,
+    "msrp": 641,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "BFG-63019",
+    "theirSku": "BF-63019",
+    "price": 508.73,
+    "msrp": 630,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "BFG-08843",
+    "theirSku": "BF-08843",
+    "price": 508.73,
+    "msrp": 630,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-360120",
+    "theirSku": "TY-360120",
+    "price": 400.84,
+    "msrp": 744,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205070",
+    "theirSku": "NT-205070",
+    "price": 306.48,
+    "msrp": 410,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "BFG-69713",
+    "theirSku": "BF-69713",
+    "price": 536.18,
+    "msrp": 664,
+    "map": null,
+    "inventory": 1
+  },
+  {
+    "ourSku": "BFG-55079",
+    "theirSku": "BF-55079",
+    "price": 495.81,
+    "msrp": 614,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "BFG-10199",
+    "theirSku": "BF-10199",
+    "price": 398.13,
+    "msrp": 490,
+    "map": null,
+    "inventory": 1
+  },
+  {
+    "ourSku": "BFG-32095",
+    "theirSku": "BF-32095",
+    "price": 386.75,
+    "msrp": 476,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "BFG-51810",
+    "theirSku": "BF-51810",
+    "price": 575.75,
+    "msrp": 713,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-217050",
+    "theirSku": "NT-217050",
+    "price": 482.02,
+    "msrp": 647,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "BFG-08056",
+    "theirSku": "BF-08056",
+    "price": 437.94,
+    "msrp": 539,
+    "map": null,
+    "inventory": 1
+  },
+  {
+    "ourSku": "BFG-35666",
+    "theirSku": "BF-35666",
+    "price": 541.03,
+    "msrp": 670,
+    "map": null,
+    "inventory": 16
+  },
+  {
+    "ourSku": "NIT-217030",
+    "theirSku": "NT-217030",
+    "price": 574.4,
+    "msrp": 771,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "BFG-00893",
+    "theirSku": "BF-00893",
+    "price": 319.64,
+    "msrp": 391,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "BFG-27226",
+    "theirSku": "BF-27226",
+    "price": 408.69,
+    "msrp": 503,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "FKL-28516710",
+    "theirSku": "FK-28516710",
+    "price": 466.44,
+    "msrp": 971.75,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "FKL-59000360",
+    "theirSku": "FK-59000360",
+    "price": 366.33,
+    "msrp": 763.18,
+    "map": null,
+    "inventory": 13
+  },
+  {
+    "ourSku": "BFG-00958",
+    "theirSku": "BF-00958",
+    "price": 558.79,
+    "msrp": 692,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "BFG-13079",
+    "theirSku": "BF-13079",
+    "price": 315.56,
+    "msrp": 386,
+    "map": null,
+    "inventory": 4
+  },
+  {
+    "ourSku": "BFG-33572",
+    "theirSku": "BF-33572",
+    "price": 384.31,
+    "msrp": 473,
+    "map": null,
+    "inventory": 8
+  },
+  {
+    "ourSku": "BFG-66255",
+    "theirSku": "BF-66255",
+    "price": 351.81,
+    "msrp": 433,
+    "map": null,
+    "inventory": 37
+  },
+  {
+    "ourSku": "BFG-01898",
+    "theirSku": "BF-01898",
+    "price": 483.44,
+    "msrp": 595,
+    "map": null,
+    "inventory": 8
+  },
+  {
+    "ourSku": "BFG-93878",
+    "theirSku": "BF-93878",
+    "price": 268.14,
+    "msrp": 328,
+    "map": null,
+    "inventory": 13
+  },
+  {
+    "ourSku": "BFG-38937",
+    "theirSku": "BF-38937",
+    "price": 559.6,
+    "msrp": 693,
+    "map": null,
+    "inventory": 2
+  },
+  {
+    "ourSku": "BFG-46828",
+    "theirSku": "BF-46828",
+    "price": 434.69,
+    "msrp": 535,
+    "map": null,
+    "inventory": 38
+  },
+  {
+    "ourSku": "BFG-65289",
+    "theirSku": "BF-65289",
+    "price": 276.32,
+    "msrp": 338,
+    "map": null,
+    "inventory": 4
+  },
+  {
+    "ourSku": "TO-149420",
+    "theirSku": "TY-149420",
+    "price": 223.11,
+    "msrp": 402,
+    "map": null,
+    "inventory": 7
+  },
+  {
+    "ourSku": "NIT-218560",
+    "theirSku": "NT-218560",
+    "price": 461.9,
+    "msrp": 620,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-360630",
+    "theirSku": "TY-360630",
+    "price": 514.93,
+    "msrp": 932,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "FKL-28516995",
+    "theirSku": "FK-28516995",
+    "price": 478.97,
+    "msrp": 997.86,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "FKL-28516612",
+    "theirSku": "FK-28516612",
+    "price": 427.65,
+    "msrp": 890.94,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-206830",
+    "theirSku": "NT-206830",
+    "price": 544.6,
+    "msrp": 731,
+    "map": null,
+    "inventory": 4
+  },
+  {
+    "ourSku": "NIT-205830",
+    "theirSku": "NT-205830",
+    "price": 693.5,
+    "msrp": 934,
+    "map": null,
+    "inventory": 8
+  },
+  {
+    "ourSku": "NIT-217410",
+    "theirSku": "NT-217410",
+    "price": 599.2,
+    "msrp": 807,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-217160",
+    "theirSku": "NT-217160",
+    "price": 346.84,
+    "msrp": 464,
+    "map": null,
+    "inventory": 8
+  },
+  {
+    "ourSku": "BFG-91993",
+    "theirSku": "BF-91993",
+    "price": 613.7,
+    "msrp": 760,
+    "map": null,
+    "inventory": 4
+  },
+  {
+    "ourSku": "NIT-218660",
+    "theirSku": "NT-218660",
+    "price": 414.12,
+    "msrp": 554,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "YOK-110101829",
+    "theirSku": "YK-110101829",
+    "price": 326.61,
+    "msrp": 573,
+    "map": null,
+    "inventory": 16
+  },
+  {
+    "ourSku": "YOK-110101827",
+    "theirSku": "YK-110101827",
+    "price": 297.54,
+    "msrp": 522,
+    "map": null,
+    "inventory": 16
+  },
+  {
+    "ourSku": "TO-355530",
+    "theirSku": "TY-355530",
+    "price": 319.5,
+    "msrp": 568,
+    "map": null,
+    "inventory": 94
+  },
+  {
+    "ourSku": "BFG-09666",
+    "theirSku": "BF-09666",
+    "price": 316.37,
+    "msrp": 387,
+    "map": null,
+    "inventory": 4
+  },
+  {
+    "ourSku": "TO-360210",
+    "theirSku": "TY-360210",
+    "price": 660.79,
+    "msrp": 1196,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "BFG-70539",
+    "theirSku": "BF-70539",
+    "price": 342.06,
+    "msrp": 421,
+    "map": null,
+    "inventory": 28
+  },
+  {
+    "ourSku": "TO-355320",
+    "theirSku": "TY-355320",
+    "price": 466.86,
+    "msrp": 845,
+    "map": null,
+    "inventory": 69
+  },
+  {
+    "ourSku": "FTN-232973",
+    "theirSku": "FS-232973",
+    "price": 238.75,
+    "msrp": 589.5,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-223930",
+    "theirSku": "NT-223930",
+    "price": 271.5,
+    "msrp": 362,
+    "map": null,
+    "inventory": 6
+  },
+  {
+    "ourSku": "NIT-224040",
+    "theirSku": "NT-224040",
+    "price": 281.25,
+    "msrp": 375,
+    "map": null,
+    "inventory": 20
+  },
+  {
+    "ourSku": "NIT-224240",
+    "theirSku": "NT-224240",
+    "price": 219,
+    "msrp": 292,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-224250",
+    "theirSku": "NT-224250",
+    "price": 228.75,
+    "msrp": 305,
+    "map": null,
+    "inventory": 4
+  },
+  {
+    "ourSku": "NIT-224190",
+    "theirSku": "NT-224190",
+    "price": 228.75,
+    "msrp": 305,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-224260",
+    "theirSku": "NT-224260",
+    "price": 233.25,
+    "msrp": 311,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-224080",
+    "theirSku": "NT-224080",
+    "price": 297.75,
+    "msrp": 397,
+    "map": null,
+    "inventory": 16
+  },
+  {
+    "ourSku": "NIT-224150",
+    "theirSku": "NT-224150",
+    "price": 297.75,
+    "msrp": 397,
+    "map": null,
+    "inventory": 28
+  },
+  {
+    "ourSku": "NIT-224220",
+    "theirSku": "NT-224220",
+    "price": 305.73,
+    "msrp": 409,
+    "map": null,
+    "inventory": 14
+  },
+  {
+    "ourSku": "NIT-223910",
+    "theirSku": "NT-223910",
+    "price": 340.11,
+    "msrp": 455,
+    "map": null,
+    "inventory": 8
+  },
+  {
+    "ourSku": "NIT-223840",
+    "theirSku": "NT-223840",
+    "price": 340.11,
+    "msrp": 455,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-224090",
+    "theirSku": "NT-224090",
+    "price": 311.71,
+    "msrp": 417,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "FKL-28516999",
+    "theirSku": "FK-28516999",
+    "price": 504.14,
+    "msrp": 1050.28,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-223900",
+    "theirSku": "NT-223900",
+    "price": 352.07,
+    "msrp": 471,
+    "map": null,
+    "inventory": 26
+  },
+  {
+    "ourSku": "NIT-205860",
+    "theirSku": "NT-205860",
+    "price": 365.53,
+    "msrp": 489,
+    "map": null,
+    "inventory": 8
+  },
+  {
+    "ourSku": "NIT-223820",
+    "theirSku": "NT-223820",
+    "price": 447,
+    "msrp": 600,
+    "map": null,
+    "inventory": 6
+  },
+  {
+    "ourSku": "NIT-224070",
+    "theirSku": "NT-224070",
+    "price": 371.51,
+    "msrp": 497,
+    "map": null,
+    "inventory": 4
+  },
+  {
+    "ourSku": "NIT-205440",
+    "theirSku": "NT-205440",
+    "price": 337.12,
+    "msrp": 451,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-223940",
+    "theirSku": "NT-223940",
+    "price": 301.99,
+    "msrp": 404,
+    "map": null,
+    "inventory": 2
+  },
+  {
+    "ourSku": "NIT-205980",
+    "theirSku": "NT-205980",
+    "price": 599.2,
+    "msrp": 807,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205810",
+    "theirSku": "NT-205810",
+    "price": 715.03,
+    "msrp": 963,
+    "map": null,
+    "inventory": 3
+  },
+  {
+    "ourSku": "NIT-224110",
+    "theirSku": "NT-224110",
+    "price": 321.43,
+    "msrp": 430,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-360320",
+    "theirSku": "TY-360320",
+    "price": 335.81,
+    "msrp": 597,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-360230",
+    "theirSku": "TY-360230",
+    "price": 376.87,
+    "msrp": 700,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-360520",
+    "theirSku": "TY-360520",
+    "price": 544.77,
+    "msrp": 986,
+    "map": null,
+    "inventory": 16
+  },
+  {
+    "ourSku": "TO-360540",
+    "theirSku": "TY-360540",
+    "price": 586.2,
+    "msrp": 1061,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "BFG-81507",
+    "theirSku": "BF-81507",
+    "price": 342.88,
+    "msrp": 422,
+    "map": null,
+    "inventory": 8
+  },
+  {
+    "ourSku": "BFG-69948",
+    "theirSku": "BF-69948",
+    "price": 296.75,
+    "msrp": 363,
+    "map": null,
+    "inventory": 15
+  },
+  {
+    "ourSku": "BFG-15477",
+    "theirSku": "BF-15477",
+    "price": 295.94,
+    "msrp": 362,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205950",
+    "theirSku": "NT-205950",
+    "price": 397.67,
+    "msrp": 532,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-206840",
+    "theirSku": "NT-206840",
+    "price": 443.27,
+    "msrp": 593,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-360200",
+    "theirSku": "TY-360200",
+    "price": 861.35,
+    "msrp": 1559,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "BFG-10158",
+    "theirSku": "BF-10158",
+    "price": 326.18,
+    "msrp": 399,
+    "map": null,
+    "inventory": 5
+  },
+  {
+    "ourSku": "BFG-16681",
+    "theirSku": "BF-16681",
+    "price": 375.38,
+    "msrp": 462,
+    "map": null,
+    "inventory": 25
+  },
+  {
+    "ourSku": "BFG-36312",
+    "theirSku": "BF-36312",
+    "price": 486.12,
+    "msrp": 602,
+    "map": null,
+    "inventory": 2
+  },
+  {
+    "ourSku": "BFG-63681",
+    "theirSku": "BF-63681",
+    "price": 335.56,
+    "msrp": 413,
+    "map": null,
+    "inventory": 1
+  },
+  {
+    "ourSku": "BFG-95341",
+    "theirSku": "BF-95341",
+    "price": 278.77,
+    "msrp": 341,
+    "map": null,
+    "inventory": 50
+  },
+  {
+    "ourSku": "NIT-205880",
+    "theirSku": "NT-205880",
+    "price": 476.8,
+    "msrp": 640,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205710",
+    "theirSku": "NT-205710",
+    "price": 421.59,
+    "msrp": 564,
+    "map": null,
+    "inventory": 40
+  },
+  {
+    "ourSku": "NIT-200650",
+    "theirSku": "NT-200650",
+    "price": 363.29,
+    "msrp": 486,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205080",
+    "theirSku": "NT-205080",
+    "price": 307.97,
+    "msrp": 412,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-206890",
+    "theirSku": "NT-206890",
+    "price": 321.43,
+    "msrp": 430,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "BFG-19795",
+    "theirSku": "BF-19795",
+    "price": 405.44,
+    "msrp": 499,
+    "map": null,
+    "inventory": 75
+  },
+  {
+    "ourSku": "NIT-205910",
+    "theirSku": "NT-205910",
+    "price": 542.36,
+    "msrp": 728,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "BFG-23413",
+    "theirSku": "BF-23413",
+    "price": 484.5,
+    "msrp": 600,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "BFG-20375",
+    "theirSku": "BF-20375",
+    "price": 324.55,
+    "msrp": 397,
+    "map": null,
+    "inventory": 8
+  },
+  {
+    "ourSku": "BFG-05821",
+    "theirSku": "BF-05821",
+    "price": 338,
+    "msrp": 416,
+    "map": null,
+    "inventory": 84
+  },
+  {
+    "ourSku": "BFG-51064",
+    "theirSku": "BF-51064",
+    "price": 377,
+    "msrp": 464,
+    "map": null,
+    "inventory": 70
+  },
+  {
+    "ourSku": "BFG-39458",
+    "theirSku": "BF-39458",
+    "price": 583.82,
+    "msrp": 723,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "BFG-00819",
+    "theirSku": "BF-00819",
+    "price": 453.38,
+    "msrp": 558,
+    "map": null,
+    "inventory": 6
+  },
+  {
+    "ourSku": "BFG-52433",
+    "theirSku": "BF-52433",
+    "price": 298.39,
+    "msrp": 365,
+    "map": null,
+    "inventory": 38
+  },
+  {
+    "ourSku": "TO-360330",
+    "theirSku": "TY-360330",
+    "price": 492.83,
+    "msrp": 892,
+    "map": null,
+    "inventory": 27
+  },
+  {
+    "ourSku": "BFG-64055",
+    "theirSku": "BF-64055",
+    "price": 264.87,
+    "msrp": 324,
+    "map": null,
+    "inventory": 4
+  },
+  {
+    "ourSku": "BFG-17109",
+    "theirSku": "BF-17109",
+    "price": 387.56,
+    "msrp": 477,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-174400",
+    "theirSku": "TY-174400",
+    "price": 293.04,
+    "msrp": 528,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "BFG-19337",
+    "theirSku": "BF-19337",
+    "price": 345.31,
+    "msrp": 425,
+    "map": null,
+    "inventory": 124
+  },
+  {
+    "ourSku": "FTN-246335",
+    "theirSku": "FS-246335",
+    "price": 228.22,
+    "msrp": 563.5,
+    "map": null,
+    "inventory": 119
+  },
+  {
+    "ourSku": "FKL-28516906",
+    "theirSku": "FK-28516906",
+    "price": 513.22,
+    "msrp": 1069.21,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205200",
+    "theirSku": "NT-205200",
+    "price": 219,
+    "msrp": 292,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205040",
+    "theirSku": "NT-205040",
+    "price": 294.75,
+    "msrp": 393,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-200630",
+    "theirSku": "NT-200630",
+    "price": 520.01,
+    "msrp": 698,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "BFG-64811",
+    "theirSku": "BF-64811",
+    "price": 382.69,
+    "msrp": 471,
+    "map": null,
+    "inventory": 1
+  },
+  {
+    "ourSku": "NIT-205420",
+    "theirSku": "NT-205420",
+    "price": 628.16,
+    "msrp": 846,
+    "map": null,
+    "inventory": 2
+  },
+  {
+    "ourSku": "NIT-206930",
+    "theirSku": "NT-206930",
+    "price": 541.62,
+    "msrp": 727,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-200660",
+    "theirSku": "NT-200660",
+    "price": 568.44,
+    "msrp": 763,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "BFG-01180",
+    "theirSku": "BF-01180",
+    "price": 344.5,
+    "msrp": 424,
+    "map": null,
+    "inventory": 24
+  },
+  {
+    "ourSku": "BFG-09376",
+    "theirSku": "BF-09376",
+    "price": 422.5,
+    "msrp": 520,
+    "map": null,
+    "inventory": 54
+  },
+  {
+    "ourSku": "BFG-23161",
+    "theirSku": "BF-23161",
+    "price": 427.38,
+    "msrp": 526,
+    "map": null,
+    "inventory": 20
+  },
+  {
+    "ourSku": "BFG-11527",
+    "theirSku": "BF-11527",
+    "price": 485.31,
+    "msrp": 601,
+    "map": null,
+    "inventory": 30
+  },
+  {
+    "ourSku": "NIT-218640",
+    "theirSku": "NT-218640",
+    "price": 418.6,
+    "msrp": 560,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-360370",
+    "theirSku": "TY-360370",
+    "price": 779.58,
+    "msrp": 1411,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-350210",
+    "theirSku": "TY-350210",
+    "price": 397.5,
+    "msrp": 713,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-360470",
+    "theirSku": "TY-360470",
+    "price": 321.75,
+    "msrp": 572,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "BRS-000657",
+    "theirSku": "BS-000657",
+    "price": 283.28,
+    "msrp": 647.5,
+    "map": null,
+    "inventory": 20
+  },
+  {
+    "ourSku": "BFG-13389",
+    "theirSku": "BF-13389",
+    "price": 481.81,
+    "msrp": 593,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-206870",
+    "theirSku": "NT-206870",
+    "price": 339.37,
+    "msrp": 454,
+    "map": null,
+    "inventory": 3
+  },
+  {
+    "ourSku": "NIT-205170",
+    "theirSku": "NT-205170",
+    "price": 225.75,
+    "msrp": 301,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205010",
+    "theirSku": "NT-205010",
+    "price": 343.85,
+    "msrp": 460,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-200760",
+    "theirSku": "NT-200760",
+    "price": 432.8,
+    "msrp": 579,
+    "map": null,
+    "inventory": 1
+  },
+  {
+    "ourSku": "NIT-205930",
+    "theirSku": "NT-205930",
+    "price": 398.42,
+    "msrp": 533,
+    "map": null,
+    "inventory": 4
+  },
+  {
+    "ourSku": "NIT-206610",
+    "theirSku": "NT-206610",
+    "price": 563.22,
+    "msrp": 756,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "FKL-28516951",
+    "theirSku": "FK-28516951",
+    "price": 667.19,
+    "msrp": 1389.97,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-360510",
+    "theirSku": "TY-360510",
+    "price": 537.58,
+    "msrp": 973,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-350260",
+    "theirSku": "TY-350260",
+    "price": 365.16,
+    "msrp": 655,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-217020",
+    "theirSku": "NT-217020",
+    "price": 447.75,
+    "msrp": 601,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-224130",
+    "theirSku": "NT-224130",
+    "price": 263.25,
+    "msrp": 351,
+    "map": null,
+    "inventory": 8
+  },
+  {
+    "ourSku": "NIT-223990",
+    "theirSku": "NT-223990",
+    "price": 355.81,
+    "msrp": 476,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-223860",
+    "theirSku": "NT-223860",
+    "price": 394.68,
+    "msrp": 528,
+    "map": null,
+    "inventory": 4
+  },
+  {
+    "ourSku": "BFG-11450",
+    "theirSku": "BF-11450",
+    "price": 330.69,
+    "msrp": 407,
+    "map": null,
+    "inventory": 27
+  },
+  {
+    "ourSku": "BFG-31812",
+    "theirSku": "BF-31812",
+    "price": 385.13,
+    "msrp": 474,
+    "map": null,
+    "inventory": 18
+  },
+  {
+    "ourSku": "NIT-223890",
+    "theirSku": "NT-223890",
+    "price": 325.16,
+    "msrp": 435,
+    "map": null,
+    "inventory": 24
+  },
+  {
+    "ourSku": "FKL-28516932",
+    "theirSku": "FK-28516932",
+    "price": 463.23,
+    "msrp": 965.07,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "BFG-32589",
+    "theirSku": "BF-32589",
+    "price": 533.76,
+    "msrp": 661,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "BFG-01047",
+    "theirSku": "BF-01047",
+    "price": 659.66,
+    "msrp": 822,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "BFG-25935",
+    "theirSku": "BF-25935",
+    "price": 322.1,
+    "msrp": 394,
+    "map": null,
+    "inventory": 165
+  },
+  {
+    "ourSku": "NIT-217010",
+    "theirSku": "NT-217010",
+    "price": 354.32,
+    "msrp": 474,
+    "map": null,
+    "inventory": 13
+  },
+  {
+    "ourSku": "TO-355960",
+    "theirSku": "TY-355960",
+    "price": 392.48,
+    "msrp": 729,
+    "map": null,
+    "inventory": 75
+  },
+  {
+    "ourSku": "TO-360440",
+    "theirSku": "TY-360440",
+    "price": 313.31,
+    "msrp": 557,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-360340",
+    "theirSku": "TY-360340",
+    "price": 454.16,
+    "msrp": 822,
+    "map": null,
+    "inventory": 21
+  },
+  {
+    "ourSku": "TO-360460",
+    "theirSku": "TY-360460",
+    "price": 333,
+    "msrp": 613,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-360310",
+    "theirSku": "TY-360310",
+    "price": 412.55,
+    "msrp": 766,
+    "map": null,
+    "inventory": 2
+  },
+  {
+    "ourSku": "TO-360240",
+    "theirSku": "TY-360240",
+    "price": 514.93,
+    "msrp": 932,
+    "map": null,
+    "inventory": 20
+  },
+  {
+    "ourSku": "TO-360270",
+    "theirSku": "TY-360270",
+    "price": 467.97,
+    "msrp": 847,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-360220",
+    "theirSku": "TY-360220",
+    "price": 593.94,
+    "msrp": 1075,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-360190",
+    "theirSku": "TY-360190",
+    "price": 656.92,
+    "msrp": 1189,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-350160",
+    "theirSku": "TY-350160",
+    "price": 327.38,
+    "msrp": 582,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-350180",
+    "theirSku": "TY-350180",
+    "price": 465.21,
+    "msrp": 842,
+    "map": null,
+    "inventory": 29
+  },
+  {
+    "ourSku": "FKL-28516518",
+    "theirSku": "FK-28516518",
+    "price": 338.38,
+    "msrp": 704.96,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "FKL-28516920",
+    "theirSku": "FK-28516920",
+    "price": 354.15,
+    "msrp": 737.81,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-200500",
+    "theirSku": "NT-200500",
+    "price": 619.99,
+    "msrp": 835,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205870",
+    "theirSku": "NT-205870",
+    "price": 421.59,
+    "msrp": 564,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205740",
+    "theirSku": "NT-205740",
+    "price": 420.84,
+    "msrp": 563,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205770",
+    "theirSku": "NT-205770",
+    "price": 365.53,
+    "msrp": 489,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205720",
+    "theirSku": "NT-205720",
+    "price": 560.99,
+    "msrp": 753,
+    "map": null,
+    "inventory": 6
+  },
+  {
+    "ourSku": "NIT-205790",
+    "theirSku": "NT-205790",
+    "price": 521.5,
+    "msrp": 700,
+    "map": null,
+    "inventory": 8
+  },
+  {
+    "ourSku": "FKL-28516322",
+    "theirSku": "FK-28516322",
+    "price": 276.94,
+    "msrp": 576.96,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-173900",
+    "theirSku": "TY-173900",
+    "price": 286.94,
+    "msrp": 517,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-360450",
+    "theirSku": "TY-360450",
+    "price": 323.44,
+    "msrp": 575,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-360130",
+    "theirSku": "TY-360130",
+    "price": 351.78,
+    "msrp": 653,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-360410",
+    "theirSku": "TY-360410",
+    "price": 479.57,
+    "msrp": 868,
+    "map": null,
+    "inventory": 1
+  },
+  {
+    "ourSku": "TO-360420",
+    "theirSku": "TY-360420",
+    "price": 455.81,
+    "msrp": 825,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-360280",
+    "theirSku": "TY-360280",
+    "price": 333.56,
+    "msrp": 614,
+    "map": null,
+    "inventory": 4
+  },
+  {
+    "ourSku": "TO-360610",
+    "theirSku": "TY-360610",
+    "price": 518.25,
+    "msrp": 938,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-360360",
+    "theirSku": "TY-360360",
+    "price": 388.58,
+    "msrp": 721,
+    "map": null,
+    "inventory": 6
+  },
+  {
+    "ourSku": "TO-360490",
+    "theirSku": "TY-360490",
+    "price": 279.56,
+    "msrp": 497,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-360100",
+    "theirSku": "TY-360100",
+    "price": 331.88,
+    "msrp": 590,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-360290",
+    "theirSku": "TY-360290",
+    "price": 334.13,
+    "msrp": 594,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-360090",
+    "theirSku": "TY-360090",
+    "price": 466.31,
+    "msrp": 844,
+    "map": null,
+    "inventory": 12
+  },
+  {
+    "ourSku": "TO-361000",
+    "theirSku": "TY-361000",
+    "price": 373.53,
+    "msrp": 693,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-360350",
+    "theirSku": "TY-360350",
+    "price": 832.07,
+    "msrp": 1506,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-360260",
+    "theirSku": "TY-360260",
+    "price": 402.52,
+    "msrp": 747,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-360180",
+    "theirSku": "TY-360180",
+    "price": 590.07,
+    "msrp": 1068,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-360480",
+    "theirSku": "TY-360480",
+    "price": 455.81,
+    "msrp": 825,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-350220",
+    "theirSku": "TY-350220",
+    "price": 427.05,
+    "msrp": 766,
+    "map": null,
+    "inventory": 2
+  },
+  {
+    "ourSku": "TO-350700",
+    "theirSku": "TY-350700",
+    "price": 405.3,
+    "msrp": 727,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-350170",
+    "theirSku": "TY-350170",
+    "price": 437.64,
+    "msrp": 785,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-350230",
+    "theirSku": "TY-350230",
+    "price": 501.12,
+    "msrp": 907,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-350670",
+    "theirSku": "TY-350670",
+    "price": 414.78,
+    "msrp": 744,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-350680",
+    "theirSku": "TY-350680",
+    "price": 529.3,
+    "msrp": 958,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205840",
+    "theirSku": "NT-205840",
+    "price": 367.77,
+    "msrp": 492,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "TO-355510",
+    "theirSku": "TY-355510",
+    "price": 318.38,
+    "msrp": 566,
+    "map": null,
+    "inventory": 206
+  },
+  {
+    "ourSku": "NIT-223950",
+    "theirSku": "NT-223950",
+    "price": 309.47,
+    "msrp": 414,
+    "map": null,
+    "inventory": 14
+  },
+  {
+    "ourSku": "BFG-91644",
+    "theirSku": "BF-91644",
+    "price": 446.88,
+    "msrp": 550,
+    "map": null,
+    "inventory": 1
+  },
+  {
+    "ourSku": "BFG-05632",
+    "theirSku": "BF-05632",
+    "price": 430.63,
+    "msrp": 530,
+    "map": null,
+    "inventory": 42
+  },
+  {
+    "ourSku": "BFG-30398",
+    "theirSku": "BF-30398",
+    "price": 411.94,
+    "msrp": 507,
+    "map": null,
+    "inventory": 40
+  },
+  {
+    "ourSku": "BFG-33249",
+    "theirSku": "BF-33249",
+    "price": 404.63,
+    "msrp": 498,
+    "map": null,
+    "inventory": 48
+  },
+  {
+    "ourSku": "BFG-37549",
+    "theirSku": "BF-37549",
+    "price": 599.97,
+    "msrp": 743,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205140",
+    "theirSku": "NT-205140",
+    "price": 225.75,
+    "msrp": 301,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205050",
+    "theirSku": "NT-205050",
+    "price": 249.75,
+    "msrp": 333,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205090",
+    "theirSku": "NT-205090",
+    "price": 237.75,
+    "msrp": 317,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-200680",
+    "theirSku": "NT-200680",
+    "price": 534.91,
+    "msrp": 718,
+    "map": null,
+    "inventory": 8
+  },
+  {
+    "ourSku": "NIT-206960",
+    "theirSku": "NT-206960",
+    "price": 347.59,
+    "msrp": 465,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-200530",
+    "theirSku": "NT-200530",
+    "price": 725.42,
+    "msrp": 977,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-200510",
+    "theirSku": "NT-200510",
+    "price": 703.89,
+    "msrp": 948,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "NIT-205340",
+    "theirSku": "NT-205340",
+    "price": 440.28,
+    "msrp": 589,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "BFG-26189",
+    "theirSku": "BF-26189",
+    "price": 426.56,
+    "msrp": 525,
+    "map": null,
+    "inventory": 26
+  },
+  {
+    "ourSku": "BFG-33403",
+    "theirSku": "BF-33403",
+    "price": 267.32,
+    "msrp": 327,
+    "map": null,
+    "inventory": 5
+  },
+  {
+    "ourSku": "BFG-71004",
+    "theirSku": "BF-71004",
+    "price": 843.43,
+    "msrp": 1051,
+    "map": null,
+    "inventory": 4
+  },
+  {
+    "ourSku": "BFG-26470",
+    "theirSku": "BF-26470",
+    "price": 310.65,
+    "msrp": 380,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "BFG-28855",
+    "theirSku": "BF-28855",
+    "price": 295.94,
+    "msrp": 362,
+    "map": null,
+    "inventory": 13
+  },
+  {
+    "ourSku": "BFG-37881",
+    "theirSku": "BF-37881",
+    "price": 346.94,
+    "msrp": 427,
+    "map": null,
+    "inventory": 7
+  },
+  {
+    "ourSku": "BFG-42347",
+    "theirSku": "BF-42347",
+    "price": 393.25,
+    "msrp": 484,
+    "map": null,
+    "inventory": 3
+  },
+  {
+    "ourSku": "BFG-09100",
+    "theirSku": "BF-09100",
+    "price": 369.69,
+    "msrp": 455,
+    "map": null,
+    "inventory": 165
+  },
+  {
+    "ourSku": "NIT-224030",
+    "theirSku": "NT-224030",
+    "price": 309.47,
+    "msrp": 414,
+    "map": null,
+    "inventory": 12
+  },
+  {
+    "ourSku": "BFG-68284",
+    "theirSku": "BF-68284",
+    "price": 521.65,
+    "msrp": 646,
+    "map": null,
+    "inventory": 33
+  },
+  {
+    "ourSku": "FKL-28516905",
+    "theirSku": "FK-28516905",
+    "price": 562.97,
+    "msrp": 1172.86,
+    "map": null,
+    "inventory": 2
+  },
+  {
+    "ourSku": "BFG-61764",
+    "theirSku": "BF-61764",
+    "price": 369.69,
+    "msrp": 455,
+    "map": null,
+    "inventory": 0
+  },
+  {
+    "ourSku": "MCH-12445",
+    "theirSku": "MI-12445",
+    "price": 250.42,
+    "msrp": 319,
+    "map": null,
+    "inventory": 35
+  },
+  {
+    "ourSku": "BFG-01542",
+    "theirSku": "BF-01542",
+    "price": 291.03,
+    "msrp": 356,
+    "map": null,
+    "inventory": 48
+  },
+  {
+    "ourSku": "NIT-224050",
+    "theirSku": "NT-224050",
+    "price": 387.21,
+    "msrp": 518,
+    "map": null,
+    "inventory": 7
+  }
+]

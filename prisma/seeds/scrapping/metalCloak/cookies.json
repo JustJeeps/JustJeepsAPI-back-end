@@ -1,0 +1,26 @@
+[
+  {
+    "name": "form_key",
+    "value": "ctOmdsTyyKYO5rYe",
+    "domain": "jobber.metalcloak.com",
+    "path": "/",
+    "httpOnly": false,
+    "secure": true
+  },
+  {
+    "name": "mage-messages",
+    "value": "",
+    "domain": "jobber.metalcloak.com",
+    "path": "/",
+    "httpOnly": false,
+    "secure": true
+  },
+  {
+    "name": "_dd_s",
+    "value": "logs=1&id=709b9af6-4551-46b3-98cb-8cf8bf62eeba&created=1752771570203&expire=1752775773344",
+    "domain": "jobber.metalcloak.com",
+    "path": "/",
+    "httpOnly": false,
+    "secure": false
+  }
+]

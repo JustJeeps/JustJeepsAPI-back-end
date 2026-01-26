@@ -2,7 +2,7 @@ const { PrismaClient } = require("@prisma/client");
 const vendorsData = require("./hard-code_data/vendors_data");
 const vendorsPrefix = require("./hard-code_data/vendors_prefix");
 const userData = require("./hard-code_data/users_data.js");
-const competitorData = require("./hard-code_data/competitors_data.js");
+// const competitorData = require("./hard-code_data/competitors_data.js");
 // const ordersData = require("./hard-code_data/orders_data.js");
 // const productsData = require("./hard-code_data/products_data.js");
 // const meyerData = require("./hard-code_data/meyer_cost.js");
@@ -450,7 +450,7 @@ const seedKeystone = async () => {
     let vendorProductUpdatedCount = 0;
 
     // Loop through the vendorProductsData object and create/update vendor products
-    for (const data of keystoneData) {
+    for (data of keystoneData) {
       // console.log("item", data);
       try {
         // Check if a vendor product with the same vendor_sku already exists

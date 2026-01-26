@@ -1,12 +1,11 @@
 // // RESET: rm results.csv resume-progress.json failed-urls.txt
 
+
 const fs = require("fs");
 const path = require("path");
 const puppeteer = require("puppeteer-core");
 const scrapePart = require("./partsengine-scraper");
-const logger = require("../../../../utils/logger");
 
-const SCRIPT_NAME = "partsengine-batch-runner";
 const BACKUP_EVERY = 50;
 const URLS_FILE = "urls.txt";
 const FAILED_FILE = "failed-urls.txt";
@@ -61,13 +60,6 @@ async function launchBrowser() {
   const urls = fs.readFileSync(URLS_FILE, "utf8").split("\n").filter(Boolean);
   const start = loadResumeIndex();
 
-  logger.info("Scraping started", {
-    script: SCRIPT_NAME,
-    totalUrls: urls.length,
-    resumeIndex: start,
-    urlsFile: URLS_FILE
-  });
-
   await launchBrowser();
 
   for (let i = start; i < urls.length; i++) {
@@ -98,12 +90,6 @@ try {
     } catch (err) {
       console.warn(`❌ Failed: ${url} — ${err.message}`);
       logFailed(url);
-      logger.warn("URL scrape failed", {
-        script: SCRIPT_NAME,
-        url,
-        error: err.message,
-        progress: `${i + 1}/${urls.length}`
-      });
     }
 
     if ((i + 1) % BACKUP_EVERY === 0) {
@@ -132,15 +118,6 @@ try {
   const seconds = Math.floor(totalTime % 60);
   console.log(`✅ All SKUs processed.`);
   console.log(`🕒 Total time: ${minutes} min ${seconds} sec`);
-
-  logger.info("Scraping completed", {
-    script: SCRIPT_NAME,
-    totalUrls: urls.length,
-    successfulScrapes: allResults.length,
-    failedScrapes: failed.length,
-    duration: `${minutes}m ${seconds}s`,
-    outputFile: OUTPUT_FILE
-  });
 })();
 
 
