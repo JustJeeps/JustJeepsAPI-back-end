@@ -477,15 +477,80 @@ app.get('/brands', async (req, res) => {
 // });
 
 
-// Route for getting orders with pagination
+// Route for getting orders with pagination and filters
 app.get('/api/orders', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const limit = Math.min(parseInt(req.query.limit) || 50, 200); // Max 200 per page
+    const limit = Math.min(parseInt(req.query.limit) || 25, 200); // Default 25, max 200 per page
     const skip = (page - 1) * limit;
+
+    // Filter parameters
+    const status = req.query.status || null;
+    const search = req.query.search || '';
+    const poStatus = req.query.poStatus || null; // 'not_set', 'set', 'partial'
+    const region = req.query.region || null;
+    const dateFrom = req.query.dateFrom || null;
+    const dateTo = req.query.dateTo || null;
+
+    // Build where clause
+    const where = {};
+
+    // Status filter
+    if (status) {
+      where.status = status;
+    }
+
+    // Search filter (order ID, customer name, email)
+    if (search) {
+      where.OR = [
+        { increment_id: { contains: search, mode: 'insensitive' } },
+        { customer_firstname: { contains: search, mode: 'insensitive' } },
+        { customer_lastname: { contains: search, mode: 'insensitive' } },
+        { customer_email: { contains: search, mode: 'insensitive' } },
+        { custom_po_number: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    // PO Status filter
+    if (poStatus === 'not_set') {
+      where.OR = [
+        { custom_po_number: null },
+        { custom_po_number: '' },
+        { custom_po_number: { equals: 'not set', mode: 'insensitive' } },
+      ];
+    } else if (poStatus === 'set') {
+      where.AND = [
+        { custom_po_number: { not: null } },
+        { custom_po_number: { not: '' } },
+        { NOT: { custom_po_number: { equals: 'not set', mode: 'insensitive' } } },
+        { NOT: { custom_po_number: { contains: 'not set', mode: 'insensitive' } } },
+      ];
+    } else if (poStatus === 'partial') {
+      where.AND = [
+        { custom_po_number: { contains: 'not set', mode: 'insensitive' } },
+        { NOT: { custom_po_number: { equals: 'not set', mode: 'insensitive' } } },
+      ];
+    }
+
+    // Region filter
+    if (region) {
+      where.region = region;
+    }
+
+    // Date range filter
+    if (dateFrom || dateTo) {
+      where.created_at = {};
+      if (dateFrom) {
+        where.created_at.gte = new Date(dateFrom);
+      }
+      if (dateTo) {
+        where.created_at.lte = new Date(dateTo);
+      }
+    }
 
     const [orders, total] = await Promise.all([
       prisma.order.findMany({
+        where,
         skip,
         take: limit,
         include: {
@@ -498,6 +563,10 @@ app.get('/api/orders', async (req, res) => {
                   price: true,
                   brand_name: true,
                   image: true,
+                  weight: true,
+                  shippingFreight: true,
+                  url_path: true,
+                  black_friday_sale: true,
                 },
               },
             },
@@ -512,7 +581,7 @@ app.get('/api/orders', async (req, res) => {
           created_at: 'desc',
         },
       }),
-      prisma.order.count(),
+      prisma.order.count({ where }),
     ]);
 
     res.json({
@@ -523,8 +592,17 @@ app.get('/api/orders', async (req, res) => {
         total,
         totalPages: Math.ceil(total / limit),
       },
+      filters: {
+        status,
+        search,
+        poStatus,
+        region,
+        dateFrom,
+        dateTo,
+      },
     });
   } catch (error) {
+    console.error('Error fetching orders:', error);
     res.status(500).json({
       error: `${error} Failed to fetch orders`,
     });
