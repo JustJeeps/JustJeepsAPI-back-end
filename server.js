@@ -178,10 +178,120 @@ app.get('/api/products/:sku/brand', async (req, res) => {
 });
 
 
-//Route for getting all products
+//Route for getting all products (with pagination)
 app.get('/api/products', async (req, res) => {
 	try {
+		const page = parseInt(req.query.page) || 1;
+		const limit = parseInt(req.query.limit) || 50;
+		const skip = (page - 1) * limit;
+		const search = req.query.search || '';
+
+		// Build where clause for search
+		const where = search ? {
+			OR: [
+				{ sku: { contains: search, mode: 'insensitive' } },
+				{ name: { contains: search, mode: 'insensitive' } },
+				{ brand_name: { contains: search, mode: 'insensitive' } },
+				{ searchable_sku: { contains: search, mode: 'insensitive' } },
+			]
+		} : {};
+
+		const selectFields = {
+			sku: true,
+			name: true,
+			url_path: true,
+			status: true,
+			price: true,
+			MAP: true,
+			searchable_sku: true,
+			jj_prefix: true,
+			image: true,
+			brand_name: true,
+			vendors: true,
+			partStatus_meyer: true,
+			keystone_code: true,
+			meyer_weight: true,
+			meyer_length: true,
+			meyer_width: true,
+			meyer_height: true,
+			weight: true,
+			length: true,
+			width: true,
+			height: true,
+			black_friday_sale: true,
+			shippingFreight: true,
+			partsEngine_code: true,
+			tdot_url: true,
+			keystone_code_site: true,
+			part: true,
+			thumbnail: true,
+			vendorProducts: {
+				select: {
+					product_sku: true,
+					vendor_sku: true,
+					vendor_cost: true,
+					vendor_inventory: true,
+					vendor_inventory_string: true,
+					partStatus_meyer: true,
+					quadratec_sku: true,
+					vendor: {
+						select: {
+							name: true,
+						},
+					},
+				},
+			},
+			competitorProducts: {
+				select: {
+					competitor_price: true,
+					product_url: true,
+					competitor: {
+						select: {
+							name: true,
+						},
+					},
+				},
+			},
+		};
+
+		// Run query and count in parallel for better performance
+		const [products, total] = await Promise.all([
+			prisma.product.findMany({
+				where,
+				skip,
+				take: limit,
+				select: selectFields,
+			}),
+			prisma.product.count({ where })
+		]);
+
+		res.json({
+			products,
+			pagination: {
+				page,
+				limit,
+				total,
+				totalPages: Math.ceil(total / limit),
+				hasMore: page * limit < total
+			}
+		});
+	} catch (error) {
+		console.log(error);
+		res.status(500).json({ error: 'Failed to fetch products' });
+	}
+});
+
+//Route for getting all products by brand name
+app.get('/api/products/brand/:brandName', async (req, res) => {
+	try {
+		const brandName = decodeURIComponent(req.params.brandName);
+
 		const products = await prisma.product.findMany({
+			where: {
+				brand_name: brandName,
+				status: 1,
+				price: { gt: 0 }
+			},
 			select: {
 				sku: true,
 				name: true,
@@ -196,7 +306,6 @@ app.get('/api/products', async (req, res) => {
 				vendors: true,
 				partStatus_meyer: true,
 				keystone_code: true,
-				//add meyer_weight, meyer_length, meyer_width, meyer_height
 				meyer_weight: true,
 				meyer_length: true,
 				meyer_width: true,
@@ -239,15 +348,13 @@ app.get('/api/products', async (req, res) => {
 						},
 					},
 				},
-				// take: 5000,
 			},
-			// take: 20
 		});
 
 		res.json(products);
 	} catch (error) {
 		console.log(error);
-		res.status(500).json({ error: 'Failed to fetch products' });
+		res.status(500).json({ error: 'Failed to fetch products by brand' });
 	}
 });
 

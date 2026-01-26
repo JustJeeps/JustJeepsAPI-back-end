@@ -111,6 +111,10 @@ model Product {
   competitorProducts CompetitorProduct[]
   orderProducts      OrderProduct[]
   vendorProducts     VendorProduct[]
+
+  @@index([brand_name])
+  @@index([status])
+  @@index([name])
 }
 
 model VendorProduct {
@@ -127,6 +131,8 @@ model VendorProduct {
   orderProducts           OrderProduct[]
   product                 Product        @relation(fields: [product_sku], references: [sku], onDelete: Cascade)
   vendor                  Vendor         @relation(fields: [vendor_id], references: [id])
+
+  @@index([product_sku])
 }
 
 model Vendor {
@@ -191,4 +197,6 @@ model CompetitorProduct {
   competitor_sku   String?
   competitor       Competitor @relation(fields: [competitor_id], references: [id])
   product          Product    @relation(fields: [product_sku], references: [sku], onDelete: Cascade)
+
+  @@index([product_sku])
 }
