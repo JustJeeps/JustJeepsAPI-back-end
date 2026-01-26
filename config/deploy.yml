@@ -20,7 +20,7 @@ servers:
       traefik.http.routers.justjeeps-api-secure.tls: true
       traefik.http.routers.justjeeps-api-secure.tls.certresolver: letsencrypt
     options:
-      memory: 1g
+      memory: 2g
       cpus: 1
 
 # =============================================================================
