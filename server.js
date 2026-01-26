@@ -477,35 +477,56 @@ app.get('/brands', async (req, res) => {
 // });
 
 
-// Route for getting orders where custom_po_number contains "not set"
+// Route for getting orders with pagination
 app.get('/api/orders', async (req, res) => {
   try {
-    const orders = await prisma.order.findMany({
-      include: {
-        items: {
-          include: {
-            product: true,
-          },
-          where: {
-            base_price: {
-              gt: 0
+    const page = parseInt(req.query.page) || 1;
+    const limit = Math.min(parseInt(req.query.limit) || 50, 200); // Max 200 per page
+    const skip = (page - 1) * limit;
+
+    const [orders, total] = await Promise.all([
+      prisma.order.findMany({
+        skip,
+        take: limit,
+        include: {
+          items: {
+            include: {
+              product: {
+                select: {
+                  sku: true,
+                  name: true,
+                  price: true,
+                  brand_name: true,
+                  image: true,
+                },
+              },
+            },
+            where: {
+              base_price: {
+                gt: 0,
+              },
             },
           },
         },
-      },
-      // where: {
-      //   custom_po_number: {
-      //     contains: 'Not set'
-      //   }
-      // },
-      orderBy: {
-        created_at: 'desc'
+        orderBy: {
+          created_at: 'desc',
+        },
+      }),
+      prisma.order.count(),
+    ]);
+
+    res.json({
+      data: orders,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
       },
     });
-    res.json(orders);
   } catch (error) {
     res.status(500).json({
-      error: `${error} Failed to fetch orders`
+      error: `${error} Failed to fetch orders`,
     });
   }
 });

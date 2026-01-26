@@ -42,6 +42,8 @@ model Order {
   shipping_company      String?
   items                 OrderProduct[]
   purchaseOrder         PurchaseOrder[]
+
+  @@index([created_at])
 }
 
 model OrderProduct {
@@ -65,6 +67,9 @@ model OrderProduct {
   order                  Order          @relation(fields: [order_id], references: [entity_id], onDelete: Cascade)
   product                Product        @relation(fields: [sku], references: [sku], onDelete: Cascade)
   vendorProduct          VendorProduct? @relation(fields: [vendor_product_id], references: [id], onDelete: Cascade)
+
+  @@index([order_id])
+  @@index([sku])
 }
 
 model Product {
