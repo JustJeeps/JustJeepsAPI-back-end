@@ -71,6 +71,9 @@ const quadratecCost = () => {
   return finalResults;
 };
 
-quadratecCost();
+// Only run if called directly (not when imported)
+if (require.main === module) {
+  quadratecCost();
+}
 
 module.exports = quadratecCost;

@@ -1,17 +1,35 @@
-# Stage 1: Dependencies
+# Stage 1: Production Dependencies
 FROM node:20-slim AS deps
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --only=production
 
-# Stage 2: Build with Prisma
+# Stage 2: All Dependencies (including dev for nodemon)
+FROM node:20-slim AS deps-dev
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+
+# Stage 3: Build with Prisma (for development)
 FROM node:20-slim AS builder
+WORKDIR /app
+
+# Install OpenSSL for Prisma
+RUN apt-get update && apt-get install -y openssl --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=deps-dev /app/node_modules ./node_modules
+COPY . .
+RUN npx prisma generate
+
+# Stage 4: Production Builder (with production deps only)
+FROM node:20-slim AS builder-prod
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npx prisma generate
 
-# Stage 3: Production
+# Stage 5: Production
 FROM node:20-slim
 WORKDIR /app
 
@@ -39,6 +57,6 @@ RUN apt-get update && apt-get install -y \
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
-COPY --from=builder /app .
+COPY --from=builder-prod /app .
 EXPOSE 8080
 CMD ["node", "server.js"]

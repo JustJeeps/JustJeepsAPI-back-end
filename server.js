@@ -76,6 +76,11 @@ app.get('/', (req, res) =>
 	})
 );
 
+// 🔐 Apply authentication middleware to all routes below this point
+// Public routes: /api/auth/*, /api/health, /
+// Protected routes: all other /api/* routes
+app.use('/api', authenticateToken);
+
 // Sample GET route
 app.get('/api/data', (req, res) =>
 	res.json({
