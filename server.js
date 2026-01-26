@@ -614,10 +614,10 @@ app.get('/api/orders/metrics', async (req, res) => {
   try {
     // Get current date boundaries in Toronto timezone (EST/EDT)
     const now = new Date();
-    const torontoOffset = -5 * 60; // EST offset in minutes
-    const localNow = new Date(now.getTime() + (torontoOffset * 60 * 1000) + (now.getTimezoneOffset() * 60 * 1000));
+    // Adjust for Toronto timezone (UTC-5)
+    const torontoNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/Toronto' }));
 
-    const startOfToday = new Date(localNow.getFullYear(), localNow.getMonth(), localNow.getDate());
+    const startOfToday = new Date(torontoNow.getFullYear(), torontoNow.getMonth(), torontoNow.getDate());
     const startOfYesterday = new Date(startOfToday);
     startOfYesterday.setDate(startOfYesterday.getDate() - 1);
     const startOfLast7Days = new Date(startOfToday);
@@ -635,16 +635,14 @@ app.get('/api/orders/metrics', async (req, res) => {
       gwCount,
       totalCount
     ] = await Promise.all([
-      // Not Set Orders
-      prisma.order.count({
-        where: {
-          OR: [
-            { custom_po_number: null },
-            { custom_po_number: '' },
-            { custom_po_number: { equals: 'not set', mode: 'insensitive' } },
-          ],
-        },
-      }),
+      // Not Set Orders - using raw SQL for case-insensitive matching
+      prisma.$queryRaw`
+        SELECT COUNT(*) as count FROM "Order"
+        WHERE custom_po_number IS NULL
+        OR custom_po_number = ''
+        OR LOWER(custom_po_number) = 'not set'
+      `.then(result => Number(result[0]?.count || 0)),
+
       // Today's Orders
       prisma.order.count({
         where: {
@@ -654,6 +652,7 @@ app.get('/api/orders/metrics', async (req, res) => {
           },
         },
       }),
+
       // Yesterday's Orders
       prisma.order.count({
         where: {
@@ -663,6 +662,7 @@ app.get('/api/orders/metrics', async (req, res) => {
           },
         },
       }),
+
       // Last 7 Days Orders
       prisma.order.count({
         where: {
@@ -671,21 +671,20 @@ app.get('/api/orders/metrics', async (req, res) => {
           },
         },
       }),
-      // PM Not Set Orders (contains "pm" AND contains "not set")
-      prisma.order.count({
-        where: {
-          AND: [
-            { custom_po_number: { contains: 'pm', mode: 'insensitive' } },
-            { custom_po_number: { contains: 'not set', mode: 'insensitive' } },
-          ],
-        },
-      }),
-      // GW Orders
-      prisma.order.count({
-        where: {
-          custom_po_number: { contains: 'gw', mode: 'insensitive' },
-        },
-      }),
+
+      // PM Not Set Orders - using raw SQL
+      prisma.$queryRaw`
+        SELECT COUNT(*) as count FROM "Order"
+        WHERE LOWER(custom_po_number) LIKE '%pm%'
+        AND LOWER(custom_po_number) LIKE '%not set%'
+      `.then(result => Number(result[0]?.count || 0)),
+
+      // GW Orders - using raw SQL
+      prisma.$queryRaw`
+        SELECT COUNT(*) as count FROM "Order"
+        WHERE LOWER(custom_po_number) LIKE '%gw%'
+      `.then(result => Number(result[0]?.count || 0)),
+
       // Total Orders
       prisma.order.count(),
     ]);
@@ -701,7 +700,7 @@ app.get('/api/orders/metrics', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching order metrics:', error);
-    res.status(500).json({ error: 'Failed to fetch order metrics' });
+    res.status(500).json({ error: 'Failed to fetch order metrics', details: error.message });
   }
 });
 
