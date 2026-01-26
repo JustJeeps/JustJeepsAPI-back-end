@@ -609,6 +609,102 @@ app.get('/api/orders', async (req, res) => {
   }
 });
 
+// Route for getting order metrics (independent of pagination)
+app.get('/api/orders/metrics', async (req, res) => {
+  try {
+    // Get current date boundaries in Toronto timezone (EST/EDT)
+    const now = new Date();
+    const torontoOffset = -5 * 60; // EST offset in minutes
+    const localNow = new Date(now.getTime() + (torontoOffset * 60 * 1000) + (now.getTimezoneOffset() * 60 * 1000));
+
+    const startOfToday = new Date(localNow.getFullYear(), localNow.getMonth(), localNow.getDate());
+    const startOfYesterday = new Date(startOfToday);
+    startOfYesterday.setDate(startOfYesterday.getDate() - 1);
+    const startOfLast7Days = new Date(startOfToday);
+    startOfLast7Days.setDate(startOfLast7Days.getDate() - 6);
+    const endOfToday = new Date(startOfToday);
+    endOfToday.setDate(endOfToday.getDate() + 1);
+
+    // Run all counts in parallel for performance
+    const [
+      notSetCount,
+      todayCount,
+      yesterdayCount,
+      last7DaysCount,
+      pmNotSetCount,
+      gwCount,
+      totalCount
+    ] = await Promise.all([
+      // Not Set Orders
+      prisma.order.count({
+        where: {
+          OR: [
+            { custom_po_number: null },
+            { custom_po_number: '' },
+            { custom_po_number: { equals: 'not set', mode: 'insensitive' } },
+          ],
+        },
+      }),
+      // Today's Orders
+      prisma.order.count({
+        where: {
+          created_at: {
+            gte: startOfToday,
+            lt: endOfToday,
+          },
+        },
+      }),
+      // Yesterday's Orders
+      prisma.order.count({
+        where: {
+          created_at: {
+            gte: startOfYesterday,
+            lt: startOfToday,
+          },
+        },
+      }),
+      // Last 7 Days Orders
+      prisma.order.count({
+        where: {
+          created_at: {
+            gte: startOfLast7Days,
+          },
+        },
+      }),
+      // PM Not Set Orders (contains "pm" AND contains "not set")
+      prisma.order.count({
+        where: {
+          AND: [
+            { custom_po_number: { contains: 'pm', mode: 'insensitive' } },
+            { custom_po_number: { contains: 'not set', mode: 'insensitive' } },
+          ],
+        },
+      }),
+      // GW Orders
+      prisma.order.count({
+        where: {
+          custom_po_number: { contains: 'gw', mode: 'insensitive' },
+        },
+      }),
+      // Total Orders
+      prisma.order.count(),
+    ]);
+
+    res.json({
+      notSetCount,
+      todayCount,
+      yesterdayCount,
+      last7DaysCount,
+      pmNotSetCount,
+      gwCount,
+      totalCount,
+    });
+  } catch (error) {
+    console.error('Error fetching order metrics:', error);
+    res.status(500).json({ error: 'Failed to fetch order metrics' });
+  }
+});
+
 app.get('/api/seed-orders', async (req, res) => {
   try {
     await seedOrders();
