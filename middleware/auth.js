@@ -5,6 +5,11 @@ const prisma = require('../lib/prisma');
 
 // Safe authentication middleware with feature flag
 const authenticateToken = (req, res, next) => {
+  // Allow CORS preflight requests (OPTIONS) to pass through
+  if (req.method === 'OPTIONS') {
+    return next();
+  }
+
   // 🛡️ SAFETY FIRST: Check if authentication is enabled
   if (process.env.ENABLE_AUTH !== 'true') {
     console.log('🔓 Authentication disabled - allowing request');
