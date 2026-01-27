@@ -1,0 +1,25 @@
+
+MetalCloak Scraping Summary
+Generated: 2026-01-27T15:13:30.382Z
+
+STATISTICS:
+- Total Products: 1543
+- Categories Processed: 17/17
+- Errors: 0
+
+PRICE ANALYSIS:
+- Products with MAP Price: 1543
+- Products with Your Price: 1543
+- Average MAP Price: $675.33
+- Average Your Price: $471.03
+
+FILES GENERATED:
+- CSV: /Users/tessfbs/justJeepsAPI/JustJeepsAPI-back-end/prisma/seeds/scrapping/metalCloak/output/metalcloak-pricing-2026-01-27.csv
+- JSON: /Users/tessfbs/justJeepsAPI/JustJeepsAPI-back-end/prisma/seeds/scrapping/metalCloak/output/metalcloak-data-2026-01-27.json
+- Summary: /Users/tessfbs/justJeepsAPI/JustJeepsAPI-back-end/prisma/seeds/scrapping/metalCloak/output/metalcloak-summary-2026-01-27.txt
+
+NEXT STEPS:
+1. Review the CSV file for data quality
+2. Use JSON file for database integration
+3. Map MetalCloak product codes to your SKUs
+4. Set up semi-automated update schedule

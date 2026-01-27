@@ -50,7 +50,7 @@
     "seed-daily-premier": "node prisma/seeds/seed-individual/seed-daily-premier.js",
     "test-premier-api": "node test-premier-api.js",
     "scrape-metalcloak": "node prisma/seeds/scrapping/metalCloak/metalCloak-improved-scraper.js",
-    "process-metalcloak": "node prisma/seeds/metalcloak-integration.js",
+    "process-metalcloak": "node prisma/seeds/scrapping/metalCloak/metalcloak-integration.js",
     "magento-attributes": "node prisma/seeds/seed-individual/seed-attribute-magento.js",
     "magento-attributes-priority": "node prisma/seeds/seed-individual/seed-attribute-magento.js priority",
     "magento-attributes-all": "node prisma/seeds/seed-individual/seed-attribute-magento.js all",

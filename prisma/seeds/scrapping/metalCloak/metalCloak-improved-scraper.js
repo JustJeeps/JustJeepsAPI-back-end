@@ -286,7 +286,7 @@ async function runIntegration() {
   return new Promise((resolve, reject) => {
     console.log('\n🔄 Starting automatic database integration...');
     
-    const integrationScript = path.join(__dirname, '../../metalcloak-integration.js');
+    const integrationScript = path.join(__dirname, './metalcloak-integration.js');
     const childProcess = spawn('node', [integrationScript], {
       stdio: 'inherit',
       cwd: path.join(__dirname, '../../../')

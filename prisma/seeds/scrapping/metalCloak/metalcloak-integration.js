@@ -1,4 +1,4 @@
-const MetalCloakService = require('../../services/metalcloak');
+const MetalCloakService = require('../../../../services/metalcloak');
 const path = require('path');
 const fs = require('fs');
 

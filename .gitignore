@@ -129,3 +129,4 @@ prisma/seeds/scrapping/**/*_products.csv
 prisma/seeds/scrapping/**/*_checkpoint.json
 prisma/seeds/scrapping/**/failed-urls.txt
 prisma/seeds/scrapping/**/resume-progress.json
+*.dump
