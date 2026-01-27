@@ -4,7 +4,10 @@ const app = Express();
 const BodyParser = require('body-parser');
 const PORT = process.env.PORT || 8080
 const cors = require('cors');
+const cron = require('node-cron');
+const { spawn } = require('child_process');
 const logger = require('./utils/logger');
+const { sendCronNotification } = require('./utils/emailService');
 const prisma = require('./lib/prisma');
 const seedOrders = require('./prisma/seeds/seed-individual/seed-orders.js');
 const quadratecProducts = require('./prisma/seeds/api-calls/quadratec-excel.js');
@@ -1464,9 +1467,69 @@ async function gracefulShutdown(signal) {
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
+// 🕐 Cron Job: Run seed-all daily at 1:00 AM (Toronto timezone)
+cron.schedule('0 1 * * *', () => {
+	const startTime = Date.now();
+	logger.info('🕐 Cron job started: Running seed-all at 1:00 AM');
+	console.log('🕐 [CRON] Starting daily seed-all at 1:00 AM...');
+	
+	const seedProcess = spawn('npm', ['run', 'seed-all'], {
+		cwd: __dirname,
+		stdio: 'inherit',
+		shell: true
+	});
+
+	seedProcess.on('close', async (code) => {
+		const duration = ((Date.now() - startTime) / 1000 / 60).toFixed(2) + ' minutes';
+		
+		if (code === 0) {
+			logger.info('✅ Cron job completed: seed-all finished successfully', { duration });
+			console.log('✅ [CRON] Daily seed-all completed successfully');
+			
+			// Send success email
+			await sendCronNotification({
+				jobName: 'Daily Vendor Sync (seed-all)',
+				success: true,
+				duration
+			});
+		} else {
+			logger.error('❌ Cron job failed: seed-all exited with error', { exitCode: code, duration });
+			console.error(`❌ [CRON] Daily seed-all failed with exit code ${code}`);
+			
+			// Send failure email
+			await sendCronNotification({
+				jobName: 'Daily Vendor Sync (seed-all)',
+				success: false,
+				exitCode: code,
+				error: `Process exited with code ${code}`,
+				duration
+			});
+		}
+	});
+
+	seedProcess.on('error', async (error) => {
+		const duration = ((Date.now() - startTime) / 1000 / 60).toFixed(2) + ' minutes';
+		logger.error('❌ Cron job error: Failed to start seed-all', { error: error.message, duration });
+		console.error('❌ [CRON] Error running seed-all:', error.message);
+		
+		// Send error email
+		await sendCronNotification({
+			jobName: 'Daily Vendor Sync (seed-all)',
+			success: false,
+			error: error.message,
+			duration
+		});
+	});
+}, {
+	scheduled: true,
+	timezone: 'America/Toronto'
+});
+
 app.listen(PORT, () => {
 	logger.info(`Server started on port ${PORT}`, { port: PORT, env: process.env.NODE_ENV });
 	console.log(
 		`Express seems to be listening on port ${PORT} so that's pretty good 👍`
 	);
+	console.log('🕐 [CRON] Daily seed-all scheduled for 1:00 AM (Toronto timezone)');
+	console.log('📧 [EMAIL] Notifications will be sent to:', process.env.CRON_NOTIFICATION_EMAIL || 'tsantos@justjeeps.com');
 });

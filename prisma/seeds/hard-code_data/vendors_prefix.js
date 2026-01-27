@@ -3483,9 +3483,9 @@ module.exports = [
   {
     jj_prefix: "RH",
     brand_name: "Rock Hard 4X4",
-    vendors: "Meyer, Quadratec",
+    vendors: "Quadratec",
     keystone_code: "",
-    meyer_code: "RCH",
+    // meyer_code: "RCH",
     quadratec_code: "Rock Hard 4X4",
   },
   {
