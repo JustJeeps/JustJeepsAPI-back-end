@@ -1686,7 +1686,7 @@ module.exports = [
   {
     jj_prefix: "G2",
     brand_name: "G2 Axle & Gear",
-    vendors: "Meyer, WheelPros",
+    vendors: "Meyer",
     // keystone_code: "G76",
     meyer_code: "GGA",
     // quadratec_code: "G2 Axle & Gear",
