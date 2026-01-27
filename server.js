@@ -492,6 +492,8 @@ app.get('/api/orders', async (req, res) => {
     const region = req.query.region || null;
     const dateFrom = req.query.dateFrom || null;
     const dateTo = req.query.dateTo || null;
+    const filterMode = req.query.filterMode || 'order'; // 'order' or 'items'
+    const vendor = req.query.vendor || null; // vendor name for items filter
 
     // Build where clause
     const where = {};
@@ -501,15 +503,39 @@ app.get('/api/orders', async (req, res) => {
       where.status = status;
     }
 
-    // Search filter (order ID, customer name, email)
-    if (search) {
-      where.OR = [
-        { increment_id: { contains: search, mode: 'insensitive' } },
-        { customer_firstname: { contains: search, mode: 'insensitive' } },
-        { customer_lastname: { contains: search, mode: 'insensitive' } },
-        { customer_email: { contains: search, mode: 'insensitive' } },
-        { custom_po_number: { contains: search, mode: 'insensitive' } },
-      ];
+    // Search and filter logic depends on filterMode
+    if (filterMode === 'items') {
+      // Items mode: search by SKU, product name, and filter by vendor
+      const itemsFilter = {};
+
+      // Search by SKU or product name
+      if (search) {
+        itemsFilter.OR = [
+          { sku: { contains: search, mode: 'insensitive' } },
+          { name: { contains: search, mode: 'insensitive' } },
+        ];
+      }
+
+      // Filter by vendor (selected_supplier)
+      if (vendor) {
+        itemsFilter.selected_supplier = { equals: vendor, mode: 'insensitive' };
+      }
+
+      // Apply items filter if any conditions exist
+      if (Object.keys(itemsFilter).length > 0) {
+        where.items = { some: itemsFilter };
+      }
+    } else {
+      // Order mode (default): search by order fields
+      if (search) {
+        where.OR = [
+          { increment_id: { contains: search, mode: 'insensitive' } },
+          { customer_firstname: { contains: search, mode: 'insensitive' } },
+          { customer_lastname: { contains: search, mode: 'insensitive' } },
+          { customer_email: { contains: search, mode: 'insensitive' } },
+          { custom_po_number: { contains: search, mode: 'insensitive' } },
+        ];
+      }
     }
 
     // PO Status filter
@@ -600,6 +626,8 @@ app.get('/api/orders', async (req, res) => {
         region,
         dateFrom,
         dateTo,
+        filterMode,
+        vendor,
       },
     });
   } catch (error) {
