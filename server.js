@@ -494,6 +494,7 @@ app.get('/api/orders', async (req, res) => {
     const dateTo = req.query.dateTo || null;
     const filterMode = req.query.filterMode || 'order'; // 'order' or 'items'
     const vendor = req.query.vendor || null; // vendor name for items filter
+    const dateFilter = req.query.dateFilter || null; // 'today', 'yesterday', 'last7days'
 
     // Build where clause
     const where = {};
@@ -501,6 +502,31 @@ app.get('/api/orders', async (req, res) => {
     // Status filter
     if (status) {
       where.status = status;
+    }
+
+    // Date filter (today, yesterday, last7days)
+    // Note: created_at is stored as text in format "YYYY-MM-DD HH:MM:SS"
+    if (dateFilter) {
+      const now = new Date();
+      const torontoFormatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Toronto',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
+
+      if (dateFilter === 'today') {
+        const todayStr = torontoFormatter.format(now);
+        where.created_at = { startsWith: todayStr };
+      } else if (dateFilter === 'yesterday') {
+        const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        const yesterdayStr = torontoFormatter.format(yesterday);
+        where.created_at = { startsWith: yesterdayStr };
+      } else if (dateFilter === 'last7days') {
+        const sevenDaysAgo = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+        const sevenDaysAgoStr = torontoFormatter.format(sevenDaysAgo);
+        where.created_at = { gte: sevenDaysAgoStr };
+      }
     }
 
     // Search and filter logic depends on filterMode
@@ -628,6 +654,7 @@ app.get('/api/orders', async (req, res) => {
         dateTo,
         filterMode,
         vendor,
+        dateFilter,
       },
     });
   } catch (error) {
