@@ -641,27 +641,29 @@ app.get('/api/orders', async (req, res) => {
 // Route for getting order metrics (independent of pagination)
 app.get('/api/orders/metrics', async (req, res) => {
   try {
-    // Get current date boundaries in Toronto timezone (EST/EDT)
-    // Calculate Toronto's UTC offset dynamically (handles DST automatically)
+    // Get current date in Toronto timezone
+    // The created_at field is stored as a string in format "YYYY-MM-DD HH:MM:SS"
+    // We need to use string comparison since it's not a proper timestamp
     const now = new Date();
-    const utcDate = new Date(now.toLocaleString('en-US', { timeZone: 'UTC' }));
-    const torontoDate = new Date(now.toLocaleString('en-US', { timeZone: 'America/Toronto' }));
-    const torontoOffsetMs = utcDate - torontoDate; // Offset in milliseconds
+    const torontoFormatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Toronto',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
 
-    // Get Toronto's current date components
-    const torontoYear = torontoDate.getFullYear();
-    const torontoMonth = torontoDate.getMonth();
-    const torontoDay = torontoDate.getDate();
+    // Get today's date in Toronto as YYYY-MM-DD format
+    const todayStr = torontoFormatter.format(now); // "2026-01-27"
 
-    // Create start of today in Toronto as UTC timestamp
-    // Midnight in Toronto = Midnight UTC + Toronto offset
-    const startOfToday = new Date(Date.UTC(torontoYear, torontoMonth, torontoDay) + torontoOffsetMs);
+    // Calculate yesterday and 7 days ago
+    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const yesterdayStr = torontoFormatter.format(yesterday);
 
-    const startOfYesterday = new Date(startOfToday.getTime() - 24 * 60 * 60 * 1000);
-    const startOfLast7Days = new Date(startOfToday.getTime() - 6 * 24 * 60 * 60 * 1000);
-    const endOfToday = new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+    const sevenDaysAgoStr = torontoFormatter.format(sevenDaysAgo);
 
     // Run all counts in parallel for performance
+    // Using raw SQL since created_at is stored as text, not timestamp
     const [
       notSetCount,
       todayCount,
@@ -671,7 +673,7 @@ app.get('/api/orders/metrics', async (req, res) => {
       gwCount,
       totalCount
     ] = await Promise.all([
-      // Not Set Orders - using raw SQL for case-insensitive matching
+      // Not Set Orders
       prisma.$queryRaw`
         SELECT COUNT(*) as count FROM "Order"
         WHERE custom_po_number IS NULL
@@ -679,43 +681,32 @@ app.get('/api/orders/metrics', async (req, res) => {
         OR LOWER(custom_po_number) = 'not set'
       `.then(result => Number(result[0]?.count || 0)),
 
-      // Today's Orders
-      prisma.order.count({
-        where: {
-          created_at: {
-            gte: startOfToday,
-            lt: endOfToday,
-          },
-        },
-      }),
+      // Today's Orders - compare string dates (created_at starts with today's date)
+      prisma.$queryRaw`
+        SELECT COUNT(*) as count FROM "Order"
+        WHERE created_at LIKE ${todayStr + '%'}
+      `.then(result => Number(result[0]?.count || 0)),
 
       // Yesterday's Orders
-      prisma.order.count({
-        where: {
-          created_at: {
-            gte: startOfYesterday,
-            lt: startOfToday,
-          },
-        },
-      }),
+      prisma.$queryRaw`
+        SELECT COUNT(*) as count FROM "Order"
+        WHERE created_at LIKE ${yesterdayStr + '%'}
+      `.then(result => Number(result[0]?.count || 0)),
 
-      // Last 7 Days Orders
-      prisma.order.count({
-        where: {
-          created_at: {
-            gte: startOfLast7Days,
-          },
-        },
-      }),
+      // Last 7 Days Orders - string comparison works for YYYY-MM-DD format
+      prisma.$queryRaw`
+        SELECT COUNT(*) as count FROM "Order"
+        WHERE created_at >= ${sevenDaysAgoStr}
+      `.then(result => Number(result[0]?.count || 0)),
 
-      // PM Not Set Orders - using raw SQL
+      // PM Not Set Orders
       prisma.$queryRaw`
         SELECT COUNT(*) as count FROM "Order"
         WHERE LOWER(custom_po_number) LIKE '%pm%'
         AND LOWER(custom_po_number) LIKE '%not set%'
       `.then(result => Number(result[0]?.count || 0)),
 
-      // GW Orders - using raw SQL
+      // GW Orders
       prisma.$queryRaw`
         SELECT COUNT(*) as count FROM "Order"
         WHERE LOWER(custom_po_number) LIKE '%gw%'
