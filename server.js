@@ -614,17 +614,24 @@ app.get('/api/orders', async (req, res) => {
 app.get('/api/orders/metrics', async (req, res) => {
   try {
     // Get current date boundaries in Toronto timezone (EST/EDT)
+    // Calculate Toronto's UTC offset dynamically (handles DST automatically)
     const now = new Date();
-    // Adjust for Toronto timezone (UTC-5)
-    const torontoNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/Toronto' }));
+    const utcDate = new Date(now.toLocaleString('en-US', { timeZone: 'UTC' }));
+    const torontoDate = new Date(now.toLocaleString('en-US', { timeZone: 'America/Toronto' }));
+    const torontoOffsetMs = utcDate - torontoDate; // Offset in milliseconds
 
-    const startOfToday = new Date(torontoNow.getFullYear(), torontoNow.getMonth(), torontoNow.getDate());
-    const startOfYesterday = new Date(startOfToday);
-    startOfYesterday.setDate(startOfYesterday.getDate() - 1);
-    const startOfLast7Days = new Date(startOfToday);
-    startOfLast7Days.setDate(startOfLast7Days.getDate() - 6);
-    const endOfToday = new Date(startOfToday);
-    endOfToday.setDate(endOfToday.getDate() + 1);
+    // Get Toronto's current date components
+    const torontoYear = torontoDate.getFullYear();
+    const torontoMonth = torontoDate.getMonth();
+    const torontoDay = torontoDate.getDate();
+
+    // Create start of today in Toronto as UTC timestamp
+    // Midnight in Toronto = Midnight UTC + Toronto offset
+    const startOfToday = new Date(Date.UTC(torontoYear, torontoMonth, torontoDay) + torontoOffsetMs);
+
+    const startOfYesterday = new Date(startOfToday.getTime() - 24 * 60 * 60 * 1000);
+    const startOfLast7Days = new Date(startOfToday.getTime() - 6 * 24 * 60 * 60 * 1000);
+    const endOfToday = new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000);
 
     // Run all counts in parallel for performance
     const [
