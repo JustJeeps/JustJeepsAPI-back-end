@@ -30,6 +30,7 @@ proxy:
   ssl: true
   host: orderapi.nunchisolucoes.com
   app_port: 8080
+  response_timeout: 120
   healthcheck:
     path: /api/health
     interval: 3
