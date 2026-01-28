@@ -508,27 +508,64 @@ app.get('/api/orders', async (req, res) => {
     }
 
     // Date filter (today, yesterday, last7days)
-    // created_at is stored as "YYYY-MM-DD HH:MM:SS" in UTC - compare only the date part (first 10 chars)
+    // created_at is stored as "YYYY-MM-DD HH:MM:SS" in UTC
+    // Filter by Toronto timezone (UTC-5 in winter, UTC-4 in summer)
     if (dateFilter) {
+      // Get current date in Toronto
       const now = new Date();
-      const utcFormatter = new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'UTC',
+      const torontoDateStr = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Toronto',
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
-      });
+      }).format(now);
+
+      // Helper: convert Toronto date to UTC range (handles DST automatically)
+      const getUTCRange = (torontoDate) => {
+        // Create dates at start and end of day in Toronto
+        const startLocal = new Date(`${torontoDate}T00:00:00`);
+        const endLocal = new Date(`${torontoDate}T23:59:59`);
+
+        // Get Toronto offset for these dates (handles DST)
+        const getTorontoOffset = (date) => {
+          const utcDate = new Date(date.toLocaleString('en-US', { timeZone: 'UTC' }));
+          const torontoDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/Toronto' }));
+          return (utcDate - torontoDate) / 60000; // offset in minutes
+        };
+
+        const startOffset = getTorontoOffset(startLocal);
+        const endOffset = getTorontoOffset(endLocal);
+
+        const startUTC = new Date(startLocal.getTime() + startOffset * 60000);
+        const endUTC = new Date(endLocal.getTime() + endOffset * 60000);
+
+        const formatUTC = (d) => d.toISOString().replace('T', ' ').substring(0, 19);
+        return { start: formatUTC(startUTC), end: formatUTC(endUTC) };
+      };
 
       if (dateFilter === 'today') {
-        const todayStr = utcFormatter.format(now);
-        where.created_at = { startsWith: todayStr };
+        const range = getUTCRange(torontoDateStr);
+        where.created_at = { gte: range.start, lte: range.end };
       } else if (dateFilter === 'yesterday') {
         const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-        const yesterdayStr = utcFormatter.format(yesterday);
-        where.created_at = { startsWith: yesterdayStr };
+        const yesterdayStr = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'America/Toronto',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        }).format(yesterday);
+        const range = getUTCRange(yesterdayStr);
+        where.created_at = { gte: range.start, lte: range.end };
       } else if (dateFilter === 'last7days') {
         const sevenDaysAgo = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
-        const sevenDaysAgoStr = utcFormatter.format(sevenDaysAgo);
-        where.created_at = { gte: sevenDaysAgoStr };
+        const sevenDaysAgoStr = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'America/Toronto',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        }).format(sevenDaysAgo);
+        const range = getUTCRange(sevenDaysAgoStr);
+        where.created_at = { gte: range.start };
       }
     }
 
@@ -673,28 +710,54 @@ app.get('/api/orders', async (req, res) => {
 // Route for getting order metrics (independent of pagination)
 app.get('/api/orders/metrics', async (req, res) => {
   try {
-    // Get current date in UTC
-    // created_at is stored as "YYYY-MM-DD HH:MM:SS" in UTC - we compare only the date part (first 10 chars)
+    // Get current date in Toronto timezone
+    // created_at is stored as "YYYY-MM-DD HH:MM:SS" in UTC
+    // Filter by Toronto timezone (UTC-5 in winter, UTC-4 in summer)
     const now = new Date();
-    const utcFormatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'UTC',
+    const torontoFormatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Toronto',
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
     });
 
-    // Get today's date in UTC as YYYY-MM-DD format
-    const todayStr = utcFormatter.format(now);
+    // Helper: convert Toronto date to UTC range (handles DST automatically)
+    const getUTCRange = (torontoDate) => {
+      // Create dates at start and end of day in Toronto
+      const startLocal = new Date(`${torontoDate}T00:00:00`);
+      const endLocal = new Date(`${torontoDate}T23:59:59`);
 
-    // Calculate yesterday and 7 days ago
+      // Get Toronto offset for these dates (handles DST)
+      const getTorontoOffset = (date) => {
+        const utcDate = new Date(date.toLocaleString('en-US', { timeZone: 'UTC' }));
+        const torontoDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/Toronto' }));
+        return (utcDate - torontoDate) / 60000; // offset in minutes
+      };
+
+      const startOffset = getTorontoOffset(startLocal);
+      const endOffset = getTorontoOffset(endLocal);
+
+      const startUTC = new Date(startLocal.getTime() + startOffset * 60000);
+      const endUTC = new Date(endLocal.getTime() + endOffset * 60000);
+
+      const formatUTC = (d) => d.toISOString().replace('T', ' ').substring(0, 19);
+      return { start: formatUTC(startUTC), end: formatUTC(endUTC) };
+    };
+
+    // Get today's date in Toronto
+    const todayStr = torontoFormatter.format(now);
+    const todayRange = getUTCRange(todayStr);
+
+    // Calculate yesterday and 7 days ago in Toronto
     const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const yesterdayStr = utcFormatter.format(yesterday);
+    const yesterdayStr = torontoFormatter.format(yesterday);
+    const yesterdayRange = getUTCRange(yesterdayStr);
 
     const sevenDaysAgo = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
-    const sevenDaysAgoStr = utcFormatter.format(sevenDaysAgo);
+    const sevenDaysAgoStr = torontoFormatter.format(sevenDaysAgo);
+    const sevenDaysAgoRange = getUTCRange(sevenDaysAgoStr);
 
     // Run all counts in parallel for performance
-    // Compare only the date portion (YYYY-MM-DD) of created_at, ignoring time
     const [
       notSetCount,
       todayCount,
@@ -712,22 +775,22 @@ app.get('/api/orders/metrics', async (req, res) => {
         OR LOWER(custom_po_number) = 'not set'
       `.then(result => Number(result[0]?.count || 0)),
 
-      // Today's Orders - compare only date part (first 10 characters: YYYY-MM-DD)
+      // Today's Orders (Toronto timezone)
       prisma.$queryRaw`
         SELECT COUNT(*) as count FROM "Order"
-        WHERE SUBSTRING(created_at, 1, 10) = ${todayStr}
+        WHERE created_at >= ${todayRange.start} AND created_at <= ${todayRange.end}
       `.then(result => Number(result[0]?.count || 0)),
 
-      // Yesterday's Orders - compare only date part
+      // Yesterday's Orders (Toronto timezone)
       prisma.$queryRaw`
         SELECT COUNT(*) as count FROM "Order"
-        WHERE SUBSTRING(created_at, 1, 10) = ${yesterdayStr}
+        WHERE created_at >= ${yesterdayRange.start} AND created_at <= ${yesterdayRange.end}
       `.then(result => Number(result[0]?.count || 0)),
 
-      // Last 7 Days Orders - compare only date part
+      // Last 7 Days Orders (Toronto timezone)
       prisma.$queryRaw`
         SELECT COUNT(*) as count FROM "Order"
-        WHERE SUBSTRING(created_at, 1, 10) >= ${sevenDaysAgoStr}
+        WHERE created_at >= ${sevenDaysAgoRange.start}
       `.then(result => Number(result[0]?.count || 0)),
 
       // PM Not Set Orders
