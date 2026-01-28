@@ -508,7 +508,7 @@ app.get('/api/orders', async (req, res) => {
     }
 
     // Date filter (today, yesterday, last7days)
-    // Note: created_at is stored as text in format "YYYY-MM-DD HH:MM:SS"
+    // created_at is stored as "YYYY-MM-DD HH:MM:SS" - compare only the date part (first 10 chars)
     if (dateFilter) {
       const now = new Date();
       const torontoFormatter = new Intl.DateTimeFormat('en-CA', {
@@ -567,7 +567,7 @@ app.get('/api/orders', async (req, res) => {
       }
     }
 
-    // PO Status filter
+    // PO Status filter (preserve existing AND conditions from date filter)
     if (poStatus === 'not_set') {
       where.OR = [
         { custom_po_number: null },
@@ -576,6 +576,7 @@ app.get('/api/orders', async (req, res) => {
       ];
     } else if (poStatus === 'set') {
       where.AND = [
+        ...(where.AND || []),
         { custom_po_number: { not: null } },
         { custom_po_number: { not: '' } },
         { NOT: { custom_po_number: { equals: 'not set', mode: 'insensitive' } } },
@@ -583,6 +584,7 @@ app.get('/api/orders', async (req, res) => {
       ];
     } else if (poStatus === 'partial') {
       where.AND = [
+        ...(where.AND || []),
         { custom_po_number: { contains: 'not set', mode: 'insensitive' } },
         { NOT: { custom_po_number: { equals: 'not set', mode: 'insensitive' } } },
       ];
@@ -672,8 +674,7 @@ app.get('/api/orders', async (req, res) => {
 app.get('/api/orders/metrics', async (req, res) => {
   try {
     // Get current date in Toronto timezone
-    // The created_at field is stored as a string in format "YYYY-MM-DD HH:MM:SS"
-    // We need to use string comparison since it's not a proper timestamp
+    // created_at is stored as "YYYY-MM-DD HH:MM:SS" - we compare only the date part (first 10 chars)
     const now = new Date();
     const torontoFormatter = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'America/Toronto',
@@ -683,7 +684,7 @@ app.get('/api/orders/metrics', async (req, res) => {
     });
 
     // Get today's date in Toronto as YYYY-MM-DD format
-    const todayStr = torontoFormatter.format(now); // "2026-01-27"
+    const todayStr = torontoFormatter.format(now); // "2026-01-28"
 
     // Calculate yesterday and 7 days ago
     const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
@@ -693,7 +694,7 @@ app.get('/api/orders/metrics', async (req, res) => {
     const sevenDaysAgoStr = torontoFormatter.format(sevenDaysAgo);
 
     // Run all counts in parallel for performance
-    // Using raw SQL since created_at is stored as text, not timestamp
+    // Compare only the date portion (YYYY-MM-DD) of created_at, ignoring time
     const [
       notSetCount,
       todayCount,
@@ -711,22 +712,22 @@ app.get('/api/orders/metrics', async (req, res) => {
         OR LOWER(custom_po_number) = 'not set'
       `.then(result => Number(result[0]?.count || 0)),
 
-      // Today's Orders - compare string dates (created_at starts with today's date)
+      // Today's Orders - compare only date part (first 10 characters: YYYY-MM-DD)
       prisma.$queryRaw`
         SELECT COUNT(*) as count FROM "Order"
-        WHERE created_at LIKE ${todayStr + '%'}
+        WHERE SUBSTRING(created_at, 1, 10) = ${todayStr}
       `.then(result => Number(result[0]?.count || 0)),
 
-      // Yesterday's Orders
+      // Yesterday's Orders - compare only date part
       prisma.$queryRaw`
         SELECT COUNT(*) as count FROM "Order"
-        WHERE created_at LIKE ${yesterdayStr + '%'}
+        WHERE SUBSTRING(created_at, 1, 10) = ${yesterdayStr}
       `.then(result => Number(result[0]?.count || 0)),
 
-      // Last 7 Days Orders - string comparison works for YYYY-MM-DD format
+      // Last 7 Days Orders - compare only date part
       prisma.$queryRaw`
         SELECT COUNT(*) as count FROM "Order"
-        WHERE created_at >= ${sevenDaysAgoStr}
+        WHERE SUBSTRING(created_at, 1, 10) >= ${sevenDaysAgoStr}
       `.then(result => Number(result[0]?.count || 0)),
 
       // PM Not Set Orders
