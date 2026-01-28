@@ -1531,7 +1531,7 @@ module.exports = [
     vendors: "Meyer, Quadratec",
     keystone_code: "",
     meyer_code: "FTR",
-    quadratec_code: "Front Runner",
+    quadratec_code: "Front Runner Outfitters",
     partsEngine_code: "-vp-Front-Runner-Outfitters-3347.aspx",
     keystone_code_site: "FAU",
 
@@ -4140,7 +4140,7 @@ module.exports = [
     jj_prefix: "TFX",
     brand_name: "TrailFX",
     vendors: "Keystone",
-    keystone_code: "T83",//T8O //T83 //T8R
+    keystone_code: "T83",//T8O //T83 //T8R/T8W
     meyer_code: "",
     tdot_code: "TrailFX",
     truck_parts_code: "TrailFX",
