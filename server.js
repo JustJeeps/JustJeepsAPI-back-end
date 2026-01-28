@@ -285,6 +285,84 @@ app.get('/api/products', async (req, res) => {
 	}
 });
 
+// Route for exporting all products (no pagination) - optimized for Excel export
+app.get('/api/products/export', async (req, res) => {
+	try {
+		const brand = req.query.brand ? decodeURIComponent(req.query.brand) : null;
+
+		// Build where clause for brand filter
+		const where = brand ? { brand_name: brand } : {};
+
+		const selectFields = {
+			sku: true,
+			name: true,
+			url_path: true,
+			status: true,
+			price: true,
+			MAP: true,
+			searchable_sku: true,
+			jj_prefix: true,
+			image: true,
+			brand_name: true,
+			vendors: true,
+			partStatus_meyer: true,
+			keystone_code: true,
+			meyer_weight: true,
+			meyer_length: true,
+			meyer_width: true,
+			meyer_height: true,
+			weight: true,
+			length: true,
+			width: true,
+			height: true,
+			shippingFreight: true,
+			partsEngine_code: true,
+			tdot_url: true,
+			part: true,
+			thumbnail: true,
+			vendorProducts: {
+				select: {
+					product_sku: true,
+					vendor_sku: true,
+					vendor_cost: true,
+					vendor_inventory: true,
+					quadratec_sku: true,
+					vendor: {
+						select: {
+							name: true,
+						},
+					},
+				},
+			},
+			competitorProducts: {
+				select: {
+					competitor_price: true,
+					product_url: true,
+					competitor: {
+						select: {
+							name: true,
+						},
+					},
+				},
+			},
+		};
+
+		const products = await prisma.product.findMany({
+			where,
+			select: selectFields,
+		});
+
+		res.json({
+			products,
+			total: products.length,
+			brand: brand || 'all'
+		});
+	} catch (error) {
+		console.log(error);
+		res.status(500).json({ error: 'Failed to export products' });
+	}
+});
+
 //Route for getting all products by brand name
 app.get('/api/products/brand/:brandName', async (req, res) => {
 	try {
