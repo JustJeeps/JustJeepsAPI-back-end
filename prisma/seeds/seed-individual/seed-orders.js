@@ -1,7 +1,5 @@
-const { PrismaClient } = require("@prisma/client");
+const prisma = require("../../../lib/prisma");
 const magentoRecentOrders = require("../api-calls/magento-recentOrders.js");
-
-const prisma = new PrismaClient();
 
 // Seed orders
 const seedOrders = async () => {
@@ -196,9 +194,11 @@ const seedOrders = async () => {
 
 module.exports = seedOrders;
 
-seedOrders();
-
-
+// Executa apenas quando rodado diretamente (npm run seed-orders)
+// Não executa quando importado por outro arquivo (server.js)
+if (require.main === module) {
+  seedOrders();
+}
 
 
 // const { PrismaClient } = require("@prisma/client");

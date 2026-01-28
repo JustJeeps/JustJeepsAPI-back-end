@@ -508,26 +508,26 @@ app.get('/api/orders', async (req, res) => {
     }
 
     // Date filter (today, yesterday, last7days)
-    // created_at is stored as "YYYY-MM-DD HH:MM:SS" - compare only the date part (first 10 chars)
+    // created_at is stored as "YYYY-MM-DD HH:MM:SS" in UTC - compare only the date part (first 10 chars)
     if (dateFilter) {
       const now = new Date();
-      const torontoFormatter = new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'America/Toronto',
+      const utcFormatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'UTC',
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
       });
 
       if (dateFilter === 'today') {
-        const todayStr = torontoFormatter.format(now);
+        const todayStr = utcFormatter.format(now);
         where.created_at = { startsWith: todayStr };
       } else if (dateFilter === 'yesterday') {
         const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-        const yesterdayStr = torontoFormatter.format(yesterday);
+        const yesterdayStr = utcFormatter.format(yesterday);
         where.created_at = { startsWith: yesterdayStr };
       } else if (dateFilter === 'last7days') {
         const sevenDaysAgo = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
-        const sevenDaysAgoStr = torontoFormatter.format(sevenDaysAgo);
+        const sevenDaysAgoStr = utcFormatter.format(sevenDaysAgo);
         where.created_at = { gte: sevenDaysAgoStr };
       }
     }
@@ -673,25 +673,25 @@ app.get('/api/orders', async (req, res) => {
 // Route for getting order metrics (independent of pagination)
 app.get('/api/orders/metrics', async (req, res) => {
   try {
-    // Get current date in Toronto timezone
-    // created_at is stored as "YYYY-MM-DD HH:MM:SS" - we compare only the date part (first 10 chars)
+    // Get current date in UTC
+    // created_at is stored as "YYYY-MM-DD HH:MM:SS" in UTC - we compare only the date part (first 10 chars)
     const now = new Date();
-    const torontoFormatter = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'America/Toronto',
+    const utcFormatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'UTC',
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
     });
 
-    // Get today's date in Toronto as YYYY-MM-DD format
-    const todayStr = torontoFormatter.format(now); // "2026-01-28"
+    // Get today's date in UTC as YYYY-MM-DD format
+    const todayStr = utcFormatter.format(now);
 
     // Calculate yesterday and 7 days ago
     const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const yesterdayStr = torontoFormatter.format(yesterday);
+    const yesterdayStr = utcFormatter.format(yesterday);
 
     const sevenDaysAgo = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
-    const sevenDaysAgoStr = torontoFormatter.format(sevenDaysAgo);
+    const sevenDaysAgoStr = utcFormatter.format(sevenDaysAgo);
 
     // Run all counts in parallel for performance
     // Compare only the date portion (YYYY-MM-DD) of created_at, ignoring time
