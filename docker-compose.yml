@@ -37,9 +37,6 @@ services:
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
       MAGENTO_KEY: ${MAGENTO_KEY:-}
-    depends_on:
-      db:
-        condition: service_healthy
     command: >
       sh -c "npx prisma migrate deploy && node server.js"
     restart: unless-stopped
