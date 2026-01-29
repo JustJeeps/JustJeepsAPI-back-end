@@ -30,7 +30,7 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-justjeeps}?schema=public
+      # DATABASE_URL is already set in .env for production DigitalOcean database
       PORT: 8080
       NODE_ENV: ${NODE_ENV:-production}
       ENABLE_AUTH: ${ENABLE_AUTH:-true}

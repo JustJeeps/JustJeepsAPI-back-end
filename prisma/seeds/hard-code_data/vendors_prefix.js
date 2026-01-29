@@ -4140,13 +4140,21 @@ module.exports = [
     jj_prefix: "TFX",
     brand_name: "TrailFX",
     vendors: "Keystone",
-    keystone_code: "T83",//T8O //T83 //T8R/T8W
+    keystone_code: "T83", // main vendor code
+    keystone_code_site: "TLF",
+    keystone_ftp_brand_canonical: "TrailFX",
+    keystone_ftp_brand_aliases: ["T8O", "T8R", "T8W"],
+
+    // NEW: which PID prefix to use for each FTP sub-brand
+    keystone_code_site_aliases: {
+      "T8O": "TLF",
+      "T8R": "TLF",
+      "T8W": "TLF"
+    },
     meyer_code: "",
     tdot_code: "TrailFX",
     truck_parts_code: "TrailFX",
     partsEngine_code: "-vp-trailfx-84.aspx",
-    keystone_code_site: "TLF",
-
   },
     {
     jj_prefix: "TRF",

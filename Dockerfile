@@ -25,8 +25,15 @@ RUN npx prisma generate
 # Stage 4: Production Builder (with production deps only)
 FROM node:20-slim AS builder-prod
 WORKDIR /app
+
+# Install OpenSSL for Prisma
+RUN apt-get update && apt-get install -y openssl --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# Install Prisma CLI temporarily for generate
+RUN npm install prisma@4.12.0 --no-save
 RUN npx prisma generate
 
 # Stage 5: Production
