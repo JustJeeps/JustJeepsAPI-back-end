@@ -1,7 +1,6 @@
-const { PrismaClient } = require('@prisma/client');
 const fetchOmixInventory = require('../api-calls/omix-inventory-api');
 
-const prisma = new PrismaClient();
+const prisma = require('../../../lib/prisma');
 
 async function seedOmixInventory() {
   try {

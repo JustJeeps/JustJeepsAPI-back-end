@@ -1,7 +1,6 @@
-const { PrismaClient } = require('@prisma/client');
 const Turn14Service = require('../../../services/turn14');
 
-const prisma = new PrismaClient();
+const prisma = require('../../../lib/prisma');
 
 /**
  * Clean & Simple Turn14 Production Seeding

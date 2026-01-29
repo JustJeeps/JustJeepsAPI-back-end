@@ -1,8 +1,7 @@
-const { PrismaClient } = require("@prisma/client");
 const magentoAllProducts = require("../api-calls/magento-allProducts.js");
 const vendorsPrefix = require("../hard-code_data/vendors_prefix");
 
-const prisma = new PrismaClient();
+const prisma = require("../../../lib/prisma");
 
 const seedAllProducts = async () => {
 

@@ -38,7 +38,7 @@ services:
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
       MAGENTO_KEY: ${MAGENTO_KEY:-}
     command: >
-      sh -c "npx prisma migrate deploy && node server.js"
+      sh -c "node server.js"
     restart: unless-stopped
 
 volumes:

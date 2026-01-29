@@ -1,5 +1,4 @@
-const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
+const prisma = require("../../../lib/prisma");
 const tdotCost = require("../api-calls/tdot-excel.js"); // Ensure this file exports the correct data
 
 // Seed Tdot products
@@ -77,8 +76,6 @@ const seedTdot = async () => {
       Total competitor products updated: ${competitorProductUpdatedCount}`);
   } catch (error) {
     console.error("Error seeding competitor products from Tdot:", error);
-  } finally {
-    await prisma.$disconnect();
   }
 };
 

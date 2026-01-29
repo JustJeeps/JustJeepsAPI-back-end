@@ -1,7 +1,6 @@
-const { PrismaClient } = require("@prisma/client");
 const dirtyDogCost = require("../api-calls/dirtyDog-excel.js");
 
-const prisma = new PrismaClient();
+const prisma = require("../../../lib/prisma");
 
 // Seed DirtyDog products
 const seedDirtDog = async () => {

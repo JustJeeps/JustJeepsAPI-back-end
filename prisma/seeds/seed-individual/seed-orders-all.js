@@ -7,9 +7,8 @@
  */
 
 const axios = require("axios");
-const { PrismaClient } = require("@prisma/client");
 
-const prisma = new PrismaClient();
+const prisma = require("../../../lib/prisma");
 
 // ======== Config ========
 const PAGE_SIZE = parseInt(process.env.SEED_PAGE_SIZE || "400", 10); // tune 200–500

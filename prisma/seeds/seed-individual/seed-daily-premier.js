@@ -4,10 +4,9 @@
  */
 
 require('dotenv').config();
-const { PrismaClient } = require("@prisma/client");
 const PremierService = require("../../../services/premier");
 
-const prisma = new PrismaClient();
+const prisma = require("../../../lib/prisma");
 
 const seedDailyPremierData = async () => {
   const startTime = Date.now();

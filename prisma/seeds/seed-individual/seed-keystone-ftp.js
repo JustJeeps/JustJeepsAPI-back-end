@@ -1,8 +1,7 @@
-const { PrismaClient } = require("@prisma/client");
 const { performance } = require("perf_hooks");
 const downloadAndParseKeystone = require("../api-calls/keystone-ftp.js");
 
-const prisma = new PrismaClient();
+const prisma = require("../../../lib/prisma");
 
 const seedKeystone = async () => {
   console.log("🚀 Seeding Keystone vendor products (FTP)...");

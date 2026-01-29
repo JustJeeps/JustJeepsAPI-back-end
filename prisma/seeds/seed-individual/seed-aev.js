@@ -1,7 +1,6 @@
-const { PrismaClient } = require("@prisma/client");
 const aevCost = require("../api-calls/aev.js");
 
-const prisma = new PrismaClient();
+const prisma = require("../../../lib/prisma");
 
 // Seed AEV vendor products
 const seedAEVProducts = async () => {
@@ -71,8 +70,6 @@ const seedAEVProducts = async () => {
       Total AEV products updated: ${vendorProductUpdatedCount}`);
   } catch (error) {
     console.error("Error seeding vendor products from AEV:", error);
-  } finally {
-    await prisma.$disconnect();
   }
 };
 

@@ -1,8 +1,7 @@
 require('dotenv').config();
-const { PrismaClient } = require('@prisma/client');
 const Turn14Service = require('../../../services/turn14');
 
-const prisma = new PrismaClient();
+const prisma = require('../../../lib/prisma');
 
 async function seedTurn14VendorData() {
   const startTime = process.hrtime();

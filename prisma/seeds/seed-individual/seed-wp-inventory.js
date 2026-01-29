@@ -1,9 +1,8 @@
 const fs = require("fs");
 const path = require("path");
 const { parse } = require("csv-parse/sync");
-const { PrismaClient } = require("@prisma/client");
 
-const prisma = new PrismaClient();
+const prisma = require("../../../lib/prisma");
 const VENDOR_ID = 5; // WheelPros
 
 // Load enriched inventory CSV using absolute path

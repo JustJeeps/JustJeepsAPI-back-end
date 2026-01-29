@@ -1,5 +1,4 @@
-const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
+const prisma = require("../../../lib/prisma");
 const quadratecCost = require("../api-calls/quadratec-excel.js");
 
 // // seed Quadratec products

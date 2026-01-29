@@ -1,7 +1,6 @@
-const { PrismaClient } = require("@prisma/client");
 const ctpCost = require("../api-calls/ctp");
 
-const prisma = new PrismaClient();
+const prisma = require("../../../lib/prisma");
 
 const seedCTPProducts = async () => {
   console.log("🔁 Seeding CTP vendor products...");

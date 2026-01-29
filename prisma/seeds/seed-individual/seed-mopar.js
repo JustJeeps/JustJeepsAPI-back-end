@@ -1,7 +1,6 @@
-const { PrismaClient } = require("@prisma/client");
 const MoparCost = require("../api-calls/mopar.js");
 
-const prisma = new PrismaClient();
+const prisma = require("../../../lib/prisma");
 
 // Seed Mopar vendor products
 const seedMoparProducts = async () => {

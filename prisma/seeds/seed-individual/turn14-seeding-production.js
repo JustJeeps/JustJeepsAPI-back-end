@@ -1,9 +1,8 @@
-const { PrismaClient } = require('@prisma/client');
 const Turn14Service = require('../../../services/turn14');
 const fs = require('fs').promises;
 const path = require('path');
 
-const prisma = new PrismaClient();
+const prisma = require('../../../lib/prisma');
 const turn14Service = new Turn14Service();
 
 class Turn14ProductSeeder {

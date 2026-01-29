@@ -1,8 +1,7 @@
-const { PrismaClient } = require("@prisma/client");
 const Turn14Service = require("../../../services/turn14");
 const vendorsPrefix = require("../hard-code_data/vendors_prefix");
 
-const prisma = new PrismaClient();
+const prisma = require("../../../lib/prisma");
 
 // Seed Turn14 vendor products (vendor_id = 15)
 const seedTurn14VendorProducts = async () => {
@@ -218,8 +217,6 @@ const seedTurn14VendorProducts = async () => {
   } catch (error) {
     console.error("🚨 Critical error in Turn14 seeding:", error.message);
     console.error(error);
-  } finally {
-    await prisma.$disconnect();
   }
 };
 

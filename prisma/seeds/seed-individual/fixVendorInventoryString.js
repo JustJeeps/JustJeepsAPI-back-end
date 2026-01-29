@@ -1,6 +1,4 @@
-const { PrismaClient } = require("@prisma/client");
-
-const prisma = new PrismaClient();
+const prisma = require("../../../lib/prisma");
 
 const fixVendorInventoryString = async () => {
   try {
@@ -24,8 +22,6 @@ const fixVendorInventoryString = async () => {
     console.log("All matching vendorProducts updated successfully.");
   } catch (error) {
     console.error("Error updating vendor_inventory_string:", error);
-  } finally {
-    await prisma.$disconnect();
   }
 };
 

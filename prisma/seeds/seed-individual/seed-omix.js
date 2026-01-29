@@ -1,5 +1,4 @@
-const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
+const prisma = require("../../../lib/prisma");
 const omixCost = require("../api-calls/omix-excel.js");
 
 const VENDOR_ID = 3; // Omix

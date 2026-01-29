@@ -1,7 +1,6 @@
-const { PrismaClient } = require("@prisma/client");
 const keypartsCost = require("../api-calls/keyparts");
 
-const prisma = new PrismaClient();
+const prisma = require("../../../lib/prisma");
 
 const seedKeyPartsProducts = async () => {
   console.log("🔁 Seeding KeyParts vendor products...");

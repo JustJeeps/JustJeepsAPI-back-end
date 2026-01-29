@@ -1,10 +1,9 @@
-const { PrismaClient } = require("@prisma/client");
 // const data = require("../hard-code_data/partsEngine_data.js");
 const partsEngine = require("../api-calls/partsEngine-api.js");
 
 
 
-const prisma = new PrismaClient();
+const prisma = require("../../../lib/prisma");
 
 async function seedPartsEngine() {
   let counter = 0; // Counter variable to keep track of added and updated products

@@ -1,7 +1,6 @@
-const { PrismaClient } = require('@prisma/client')
 // import purchaseOrder_data from '../hard-code_data/purchaseOrder_data'
 
-const prisma = new PrismaClient()
+const prisma = require('../../../lib/prisma')
 
 const data =  [
   {

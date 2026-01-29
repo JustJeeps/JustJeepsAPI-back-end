@@ -1,10 +1,9 @@
-const { PrismaClient } = require("@prisma/client");
 const {
   getTireDiscounterSkus,
   makeApiRequestsInChunks,
 } = require("../api-calls/tireDiscounter-api.js");
 
-const prisma = new PrismaClient();
+const prisma = require("../../../lib/prisma");
 
 const seedTireDiscounterProducts = async () => {
   console.log("🚀 Seeding Tire Discounter vendor products...");

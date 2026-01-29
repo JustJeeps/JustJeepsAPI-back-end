@@ -1,7 +1,6 @@
-const { PrismaClient } = require("@prisma/client");
 const tireDiscounterCost = require("../api-calls/tire-discounter-excel.js");
 
-const prisma = new PrismaClient();
+const prisma = require("../../../lib/prisma");
 
 // Seed TireDiscounter products
 const seedTireDiscounterProducts = async () => {

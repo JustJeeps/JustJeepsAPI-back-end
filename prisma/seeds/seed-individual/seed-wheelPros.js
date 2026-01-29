@@ -1,11 +1,10 @@
-const { PrismaClient } = require("@prisma/client");
-const {
+const { 
   getAuthToken,
   getWheelProsSkus,
   makeApiRequestsInChunks,
 } = require("../api-calls/wheelPros-api.js");
 
-const prisma = new PrismaClient();
+const prisma = require("../../../lib/prisma");
 
 const seedWheelProsProducts = async () => {
   console.log("🚀 Seeding WheelPros vendor products...");
@@ -121,8 +120,6 @@ const seedWheelProsProducts = async () => {
       🔄 Updated: ${vendorProductUpdatedCount}`);
   } catch (err) {
     console.error("❌ Error seeding vendor products from WheelPros:", err.message);
-  } finally {
-    await prisma.$disconnect();
   }
 };
 

@@ -1,11 +1,10 @@
 /* eslint-disable no-console */
-const { PrismaClient } = require("@prisma/client");
 const { performance } = require("perf_hooks");
 const path = require("path");
 const fs = require("fs");
 
 const parseKeystoneLocal = require("../api-calls/parse-keystone-local");
-const prisma = new PrismaClient();
+const prisma = require("../../../lib/prisma");
 
 /**
  * CONFIG

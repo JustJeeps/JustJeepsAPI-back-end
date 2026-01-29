@@ -1,7 +1,6 @@
-const { PrismaClient } = require("@prisma/client");
 const RoughCountryCost = require("../api-calls/roughCountry-excel.js");
 
-const prisma = new PrismaClient();
+const prisma = require("../../../lib/prisma");
 
 // Seed roughCountry products
 const seedRoughCountry = async () => {

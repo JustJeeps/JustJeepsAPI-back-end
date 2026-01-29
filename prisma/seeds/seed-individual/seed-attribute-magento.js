@@ -12,9 +12,8 @@
  *   node prisma/seeds/seed-individual/seed-attribute-magento.js test "AEV" 5
  */
 
-const { PrismaClient } = require('@prisma/client');
 const axios = require('axios');
-const prisma = new PrismaClient();
+const prisma = require('../../../lib/prisma');
 
 // Magento API Configuration
 const MAGENTO_CONFIG = {

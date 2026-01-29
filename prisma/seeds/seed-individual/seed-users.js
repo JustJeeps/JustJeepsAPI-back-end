@@ -1,8 +1,7 @@
-const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const usersData = require('../hard-code_data/users_data.js');
 
-const prisma = new PrismaClient();
+const prisma = require('../../../lib/prisma');
 
 const hashPassword = async (password) => {
   const saltRounds = 10;

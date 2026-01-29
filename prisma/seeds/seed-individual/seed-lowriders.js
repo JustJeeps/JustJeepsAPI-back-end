@@ -1,7 +1,6 @@
-const { PrismaClient } = require("@prisma/client");
 const fetchlowridersInventory = require("../api-calls/lowriders.js");
 
-const prisma = new PrismaClient();
+const prisma = require("../../../lib/prisma");
 
 const seedLowriders = async () => {
   try {

@@ -1,7 +1,6 @@
-const { PrismaClient } = require("@prisma/client");
 const keystoneAPI = require("../api-calls/keystone-api-split.js");
 
-const prisma = new PrismaClient();
+const prisma = require("../../../lib/prisma");
 
 // Seed Keystone products
 const seedKeystoneVendorProducts = async (callNumber, numParts) => {

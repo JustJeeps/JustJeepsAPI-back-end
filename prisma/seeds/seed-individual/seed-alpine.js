@@ -1,7 +1,6 @@
-const { PrismaClient } = require("@prisma/client");
 const alpineCost = require("../api-calls/alpine.js");
 
-const prisma = new PrismaClient();
+const prisma = require("../../../lib/prisma");
 
 // Seed alpine vendor products
 const seedalpineProducts = async () => {

@@ -1,7 +1,6 @@
-const { PrismaClient } = require("@prisma/client");
 const tdotCost = require("../api-calls/tdot-api.js");
 
-const prisma = new PrismaClient();
+const prisma = require("../../../lib/prisma");
 
 // Seed Tdot competitor products
 const seedTdot = async () => {

@@ -1,7 +1,6 @@
-const { PrismaClient } = require("@prisma/client");
 const meyerApi = require("../api-calls/meyer-api.js");
 
-const prisma = new PrismaClient();
+const prisma = require("../../../lib/prisma");
 
 // seed Meyer products
 const seedMeyerVendorProducts = async () => {

@@ -1,7 +1,6 @@
-const { PrismaClient } = require("@prisma/client");
 const Turn14Service = require("../../../services/turn14");
 
-const prisma = new PrismaClient();
+const prisma = require("../../../lib/prisma");
 
 /**
  * OPTIMIZED Turn14 Seeding - Search products individually instead of fetching all items
