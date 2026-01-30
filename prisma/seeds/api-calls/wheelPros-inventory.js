@@ -1,4 +1,5 @@
 const fs = require('fs');
+const path = require('path');
 const { parse } = require('csv-parse/sync');
 const { stringify } = require('csv-stringify/sync');
 
@@ -70,9 +71,9 @@ function logSamples(records, label) {
 }
 
 // Process files
-const accessories = processFile('./accessoriesInvPriceData.csv');
-const tires = processFile('./tireInvPriceData.csv');
-const wheels = processFile('./wheelInvPriceData.csv');
+const accessories = processFile(path.resolve(__dirname, 'accessoriesInvPriceData.csv'));
+const tires = processFile(path.resolve(__dirname, 'tireInvPriceData.csv'));
+const wheels = processFile(path.resolve(__dirname, 'wheelInvPriceData.csv'));
 
 // Show sample output
 logSamples(accessories, 'Accessories');
@@ -82,6 +83,7 @@ logSamples(wheels, 'Wheels');
 // Combine and write to CSV
 const combined = [...accessories, ...tires, ...wheels];
 const output = stringify(combined, { header: true });
-fs.writeFileSync('./wheelpros_enriched_output.csv', output);
+const outputPath = path.resolve(__dirname, 'wheelpros_enriched_output.csv');
+fs.writeFileSync(outputPath, output);
 
-console.log('\n✅ Finished! Output saved as wheelpros_enriched_output.csv');
+console.log(`\n✅ Finished! Output saved as ${outputPath}`);

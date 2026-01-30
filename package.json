@@ -19,6 +19,7 @@
     "seed-northridge": "node prisma/seeds/seed-individual/seed-northridge.js",
     "seed-partsEngine": "node prisma/seeds/seed-individual/seed-partsEngine.js",
     "seed-wheelPros": "node prisma/seeds/seed-individual/seed-wheelPros.js",
+    "seed-wheelPros-inventory-csv": "node prisma/seeds/api-calls/wheelPros-inventory.js",
     "seed-tireDiscounter": "node prisma/seeds/seed-individual/seed-tireDiscounter-api.js",
     "seed-dirtyDog": "node prisma/seeds/seed-individual/seed-dirtyDog.js",
     "deleteEntries": "node prisma/seeds/deleteEntries.js",
@@ -60,7 +61,9 @@
     "magento-attributes-metalcloak": "node prisma/seeds/seed-individual/seed-attribute-magento.js vendor \"MetalCloak\"",
     "magento-attributes-omix": "node prisma/seeds/seed-individual/seed-attribute-magento.js vendor \"Omix\"",
     "magento-attributes-keyparts": "node prisma/seeds/seed-individual/seed-attribute-magento.js vendor \"KeyParts\"",
-    "seed-metalcloak": "node prisma/seeds/metalcloak-integration.js"
+    "seed-metalcloak": "node prisma/seeds/metalcloak-integration.js",
+    "db:check-connections": "node scripts/check-db-connections.js",
+    "db:kill-seeds": "pkill -f 'prisma/seeds' || true"
   },
   "repository": {
     "type": "git",

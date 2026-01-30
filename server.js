@@ -1,4 +1,6 @@
 const Express = require('express');
+const fs = require('fs');
+const path = require('path');
 const { format, parseISO } = require('date-fns');
 const app = Express();
 const BodyParser = require('body-parser');
@@ -7,7 +9,7 @@ const cors = require('cors');
 const cron = require('node-cron');
 const { spawn } = require('child_process');
 const logger = require('./utils/logger');
-const { sendCronNotification } = require('./utils/emailService');
+const { sendCronNotification, sendCronReport } = require('./utils/emailService');
 const prisma = require('./lib/prisma');
 const seedOrders = require('./prisma/seeds/seed-individual/seed-orders.js');
 const quadratecProducts = require('./prisma/seeds/api-calls/quadratec-excel.js');
@@ -1623,29 +1625,60 @@ cron.schedule('0 1 * * *', () => {
 
 	seedProcess.on('close', async (code) => {
 		const duration = ((Date.now() - startTime) / 1000 / 60).toFixed(2) + ' minutes';
+		const summaryFile = path.resolve(__dirname, 'prisma/seeds/logs/seed-all-summary.json');
+		let summary = null;
+
+		if (fs.existsSync(summaryFile)) {
+			try {
+				summary = JSON.parse(fs.readFileSync(summaryFile, 'utf-8'));
+			} catch (readErr) {
+				logger.error('⚠️ Failed to read seed-all summary file', { error: readErr.message });
+			}
+		}
 		
 		if (code === 0) {
 			logger.info('✅ Cron job completed: seed-all finished successfully', { duration });
 			console.log('✅ [CRON] Daily seed-all completed successfully');
 			
-			// Send success email
-			await sendCronNotification({
-				jobName: 'Daily Vendor Sync (seed-all)',
-				success: true,
-				duration
-			});
+			if (summary && Array.isArray(summary.results)) {
+				await sendCronReport({
+					jobName: 'Daily Vendor Sync (seed-all)',
+					success: true,
+					exitCode: code,
+					duration,
+					results: summary.results
+				});
+			} else {
+				// Fallback to basic success email
+				await sendCronNotification({
+					jobName: 'Daily Vendor Sync (seed-all)',
+					success: true,
+					duration
+				});
+			}
 		} else {
 			logger.error('❌ Cron job failed: seed-all exited with error', { exitCode: code, duration });
 			console.error(`❌ [CRON] Daily seed-all failed with exit code ${code}`);
 			
-			// Send failure email
-			await sendCronNotification({
-				jobName: 'Daily Vendor Sync (seed-all)',
-				success: false,
-				exitCode: code,
-				error: `Process exited with code ${code}`,
-				duration
-			});
+			if (summary && Array.isArray(summary.results)) {
+				await sendCronReport({
+					jobName: 'Daily Vendor Sync (seed-all)',
+					success: false,
+					exitCode: code,
+					error: `Process exited with code ${code}`,
+					duration,
+					results: summary.results
+				});
+			} else {
+				// Fallback to basic failure email
+				await sendCronNotification({
+					jobName: 'Daily Vendor Sync (seed-all)',
+					success: false,
+					exitCode: code,
+					error: `Process exited with code ${code}`,
+					duration
+				});
+			}
 		}
 	});
 

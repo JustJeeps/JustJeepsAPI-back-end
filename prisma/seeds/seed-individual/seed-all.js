@@ -11,7 +11,7 @@ if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
 const vendorSeeds = [
   { main: "seed-quadratec",   dependent: "seed-quad-inventory" },
   { main: "seed-omix",        dependent: "seed-omix-inventory" },
-  { main: "seed-wheelPros",   dependent: "seed-wp-inventory" },
+  { main: "seed-wheelPros",   pre: "seed-wheelPros-inventory-csv", dependent: "seed-wp-inventory" },
   // Keep Keystone pair if you want FTP→API ordering
   { main: "seed-keystone-ftp2", dependent: "seed-keystone-ftp-codes" },
 ];
@@ -33,55 +33,95 @@ const otherSeeds = [
 
 const RUN_CODES_AFTER_VENDORS = false; // flip to true if you want a final pass
 
+const jobName = "Daily Vendor Sync (seed-all)";
+const summaryPath = path.join(logsDir, "seed-all-summary.json");
+
 function runCommandToLog(cmd) {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
+    const start = Date.now();
     console.log(`🚀 Starting: ${cmd}`);
     const logFile = path.join(logsDir, `${cmd}.log`);
     const child = exec(`npm run ${cmd} > "${logFile}" 2>&1`, { cwd: ROOT });
+
     child.on("exit", code => {
+      const durationMs = Date.now() - start;
       if (code === 0) {
         console.log(`✅ Finished: ${cmd} (log: prisma/seeds/logs/${path.basename(logFile)})`);
-        resolve();
+        resolve({ cmd, success: true, code, logFile, durationMs });
       } else {
         console.log(`❌ Failed: ${cmd} (see prisma/seeds/logs/${path.basename(logFile)})`);
-        reject(new Error(`Seed failed: ${cmd}`));
+        resolve({ cmd, success: false, code, logFile, durationMs, error: `Exit code ${code}` });
       }
+    });
+
+    child.on("error", err => {
+      const durationMs = Date.now() - start;
+      console.log(`❌ Failed to start: ${cmd}`);
+      resolve({ cmd, success: false, code: null, logFile, durationMs, error: err.message });
     });
   });
 }
 
 (async () => {
+  const startTime = Date.now();
+  const results = [];
+
   try {
     // 1) Products first (provides keystone_ftp_brand + searchableSku)
     console.log("🔹 Running seed-allProducts...");
-    await runCommandToLog("seed-allProducts");
+    results.push(await runCommandToLog("seed-allProducts"));
 
     // 2) Fix keystone codes/site prefixes based on FTP + vendors_prefix aliases
     console.log("🔹 Running seed-keystone-ftp-codes...");
-    await runCommandToLog("seed-keystone-ftp-codes");
+    results.push(await runCommandToLog("seed-keystone-ftp-codes"));
 
     // 3) Vendor pairs sequentially
     console.log("\n🔹 Running vendor seeds with dependencies...");
     for (const g of vendorSeeds) {
-      await runCommandToLog(g.main);
-      await runCommandToLog(g.dependent);
+      results.push(await runCommandToLog(g.main));
+      if (g.pre) {
+        results.push(await runCommandToLog(g.pre));
+      }
+      results.push(await runCommandToLog(g.dependent));
     }
 
     // 4) Others in parallel
     console.log("\n🔹 Running remaining seeds in parallel...");
-    await Promise.allSettled(otherSeeds.map(runCommandToLog));
+    const parallelResults = await Promise.all(otherSeeds.map(runCommandToLog));
+    results.push(...parallelResults);
 
     // 5) Optional final pass to re-sync codes/site after vendor seeds
     if (RUN_CODES_AFTER_VENDORS) {
       console.log("\n🔹 Final sync: seed-keystone-ftp-codes...");
-      await runCommandToLog("seed-keystone-ftp-codes");
+      results.push(await runCommandToLog("seed-keystone-ftp-codes"));
+    }
+  } catch (err) {
+    console.error("❌ Unexpected error during seeding pipeline:", err.message);
+  } finally {
+    const durationMs = Date.now() - startTime;
+    const summary = {
+      jobName,
+      startedAt: new Date(startTime).toISOString(),
+      finishedAt: new Date().toISOString(),
+      durationMs,
+      results,
+    };
+
+    try {
+      fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
+      console.log(`📄 Summary written to prisma/seeds/logs/${path.basename(summaryPath)}`);
+    } catch (writeErr) {
+      console.error("❌ Failed to write summary file:", writeErr.message);
     }
 
-    console.log("\n🎉 All seeding scripts finished (check logs for details).");
-    process.exit(0);
-  } catch (err) {
-    console.error("❌ Error during seeding pipeline:", err.message);
-    process.exit(1);
+    const failedCount = results.filter(r => !r.success).length;
+    if (failedCount > 0) {
+      console.error(`❌ ${failedCount} script(s) failed. See summary for details.`);
+      process.exit(1);
+    } else {
+      console.log("\n🎉 All seeding scripts finished successfully (check logs for details).");
+      process.exit(0);
+    }
   }
 })();
 

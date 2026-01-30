@@ -55,6 +55,11 @@ const updateInventory = async () => {
       });
 
       updatedCount++;
+      
+      // Log progress every 500 products
+      if (updatedCount % 5 === 0) {
+        console.log(`📦 Progress: ${updatedCount} products updated, ${missingCount} missing...`);
+      }
     } catch (error) {
       console.error(`❌ Error updating SKU ${vendorSku}:`, error);
     }
