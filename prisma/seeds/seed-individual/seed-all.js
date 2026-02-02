@@ -38,27 +38,51 @@ const RUN_CODES_AFTER_VENDORS = false; // flip to true if you want a final pass
 const jobName = "Daily Vendor Sync (seed-all)";
 const summaryPath = path.join(logsDir, "seed-all-summary.json");
 
+function formatDateTime(date) {
+  return date.toISOString();
+}
+
+function formatDuration(durationMs) {
+  if (durationMs == null) return "n/a";
+  const totalSeconds = Math.floor(durationMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const millis = durationMs % 1000;
+  const parts = [];
+  if (hours) parts.push(`${hours}h`);
+  if (minutes || hours) parts.push(`${minutes}m`);
+  parts.push(`${seconds}s`);
+  parts.push(`${millis}ms`);
+  return parts.join(" ");
+}
+
 function runCommandToLog(cmd) {
   return new Promise((resolve) => {
     const start = Date.now();
-    console.log(`🚀 Starting: ${cmd}`);
+    const startedAt = new Date(start);
+    console.log(`🚀 Starting: ${cmd} @ ${formatDateTime(startedAt)}`);
     const logFile = path.join(logsDir, `${cmd}.log`);
     const child = exec(`npm run ${cmd} > "${logFile}" 2>&1`, { cwd: ROOT });
 
     child.on("exit", code => {
       const durationMs = Date.now() - start;
+      const finishedAt = new Date();
+      const durationText = formatDuration(durationMs);
       if (code === 0) {
-        console.log(`✅ Finished: ${cmd} (log: prisma/seeds/logs/${path.basename(logFile)})`);
+        console.log(`✅ Finished: ${cmd} @ ${formatDateTime(finishedAt)} (${durationText}) (log: prisma/seeds/logs/${path.basename(logFile)})`);
         resolve({ cmd, success: true, code, logFile, durationMs });
       } else {
-        console.log(`❌ Failed: ${cmd} (see prisma/seeds/logs/${path.basename(logFile)})`);
+        console.log(`❌ Failed: ${cmd} @ ${formatDateTime(finishedAt)} (${durationText}) (see prisma/seeds/logs/${path.basename(logFile)})`);
         resolve({ cmd, success: false, code, logFile, durationMs, error: `Exit code ${code}` });
       }
     });
 
     child.on("error", err => {
       const durationMs = Date.now() - start;
-      console.log(`❌ Failed to start: ${cmd}`);
+      const finishedAt = new Date();
+      const durationText = formatDuration(durationMs);
+      console.log(`❌ Failed to start: ${cmd} @ ${formatDateTime(finishedAt)} (${durationText})`);
       resolve({ cmd, success: false, code: null, logFile, durationMs, error: err.message });
     });
   });
@@ -81,9 +105,11 @@ async function runCommandSafely(cmd) {
 
 (async () => {
   const startTime = Date.now();
+  const startedAt = new Date(startTime);
   const results = [];
 
   try {
+    console.log(`🕒 Job started @ ${formatDateTime(startedAt)}: ${jobName}`);
     // 1) Products first (provides keystone_ftp_brand + searchableSku)
     console.log("🔹 Running seed-allProducts...");
     results.push(await runCommandSafely("seed-allProducts"));
@@ -123,10 +149,11 @@ async function runCommandSafely(cmd) {
     console.error("❌ Unexpected error during seeding pipeline:", err.message);
   } finally {
     const durationMs = Date.now() - startTime;
+    const finishedAt = new Date();
     const summary = {
       jobName,
       startedAt: new Date(startTime).toISOString(),
-      finishedAt: new Date().toISOString(),
+      finishedAt: finishedAt.toISOString(),
       durationMs,
       results,
     };
@@ -143,7 +170,7 @@ async function runCommandSafely(cmd) {
       console.error(`❌ ${failedCount} script(s) failed. See summary for details.`);
       process.exit(1);
     } else {
-      console.log("\n🎉 All seeding scripts finished successfully (check logs for details).");
+      console.log(`\n🎉 All seeding scripts finished successfully @ ${formatDateTime(finishedAt)} (total: ${formatDuration(durationMs)}) (check logs for details).`);
       process.exit(0);
     }
   }
