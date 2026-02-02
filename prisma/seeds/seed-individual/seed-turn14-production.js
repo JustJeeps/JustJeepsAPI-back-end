@@ -3,8 +3,85 @@ const Turn14Service = require('../../../services/turn14');
 
 const prisma = require('../../../lib/prisma');
 
+function createTurn14RateLimiter({ perSecond, perHour, perDay, minIntervalMs, stopOnDailyLimit }) {
+  const state = {
+    second: { start: Date.now(), count: 0 },
+    hour: { start: Date.now(), count: 0 },
+    day: { start: Date.now(), count: 0 },
+    lastRequestAt: 0
+  };
+
+  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+  const rollWindowIfNeeded = (window, ms) => {
+    const now = Date.now();
+    if (now - window.start >= ms) {
+      window.start = now;
+      window.count = 0;
+    }
+  };
+
+  const waitForWindow = async (window, ms, label) => {
+    const now = Date.now();
+    const waitMs = ms - (now - window.start);
+    if (waitMs > 0) {
+      const waitMinutes = Math.ceil(waitMs / (60 * 1000));
+      console.log(`\n⏸️  Waiting ~${waitMinutes} minute(s) for ${label} window to reset...`);
+      await sleep(waitMs);
+      window.start = Date.now();
+      window.count = 0;
+    }
+  };
+
+  const ensureMinInterval = async () => {
+    const now = Date.now();
+    const elapsed = now - state.lastRequestAt;
+    if (elapsed < minIntervalMs) {
+      await sleep(minIntervalMs - elapsed);
+    }
+  };
+
+  const consume = async (label) => {
+    const now = Date.now();
+    rollWindowIfNeeded(state.second, 1000);
+    rollWindowIfNeeded(state.hour, 60 * 60 * 1000);
+    rollWindowIfNeeded(state.day, 24 * 60 * 60 * 1000);
+
+    if (state.day.count >= perDay) {
+      const message = `\n🛑 Daily Turn14 limit reached (${state.day.count}/${perDay}).`;
+      if (stopOnDailyLimit) {
+        console.log(message);
+        throw new Error('Turn14 daily limit reached. Stop and resume tomorrow.');
+      }
+      await waitForWindow(state.day, 24 * 60 * 60 * 1000, 'daily');
+    }
+
+    if (state.hour.count >= perHour) {
+      await waitForWindow(state.hour, 60 * 60 * 1000, 'hourly');
+    }
+
+    if (state.second.count >= perSecond) {
+      await waitForWindow(state.second, 1000, 'per-second');
+    }
+
+    await ensureMinInterval();
+
+    state.second.count += 1;
+    state.hour.count += 1;
+    state.day.count += 1;
+    state.lastRequestAt = Date.now();
+  };
+
+  const get = async (label, fn) => {
+    await consume(label);
+    return fn();
+  };
+
+  return { get };
+}
+
 async function seedTurn14VendorData() {
-  const startTime = process.hrtime();
+  const hrStartTime = process.hrtime();
   
   try {
     console.log('🚀 Turn14 Vendor Data Seeding - Production Version\n');
@@ -20,12 +97,23 @@ async function seedTurn14VendorData() {
     
     // Initialize Turn14 service
     const turn14Service = new Turn14Service();
+
+    // Centralized rate limiter for Turn14 GET requests
+    const rateLimiter = createTurn14RateLimiter({
+      perSecond: 5,
+      perHour: 5000,
+      perDay: 30000,
+      minIntervalMs: 250, // keep a small gap between requests
+      stopOnDailyLimit: true
+    });
     
     console.log('📋 Fetching Turn14 items (respecting rate limits)...');
     
     // With Turn14 rate limits (5 req/sec, 5000/hour, 30000/day), we need to be very conservative
     // Process matches per page instead of waiting for all pages
-    const firstPage = await turn14Service.items.getAllItems(1);
+    const firstPage = await rateLimiter.get('items.getAllItems(1)', () =>
+      turn14Service.items.getAllItems(1)
+    );
     if (!firstPage || !firstPage.data) {
       console.log('❌ No Turn14 items found');
       return;
@@ -65,14 +153,13 @@ async function seedTurn14VendorData() {
     
     // Rate limit tracking (Turn14: 5000 req/hour, 5 req/sec, 30000/day)
     let requestCount = 0;
-    const maxRequestsPerHour = 3000; // Very conservative limit (was 4500, but we hit 7487)
-    const startTime = Date.now();
+    const startTimeMs = Date.now();
     
     // Start fresh from page 1 with clean data structure
     console.log('🔄 Starting fresh from page 1 with clean data structure...');
     
     // Process first page
-    const page1Matches = await processPageAndSeed(firstPage.data, productLookupMap, 1, turn14Service);
+    const page1Matches = await processPageAndSeed(firstPage.data, productLookupMap, 1, turn14Service, rateLimiter);
     totalMatches += page1Matches.matches;
     totalProcessed += page1Matches.processed;
     totalCreated += page1Matches.created;
@@ -89,24 +176,15 @@ async function seedTurn14VendorData() {
       
       for (let page = 2; page <= pagesToFetch; page++) {
         // Check hourly rate limit
-        const elapsedHours = (Date.now() - startTime) / (1000 * 60 * 60);
-        if (requestCount >= maxRequestsPerHour && elapsedHours < 1) {
-          const waitTime = (1 - elapsedHours) * 60; // minutes to wait
-          console.log(`\n⏰ Approaching hourly rate limit (${requestCount}/${maxRequestsPerHour} requests)`);
-          console.log(`⏸️  Pausing for ${Math.ceil(waitTime)} minutes to reset hourly limit...`);
-          await new Promise(resolve => setTimeout(resolve, waitTime * 60 * 1000));
-          requestCount = 0; // Reset counter
-        }
-        
-        // Rate limiting: 1000ms between API calls (much more conservative)
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
+        const elapsedHours = (Date.now() - startTimeMs) / (1000 * 60 * 60);
         console.log(`📄 Fetching and processing page ${page}/${pagesToFetch}...`);
-        const pageData = await turn14Service.items.getAllItems(page);
+        const pageData = await rateLimiter.get(`items.getAllItems(${page})`, () =>
+          turn14Service.items.getAllItems(page)
+        );
         requestCount++; // Count the items API call
         
         if (pageData && pageData.data) {
-          const pageResults = await processPageAndSeed(pageData.data, productLookupMap, page, turn14Service);
+          const pageResults = await processPageAndSeed(pageData.data, productLookupMap, page, turn14Service, rateLimiter);
           totalMatches += pageResults.matches;
           totalProcessed += pageResults.processed;
           totalCreated += pageResults.created;
@@ -128,7 +206,7 @@ async function seedTurn14VendorData() {
       }
     }
     
-    const endTime = process.hrtime(startTime);
+    const endTime = process.hrtime(hrStartTime);
     const duration = `${Math.floor(endTime[0] / 60)}:${(endTime[0] % 60).toString().padStart(2, '0')}.${Math.floor(endTime[1] / 1000000).toString().padStart(3, '0')}`;
     
     console.log('\n🎉 Turn14 vendor data seeding completed!');
@@ -150,7 +228,7 @@ async function seedTurn14VendorData() {
 }
 
 // Function to process a page of Turn14 items and seed matches immediately
-async function processPageAndSeed(turn14Items, productLookupMap, pageNumber, turn14Service) {
+async function processPageAndSeed(turn14Items, productLookupMap, pageNumber, turn14Service, rateLimiter) {
   let matches = 0;
   let processed = 0;
   let created = 0;
@@ -181,17 +259,16 @@ async function processPageAndSeed(turn14Items, productLookupMap, pageNumber, tur
         
         console.log(`   🔄 Processing: ${product.sku} → Turn14 ID: ${turn14Item.id}`);
         
-        // Much more conservative rate limiting between pricing/inventory calls
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
         // Get pricing (reuse existing service instance)
-        const pricingResult = await turn14Service.pricing.getItemPricing(turn14Item.id);
+        const pricingResult = await rateLimiter.get(`pricing.getItemPricing(${turn14Item.id})`, () =>
+          turn14Service.pricing.getItemPricing(turn14Item.id)
+        );
         requestCount++; // Count pricing API call
-        
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
+
         // Get inventory (reuse existing service instance)
-        const inventoryResult = await turn14Service.inventory.getItemInventory(turn14Item.id);
+        const inventoryResult = await rateLimiter.get(`inventory.getItemInventory(${turn14Item.id})`, () =>
+          turn14Service.inventory.getItemInventory(turn14Item.id)
+        );
         requestCount++; // Count inventory API call
         
         let vendorCost = 0;
@@ -263,6 +340,10 @@ async function processPageAndSeed(turn14Items, productLookupMap, pageNumber, tur
         
       } catch (error) {
         errors++;
+        if (error && error.message && error.message.includes('Turn14 daily limit reached')) {
+          console.error(`   🛑 Stopping: ${error.message}`);
+          throw error;
+        }
         console.error(`   ❌ Error processing ${match.product.sku}:`, error.message);
       }
     }

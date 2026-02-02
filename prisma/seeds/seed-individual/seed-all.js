@@ -3,7 +3,7 @@ const { exec } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 
-const ROOT = path.resolve(__dirname, "../../");
+const ROOT = path.resolve(__dirname, "../../../");
 const logsDir = path.resolve(ROOT, "prisma/seeds/logs");
 if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
 
@@ -28,6 +28,7 @@ const otherSeeds = [
   "seed-tdot",
   "seed-lowriders",
   "seed-wheelPros",
+  "seed-wp-inventory",
   // "seed-daily-turn14-production", // Daily Turn14 pricing/inventory updates
   "seed-turn14-production"
 ];
@@ -63,6 +64,21 @@ function runCommandToLog(cmd) {
   });
 }
 
+async function runCommandSafely(cmd) {
+  try {
+    return await runCommandToLog(cmd);
+  } catch (err) {
+    return {
+      cmd,
+      success: false,
+      code: null,
+      logFile: path.join(logsDir, `${cmd}.log`),
+      durationMs: null,
+      error: err && err.message ? err.message : 'Unknown error'
+    };
+  }
+}
+
 (async () => {
   const startTime = Date.now();
   const results = [];
@@ -70,31 +86,38 @@ function runCommandToLog(cmd) {
   try {
     // 1) Products first (provides keystone_ftp_brand + searchableSku)
     console.log("🔹 Running seed-allProducts...");
-    results.push(await runCommandToLog("seed-allProducts"));
+    results.push(await runCommandSafely("seed-allProducts"));
 
     // 2) Fix keystone codes/site prefixes based on FTP + vendors_prefix aliases
     console.log("🔹 Running seed-keystone-ftp-codes...");
-    results.push(await runCommandToLog("seed-keystone-ftp-codes"));
+    results.push(await runCommandSafely("seed-keystone-ftp-codes"));
 
     // 3) Vendor pairs sequentially
     console.log("\n🔹 Running vendor seeds with dependencies...");
     for (const g of vendorSeeds) {
-      results.push(await runCommandToLog(g.main));
+      results.push(await runCommandSafely(g.main));
       if (g.pre) {
-        results.push(await runCommandToLog(g.pre));
+        results.push(await runCommandSafely(g.pre));
       }
-      results.push(await runCommandToLog(g.dependent));
+      results.push(await runCommandSafely(g.dependent));
     }
 
     // 4) Others in parallel
     console.log("\n🔹 Running remaining seeds in parallel...");
-    const parallelResults = await Promise.all(otherSeeds.map(runCommandToLog));
-    results.push(...parallelResults);
+    const parallelResults = await Promise.allSettled(otherSeeds.map(runCommandSafely));
+    results.push(...parallelResults.map(r => (r.status === 'fulfilled' ? r.value : {
+      cmd: 'unknown',
+      success: false,
+      code: null,
+      logFile: null,
+      durationMs: null,
+      error: r.reason && r.reason.message ? r.reason.message : 'Unknown error'
+    })));
 
     // 5) Optional final pass to re-sync codes/site after vendor seeds
     if (RUN_CODES_AFTER_VENDORS) {
       console.log("\n🔹 Final sync: seed-keystone-ftp-codes...");
-      results.push(await runCommandToLog("seed-keystone-ftp-codes"));
+      results.push(await runCommandSafely("seed-keystone-ftp-codes"));
     }
   } catch (err) {
     console.error("❌ Unexpected error during seeding pipeline:", err.message);
