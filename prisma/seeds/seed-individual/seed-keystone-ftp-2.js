@@ -166,16 +166,20 @@ if (duplicateKeystoneCodes) {
       console.log("🗑️ Deleted existing Keystone vendor products");
     }
 
-    // 5) process rows
-    for (const r of rows) {
-      processed++;
-      const { VCPN, cost, totalQty } = r;
-      const sku = productByKeystone.get(VCPN);
-      if (!sku) {
-        if (missingProduct < 25) console.log(`⚠️ Missing product for Keystone code ${VCPN}`);
-        missingProduct++;
-        continue;
-      }
+    // 5) process rows in batches to avoid connection pool exhaustion
+    const BATCH_SIZE = 100;
+    for (let batchStart = 0; batchStart < rows.length; batchStart += BATCH_SIZE) {
+      const batch = rows.slice(batchStart, batchStart + BATCH_SIZE);
+      
+      for (const r of batch) {
+        processed++;
+        const { VCPN, cost, totalQty } = r;
+        const sku = productByKeystone.get(VCPN);
+        if (!sku) {
+          if (missingProduct < 25) console.log(`⚠️ Missing product for Keystone code ${VCPN}`);
+          missingProduct++;
+          continue;
+        }
 
       const vendorSku = VCPN; // API logic: vendor_sku must be VCPN
 
@@ -319,8 +323,14 @@ if (duplicateKeystoneCodes) {
         }
       }
 
-      if (processed % PROGRESS_EVERY === 0) {
-        console.log(`⏳ ${processed} processed · ${created} created · ${updated} updated · ${missingProduct} missing · ${deduped} deduped`);
+        if (processed % PROGRESS_EVERY === 0) {
+          console.log(`⏳ ${processed} processed · ${created} created · ${updated} updated · ${missingProduct} missing · ${deduped} deduped`);
+        }
+      }
+
+      // Release connection between batches
+      if (batchStart + BATCH_SIZE < rows.length) {
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
     }
 

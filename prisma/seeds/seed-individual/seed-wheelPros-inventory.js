@@ -76,57 +76,72 @@ const enrichedInventory = [
 const updateInventory = async () => {
   let updatedCount = 0;
   let missingCount = 0;
+  const BATCH_SIZE = 100; // Process in batches to avoid connection pool exhaustion
 
   console.log("🔄 Updating WheelPros vendor inventory...");
 
-  for (const row of enrichedInventory) {
-    const vendorSku = row.PartNumber;
-    const vendor_inventory_string = row.vendor_inventory_string || null;
-    const vendor_inventory = row.vendor_inventory
-      ? parseInt(row.vendor_inventory)
-      : null;
-
-    try {
-      const vendorProduct = await prisma.vendorProduct.findFirst({
-        where: {
-          vendor_sku: vendorSku,
-          vendor_id: VENDOR_ID,
-        },
-      });
-
-      if (!vendorProduct) {
-        missingCount++;
-        continue;
-      }
-
-      console.log(`✅ Found vendor product for SKU: ${vendorSku}`);
-
-      await prisma.vendorProduct.update({
-        where: {
-          id: vendorProduct.id,
-        },
-        data: {
-          vendor_inventory,
-          vendor_inventory_string,
-        },
-      });
-
-      updatedCount++;
+  try {
+    // Process in batches
+    for (let i = 0; i < enrichedInventory.length; i += BATCH_SIZE) {
+      const batch = enrichedInventory.slice(i, i + BATCH_SIZE);
       
-      // Log progress every 500 products
-      if (updatedCount % 5 === 0) {
-        console.log(`📦 Progress: ${updatedCount} products updated, ${missingCount} missing...`);
-      }
-    } catch (error) {
-      console.error(`❌ Error updating SKU ${vendorSku}:`, error);
-    }
-  }
+      for (const row of batch) {
+        const vendorSku = row.PartNumber;
+        const vendor_inventory_string = row.vendor_inventory_string || null;
+        const vendor_inventory = row.vendor_inventory
+          ? parseInt(row.vendor_inventory)
+          : null;
 
-  console.log(`\n✅ Done!
+        try {
+          const vendorProduct = await prisma.vendorProduct.findFirst({
+            where: {
+              vendor_sku: vendorSku,
+              vendor_id: VENDOR_ID,
+            },
+          });
+
+          if (!vendorProduct) {
+            missingCount++;
+            continue;
+          }
+
+          console.log(`✅ Found vendor product for SKU: ${vendorSku}`);
+
+          await prisma.vendorProduct.update({
+            where: {
+              id: vendorProduct.id,
+            },
+            data: {
+              vendor_inventory,
+              vendor_inventory_string,
+            },
+          });
+
+          updatedCount++;
+          
+          // Log progress every 5 products
+          if (updatedCount % 5 === 0) {
+            console.log(`📦 Progress: ${updatedCount} products updated, ${missingCount} missing...`);
+          }
+        } catch (error) {
+          console.error(`❌ Error updating SKU ${vendorSku}:`, error.message);
+        }
+      }
+
+      // Release connection between batches
+      if (i + BATCH_SIZE < enrichedInventory.length) {
+        await new Promise(resolve => setTimeout(resolve, 100)); // Small delay between batches
+      }
+    }
+
+    console.log(`\n✅ Done!
   ➕ Updated: ${updatedCount}
   ❌ Missing SKUs: ${missingCount}`);
-
-  await prisma.$disconnect();
+  } catch (error) {
+    console.error("Fatal error during inventory update:", error);
+  } finally {
+    await prisma.$disconnect();
+  }
 };
 
 updateInventory();
