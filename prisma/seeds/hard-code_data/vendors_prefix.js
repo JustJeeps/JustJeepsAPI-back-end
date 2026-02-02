@@ -5,12 +5,20 @@
 module.exports = [
   {
     jj_prefix: "",
-    brand_name: "A",
+    brand_name: "",
     vendors: "",
     keystone_code: "",
     meyer_code: "",
-    t14_code: "ace",
-    premier_code: "", // Premier Performance item number mapping
+    quadratec_code: "",
+    tdot_code: "",
+    truck_parts_code: "",
+    partsEngine_code: "-",
+    keystone_code_site: "",
+    keystone_ftp_brand: "",
+    premier_code: "",
+    t14_code: "",
+
+
 
   },
   {
