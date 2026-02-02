@@ -11,9 +11,9 @@ if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
 const vendorSeeds = [
   { main: "seed-quadratec",   dependent: "seed-quad-inventory" },
   { main: "seed-omix",        dependent: "seed-omix-inventory" },
-  { main: "seed-wheelPros",   pre: "seed-wheelPros-inventory-csv", dependent: "seed-wp-inventory" },
-  // Keep Keystone pair if you want FTP→API ordering
   { main: "seed-keystone-ftp2", dependent: "seed-keystone-ftp-codes" },
+  // { main: "seed-wheelPros",   pre: "seed-wheelPros-inventory-csv", dependent: "seed-wp-inventory" },
+  // Keep Keystone pair if you want FTP→API ordering
 ];
 
 // parallel tails
@@ -27,6 +27,7 @@ const otherSeeds = [
   "seed-meyer",
   "seed-tdot",
   "seed-lowriders",
+  "seed-wheelPros",
   // "seed-daily-turn14-production", // Daily Turn14 pricing/inventory updates
   "seed-turn14-production"
 ];

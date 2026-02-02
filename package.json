@@ -37,7 +37,7 @@
     "fix-invent": "node prisma/seeds/seed-individual/fixVendorInventoryString.js",
     "seed-mopar": "node prisma/seeds/seed-individual/seed-mopar.js",
     "seed-alpine": "node prisma/seeds/seed-individual/seed-alpine.js",
-    "seed-wp-inventory": "node prisma/seeds/seed-individual/seed-wp-inventory.js",
+    "seed-wp-inventory": "node prisma/seeds/seed-individual/seed-wheelPros-inventory.js",
     "seed-lowriders": "node prisma/seeds/seed-individual/seed-lowriders.js",
     "seed-all": "node prisma/seeds/seed-individual/seed-all.js",
     "seed-orders-all": "node prisma/seeds/seed-individual/seed-orders-all.js",
