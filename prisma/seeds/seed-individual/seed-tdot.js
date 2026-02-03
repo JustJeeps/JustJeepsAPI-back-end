@@ -50,7 +50,7 @@ const seedTdot = async () => {
               id: existingCompetitorProduct.id,
             },
             data: {
-              competitor_price: data.tdot_price*0.9, // Update competitor price
+              competitor_price: data.tdot_price, // Update competitor price
               product_url: data.product_url || null, // Update product URL if available
             },
           });
@@ -64,7 +64,7 @@ const seedTdot = async () => {
           data: {
             product_sku: product.sku, // Link to product's SKU
             competitor_id: 4, // Set competitor ID to 4 (for Tdot)
-            competitor_price: data.tdot_price*0.9, // Set competitor price
+            competitor_price: data.tdot_price, // Set competitor price
             competitor_sku: data.tdot_code, // Use tdot_code as competitor_sku
             product_url: data.product_url || null, // Optional product URL if available
           },
