@@ -39,10 +39,13 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-justjeeps}?schema=public}
       PORT: 8080
       NODE_ENV: ${NODE_ENV:-production}
+      NODE_UNBUFFERED: 1
       ENABLE_AUTH: ${ENABLE_AUTH:-true}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-24h}
       MAGENTO_KEY: ${MAGENTO_KEY:-}
+    volumes:
+      - ./prisma/seeds/api-calls:/app/prisma/seeds/api-calls
     command: >
       sh -c "node server.js"
     restart: unless-stopped

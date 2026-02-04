@@ -600,7 +600,7 @@ module.exports = [
   {
     jj_prefix: "BIL",
     brand_name: "Bilstein",
-    vendors: "Meyer, Keystone, Quadratec",
+    vendors: "Meyer, Keystone, Quadratec, WheelPros",
     keystone_code: "B52",
     meyer_code: "BIL",
     quadratec_code: "Bilstein",
@@ -1635,7 +1635,7 @@ module.exports = [
   {
     jj_prefix: "FOX",
     brand_name: "Fox Racing",
-    vendors: "Meyer, Keystone, Quadratec",
+    vendors: "Meyer, Keystone, Quadratec, WheelPros",
     keystone_code: "F75",
     meyer_code: "FOX",
     quadratec_code: "Fox Racing Shox",

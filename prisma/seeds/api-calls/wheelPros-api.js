@@ -39,7 +39,7 @@ const getWheelProsSkus = async () => {
     "ReadyLIFT", "Morimoto", "TeraFlex", "Gorilla Automotive",
     "G2 Axle & Gear", "Poison Spyder Customs", "PRO COMP Alloy Wheels",
     "PRO COMP Steel Wheels", "PRO COMP Suspension", "Pro Comp Tires",
-    "Rubicon Express", "Smittybilt", "Nitto Tire"
+    "Rubicon Express", "Smittybilt", "Nitto Tire", "Bilstein", "Fox Racing"
   ];
 
   const products = await prisma.product.findMany({
