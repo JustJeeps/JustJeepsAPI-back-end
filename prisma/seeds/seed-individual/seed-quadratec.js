@@ -84,9 +84,6 @@ const seedQuadratec = async () => {
       // console.log("product", product);
 
           if (!product) {
-            console.error(
-              `Product not found for Quadratec_code: ${data.quadratec_code}`
-            );
             continue;
           }
 
