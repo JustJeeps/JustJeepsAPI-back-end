@@ -25,8 +25,8 @@ app.use(
   cors({
     origin: [
       "http://localhost:5173", // local frontend
-      "https://lionfish-app-v8v9s.ondigitalocean.app", // production frontend
-			"https://orderapi.nunchisolucoes.com"
+			"http://127.0.0.1:5173", // local frontend (loopback)
+      "https://lionfish-app-v8v9s.ondigitalocean.app", // production frontend,
     ],
     credentials: true,
   })

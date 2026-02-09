@@ -122,6 +122,7 @@ const seedQuadratec = async () => {
             data: vendorProductData,
           });
           vendorProductCreatedCount++;
+          console.log(`[Quadratec] ${data.quadratec_code} created for vendor_id=4`);
         } catch (itemError) {
           console.error(`Error processing Quadratec SKU ${data?.quadratec_code}:`, itemError.message || itemError);
         }

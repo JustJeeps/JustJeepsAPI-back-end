@@ -67,8 +67,19 @@ mydb.dump
 
 # Specific large data files
 prisma/seeds/seed-individual/orders_all.json
-prisma/seeds/api-calls/wheelpros_enriched_output.csv
-prisma/seeds/api-calls/keystone_files/*.csv
+
+# Keep the folder, but don't commit vendor dumps
+prisma/seeds/api-calls/**
+
+# Allow only small sample/test files (optional - delete if you don't need)
+!prisma/seeds/api-calls/**/*.md
+!prisma/seeds/api-calls/**/*.txt
+!prisma/seeds/api-calls/**/*.json
+
+# Explicitly ignore the known huge files
+prisma/seeds/api-calls/SpecialOrder.csv
+prisma/seeds/api-calls/keystone_files/SpecialOrder.csv
+
 
 # -----------------------------------------------------------------------------
 # OS Generated Files
@@ -130,3 +141,5 @@ prisma/seeds/scrapping/**/*_checkpoint.json
 prisma/seeds/scrapping/**/failed-urls.txt
 prisma/seeds/scrapping/**/resume-progress.json
 *.dump
+.env2
+.env2

@@ -60,6 +60,8 @@
     "magento-attributes-rough": "node prisma/seeds/seed-individual/seed-attribute-magento.js vendor \"Rough Country\"",
     "magento-attributes-metalcloak": "node prisma/seeds/seed-individual/seed-attribute-magento.js vendor \"MetalCloak\"",
     "magento-attributes-omix": "node prisma/seeds/seed-individual/seed-attribute-magento.js vendor \"Omix\"",
+
+    "seed-attribute-magento": "node prisma/seeds/seed-individual/seed-attribute-magento.js",
     "magento-attributes-keyparts": "node prisma/seeds/seed-individual/seed-attribute-magento.js vendor \"KeyParts\"",
     "seed-metalcloak": "node prisma/seeds/metalcloak-integration.js",
     "db:check-connections": "node scripts/check-db-connections.js",

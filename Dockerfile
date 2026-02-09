@@ -14,8 +14,8 @@ RUN npm ci
 FROM node:20-slim AS builder
 WORKDIR /app
 
-# Install OpenSSL for Prisma
-RUN apt-get update && apt-get install -y openssl --no-install-recommends \
+# Install OpenSSL and tzdata for Prisma and timezone support
+RUN apt-get update && apt-get install -y openssl tzdata --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=deps-dev /app/node_modules ./node_modules
@@ -26,8 +26,8 @@ RUN npx prisma generate
 FROM node:20-slim AS builder-prod
 WORKDIR /app
 
-# Install OpenSSL for Prisma
-RUN apt-get update && apt-get install -y openssl --no-install-recommends \
+# Install OpenSSL and tzdata for Prisma and timezone support
+RUN apt-get update && apt-get install -y openssl tzdata --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=deps /app/node_modules ./node_modules
@@ -41,7 +41,10 @@ FROM node:20-slim
 WORKDIR /app
 
 # Puppeteer dependencies (Chrome headless)
+ENV TZ=America/Toronto
+
 RUN apt-get update && apt-get install -y \
+    tzdata \
     chromium \
     fonts-liberation \
     libasound2 \
@@ -59,6 +62,8 @@ RUN apt-get update && apt-get install -y \
     libxrandr2 \
     xdg-utils \
     --no-install-recommends \
+    && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime \
+    && echo $TZ > /etc/timezone \
     && rm -rf /var/lib/apt/lists/*
 
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true

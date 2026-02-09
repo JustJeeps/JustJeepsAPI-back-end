@@ -54,6 +54,11 @@ See `.env.example` for vendor API keys and other variables.
 | `npm run seed-users` | Seed user accounts |
 | `npm run seed-orders` | Seed order data |
 | `npx prisma studio` | Open database browser |
+| `node scripts/canceled-orders-report.js` | Report canceled orders grouped by month |
+
+## Reports
+
+- Canceled orders by month: ensure DATABASE_URL is configured, then run node scripts/canceled-orders-report.js (optionally add --since=YYYY-MM, default 2025-01) to see monthly counts, totals, and cancellation percentages plus overall totals.
 
 ## API Endpoints
 

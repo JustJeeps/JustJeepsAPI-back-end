@@ -42,7 +42,10 @@ FROM node:20-slim AS production
 WORKDIR /app
 
 # Instala dependencias do sistema para Puppeteer/Chromium
+ENV TZ=America/Toronto
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    tzdata \
     chromium \
     fonts-liberation \
     libasound2 \
@@ -62,6 +65,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # Utilitarios para healthcheck
     curl \
     ca-certificates \
+    && ln -snf /usr/share/zoneinfo/$TZ /etc/localtime \
+    && echo $TZ > /etc/timezone \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
