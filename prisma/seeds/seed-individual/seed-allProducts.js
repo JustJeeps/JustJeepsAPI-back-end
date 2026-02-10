@@ -1,22 +1,124 @@
+const fs = require("fs");
+const path = require("path");
+
 const magentoAllProducts = require("../api-calls/magento-allProducts.js");
 const vendorsPrefix = require("../hard-code_data/vendors_prefix");
 
 const prisma = require("../../../lib/prisma");
 
-const seedAllProducts = async () => {
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const startTime = Date.now();
-console.time("Seed Duration"); // Start timer to measure seed duration
+const isRetryablePrismaError = (error) => {
+  if (!error) {
+    return false;
+  }
+
+  if (error.code === "P1017") {
+    return true;
+  }
+
+  return (
+    typeof error.message === "string" &&
+    error.message.includes("Server has closed the connection")
+  );
+};
+
+const seedAllProducts = async () => {
+  const startTime = Date.now();
+  console.time("Seed Duration"); // Start timer to measure seed duration
+
+  const checkpointPath = path.join(
+    __dirname,
+    "..",
+    "logs",
+    "seed-allProducts.checkpoint.json"
+  );
+  const resumeEnabled =
+    process.env.SEED_ALLPRODUCTS_RESUME === "1" ||
+    process.env.SEED_ALLPRODUCTS_RESUME === "true";
+  const checkpointEvery = Number(
+    process.env.SEED_ALLPRODUCTS_CHECKPOINT_EVERY || 50
+  );
+  const maxRetries = Number(process.env.SEED_ALLPRODUCTS_RETRY_MAX || 5);
+  const baseRetryDelayMs = Number(
+    process.env.SEED_ALLPRODUCTS_RETRY_DELAY_MS || 500
+  );
+  let resumeIndex = 0;
+
+  if (resumeEnabled && fs.existsSync(checkpointPath)) {
+    try {
+      const checkpointRaw = fs.readFileSync(checkpointPath, "utf8");
+      const checkpointData = JSON.parse(checkpointRaw);
+      if (typeof checkpointData.lastIndex === "number") {
+        resumeIndex = checkpointData.lastIndex + 1;
+        console.log(
+          `Resuming from checkpoint index ${resumeIndex} (sku ${checkpointData.lastSku || "unknown"}).`
+        );
+      }
+    } catch (error) {
+      console.warn("Failed to read checkpoint file. Starting from the beginning.");
+    }
+  }
+
+  const runWithRetry = async (operation, context) => {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await operation();
+      } catch (error) {
+        if (!isRetryablePrismaError(error) || attempt === maxRetries) {
+          throw error;
+        }
+
+        const delayMs = baseRetryDelayMs * Math.pow(2, attempt - 1);
+        console.warn(
+          `Retrying after prisma error (attempt ${attempt}/${maxRetries}) for ${context} in ${delayMs}ms.`
+        );
+        try {
+          await prisma.$disconnect();
+          await prisma.$connect();
+        } catch (reconnectError) {
+          console.warn("Reconnect attempt failed. Will retry anyway.");
+        }
+        await sleep(delayMs);
+      }
+    }
+  };
   
   try {
     const allProducts = await magentoAllProducts();
-    console.log("allProducts", allProducts);
+    // console.log("allProducts", allProducts);
+    console.log(`✅ Total collected items: ${allProducts.length}`);
+
 
     // Initialize counters for created and updated products
     let createdCount = 0;
     let updatedCount = 0;
 
-    for (const item of allProducts) {
+    const shouldWriteCheckpoint = (index) =>
+      checkpointEvery > 0 &&
+      ((index + 1) % checkpointEvery === 0 || index === allProducts.length - 1);
+
+    const writeCheckpoint = (index, sku, created, updated) => {
+      const checkpointPayload = {
+        lastIndex: index,
+        lastSku: sku,
+        createdCount: created,
+        updatedCount: updated,
+        updatedAt: new Date().toISOString(),
+      };
+      fs.writeFileSync(
+        checkpointPath,
+        JSON.stringify(checkpointPayload, null, 2),
+        "utf8"
+      );
+    };
+
+    for (let index = 0; index < allProducts.length; index++) {
+      if (resumeEnabled && index < resumeIndex) {
+        continue;
+      }
+
+      const item = allProducts[index];
       const {
         sku,
         status,
@@ -111,7 +213,7 @@ console.time("Seed Duration"); // Start timer to measure seed duration
         vendorData && vendorData.quadratec_code
           ? vendorData.quadratec_code + searchable_sku
           : "";
-      console.log("quadratecCode", quadratecCode);
+      // console.log("quadratecCode", quadratecCode);
 
       //generate tdot_code based on competitor data, but we need a space between the prefix and the sku
       const tdotCode =
@@ -124,7 +226,7 @@ console.time("Seed Duration"); // Start timer to measure seed duration
         vendorData && vendorData.ctp_code
           ? vendorData.ctp_code + searchable_sku
           : "";
-      console.log("ctpCode", ctpCode);
+      // console.log("ctpCode", ctpCode);
 
       //Generate partsEngine_code based on vendor data
     
@@ -149,7 +251,7 @@ console.time("Seed Duration"); // Start timer to measure seed duration
         ? `https://www.tdotperformance.ca/catalogsearch/result/?q=${searchable_sku}`
         : null;
       
-      console.log("tdotUrl", tdotUrl);
+      // console.log("tdotUrl", tdotUrl);
 
 
       //kestone_code_site
@@ -188,14 +290,14 @@ console.time("Seed Duration"); // Start timer to measure seed duration
         vendorData && vendorData.t14_code
           ? vendorData.t14_code + searchable_sku
           : "";
-      console.log("t14Code", t14Code);
+      // console.log("t14Code", t14Code);
 
       // Generate premier_code based on vendor data (Premier Performance)
       const premierCode =
         vendorData && vendorData.premier_code
           ? vendorData.premier_code + searchable_sku
           : "";
-      console.log("premierCode", premierCode);
+      // console.log("premierCode", premierCode);     
 
       //Generate brand_name based on vendor data
       const brandName = vendorData ? vendorData.brand_name : "";
@@ -303,17 +405,17 @@ console.time("Seed Duration"); // Start timer to measure seed duration
         
 
 
-      console.log("length", length);
-      console.log("width", width);
-      console.log("height", height);
-      console.log("shippingFreight", shippingFreight);
-      console.log("part", part);
-      console.log("thumbnail", thumbnail);
-      console.log("saleCategoryValue", saleCategoryValue);
-      console.log("blackFridaySale", blackFridaySale);
-      console.log("url_path", url_path);
-      console.log("keystone_code_site", keystoneCodeSite);
-      console.log("keystone_ftp_brand", keystoneFtpBrand);
+      // console.log("length", length);
+      // console.log("width", width);
+      // console.log("height", height);
+      // console.log("shippingFreight", shippingFreight);
+      // console.log("part", part);
+      // console.log("thumbnail", thumbnail);
+      // console.log("saleCategoryValue", saleCategoryValue);
+      // console.log("blackFridaySale", blackFridaySale);
+      // console.log("url_path", url_path);
+      // console.log("keystone_code_site", keystoneCodeSite);
+      // console.log("keystone_ftp_brand", keystoneFtpBrand);
 
       // console.log("url_path", url_path);
 
@@ -327,108 +429,76 @@ console.time("Seed Duration"); // Start timer to measure seed duration
         where: { sku },
       });
 
+      const productData = {
+        name,
+        status,
+        price,
+        weight,
+        //if length, width, height and shippingFreight are not undefined, parsefloat them or put them as NULL
+        length: length ? parseFloat(length) : null,
+        width: width ? parseFloat(width) : null,
+        height: height ? parseFloat(height) : null,
+        shippingFreight: shippingFreight ? shippingFreight : null,
+        part: part ? part : null,
+        thumbnail: thumbnail ? thumbnail : null,
+        searchableSku,
+        searchable_sku,
+        jj_prefix: jjPrefix,
+        meyer_code: meyerCode,
+        keystone_code: keystoneCode,
+        quadratec_code: quadratecCode,
+        tdot_code: tdotCode,
+        t14_code: t14Code,
+        premier_code: premierCode,
+        partsEngine_code: partsEngineCode,
+        tdot_url: tdotUrl,
+        keystone_code_site: keystoneCodeSite,
+        keystone_ftp_brand: keystoneFtpBrand,
+        ctp_code: ctpCode,
+        // gentecdirectCode: gentecdirect_code,
+        omix_code:
+          jjPrefix === "OA" || jjPrefix === "ALY" || jjPrefix === "RR" || jjPrefix === "HVC"
+            ? searchable_sku
+            : null,
+        brand_name: brandName,
+        vendors: vendors,
+        black_friday_sale: blackFridaySale,
+        // manufacturer_code: manufacturerCode,
+        image:
+          media_gallery_entries && media_gallery_entries.length > 0
+            ? `https://www.justjeeps.com/pub/media/catalog/product/${
+                media_gallery_entries[0]?.file || null
+              }`
+            : null,
+        url_path: url_path ? `https://www.justjeeps.com/${url_path}.html` : null,
+      };
+
       if (existingProduct) {
-        // Update existing product
-        await prisma.product.update({
-          where: { sku },
-          data: {
-            name,
-            status,
-            price,
-            weight,
-            //if length, width, height and shippingFreight are not undefined, parsefloat them or put them as NULL
-            length: length ? parseFloat(length) : null,
-            width: width ? parseFloat(width) : null,
-            height: height ? parseFloat(height) : null,
-            shippingFreight: shippingFreight ? shippingFreight : null,
-            part: part? part : null,
-            thumbnail: thumbnail? thumbnail : null,
-            searchableSku,
-            searchable_sku,
-            jj_prefix: jjPrefix,
-            meyer_code: meyerCode,
-            keystone_code: keystoneCode,
-            quadratec_code: quadratecCode,
-            tdot_code: tdotCode,
-            t14_code: t14Code,
-            premier_code: premierCode,
-            partsEngine_code: partsEngineCode,
-            tdot_url: tdotUrl,
-            keystone_code_site: keystoneCodeSite,
-            keystone_ftp_brand: keystoneFtpBrand,
-            ctp_code: ctpCode,
-            // gentecdirectCode: gentecdirect_code,
-            omix_code:
-              jjPrefix === "OA" || jjPrefix === "ALY" || jjPrefix === "RR" || jjPrefix === "HVC"
-                ? searchable_sku
-                : null,
-            brand_name: brandName,
-            vendors: vendors,
-            black_friday_sale: blackFridaySale,
-            // manufacturer_code: manufacturerCode,
-            image:
-              media_gallery_entries && media_gallery_entries.length > 0
-                ? `https://www.justjeeps.com/pub/media/catalog/product/${
-                    media_gallery_entries[0]?.file || null
-                  }`
-                : null,
-            url_path: url_path ? `https://www.justjeeps.com/${url_path}.html` : null,
-          },
-        });
-        // console.log(`Product with SKU ${sku} updated.`);
+        await runWithRetry(
+          () =>
+            prisma.product.update({
+              where: { sku },
+              data: productData,
+            }),
+          `update sku ${sku}`
+        );
         updatedCount++; // Increment updated product counter
       } else {
-        // Create new product
-        // console.log("check sku", sku);
-        await prisma.product.create({
-          data: {
-            sku,
-            status,
-            name,
-            price,
-            weight,
-             //if length, width, height and shippingFreight are not undefined, parsefloat them or put them as NULL
-             length: length ? parseFloat(length) : null,
-            width: width ? parseFloat(width) : null,
-             height: height ? parseFloat(height) : null,
-             shippingFreight: shippingFreight ? shippingFreight : null,
-             part: part? part : null,
-            thumbnail: thumbnail? thumbnail : null,
-            searchableSku,
-            searchable_sku,
-            jj_prefix: jjPrefix,
-            meyer_code: meyerCode,
-            keystone_code: keystoneCode,
-            quadratec_code: quadratecCode,
-            tdot_code: tdotCode,
-            t14_code: t14Code,
-            premier_code: premierCode,
-            partsEngine_code: partsEngineCode,
-            tdot_url: tdotUrl,
-            keystone_code_site: keystoneCodeSite,
-            keystone_ftp_brand: keystoneFtpBrand,
-
-            ctp_code: ctpCode,
-            // gentecdirectCode: gentecdirect_code,
-            omix_code:
-              jjPrefix === "OA" || jjPrefix === "ALY" || jjPrefix === "RR" || jjPrefix === "HVC"
-                ? searchable_sku
-                : null,
-            brand_name: brandName,
-            vendors: vendors,
-            black_friday_sale: blackFridaySale,
-            // manufacturer_code: manufacturerCode,
-            image:
-              media_gallery_entries && media_gallery_entries.length > 0
-                ? `https://www.justjeeps.com/pub/media/catalog/product/${
-                    media_gallery_entries[0]?.file || null
-                  }`
-                : null,
-            url_path: url_path ? `https://www.justjeeps.com/${url_path}.html` : null,
-          },
-        });
-        // console.log(`Product with SKU ${sku} created.`);
+        await runWithRetry(
+          () =>
+            prisma.product.create({
+              data: {
+                sku,
+                ...productData,
+              },
+            }),
+          `create sku ${sku}`
+        );
         createdCount++; // Increment created product counter
+      }
+
+      if (shouldWriteCheckpoint(index)) {
+        writeCheckpoint(index, sku, createdCount, updatedCount);
       }
     }
 
@@ -437,11 +507,13 @@ console.time("Seed Duration"); // Start timer to measure seed duration
     Total products updated: ${updatedCount}`);
   } catch (error) {
     console.error("Error seeding data:", error);
+    process.exitCode = 1;
   } finally {
     await prisma.$disconnect();
-const endTime = Date.now();
-const durationMinutes = ((endTime - startTime) / 60000).toFixed(2);
-console.log(`Seeding completed in ${durationMinutes} minutes.`);
+    const endTime = Date.now();
+    const durationMinutes = ((endTime - startTime) / 60000).toFixed(2);
+    const statusLabel = process.exitCode === 1 ? "Seeding failed" : "Seeding completed";
+    console.log(`${statusLabel} in ${durationMinutes} minutes.`);
   }
 };
 

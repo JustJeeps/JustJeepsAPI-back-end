@@ -1611,11 +1611,11 @@ async function gracefulShutdown(signal) {
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
-// 🕐 Cron Job: Run seed-all daily at 1:00 AM (Toronto timezone)
-cron.schedule('0 1 * * *', () => {
+// 🕐 Cron Job: Run seed-all daily at 7:00 PM (Toronto timezone)
+cron.schedule('0 19 * * *', () => {
 	const startTime = Date.now();
-	logger.info('🕐 Cron job started: Running seed-all at 1:00 AM');
-	console.log('🕐 [CRON] Starting daily seed-all at 1:00 AM...');
+	logger.info('🕐 Cron job started: Running seed-all at 7:00 PM');
+	console.log('🕐 [CRON] Starting daily seed-all at 7:00 PM...');
 	
 	const seedProcess = spawn('npm', ['run', 'seed-all'], {
 		cwd: __dirname,
@@ -1705,6 +1705,6 @@ app.listen(PORT, () => {
 	console.log(
 		`Express seems to be listening on port ${PORT} so that's pretty good 👍`
 	);
-	console.log('🕐 [CRON] Daily seed-all scheduled for 1:00 AM (Toronto timezone)');
+	console.log('🕐 [CRON] Daily seed-all scheduled for 7:00 PM (Toronto timezone)');
 	console.log('📧 [EMAIL] Notifications will be sent to:', process.env.CRON_NOTIFICATION_EMAIL || 'tsantos@justjeeps.com');
 });

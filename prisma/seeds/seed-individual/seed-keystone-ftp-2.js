@@ -41,6 +41,34 @@ const toInt = (v) => {
 };
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 
+const withDbRetry = async (operation, label) => {
+  const maxAttempts = 2;
+  let attempt = 0;
+
+  while (true) {
+    try {
+      return await operation();
+    } catch (err) {
+      const code = err && err.code;
+      const message = err && err.message ? String(err.message) : "";
+      const isClosed = code === "P1017" || /Server has closed the connection/i.test(message);
+
+      attempt += 1;
+      if (!isClosed || attempt >= maxAttempts) {
+        throw err;
+      }
+
+      console.warn(`⚠️ ${label} failed (${code || "connection error"}); reconnecting and retrying...`);
+      try {
+        await prisma.$disconnect();
+      } catch (disconnectError) {
+        // ignore disconnect errors and retry connection
+      }
+      await prisma.$connect();
+    }
+  }
+};
+
 // CSV log helpers
 function ensureLogDir() {
   if (LOG_TO_FILE && !fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
@@ -87,6 +115,7 @@ function writeCsv(streamObj, row) {
   const csvLog = openCsvLog();
 
   try {
+    await prisma.$connect();
     // 1) read local files
     const fileSets = await parseKeystoneLocal(KEYSTONE_DIR);
 
@@ -115,10 +144,13 @@ function writeCsv(streamObj, row) {
     const uniqueCodes = [...new Set(rows.map((x) => x.VCPN))];
     console.log(`🔎 Loading Products by keystone_code for ${uniqueCodes.length} codes...`);
 
-    const products = await prisma.product.findMany({
-  where: { keystone_code: { in: uniqueCodes } },
-  select: { keystone_code: true, sku: true },
-});
+    const products = await withDbRetry(
+      () => prisma.product.findMany({
+        where: { keystone_code: { in: uniqueCodes } },
+        select: { keystone_code: true, sku: true },
+      }),
+      "product.findMany"
+    );
 
 // prefer SKUs that don't end with a hyphen
 const endsWithDash = (s) => /-\s*$/.test(s);
@@ -160,9 +192,12 @@ if (duplicateKeystoneCodes) {
 
     // 4) optional clear
     if (CLEAR_OLD_FIRST) {
-      await prisma.vendorProduct.deleteMany({
-        where: { vendor: { is: VENDOR_CONNECT } }, // relation filter
-      });
+      await withDbRetry(
+        () => prisma.vendorProduct.deleteMany({
+          where: { vendor: { is: VENDOR_CONNECT } }, // relation filter
+        }),
+        "vendorProduct.deleteMany"
+      );
       console.log("🗑️ Deleted existing Keystone vendor products");
     }
 
@@ -213,17 +248,23 @@ if (duplicateKeystoneCodes) {
 
       if (UPDATE_OR_CREATE_BY_VENDOR_SKU) {
         // find existing by (vendor relation + vendor_sku)
-        const existing = await prisma.vendorProduct.findMany({
-          where: { vendor_sku: vendorSku, vendor: { is: VENDOR_CONNECT } },
-          orderBy: { id: "desc" },
-          select: { id: true },
-        });
+        const existing = await withDbRetry(
+          () => prisma.vendorProduct.findMany({
+            where: { vendor_sku: vendorSku, vendor: { is: VENDOR_CONNECT } },
+            orderBy: { id: "desc" },
+            select: { id: true },
+          }),
+          "vendorProduct.findMany"
+        );
 
         if (existing.length > 0) {
           const keep = existing[0];
           const toDeleteIds = existing.slice(1).map((x) => x.id);
           if (toDeleteIds.length) {
-            await prisma.vendorProduct.deleteMany({ where: { id: { in: toDeleteIds } } });
+            await withDbRetry(
+              () => prisma.vendorProduct.deleteMany({ where: { id: { in: toDeleteIds } } }),
+              "vendorProduct.deleteMany"
+            );
             deduped += toDeleteIds.length;
           }
 
@@ -235,7 +276,10 @@ if (duplicateKeystoneCodes) {
             vendor: { connect: VENDOR_CONNECT },
             product: { connect: { sku } },
           };
-          await prisma.vendorProduct.update({ where: { id: keep.id }, data });
+          await withDbRetry(
+            () => prisma.vendorProduct.update({ where: { id: keep.id }, data }),
+            "vendorProduct.update"
+          );
           updated++;
           writeCsv(csvLog, {
             action: "UPDATE",
@@ -252,15 +296,18 @@ if (duplicateKeystoneCodes) {
             if (VERBOSE_ROW_LOGS) console.log(`[SKIP] ${vendorSku} (no cost; vendor_cost required on create)`);
             continue;
           }
-          await prisma.vendorProduct.create({
-            data: {
-              vendor_sku: vendorSku,
-              vendor_cost: cost,
-              ...(isNum(totalQty) ? { vendor_inventory: totalQty } : {}),
-              vendor: { connect: VENDOR_CONNECT },
-              product: { connect: { sku } },
-            },
-          });
+          await withDbRetry(
+            () => prisma.vendorProduct.create({
+              data: {
+                vendor_sku: vendorSku,
+                vendor_cost: cost,
+                ...(isNum(totalQty) ? { vendor_inventory: totalQty } : {}),
+                vendor: { connect: VENDOR_CONNECT },
+                product: { connect: { sku } },
+              },
+            }),
+            "vendorProduct.create"
+          );
           created++;
           writeCsv(csvLog, {
             action: "CREATE",
@@ -274,10 +321,13 @@ if (duplicateKeystoneCodes) {
         }
       } else {
         // fallback: find by both relations
-        const existing = await prisma.vendorProduct.findFirst({
-          where: { vendor: { is: VENDOR_CONNECT }, product: { is: { sku } } },
-          select: { id: true },
-        });
+        const existing = await withDbRetry(
+          () => prisma.vendorProduct.findFirst({
+            where: { vendor: { is: VENDOR_CONNECT }, product: { is: { sku } } },
+            select: { id: true },
+          }),
+          "vendorProduct.findFirst"
+        );
 
         if (existing) {
           const data = {
@@ -287,7 +337,10 @@ if (duplicateKeystoneCodes) {
             vendor: { connect: VENDOR_CONNECT },
             product: { connect: { sku } },
           };
-          await prisma.vendorProduct.update({ where: { id: existing.id }, data });
+          await withDbRetry(
+            () => prisma.vendorProduct.update({ where: { id: existing.id }, data }),
+            "vendorProduct.update"
+          );
           updated++;
           writeCsv(csvLog, {
             action: "UPDATE",
@@ -302,15 +355,18 @@ if (duplicateKeystoneCodes) {
             if (VERBOSE_ROW_LOGS) console.log(`[SKIP] ${vendorSku} (no cost; vendor_cost required on create)`);
             continue;
           }
-          await prisma.vendorProduct.create({
-            data: {
-              vendor_sku: vendorSku,
-              vendor_cost: cost,
-              ...(isNum(totalQty) ? { vendor_inventory: totalQty } : {}),
-              vendor: { connect: VENDOR_CONNECT },
-              product: { connect: { sku } },
-            },
-          });
+          await withDbRetry(
+            () => prisma.vendorProduct.create({
+              data: {
+                vendor_sku: vendorSku,
+                vendor_cost: cost,
+                ...(isNum(totalQty) ? { vendor_inventory: totalQty } : {}),
+                vendor: { connect: VENDOR_CONNECT },
+                product: { connect: { sku } },
+              },
+            }),
+            "vendorProduct.create"
+          );
           created++;
           writeCsv(csvLog, {
             action: "CREATE",
