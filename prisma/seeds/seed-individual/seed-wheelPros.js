@@ -1,125 +1,369 @@
-const { 
+/* prisma/seeds/seed-individual/seed-wheelPros.js */
+
+const prisma = require("../../../lib/prisma");
+
+const {
   getAuthToken,
   getWheelProsSkus,
   makeApiRequestsInChunks,
 } = require("../api-calls/wheelPros-api.js");
 
-const prisma = require("../../../lib/prisma");
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const isRetryablePrismaError = (error) => {
+  if (!error) return false;
+  // Common transient / connection-ish Prisma errors
+  if (error.code === "P1017" || error.code === "P2028") return true;
+  return (
+    typeof error.message === "string" &&
+    (error.message.includes("Server has closed the connection") ||
+      error.message.includes("Connection terminated") ||
+      error.message.includes("Transaction already closed"))
+  );
+};
+
+const runWithRetry = async (
+  operation,
+  context,
+  { maxRetries = 5, baseDelayMs = 400 } = {}
+) => {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (err) {
+      const retryable = isRetryablePrismaError(err);
+      if (!retryable || attempt === maxRetries) {
+        err._context = context;
+        throw err;
+      }
+
+      const delayMs = baseDelayMs * Math.pow(2, attempt - 1);
+      console.warn(
+        `⚠️ Retryable Prisma error in ${context} (attempt ${attempt}/${maxRetries}). Retrying in ${delayMs}ms...`
+      );
+      try {
+        await prisma.$disconnect();
+        await prisma.$connect();
+      } catch (reconnectErr) {
+        console.warn("⚠️ Reconnect attempt failed. Will retry anyway.");
+      }
+      await sleep(delayMs);
+    }
+  }
+};
+
+// Keep EXACT same normalization rules you had
+const normalizeWheelProsSkuForLookup = (sku) => {
+  let formattedSku = sku;
+
+  // Remove leading zeros for TeraFlex
+  if (sku.startsWith("0000000000")) {
+    formattedSku = sku.replace(/^0+/, "");
+  }
+
+  // Remove SB prefix for Smittybilt
+  if (sku.startsWith("SB")) {
+    formattedSku = sku.substring(2);
+  }
+
+  // Remove PXA prefix for PRO COMP Alloy Wheels
+  if (sku.startsWith("PXA")) {
+    formattedSku = sku.substring(3);
+  }
+
+  // Remove EXP prefix for PRO COMP Suspension
+  if (sku.startsWith("EXP")) {
+    formattedSku = sku.substring(3);
+  }
+
+  // Remove N prefix and dash for Nitto Tire (N123-456 -> 123456)
+  if (sku.startsWith("N") && /^\d{3}-\d{3}$/.test(sku.substring(1))) {
+    formattedSku = sku.substring(1).replace("-", "");
+  }
+
+  return formattedSku;
+};
+
+const safeFloat = (v) => {
+  const n = parseFloat(v);
+  return Number.isFinite(n) ? n : null;
+};
+
+// Deduplicate vendor rows by vendor_sku (WheelPros duplicates exist)
+// Rule: Prefer row with valid cost; if both valid, prefer higher cost (rare) then higher MAP (rare)
+const dedupeByVendorSku = (rows) => {
+  const map = new Map();
+  let duplicates = 0;
+
+  for (const r of rows) {
+    const sku = r.vendor_sku;
+    if (!sku) continue;
+
+    if (!map.has(sku)) {
+      map.set(sku, r);
+      continue;
+    }
+
+    duplicates++;
+
+    const cur = map.get(sku);
+
+    const curCost = cur.vendor_cost ?? null;
+    const newCost = r.vendor_cost ?? null;
+    const curMap = cur.map_price ?? null;
+    const newMap = r.map_price ?? null;
+
+    // Prefer valid cost
+    if (curCost === null && newCost !== null) {
+      map.set(sku, r);
+      continue;
+    }
+    if (curCost !== null && newCost === null) {
+      continue;
+    }
+
+    // If both have cost, prefer higher cost (or keep existing)
+    if (curCost !== null && newCost !== null) {
+      if (newCost > curCost) {
+        map.set(sku, r);
+        continue;
+      }
+      if (newCost < curCost) continue;
+    }
+
+    // Tie-breaker: prefer higher MAP if present
+    if (curMap === null && newMap !== null) {
+      map.set(sku, r);
+      continue;
+    }
+    if (curMap !== null && newMap === null) continue;
+
+    if (curMap !== null && newMap !== null && newMap > curMap) {
+      map.set(sku, r);
+      continue;
+    }
+  }
+
+  return { uniqueRows: Array.from(map.values()), duplicates };
+};
+
+// Update Product.MAP in batches using VALUES table
+const updateMapBatch = async (pairs, batchLabel) => {
+  // pairs: [{ product_sku, map_price }]
+  if (!pairs.length) return;
+
+  const valuesSql = pairs
+    .map(
+      (_, i) =>
+        `($${i * 2 + 1}::text, $${i * 2 + 2}::double precision)`
+    )
+    .join(",");
+
+  const params = [];
+  for (const p of pairs) {
+    params.push(p.product_sku);
+    params.push(p.map_price);
+  }
+
+  const sql = `
+    UPDATE "Product" p
+    SET "MAP" = v.map_price
+    FROM (VALUES ${valuesSql}) AS v(product_sku, map_price)
+    WHERE p."sku" = v.product_sku
+  `;
+
+  await runWithRetry(
+    () => prisma.$executeRawUnsafe(sql, ...params),
+    `MAP update ${batchLabel}`
+  );
+};
 
 const seedWheelProsProducts = async () => {
   console.log("🚀 Seeding WheelPros vendor products...");
+
+  const t0 = Date.now();
+  const batchSize = Number(process.env.SEED_WP_BATCH_SIZE || 5000);
+  const apiChunkSize = Number(process.env.SEED_WP_API_CHUNK_SIZE || 50);
+
   try {
-    let vendorProductCreatedCount = 0;
-    let vendorProductUpdatedCount = 0;
+    // 1) Clear old WheelPros vendor products
+    console.time("delete old vendor_id=5");
+    await runWithRetry(
+      () => prisma.vendorProduct.deleteMany({ where: { vendor_id: 5 } }),
+      "deleteMany vendor_id=5"
+    );
+    console.timeEnd("delete old vendor_id=5");
 
-    // ✅ Step 0: Clear old vendor products for WheelPros
-    await prisma.vendorProduct.deleteMany({ where: { vendor_id: 5 } });
-    console.log("🗑️ Deleted all existing WheelPros vendor products (vendor_id = 5)");
-
-    // ✅ Step 1: Get token and SKUs
+    // 2) Fetch token + SKUs + API payload
+    console.time("fetch wheelpros api");
     const token = await getAuthToken();
     const skus = await getWheelProsSkus();
+    const apiRows = await makeApiRequestsInChunks(token, skus, apiChunkSize);
+    console.timeEnd("fetch wheelpros api");
 
-    // ✅ Step 2: Fetch vendor product data
-    const vendorProductsData = await makeApiRequestsInChunks(token, skus, 50);
-    console.log(`🔍 API returned ${vendorProductsData.length} vendor products`);
+    console.log(`✅ API rows received: ${apiRows.length}`);
 
+    // 3) Build “raw rows” from API response
+    const rawRows = apiRows.map((d) => {
+      const vendorSku = d?.sku ? String(d.sku) : null;
 
-    // ✅ Process each vendor product
-    // ✅ Process each vendor product
-    for (const data of vendorProductsData) {
-      const vendorCost = parseFloat(data.prices?.nip?.[0]?.currencyAmount);
-      const mapPrice   = parseFloat(data.prices?.map?.[0]?.currencyAmount);
+      const vendorCost = safeFloat(d?.prices?.nip?.[0]?.currencyAmount);
+      const mapPrice = safeFloat(d?.prices?.map?.[0]?.currencyAmount);
 
-      console.log(
-        `🔍 Processing SKU: ${data.sku} | Cost: ${isNaN(vendorCost) ? "❌ NaN" : vendorCost} | MAP: ${isNaN(mapPrice) ? "❌ NaN" : mapPrice}`
+      const formattedSku = vendorSku ? normalizeWheelProsSkuForLookup(vendorSku) : null;
+
+      return {
+        vendor_sku: vendorSku,
+        formatted_sku: formattedSku,
+        vendor_cost: vendorCost,
+        map_price: mapPrice,
+      };
+    });
+
+    const usableRaw = rawRows.filter((r) => r.vendor_sku && r.formatted_sku);
+    console.log(`✅ Rows usable (have vendor_sku + formatted_sku): ${usableRaw.length}`);
+
+    // 4) Deduplicate by vendor_sku (WheelPros duplicates exist)
+    const { uniqueRows, duplicates } = dedupeByVendorSku(usableRaw);
+    console.log(`ℹ️ Deduped vendor_sku duplicates: ${duplicates}`);
+    console.log(`✅ Unique vendor_sku rows after dedupe: ${uniqueRows.length}`);
+
+    // 5) Load Products by searchable_sku in chunks (avoid 100k+ IN list at once)
+    console.time("fetch products mapping");
+    const formattedSkus = uniqueRows.map((r) => r.formatted_sku);
+
+    const productBySearchable = new Map();
+    const chunkSize = 20000;
+
+    for (let i = 0; i < formattedSkus.length; i += chunkSize) {
+      const chunk = formattedSkus.slice(i, i + chunkSize);
+
+      const products = await runWithRetry(
+        () =>
+          prisma.product.findMany({
+            where: { searchable_sku: { in: chunk } },
+            select: { sku: true, searchable_sku: true },
+          }),
+        `findMany Product searchable_sku chunk ${i / chunkSize + 1}`
       );
 
-      try {
-        // ✅ Check if vendor product already exists
-        const existingVendorProduct = await prisma.vendorProduct.findFirst({
-          where: { vendor_sku: data.sku, vendor_id: 5 },
-        });
+      for (const p of products) {
+        if (p.searchable_sku) productBySearchable.set(p.searchable_sku, p.sku);
+      }
+    }
+    console.timeEnd("fetch products mapping");
 
-        if (existingVendorProduct) {
-          vendorProductUpdatedCount++;
+    // 6) Build VendorProduct rows
+    let matched = 0;
+    let missing = 0;
+    let skippedNoCost = 0;
 
-          if (!isNaN(vendorCost)) {
-            await prisma.vendorProduct.update({
-              where: { id: existingVendorProduct.id },
-              data: { vendor_cost: vendorCost },
-            });
-          } else {
-            console.warn(`⚠️ Skipping vendor cost update for SKU: ${data.sku} (invalid cost)`);
-          }
+    const vendorRowsToInsert = [];
+    const mapPairs = []; // for Product MAP updates
 
-          if (!isNaN(mapPrice)) {
-            await prisma.product.update({
-              where: { sku: existingVendorProduct.product_sku },
-              data: { MAP: mapPrice },
-            });
-          } else {
-            console.warn(`⚠️ Skipping MAP update for SKU: ${data.sku} (invalid MAP)`);
-          }
+    for (const r of uniqueRows) {
+      const productSku = productBySearchable.get(r.formatted_sku);
+      if (!productSku) {
+        missing++;
+        continue;
+      }
+      matched++;
 
-          continue; // move to next SKU
+      // create vendorProduct only if cost exists
+      if (r.vendor_cost === null) {
+        skippedNoCost++;
+        // still update MAP if available
+        if (r.map_price !== null) {
+          mapPairs.push({ product_sku: productSku, map_price: r.map_price });
         }
+        continue;
+      }
 
-        // ✅ Normalize SKU for lookup
-        let formattedSku = data.sku;
-        if (data.sku.startsWith("0000000000")) formattedSku = data.sku.replace(/^0+/, "");
-        if (data.sku.startsWith("SB")) formattedSku = data.sku.substring(2);
-        if (data.sku.startsWith("PXA")) formattedSku = data.sku.substring(3);
-        if (data.sku.startsWith("EXP")) formattedSku = data.sku.substring(3);
-        if (data.sku.startsWith("N") && /^\d{3}-\d{3}$/.test(data.sku.substring(1)))
-          formattedSku = data.sku.substring(1).replace("-", "");
+      vendorRowsToInsert.push({
+        product_sku: productSku,
+        vendor_id: 5,
+        vendor_sku: r.vendor_sku,
+        vendor_cost: r.vendor_cost,
+      });
 
-        const product = await prisma.product.findFirst({
-          where: { searchable_sku: formattedSku },
-        });
-
-        if (!product) {
-          console.error(`❌ Product not found for WheelPros sku: ${data.sku}`);
-          continue;
-        }
-
-        // ✅ Create vendorProduct only if cost is valid
-        if (!isNaN(vendorCost)) {
-          await prisma.vendorProduct.create({
-            data: {
-              product_sku: product.sku,
-              vendor_id: 5,
-              vendor_sku: data.sku,
-              vendor_cost: vendorCost,
-            },
-          });
-          vendorProductCreatedCount++;
-        } else {
-          console.warn(`⚠️ Skipping vendor product creation for SKU: ${data.sku} (invalid cost)`);
-        }
-
-        // ✅ Update MAP only if valid
-        if (!isNaN(mapPrice)) {
-          await prisma.product.update({
-            where: { sku: product.sku },
-            data: { MAP: mapPrice },
-          });
-        } else {
-          console.warn(`⚠️ Skipping MAP update for SKU: ${data.sku} (invalid MAP)`);
-        }
-
-      } catch (err) {
-        console.error(`❌ Failed to process SKU: ${data.sku}`);
-        console.error(`   ↳ Reason: ${err.message}`);
+      if (r.map_price !== null) {
+        mapPairs.push({ product_sku: productSku, map_price: r.map_price });
       }
     }
 
+    console.log(`✅ Matched products: ${matched}`);
+    console.log(`⚠️ Missing products: ${missing}`);
+    console.log(`⚠️ Skipped (no cost): ${skippedNoCost}`);
 
-    console.log(`✅ WheelPros vendor products seeded successfully!
-      ➕ Created: ${vendorProductCreatedCount}
-      🔄 Updated: ${vendorProductUpdatedCount}`);
+    // 7) Insert vendor products in batches + progress/ETA
+    console.time("insert vendorProducts");
+    const total = vendorRowsToInsert.length;
+    const totalBatches = Math.max(1, Math.ceil(total / batchSize));
+    const start = Date.now();
+
+    for (let b = 0; b < totalBatches; b++) {
+      const batch = vendorRowsToInsert.slice(b * batchSize, (b + 1) * batchSize);
+
+      await runWithRetry(
+        () =>
+          prisma.vendorProduct.createMany({
+            data: batch,
+            skipDuplicates: false, // schema doesn't enforce vendor_sku uniqueness; we dedupe ourselves
+          }),
+        `createMany vendorProducts batch ${b + 1}/${totalBatches}`
+      );
+
+      // progress log every 5 batches or last batch
+      const done = Math.min((b + 1) * batchSize, total);
+      const elapsedSec = Math.max((Date.now() - start) / 1000, 0.001);
+      const rowsPerSec = done / elapsedSec;
+      const remaining = total - done;
+      const etaSec = Math.round(remaining / rowsPerSec);
+
+      if ((b + 1) % 5 === 0 || b + 1 === totalBatches) {
+        console.log(
+          `Batch ${b + 1}/${totalBatches} | ${done}/${total} rows | ${rowsPerSec.toFixed(
+            1
+          )} rows/s | ETA ~${etaSec}s`
+        );
+      }
+    }
+
+    console.timeEnd("insert vendorProducts");
+
+    // 8) Update Product MAP in batches (fast)
+    console.time("update MAP");
+    // Deduplicate MAP updates by product_sku (take latest/highest; simple “keep last”)
+    const mapByProductSku = new Map();
+    for (const p of mapPairs) {
+      mapByProductSku.set(p.product_sku, p.map_price);
+    }
+    const uniqueMapPairs = Array.from(mapByProductSku.entries()).map(
+      ([product_sku, map_price]) => ({ product_sku, map_price })
+    );
+
+    const mapBatchSize = 3000; // keep SQL statement size reasonable
+    const mapTotalBatches = Math.max(1, Math.ceil(uniqueMapPairs.length / mapBatchSize));
+
+    for (let i = 0; i < mapTotalBatches; i++) {
+      const batch = uniqueMapPairs.slice(i * mapBatchSize, (i + 1) * mapBatchSize);
+      await updateMapBatch(batch, `batch ${i + 1}/${mapTotalBatches}`);
+    }
+    console.timeEnd("update MAP");
+
+    // 9) Final validation count
+    const count = await prisma.vendorProduct.count({ where: { vendor_id: 5 } });
+    console.log("✅ VendorProduct count for WheelPros (vendor_id=5):", count);
+
+    console.log("✅ WheelPros seed completed successfully.");
   } catch (err) {
-    console.error("❌ Error seeding vendor products from WheelPros:", err.message);
+    console.error("❌ seed-wheelPros failed:", err?._context || err.message);
+    console.error(err);
+    process.exitCode = 1;
+  } finally {
+    await prisma.$disconnect();
+    const totalSec = ((Date.now() - t0) / 1000).toFixed(2);
+    console.log(`seed-wheelPros total: ${totalSec}s`);
   }
 };
 
@@ -127,153 +371,128 @@ seedWheelProsProducts();
 module.exports = seedWheelProsProducts;
 
 
-
-// const { PrismaClient } = require("@prisma/client");
-// const {
+// const { 
+//   getAuthToken,
 //   getWheelProsSkus,
 //   makeApiRequestsInChunks,
 // } = require("../api-calls/wheelPros-api.js");
 
-// const prisma = new PrismaClient();
+// const prisma = require("../../../lib/prisma");
 
-// // Seed WheelPros products
 // const seedWheelProsProducts = async () => {
-
-  
-//   console.log("Seeding WheelPros vendor products...");
+//   console.log("🚀 Seeding WheelPros vendor products...");
 //   try {
 //     let vendorProductCreatedCount = 0;
 //     let vendorProductUpdatedCount = 0;
-    
-//     // Call WheelPros API and get the processed responses
-//     const skus = await getWheelProsSkus();
-//     const vendorProductsData = await makeApiRequestsInChunks(skus, 50);
 
-//     // Loop through the vendorProductsData array and create/update vendor products
+//     // ✅ Step 0: Clear old vendor products for WheelPros
+//     await prisma.vendorProduct.deleteMany({ where: { vendor_id: 5 } });
+//     console.log("🗑️ Deleted all existing WheelPros vendor products (vendor_id = 5)");
+
+//     // ✅ Step 1: Get token and SKUs
+//     const token = await getAuthToken();
+//     const skus = await getWheelProsSkus();
+
+//     // ✅ Step 2: Fetch vendor product data
+//     const vendorProductsData = await makeApiRequestsInChunks(token, skus, 50);
+//     console.log(`🔍 API returned ${vendorProductsData.length} vendor products`);
+
+
+//     // ✅ Process each vendor product
+//     // ✅ Process each vendor product
 //     for (const data of vendorProductsData) {
-//       console.log(`data:`, data);
+//       const vendorCost = parseFloat(data.prices?.nip?.[0]?.currencyAmount);
+//       const mapPrice   = parseFloat(data.prices?.map?.[0]?.currencyAmount);
+
+//       console.log(
+//         `🔍 Processing SKU: ${data.sku} | Cost: ${isNaN(vendorCost) ? "❌ NaN" : vendorCost} | MAP: ${isNaN(mapPrice) ? "❌ NaN" : mapPrice}`
+//       );
+
 //       try {
-//         // Check if a vendor product with the same vendor_sku already exists
+//         // ✅ Check if vendor product already exists
 //         const existingVendorProduct = await prisma.vendorProduct.findFirst({
-//           where: {
-//             vendor_sku: data.sku,
-//             vendor_id: 5, // Replace with the appropriate vendor_id for WheelPros
-//           },
+//           where: { vendor_sku: data.sku, vendor_id: 5 },
 //         });
 
 //         if (existingVendorProduct) {
-//           vendorProductUpdatedCount++; // Increment the updated count
-//           // Update the existing vendor product with new data
-//           await prisma.vendorProduct.update({
-//             where: {
-//               id: existingVendorProduct.id,
-//             },
-//             data: {
-//               vendor_sku: data.sku,
-//               vendor_cost: parseFloat(data.prices.nip[0].currencyAmount), // Convert to float              
-//               // Add any other fields that you want to update
-//             },
-//           });
+//           vendorProductUpdatedCount++;
 
-//           //update the MAP in product table
-//           await prisma.product.update({
-//             where: {
-//               sku: existingVendorProduct.product_sku,
-//             },
-//             data: {
-//               MAP: parseFloat(data.prices.map[0].currencyAmount), // Convert to float
-//               // Add any other fields that you want to update
-//             },
-//           });
+//           if (!isNaN(vendorCost)) {
+//             await prisma.vendorProduct.update({
+//               where: { id: existingVendorProduct.id },
+//               data: { vendor_cost: vendorCost },
+//             });
+//           } else {
+//             console.warn(`⚠️ Skipping vendor cost update for SKU: ${data.sku} (invalid cost)`);
+//           }
 
+//           if (!isNaN(mapPrice)) {
+//             await prisma.product.update({
+//               where: { sku: existingVendorProduct.product_sku },
+//               data: { MAP: mapPrice },
+//             });
+//           } else {
+//             console.warn(`⚠️ Skipping MAP update for SKU: ${data.sku} (invalid MAP)`);
+//           }
 
-//           continue; // Move to the next iteration
+//           continue; // move to next SKU
 //         }
 
-//         console.log(`Looking for product where searchable_sku endsWith: ${data.sku.replace(/^0+/, "")}`);
-
-//         //NORMALIZE FORMAT FOR WHEELPROS SKUS
-
+//         // ✅ Normalize SKU for lookup
 //         let formattedSku = data.sku;
-
-//         // Remove leading zeros for TeraFlex
-//         if (data.sku.startsWith("0000000000")) {
-//           formattedSku = data.sku.replace(/^0+/, "");
-//         }
-
-//         // Remove SB prefix for Smittybilt
-//         if (data.sku.startsWith("SB")) {
-//           formattedSku = data.sku.substring(2);
-//         }
-
-//         // Remove PXA prefix for PRO COMP Alloy Wheels
-//         if (data.sku.startsWith("PXA")) {
-//           formattedSku = data.sku.substring(3);
-//         }
-
-//         // Remove EXP prefix for PRO COMP Suspension
-//         if (data.sku.startsWith("EXP")) {
-//           formattedSku = data.sku.substring(3);
-//         }
-
-//         // Remove N prefix and dash for Nitto Tire
-//         if (data.sku.startsWith("N") && /^\d{3}-\d{3}$/.test(data.sku.substring(1))) {
+//         if (data.sku.startsWith("0000000000")) formattedSku = data.sku.replace(/^0+/, "");
+//         if (data.sku.startsWith("SB")) formattedSku = data.sku.substring(2);
+//         if (data.sku.startsWith("PXA")) formattedSku = data.sku.substring(3);
+//         if (data.sku.startsWith("EXP")) formattedSku = data.sku.substring(3);
+//         if (data.sku.startsWith("N") && /^\d{3}-\d{3}$/.test(data.sku.substring(1)))
 //           formattedSku = data.sku.substring(1).replace("-", "");
-//         }
 
-//         // Retrieve the product_sku from the Product table using the WheelPros sku as reference
-//         let product;
-//         product = await prisma.product.findFirst({
-//           where: {
-//             // searchable_sku: data.sku, // Replace with the appropriate field for WheelPros
-//             searchable_sku: formattedSku, // Use formattedSku to match searchable_sku
-            
-//           },
+//         const product = await prisma.product.findFirst({
+//           where: { searchable_sku: formattedSku },
 //         });
 
 //         if (!product) {
-//           console.error(`Product not found for WheelPros sku: ${data.sku}`);
-//           continue; // Skip to the next iteration
+//           console.error(`❌ Product not found for WheelPros sku: ${data.sku}`);
+//           continue;
 //         }
 
-//         // Update the data with the retrieved product_sku and vendor_id
-//         const vendorProductData = {
-//           product_sku: product.sku,
-//           vendor_id: 5, // Replace with the appropriate vendor_id for WheelPros
-//           vendor_sku: data.sku,
-//           vendor_cost: parseFloat(data.prices.nip[0].currencyAmount), // Convert to float
+//         // ✅ Create vendorProduct only if cost is valid
+//         if (!isNaN(vendorCost)) {
+//           await prisma.vendorProduct.create({
+//             data: {
+//               product_sku: product.sku,
+//               vendor_id: 5,
+//               vendor_sku: data.sku,
+//               vendor_cost: vendorCost,
+//             },
+//           });
+//           vendorProductCreatedCount++;
+//         } else {
+//           console.warn(`⚠️ Skipping vendor product creation for SKU: ${data.sku} (invalid cost)`);
+//         }
 
-//         };
-//         vendorProductCreatedCount++; // Increment the created count
-//         // Create the vendor product
-//         await prisma.vendorProduct.create({
-//           data: vendorProductData,
-//         });
+//         // ✅ Update MAP only if valid
+//         if (!isNaN(mapPrice)) {
+//           await prisma.product.update({
+//             where: { sku: product.sku },
+//             data: { MAP: mapPrice },
+//           });
+//         } else {
+//           console.warn(`⚠️ Skipping MAP update for SKU: ${data.sku} (invalid MAP)`);
+//         }
 
-//         //update the MAP in product table
-//         await prisma.product.update({
-//           where: {
-//             sku: product.sku,
-//           },
-//           data: {
-//             MAP: parseFloat(data.prices.map[0].currencyAmount), // Convert to float
-//             // Add any other fields that you want to update
-//           },
-//         });
-
-//       } catch (error) {
-//         console.error(`Error processing vendor_sku:`, error);
-//         // You can choose to continue to the next iteration or handle the error as needed
+//       } catch (err) {
+//         console.error(`❌ Failed to process SKU: ${data.sku}`);
+//         console.error(`   ↳ Reason: ${err.message}`);
 //       }
 //     }
 
-//     console.log(`WheelPros vendor products seeded successfully! 
-//       Total WheelPros products created: ${vendorProductCreatedCount}
-//       Total WheelPros products updated: ${vendorProductUpdatedCount}`);
-//   } catch (error) {
-//     console.error("Error seeding vendor products from WheelPros:", error);
-//   } finally {
-//     await prisma.$disconnect();
+
+//     console.log(`✅ WheelPros vendor products seeded successfully!
+//       ➕ Created: ${vendorProductCreatedCount}
+//       🔄 Updated: ${vendorProductUpdatedCount}`);
+//   } catch (err) {
+//     console.error("❌ Error seeding vendor products from WheelPros:", err.message);
 //   }
 // };
 

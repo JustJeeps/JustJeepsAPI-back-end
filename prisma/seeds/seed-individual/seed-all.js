@@ -12,7 +12,7 @@ const vendorSeeds = [
   { main: "seed-quadratec",   dependent: "seed-quad-inventory" },
   { main: "seed-omix",        dependent: "seed-omix-inventory" },
   { main: "seed-keystone-ftp2", dependent: "seed-keystone-ftp-codes" },
-  // { main: "seed-wheelPros",   pre: "seed-wheelPros-inventory-csv", dependent: "seed-wp-inventory" },
+  { main: "seed-wheelPros",   pre: "seed-wheelPros-inventory-csv", dependent: "seed-wp-inventory" },
   // Keep Keystone pair if you want FTP→API ordering
 ];
 
@@ -25,13 +25,11 @@ const otherSeeds = [
   "seed-ctp",
   "seed-keyparts",
   "seed-alpine",
-  "seed-meyer",
+  // "seed-meyer",
   "seed-tdot",
   "seed-lowriders",
-  "seed-wheelPros",
-  "seed-wp-inventory",
   // "seed-daily-turn14-production", // Daily Turn14 pricing/inventory updates
-  "seed-turn14-production"
+  // "seed-turn14-production"
 ];
 
 const RUN_CODES_AFTER_VENDORS = false; // flip to true if you want a final pass

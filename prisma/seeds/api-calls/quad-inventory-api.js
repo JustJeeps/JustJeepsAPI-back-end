@@ -72,7 +72,7 @@ const quadratecInventory = () => {
 
   //     };
   //   });
-  console.log(finalResults);
+  // console.log("from api-calls", finalResults);
   return finalResults;
 };
 

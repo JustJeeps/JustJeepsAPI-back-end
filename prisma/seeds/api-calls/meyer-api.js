@@ -1,3 +1,106 @@
+
+// const axios = require("axios");
+
+// const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// function isRetryableHttp(err) {
+//   const status = err?.response?.status;
+//   if (!status) return true; // network / timeout
+//   return [408, 425, 429, 500, 502, 503, 504].includes(status);
+// }
+
+// /**
+//  * Fetch one Meyer item by ItemNumber.
+//  * Returns either:
+//  *  - array like original: [ { ItemNumber, CustomerPrice, QtyAvailable, PartStatus, Length, Width, Height, Weight, ... } ]
+//  *  - or { statusCode, errorMessage } on failure to keep original "skip if data.statusCode" compatibility
+//  */
+// async function fetchMeyerItem(itemNumber, opts = {}) {
+//   const {
+//     timeoutMs = Number(process.env.MEYER_TIMEOUT_MS || 30000),
+//     maxRetries = Number(process.env.MEYER_RETRY_MAX || 5),
+//     baseDelayMs = Number(process.env.MEYER_RETRY_DELAY_MS || 400),
+//     minDelayBetweenCallsMs = Number(process.env.MEYER_MIN_DELAY_MS || 0),
+//   } = opts;
+
+//   const url = `https://meyerapi.meyerdistributing.com/http/default/ProdAPI/v2/ItemInformation?ItemNumber=${encodeURIComponent(
+//     itemNumber
+//   )}`;
+
+//   // Your original code included a JSON body but method was "get".
+//   // We keep GET and headers that matter (Authorization).
+//   const config = {
+//     method: "get",
+//     url,
+//     timeout: timeoutMs,
+//     headers: {
+//       Authorization: `Espresso ${process.env.MEYER_KEY}`,
+//       "Content-Type": "application/json",
+//     },
+//     // If Meyer truly requires username/password in-body, you can re-add data here,
+//     // but most APIs ignore body on GET.
+//   };
+
+//   for (let attempt = 1; attempt <= maxRetries; attempt++) {
+//     try {
+//       const res = await axios.request(config);
+//       if (minDelayBetweenCallsMs > 0) await sleep(minDelayBetweenCallsMs);
+//       return res.data;
+//     } catch (err) {
+//       const retryable = isRetryableHttp(err);
+//       if (!retryable || attempt === maxRetries) {
+//         const status = err?.response?.status;
+//         const msg =
+//           err?.response?.data?.errorMessage ||
+//           err?.message ||
+//           "Unknown Meyer API error";
+//         return {
+//           statusCode: status || 500,
+//           errorMessage: msg,
+//           itemNumber,
+//         };
+//       }
+//       const backoff = baseDelayMs * Math.pow(2, attempt - 1);
+//       await sleep(backoff);
+//     }
+//   }
+
+//   return { statusCode: 500, errorMessage: "Unexpected retry loop exit", itemNumber };
+// }
+
+// /**
+//  * Concurrency pool runner for many ItemNumbers.
+//  * Returns array aligned to input order: each element is response data (array) or {statusCode,...}
+//  */
+// async function fetchMeyerItems(itemNumbers, opts = {}) {
+//   const concurrency = Number(opts.concurrency || process.env.MEYER_CONCURRENCY || 6);
+
+//   let idx = 0;
+//   const results = new Array(itemNumbers.length);
+
+//   const worker = async () => {
+//     while (true) {
+//       const current = idx++;
+//       if (current >= itemNumbers.length) return;
+//       const item = itemNumbers[current];
+//       results[current] = await fetchMeyerItem(item, opts);
+//     }
+//   };
+
+//   const workers = [];
+//   for (let i = 0; i < concurrency; i++) workers.push(worker());
+//   await Promise.all(workers);
+
+//   return results;
+// }
+
+// module.exports = {
+//   fetchMeyerItem,
+//   fetchMeyerItems,
+// };
+
+
+
 const { PrismaClient } = require("@prisma/client");
 const axios = require("axios");
 

@@ -68,7 +68,7 @@ const quadratecCost = () => {
   //     };
   //   });
   if (process.env.DEBUG_QUADRATEC_EXCEL === "1") {
-    console.log(finalResults);
+    console.log("from api-calls", finalResults);
   }
   return finalResults;
 };
