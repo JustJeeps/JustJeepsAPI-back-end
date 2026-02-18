@@ -18,7 +18,7 @@ const vendorSeeds = [
 
 // parallel tails
 const otherSeeds = [
-  "seed-orders-all",
+  // "seed-orders-all",
   "seed-roughCountry",
   "seed-tireDiscounter",
   "seed-aev",

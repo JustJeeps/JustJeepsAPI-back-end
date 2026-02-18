@@ -2,72 +2,103 @@ const aevCost = require("../api-calls/aev.js");
 
 const prisma = require("../../../lib/prisma");
 
+const LOOKUP_BATCH_SIZE = 1000;
+const CREATE_BATCH_SIZE = 1000;
+const LOG_EVERY = 500;
+
+function chunkArray(items, size) {
+  const chunks = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
+function logWithTimestamp(message) {
+  console.log(`[${new Date().toISOString()}] ${message}`);
+}
+
 // Seed AEV vendor products
 const seedAEVProducts = async () => {
-  console.log("Seeding AEV vendor products...");
+  logWithTimestamp("Seeding AEV vendor products...");
   try {
-    let vendorProductCreatedCount = 0;
-    let vendorProductUpdatedCount = 0;
+    let createdCount = 0;
+    let invalidRowCount = 0;
+    let missingProductCount = 0;
 
-        // ✅ Step 0: Clear old vendor products for AEV
+    // Clear old vendor products for AEV
     await prisma.vendorProduct.deleteMany({ where: { vendor_id: 8 } });
-    console.log("🗑️ Deleted all existing AEV vendor products (vendor_id = 8)");
+    logWithTimestamp("Deleted all existing AEV vendor products (vendor_id = 8)");
 
     const vendorProductsData = await aevCost();
+    logWithTimestamp(`Total vendor products to process: ${vendorProductsData.length}`);
+
+    const rowBySku = new Map();
+    let processed = 0;
 
     for (const data of vendorProductsData) {
-      try {
-        const existingVendorProduct = await prisma.vendorProduct.findFirst({
-          where: {
-            vendor_sku: data["Item"],
-            vendor_id: 8,
-          },
-        });
+      const vendorSku = data["Item"]?.trim();
+      const cost = Number(data["Cost"]);
 
-        if (existingVendorProduct) {
-          vendorProductUpdatedCount++;
-          await prisma.vendorProduct.update({
-            where: {
-              id: existingVendorProduct.id,
-            },
-            data: {
-              vendor_cost: data["Cost"]*1.5,
-            },
-          });
-          continue;
-        }
+      if (!vendorSku || Number.isNaN(cost)) {
+        invalidRowCount++;
+        continue;
+      }
 
-        const product = await prisma.product.findFirst({
-          where: {
-            searchable_sku: data["Item"],
-            jj_prefix: "AEV",
-          },
-        });
+      rowBySku.set(vendorSku, { vendorSku, cost });
+      processed++;
 
-        if (!product) {
-          console.warn(`Product not found for AEV sku: ${data["Item"]}`);
-          continue;
-        }
-
-        const vendorProductData = {
-          product_sku: product.sku,
-          vendor_id: 8,
-          vendor_sku: data["Item"],
-          vendor_cost: data["Cost"]*1.5,
-        };
-
-        await prisma.vendorProduct.create({
-          data: vendorProductData,
-        });
-        vendorProductCreatedCount++;
-      } catch (error) {
-        console.error(`Error processing vendor_sku ${data["Item"]}:`, error);
+      if (processed % LOG_EVERY === 0) {
+        logWithTimestamp(`Processed ${processed} rows...`);
       }
     }
 
-    console.log(`AEV vendor products seeded successfully! 
-      Total AEV products created: ${vendorProductCreatedCount}
-      Total AEV products updated: ${vendorProductUpdatedCount}`);
+    const uniqueSkus = Array.from(rowBySku.keys());
+    logWithTimestamp(`Unique vendor SKUs after dedupe: ${uniqueSkus.length}`);
+    logWithTimestamp(`Loading products for ${uniqueSkus.length} SKUs...`);
+
+    const productBySku = new Map();
+    for (const skuChunk of chunkArray(uniqueSkus, LOOKUP_BATCH_SIZE)) {
+      const products = await prisma.product.findMany({
+        where: {
+          searchable_sku: { in: skuChunk },
+          jj_prefix: "AEV",
+        },
+        select: { sku: true, searchable_sku: true },
+      });
+
+      for (const product of products) {
+        productBySku.set(product.searchable_sku, product.sku);
+      }
+    }
+
+    const creates = [];
+    for (const row of rowBySku.values()) {
+      const productSku = productBySku.get(row.vendorSku);
+      if (!productSku) {
+        missingProductCount++;
+        continue;
+      }
+
+      creates.push({
+        product_sku: productSku,
+        vendor_id: 8,
+        vendor_sku: row.vendorSku,
+        vendor_cost: row.cost * 1.5,
+      });
+    }
+
+    logWithTimestamp(`Invalid rows skipped: ${invalidRowCount}`);
+    logWithTimestamp(`Missing products for AEV SKUs: ${missingProductCount}`);
+    logWithTimestamp(`Creates queued: ${creates.length}`);
+
+    for (const createChunk of chunkArray(creates, CREATE_BATCH_SIZE)) {
+      await prisma.vendorProduct.createMany({ data: createChunk });
+      createdCount += createChunk.length;
+      logWithTimestamp(`Created ${createdCount}/${creates.length} records...`);
+    }
+
+    logWithTimestamp(`AEV vendor products seeded successfully! Created: ${createdCount}`);
   } catch (error) {
     console.error("Error seeding vendor products from AEV:", error);
   }

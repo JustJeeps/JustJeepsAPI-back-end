@@ -2,6 +2,22 @@ const tdotCost = require("../api-calls/tdot-api.js");
 
 const prisma = require("../../../lib/prisma");
 
+const LOOKUP_BATCH_SIZE = 1000;
+const UPDATE_BATCH_SIZE = 200;
+const LOG_EVERY = 500;
+
+function chunkArray(items, size) {
+  const chunks = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
+function logWithTimestamp(message) {
+  console.log(`[${new Date().toISOString()}] ${message}`);
+}
+
 // Seed Tdot competitor products
 const seedTdot = async () => {
   try {
@@ -14,73 +30,141 @@ const seedTdot = async () => {
     
     
     const competitorProductsData = await tdotCost();
-    console.log(`Total competitor products to process: ${competitorProductsData.length}`);
+    const totalRows = competitorProductsData.length;
+    logWithTimestamp(`Total competitor products to process: ${totalRows}`);
 
-    let competitorProductCreatedCount = 0;
-    let competitorProductUpdatedCount = 0;
-
-
-    for (const data of competitorProductsData) {
-      try {
-        const product = await prisma.product.findFirst({
-          where: {
-            tdot_code: data.tdot_code, // Find the product by tdot_code
-          },
-        });
-
-        if (!product) {
-          console.error(`Product not found for tdot_code: ${data.tdot_code}`);
-          continue;
+    const validRows = competitorProductsData
+      .map((data) => {
+        const tdotCode = data.tdot_code?.trim();
+        const price = Number(data.tdot_price);
+        if (!tdotCode || Number.isNaN(price)) {
+          return null;
         }
+        return {
+          tdotCode,
+          price,
+          productUrl: data.product_url || null,
+        };
+      })
+      .filter(Boolean);
 
-        // Check if a competitor product already exists with the same competitor_sku (tdot_code)
-        const existingCompetitorProduct = await prisma.competitorProduct.findFirst({
-          where: {
-            competitor_sku: data.tdot_code, // Check if competitor_sku (tdot_code) already exists
-            competitor_id: 4, // Ensure competitor_id is 4 (Tdot competitor)
-          },
-        });
+    const validRowCount = validRows.length;
+    logWithTimestamp(`Valid rows (non-empty code + price): ${validRowCount}`);
 
-        if (existingCompetitorProduct) {
-          competitorProductUpdatedCount++;
-          
-          // Update only necessary fields, preserving competitor_sku (tdot_code)
-          await prisma.competitorProduct.update({
-            where: {
-              id: existingCompetitorProduct.id,
-            },
-            data: {
-              competitor_price: data.tdot_price, // Update competitor price
-              product_url: data.product_url || null, // Update product URL if available
-            },
-          });
+    const rowByTdotCode = new Map();
+    let processed = 0;
 
-          continue; // Skip to next iteration after updating
-        }
-
-        // If no existing competitor product, create a new one
-        console.log(`Creating new competitor product for SKU: ${product.sku}`);
-        await prisma.competitorProduct.create({
-          data: {
-            product_sku: product.sku, // Link to product's SKU
-            competitor_id: 4, // Set competitor ID to 4 (for Tdot)
-            competitor_price: data.tdot_price, // Set competitor price
-            competitor_sku: data.tdot_code, // Use tdot_code as competitor_sku
-            product_url: data.product_url || null, // Optional product URL if available
-          },
-        });
-
-        competitorProductCreatedCount++;
-
-      } catch (error) {
-        console.error(`Error processing tdot_code: ${data.tdot_code}: ${error.message}`);
-        continue;
+    for (const row of validRows) {
+      rowByTdotCode.set(row.tdotCode, row);
+      processed++;
+      if (processed % LOG_EVERY === 0) {
+        logWithTimestamp(`Processed ${processed} rows...`);
       }
     }
 
-    console.log(`Competitor products from Tdot seeded successfully! 
-      Total competitor products created: ${competitorProductCreatedCount}, 
-      Total competitor products updated: ${competitorProductUpdatedCount}`);
+    const uniqueCodes = Array.from(rowByTdotCode.keys());
+    logWithTimestamp(`Unique tdot codes after dedupe: ${uniqueCodes.length}`);
+    logWithTimestamp(`Loading products for ${uniqueCodes.length} tdot codes...`);
+
+    const productByTdot = new Map();
+    for (const codeChunk of chunkArray(uniqueCodes, LOOKUP_BATCH_SIZE)) {
+      const products = await prisma.product.findMany({
+        where: { tdot_code: { in: codeChunk } },
+        select: { sku: true, tdot_code: true },
+      });
+
+      for (const product of products) {
+        productByTdot.set(product.tdot_code, product.sku);
+      }
+    }
+
+    logWithTimestamp(
+      `Loading existing competitor products for ${uniqueCodes.length} tdot codes...`
+    );
+
+    const existingBySku = new Map();
+    for (const codeChunk of chunkArray(uniqueCodes, LOOKUP_BATCH_SIZE)) {
+      const existing = await prisma.competitorProduct.findMany({
+        where: {
+          competitor_id: 4,
+          competitor_sku: { in: codeChunk },
+        },
+        select: { id: true, competitor_sku: true },
+      });
+
+      for (const record of existing) {
+        existingBySku.set(record.competitor_sku, record.id);
+      }
+    }
+
+    const creates = [];
+    const updates = [];
+    let missingProductCount = 0;
+
+    for (const [tdotCode, row] of rowByTdotCode.entries()) {
+      const productSku = productByTdot.get(tdotCode);
+      if (!productSku) {
+        missingProductCount++;
+        continue;
+      }
+
+      const existingId = existingBySku.get(tdotCode);
+      if (existingId) {
+        updates.push({
+          id: existingId,
+          data: {
+            competitor_price: row.price * 0.9,
+            product_url: row.productUrl,
+          },
+        });
+      } else {
+        creates.push({
+          product_sku: productSku,
+          competitor_id: 4,
+          competitor_price: row.price * 0.9,
+          competitor_sku: tdotCode,
+          product_url: row.productUrl,
+        });
+      }
+    }
+
+    logWithTimestamp(`Missing products for tdot codes: ${missingProductCount}`);
+    logWithTimestamp(`Existing competitor products found: ${existingBySku.size}`);
+    logWithTimestamp(`Creates queued: ${creates.length}`);
+
+    if (creates.length > 0) {
+      logWithTimestamp(`Creating ${creates.length} records...`);
+      await prisma.competitorProduct.createMany({
+        data: creates,
+        skipDuplicates: true,
+      });
+    }
+
+    if (updates.length > 0) {
+      logWithTimestamp(
+        `Updating ${updates.length} records in chunks of ${UPDATE_BATCH_SIZE}...`
+      );
+    }
+
+    let competitorProductUpdatedCount = 0;
+    for (const updateChunk of chunkArray(updates, UPDATE_BATCH_SIZE)) {
+      await prisma.$transaction(
+        updateChunk.map((update) =>
+          prisma.competitorProduct.update({
+            where: { id: update.id },
+            data: update.data,
+          })
+        )
+      );
+      competitorProductUpdatedCount += updateChunk.length;
+      logWithTimestamp(
+        `Updated ${competitorProductUpdatedCount}/${updates.length} records...`
+      );
+    }
+
+    logWithTimestamp(
+      `Competitor products from Tdot seeded successfully! Created: ${creates.length}, Updated: ${competitorProductUpdatedCount}`
+    );
   } catch (error) {
     console.error("Error seeding competitor products from Tdot:", error);
   } finally {

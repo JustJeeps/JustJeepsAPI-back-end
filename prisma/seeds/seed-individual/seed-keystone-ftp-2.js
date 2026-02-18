@@ -32,6 +32,16 @@ function toNumber(v) {
   return Number.isFinite(n) ? n : null;
 }
 
+function cleanCsvField(v) {
+  if (v === null || v === undefined) return "";
+  let s = String(v).trim();
+  if (!s) return "";
+  // Excel-style formulas: ="123" -> 123
+  if (/^=\s*".*"$/.test(s)) s = s.replace(/^=\s*"(.*)"$/, "$1");
+  // Strip wrapping quotes if any remain
+  return s.replace(/^"+|"+$/g, "").trim();
+}
+
 function formatEta(seconds) {
   if (!Number.isFinite(seconds) || seconds < 0) return "~?";
   if (seconds < 60) return `~${Math.ceil(seconds)}s`;
@@ -40,12 +50,12 @@ function formatEta(seconds) {
   return `~${m}m ${s}s`;
 }
 
-// Prefer “non-dash SKU” when there’s a collision on the same keystone_code
+// Prefer SKUs that do NOT end with a dash when there's a collision on the same keystone_code
 function preferSku(currentSku, candidateSku) {
   if (!currentSku) return candidateSku;
-  const curHasDash = currentSku.includes("-");
-  const candHasDash = candidateSku.includes("-");
-  if (curHasDash && !candHasDash) return candidateSku;
+  const curEndsWithDash = currentSku.endsWith("-");
+  const candEndsWithDash = candidateSku.endsWith("-");
+  if (curEndsWithDash && !candEndsWithDash) return candidateSku;
   return currentSku;
 }
 
@@ -125,10 +135,14 @@ async function streamIntoMap(filePath, invMap, summary) {
         summary.rows++;
 
         // Your current logs show VCPN always present, but keep safe
-        const VCPN = String(getField(r, "VCPN") ?? "").trim();
+        const VCPN = cleanCsvField(getField(r, "VCPN"));
 
         // Keystone files typically have VendorPart, DealerPrice, TotalQty
-        const vendorPart = String(getField(r, "VendorPart", "Vendor Part") ?? "").trim();
+        const vendorPart = cleanCsvField(getField(r, "VendorPart", "Vendor Part"));
+        const vendorCode = cleanCsvField(getField(r, "VendorCode", "Vendor Code"));
+        const manufacturerPartNo = cleanCsvField(
+          getField(r, "ManufacturerPartNo", "Manufacturer Part No", "MfgPartNo")
+        );
         const cost = toNumber(getField(r, "DealerPrice", "Dealer Price", "Cost", "Price"));
         const qty = toNumber(getField(r, "TotalQty", "Total Qty", "Qty", "QTY", "Inventory"));
 
@@ -140,6 +154,8 @@ async function streamIntoMap(filePath, invMap, summary) {
         const rec = {
           code: VCPN,
           vendorSku: vendorPart || VCPN,
+          vendorCode,
+          manufacturerPartNo,
           cost,
           qty: isNum(qty) ? qty : null,
           source: fileName,
@@ -249,8 +265,22 @@ async function seedKeystoneBulk() {
   const invMap = await loadKeystoneMapFromCSVs();
   const codes = Array.from(invMap.keys());
 
+  // Build fallback codes for Keystone quirks (VendorCode + ManufacturerPartNo)
+  const fallbackCodeByVcpn = new Map();
+  const fallbackCodes = [];
+  for (const [vcpn, rec] of invMap.entries()) {
+    if (!rec.vendorCode || !rec.manufacturerPartNo) continue;
+    const fallback = `${rec.vendorCode}${rec.manufacturerPartNo}`;
+    if (fallback && fallback !== vcpn) {
+      fallbackCodeByVcpn.set(vcpn, fallback);
+      fallbackCodes.push(fallback);
+    }
+  }
+
+  const allCodes = codes.concat(fallbackCodes);
+
   // 2) Load Products mapping by keystone_code (chunked)
-  const codeToSku = await loadProductsByKeystoneCodes(codes);
+  const codeToSku = await loadProductsByKeystoneCodes(allCodes);
 
   // 3) Build VendorProduct rows (unique by code due to invMap)
   const rowsToInsert = [];
@@ -259,7 +289,11 @@ async function seedKeystoneBulk() {
   let skippedNoCost = 0;
 
   for (const code of codes) {
-    const sku = codeToSku.get(code);
+    let sku = codeToSku.get(code);
+    if (!sku) {
+      const fallback = fallbackCodeByVcpn.get(code);
+      if (fallback) sku = codeToSku.get(fallback);
+    }
     if (!sku) {
       missing++;
       continue;

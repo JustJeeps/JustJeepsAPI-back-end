@@ -47,6 +47,7 @@ services:
       MAGENTO_KEY: ${MAGENTO_KEY:-}
     volumes:
       - ./prisma/seeds/api-calls:/app/prisma/seeds/api-calls
+      - ./prisma/seeds/logs:/app/prisma/seeds/logs
     command: >
       sh -c "node server.js"
     restart: unless-stopped

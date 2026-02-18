@@ -8,7 +8,7 @@ const { stringify } = require('csv-stringify/sync');
 const BASE_URL = 'https://jobber.metalcloak.com';
 const LOGIN_URL = `${BASE_URL}/customer/account/login`;
 const CATEGORY_PATHS = [
-  // "/ford-bronco-6g.html",
+  "/ford-bronco-6g.html",
   // "/jeep-jt-gladiator-parts-accessories.html",
   // "/jeep-jl-wrangler-parts-accessories.html",
   // // "/jeep-jk-wrangler-parts-accessories.html",
@@ -16,15 +16,15 @@ const CATEGORY_PATHS = [
   // "/jeep-yj-wrangler-parts-accessories.html",
   // "/jeep-cj5-cj7-cj8-parts-accessories.html",
   // "/metalcloak-adventure-rack-systems.html",
-  "/builder-parts.html",
-  "/tools-accessories.html",
-  "/rocksport-shocks.html",
-  "/toyota-suspension-accessories.html",
-  "/dodge-ram-suspension-lift-kits.html",
-  "/new-metalcloak-products.html",
-  "/carbon-axles.html",
-  "/ineos-grenadier-products.html",
-  "/shock-absorbers.html"
+  // "/builder-parts.html",
+  // "/tools-accessories.html",
+  // "/rocksport-shocks.html",
+  // "/toyota-suspension-accessories.html",
+  // "/dodge-ram-suspension-lift-kits.html",
+  // "/new-metalcloak-products.html",
+  // "/carbon-axles.html",
+  // "/ineos-grenadier-products.html",
+  // "/shock-absorbers.html"
 ];
 
 
