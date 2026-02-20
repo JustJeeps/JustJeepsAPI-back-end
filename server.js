@@ -604,8 +604,8 @@ app.get('/api/orders', async (req, res) => {
       // Helper: convert Toronto date to UTC range (handles DST automatically)
       const getUTCRange = (torontoDate) => {
         // Create dates at start and end of day in Toronto
-        const startLocal = new Date(`${torontoDate}T00:00:00`);
-        const endLocal = new Date(`${torontoDate}T23:59:59`);
+        const startLocal = new Date(`${torontoDate}T00:00:00Z`);
+        const endLocal = new Date(`${torontoDate}T23:59:59Z`);
 
         // Get Toronto offset for these dates (handles DST)
         const getTorontoOffset = (date) => {
@@ -805,8 +805,8 @@ app.get('/api/orders/metrics', async (req, res) => {
     // Helper: convert Toronto date to UTC range (handles DST automatically)
     const getUTCRange = (torontoDate) => {
       // Create dates at start and end of day in Toronto
-      const startLocal = new Date(`${torontoDate}T00:00:00`);
-      const endLocal = new Date(`${torontoDate}T23:59:59`);
+      const startLocal = new Date(`${torontoDate}T00:00:00Z`);
+      const endLocal = new Date(`${torontoDate}T23:59:59Z`);
 
       // Get Toronto offset for these dates (handles DST)
       const getTorontoOffset = (date) => {
