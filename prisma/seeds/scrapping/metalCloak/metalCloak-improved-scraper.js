@@ -282,12 +282,13 @@ NEXT STEPS:
 /**
  * Run MetalCloak integration after scraping
  */
-async function runIntegration() {
+async function runIntegration(jsonPath) {
   return new Promise((resolve, reject) => {
     console.log('\n🔄 Starting automatic database integration...');
     
     const integrationScript = path.join(__dirname, './metalcloak-integration.js');
-    const childProcess = spawn('node', [integrationScript], {
+    const args = jsonPath ? [integrationScript, jsonPath] : [integrationScript];
+    const childProcess = spawn('node', args, {
       stdio: 'inherit',
       cwd: path.join(__dirname, '../../../')
     });
@@ -330,7 +331,7 @@ async function scrapeAndSeed() {
     await new Promise(resolve => setTimeout(resolve, 3000));
 
     // Step 3: Run integration
-    await runIntegration();
+    await runIntegration(jsonPath);
 
     console.log('\n🎉 Complete! MetalCloak data has been scraped and seeded to database.');
     console.log('💡 You can now run: npm run magento-attributes-metalcloak');

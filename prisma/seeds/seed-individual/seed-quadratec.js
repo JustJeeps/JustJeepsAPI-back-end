@@ -31,17 +31,22 @@ async function seedQuadratec() {
     // Keep the LAST occurrence if duplicates exist
     const mapByCode = new Map();
     for (const r of raw) {
-      const code = (r?.quadratec_code ?? "").trim();
-      if (!code) continue;
-
       const wholesale = Number(r?.wholesalePrice);
       if (!Number.isFinite(wholesale)) continue;
 
-      mapByCode.set(code, {
-        quadratec_code: code,
-        quadratec_sku: r?.quadratec_sku ?? null,
-        vendor_cost: round2(wholesale * 1.5),
-      });
+      const codes = [r?.quadratec_code, r?.quadratec_code_alt]
+        .map((value) => (value ?? "").trim())
+        .filter(Boolean);
+
+      if (codes.length === 0) continue;
+
+      for (const code of codes) {
+        mapByCode.set(code, {
+          quadratec_code: code,
+          quadratec_sku: r?.quadratec_sku ?? null,
+          vendor_cost: round2(wholesale * 1.5),
+        });
+      }
     }
 
     const cleaned = [...mapByCode.values()];

@@ -113,7 +113,7 @@ const seedTdot = async () => {
         updates.push({
           id: existingId,
           data: {
-            competitor_price: row.price * 0.9,
+            competitor_price: row.price * 1,
             product_url: row.productUrl,
           },
         });
@@ -121,7 +121,7 @@ const seedTdot = async () => {
         creates.push({
           product_sku: productSku,
           competitor_id: 4,
-          competitor_price: row.price * 0.9,
+          competitor_price: row.price * 1,
           competitor_sku: tdotCode,
           product_url: row.productUrl,
         });

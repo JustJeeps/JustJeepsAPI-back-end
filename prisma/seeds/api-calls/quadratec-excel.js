@@ -27,31 +27,47 @@ const quadratecCost = () => {
 
   // Step 3: Access JSON Data
   const finalResults = jsonData.slice(1).map((obj) => {
-    let quadratecCode;
-    if (
-      obj["Brand"] === "Quadratec" ||
-      obj["Brand"] === "QuadraTop" ||
-      obj["Brand"] === "TACTIK" ||
-      obj["Brand"] === "Tecstyle" ||
-      obj["Brand"] === "Diver Down" ||
-      obj["Brand"] === "RES-Q" ||
-      obj["Brand"] === "Lynx" ||
-      obj["Brand"] === "Tom Woods" ||
-      obj["Brand"] === "Tru-Fit" ||
-      obj["Brand"] === "Carnivore"
+    const brand = obj["Brand"]?.toString() || "";
+    const mpn = obj["MPN"]?.toString() || "";
+    const quadPn = obj["Quadratec PN"]?.toString() || "";
 
-    ) {
-      quadratecCode = obj["Brand"].toString() + obj["Quadratec PN"].toString();
+    const useQuadratecPnForBrand =
+      brand === "Quadratec" ||
+      brand === "QuadraTop" ||
+      brand === "TACTIK" ||
+      brand === "Tecstyle" ||
+      brand === "Diver Down" ||
+      brand === "RES-Q" ||
+      brand === "Lynx" ||
+      brand === "Tom Woods" ||
+      brand === "Tru-Fit" ||
+      brand === "Carnivore";
+
+    // Some products for these brands use Quadratec PN, others use MPN.
+    // Emit both codes so the seeder can match either.
+    let quadratecCode = "";
+    let quadratecCodeAlt = "";
+
+    if (useQuadratecPnForBrand) {
+      quadratecCode = brand + quadPn;
+      if (mpn && mpn !== quadPn) {
+        quadratecCodeAlt = brand + mpn;
+      }
     } else {
-      quadratecCode = obj["Brand"].toString() + obj["MPN"].toString();
+      quadratecCode = brand + mpn;
+      if (quadPn && quadPn !== mpn) {
+        quadratecCodeAlt = brand + quadPn;
+      }
     }
+
     return {
-      MPN: obj["MPN"].toString(),
-      brand: obj["Brand"],
+      MPN: mpn,
+      brand,
       wholesalePrice: obj["Wholesale Price"],
       retailPrice: obj["Retail Price"],
       quadratec_code: quadratecCode,
-      quadratec_sku: obj["Quadratec PN"].toString(),
+      quadratec_code_alt: quadratecCodeAlt || null,
+      quadratec_sku: quadPn,
     };
   });
 

@@ -1,7 +1,6 @@
 const axios = require("axios");
 const XLSX = require("xlsx");
 const path = require("path");
-const fs = require("fs");
 
 const RoughCountryCost = async () => {
   try {
@@ -13,12 +12,8 @@ const RoughCountryCost = async () => {
       responseType: 'arraybuffer' // Important: Fetch as arraybuffer to handle binary data
     });
 
-    // Save the downloaded file to a temporary location
-    const tempFilePath = path.join(__dirname, "temp_excel.xlsx");
-    fs.writeFileSync(tempFilePath, response.data);
-
-    // Step 2: Load Excel file
-    const workbook = XLSX.readFile(tempFilePath);
+    // Step 2: Load Excel file directly from memory
+    const workbook = XLSX.read(response.data, { type: "buffer" });
 
     // Step 3: Extract Sheet Data
     const sheetName = workbook.SheetNames[0]; // assuming you want to read the first sheet
@@ -71,10 +66,10 @@ const RoughCountryCost = async () => {
     ];
 
     // Convert sheet to JSON data
-    const jsonData = XLSX.utils.sheet_to_json(sheet, { header: customHeader });
-
-    // Log the entire jsonData to inspect what's being read
-    console.log("JSON Data:", jsonData);
+    const jsonData = XLSX.utils.sheet_to_json(sheet, {
+      header: customHeader,
+      range: 1,
+    });
 
     // Step 4: Access JSON Data and format as needed
     const finalResults = jsonData.map((obj) => {
@@ -92,15 +87,11 @@ const RoughCountryCost = async () => {
       };
     });
 
-    // console.log(finalResults); // Output the formatted results to console
     return finalResults; // Return the formatted results
   } catch (error) {
     console.error("Error fetching or processing the Excel file:", error);
   }
 };
-
-// Call the function to execute
-RoughCountryCost();
 
 // Export the function for external use if needed
 module.exports = RoughCountryCost;

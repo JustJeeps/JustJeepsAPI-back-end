@@ -54,6 +54,7 @@ module.exports = [
     quadratec_code: "Accuair",
     keystone_code_site: "ACA",
     premier_code: "ACA", // Accuair
+    partsEngine_code: "-vp-accuair-3071.aspx",
   },
   {
     jj_prefix: "ACP",
@@ -237,7 +238,7 @@ module.exports = [
   {
     jj_prefix: "AMR",
     brand_name: "American Racing",
-    vendors: "Keystone, Quadratec, WheelPros",
+    vendors: "Keystone, Quadratec, WheelPros (don't DS to US)",
     keystone_code: "A78",
     meyer_code: "",
     quadratec_code: "American Racing",
@@ -600,7 +601,7 @@ module.exports = [
   {
     jj_prefix: "BIL",
     brand_name: "Bilstein",
-    vendors: "Meyer, Keystone, Quadratec, WheelPros",
+    vendors: "Meyer, Keystone, Quadratec, WheelPros (don't DS to US)",
     keystone_code: "B52",
     meyer_code: "BIL",
     quadratec_code: "Bilstein",
@@ -629,7 +630,7 @@ module.exports = [
   {
     jj_prefix: "BLR",
     brand_name: "Black Rhino",
-    vendors: "WheelPros",//Quadratec
+    vendors: "WheelPros (don't DS to US)",//Quadratec
     keystone_code: "",
     meyer_code: "",
     // quadratec_code: "Black Rhino",
@@ -1635,7 +1636,7 @@ module.exports = [
   {
     jj_prefix: "FOX",
     brand_name: "Fox Racing",
-    vendors: "Meyer, Keystone, Quadratec, WheelPros",
+    vendors: "Meyer, Keystone, Quadratec, WheelPros (don't DS to US)",
     keystone_code: "F75",
     meyer_code: "FOX",
     quadratec_code: "Fox Racing Shox",
@@ -1655,7 +1656,7 @@ module.exports = [
   {
     jj_prefix: "FOR",
     brand_name: "Fuel Off-Road",
-    vendors: "WheelPros, Quadratec",
+    vendors: "WheelPros (don't DS to US), Quadratec",
     keystone_code: "",
     meyer_code: "",
     quadratec_code: "Fuel Off-Road",
@@ -1770,7 +1771,7 @@ module.exports = [
   {
     jj_prefix: "GRA",
     brand_name: "Gorilla Automotive",
-    vendors: "WheelPros,Meyer, Keystone, Quadratec",
+    vendors: "WheelPros (don't DS to US),Meyer, Keystone, Quadratec",
     keystone_code: "G20",
     meyer_code: "GOL",
     quadratec_code: " Automotive",
@@ -2270,7 +2271,7 @@ module.exports = [
   {
     jj_prefix: "KMC",
     brand_name: "KMC Wheels",
-    vendors: "Wheelpros, Quadratec, Keystone",
+    vendors: "WheelPros (don't DS to US), Quadratec, Keystone",
     keystone_code: "A78",
     meyer_code: "",
     quadratec_code: "KMC Wheels",
@@ -2689,7 +2690,7 @@ module.exports = [
   {
     jj_prefix: "MMT",
     brand_name: "Morimoto",
-    vendors: "WheelPros, Meyer, Keystone",
+    vendors: "WheelPros (don't DS to US), Meyer, Keystone",
     keystone_code: "MRM",
     meyer_code: "MML",
     quadratec_code: "",
@@ -2797,7 +2798,7 @@ module.exports = [
   {
     jj_prefix: "NIT",
     brand_name: "Nitto Tire",
-    vendors: "Quadratec, Tire Discounter, WheelPros",//no longer Meyer
+    vendors: "Quadratec, Tire Discounter, WheelPros (don't DS to US)",//no longer Meyer
     keystone_code: "NTG",
     meyer_code: "",//no longer NIT
     quadratec_code: "Nitto",
@@ -3070,7 +3071,7 @@ module.exports = [
   {
     jj_prefix: "PS",
     brand_name: "Poison Spyder Customs",
-    vendors: "Meyer", //no longer wheelpros
+    vendors: "Meyer", //no longer WheelPros (don't DS to US)
     // keystone_code: "",
     meyer_code: "PSI",
     // quadratec_code: "Poison Spyder",
@@ -3122,10 +3123,10 @@ module.exports = [
   {
     jj_prefix: "PXA",
     brand_name: "PRO COMP Alloy Wheels",
-    vendors: "Meyer,WheelPros",
+    vendors: "Meyer, Quadratec, WheelPros (don't DS to US)",
     // keystone_code: "P74",
     meyer_code: "PXA",
-    // quadratec_code: "Pro Comp",
+    quadratec_code: "Pro CompPXA",
     tdot_code: "Pro Comp Wheels",
     truck_parts_code: "Pro Comp Alloy Wheels",
     partsEngine_code: "-vp-pro-comp-238.aspx",
@@ -3145,7 +3146,7 @@ module.exports = [
   {
     jj_prefix: "EXP",
     brand_name: "PRO COMP Suspension",
-    vendors: "Meyer, WheelPros",
+    vendors: "Meyer, WheelPros (don't DS to US)",
     // keystone_code: "E37",
     meyer_code: "EXP",
     // quadratec_code: "Pro Comp",
@@ -3157,7 +3158,7 @@ module.exports = [
   {
     jj_prefix: "PCT",
     brand_name: "Pro Comp Tires",
-    vendors: "Meyer, WheelPros",
+    vendors: "Meyer, WheelPros (don't DS to US)",
     vendors: "Meyer",
     // keystone_code: "P84",
     meyer_code: "PCT",
@@ -3325,7 +3326,7 @@ module.exports = [
   {
     jj_prefix: "RL",
     brand_name: "ReadyLIFT",
-    vendors: "Meyer, Keystone, Quadratec, WheelPros",
+    vendors: "Meyer, Keystone, Quadratec, WheelPros (don't DS to US)",
     keystone_code: "R90",
     meyer_code: "RDY",
     quadratec_code: "ReadyLift Suspension",
@@ -3804,7 +3805,7 @@ module.exports = [
   {
     jj_prefix: "SB",
     brand_name: "Smittybilt",
-    vendors: "Meyer, WheelPros",
+    vendors: "Meyer, WheelPros (don't DS to US)",
     // keystone_code: "S53",
     meyer_code: "SMB",
     // quadratec_code: "Smittybilt",
@@ -4032,7 +4033,7 @@ module.exports = [
   {
     jj_prefix: "TER",
     brand_name: "TeraFlex",
-    vendors: "Meyer, Keystone, Quadratec, WheelPros",
+    vendors: "Meyer, Keystone, Quadratec, WheelPros (don't DS to US)",
     keystone_code: "TER",
     meyer_code: "TER",
     quadratec_code: "Teraflex",
@@ -4198,7 +4199,7 @@ module.exports = [
   {
     jj_prefix: "TFS",
     brand_name: "Tuff Stuff 4x4",
-    vendors: "Meyer, Quadratec, WheelPros",
+    vendors: "Meyer, Quadratec, WheelPros (don't DS to US)",
     keystone_code: "",
     meyer_code: "TSF",
     quadratec_code: "Tuff Stuff Performance",

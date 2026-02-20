@@ -26,8 +26,8 @@ const otherSeeds = [
   "seed-keyparts",
   "seed-alpine",
   // "seed-meyer",
-  "seed-tdot",
-  "seed-lowriders",
+  // "seed-tdot",
+  // "seed-lowriders",
   // "seed-daily-turn14-production", // Daily Turn14 pricing/inventory updates
   // "seed-turn14-production"
 ];

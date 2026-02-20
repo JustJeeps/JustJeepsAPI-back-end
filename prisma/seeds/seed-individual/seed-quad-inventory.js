@@ -48,10 +48,15 @@ async function seedQuadInventoryBulk() {
     console.log(`✅ Rows received: ${rows.length}`);
 
     const cleaned = rows
-      .map((r) => ({
-        code: r?.quadratec_code,
-        inv: r?.quadratec_inventory,
-      }))
+      .flatMap((r) => {
+        const inv = r?.quadratec_inventory;
+        const codes = [r?.quadratec_code, r?.quadratec_code_alt]
+          .map((value) => (value ?? "").trim())
+          .filter(Boolean);
+
+        if (!codes.length) return [];
+        return codes.map((code) => ({ code, inv }));
+      })
       .filter((r) => r.code && r.inv !== undefined && r.inv !== null);
 
     console.log(`✅ Rows usable (code + inventory): ${cleaned.length}`);

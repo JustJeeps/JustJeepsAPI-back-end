@@ -8,7 +8,7 @@ async function main() {
       where: {
         jj_prefix: {
           
-          in: ["CURT"]
+          in: ["QTC"]
           // in: [
           //   "CRB", "DD", "SWS", "EVO", "ACP", "RH", "ADD", "WTC", "RAM", "AFE", "AEV", "ART", "BOR", 
           //   "BHO", "ALP", "ALY", "ATP", "AMP", "MIS", "ACC", "CRP", "AVS", "ROM", "ARB", "VA", "AOC", 

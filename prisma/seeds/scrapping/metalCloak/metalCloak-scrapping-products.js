@@ -9,13 +9,13 @@ const BASE_URL = 'https://jobber.metalcloak.com';
 const LOGIN_URL = `${BASE_URL}/customer/account/login`;
 const CATEGORY_PATHS = [
   "/ford-bronco-6g.html",
-  // "/jeep-jt-gladiator-parts-accessories.html",
-  // "/jeep-jl-wrangler-parts-accessories.html",
-  // // "/jeep-jk-wrangler-parts-accessories.html",
-  // "/jeep-tj-lj-wrangler-parts-accessories.html",
-  // "/jeep-yj-wrangler-parts-accessories.html",
-  // "/jeep-cj5-cj7-cj8-parts-accessories.html",
-  // "/metalcloak-adventure-rack-systems.html",
+  "/jeep-jt-gladiator-parts-accessories.html",
+  "/jeep-jl-wrangler-parts-accessories.html",
+  "/jeep-jk-wrangler-parts-accessories.html",
+  "/jeep-tj-lj-wrangler-parts-accessories.html",
+  "/jeep-yj-wrangler-parts-accessories.html",
+  "/jeep-cj5-cj7-cj8-parts-accessories.html",
+  "/metalcloak-adventure-rack-systems.html",
   // "/builder-parts.html",
   // "/tools-accessories.html",
   // "/rocksport-shocks.html",
@@ -234,6 +234,8 @@ const CATEGORY_PATHS = [
   };
 });
 
+      data.productUrl = productUrl;
+
     const fixLineBreaks = (str) => str.replace(/\n/g, '\r\n');
     data.features = fixLineBreaks(data.features);
     data.description = fixLineBreaks(data.description);
@@ -276,6 +278,7 @@ const CATEGORY_PATHS = [
   quoted: true, // <-- IMPORTANT: ensures fields with line breaks are quoted
   columns: [
     'title',
+    'productUrl',
     'productCode',
     'mapPrice',
     'yourPrice',

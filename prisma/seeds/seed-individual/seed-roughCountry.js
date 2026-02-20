@@ -2,12 +2,36 @@ const RoughCountryCost = require("../api-calls/roughCountry-excel.js");
 
 const prisma = require("../../../lib/prisma");
 
+const WRITE_BATCH_SIZE = 200;
+const LOG_EVERY = 500;
+
+const chunk = (list, size) => {
+  const batches = [];
+  for (let i = 0; i < list.length; i += size) {
+    batches.push(list.slice(i, i + size));
+  }
+  return batches;
+};
+
+function logWithTimestamp(message) {
+  console.log(`[${new Date().toISOString()}] ${message}`);
+}
+
 // Seed roughCountry products
 const seedRoughCountry = async () => {
-  console.log("Seeding roughCountry vendor products...");
+  logWithTimestamp("Seeding roughCountry vendor products...");
   try {
     let vendorProductCreatedCount = 0;
     let vendorProductUpdatedCount = 0;
+    let processedCount = 0;
+    let emptySkuCount = 0;
+    let duplicateSkuCount = 0;
+    let missingProductCount = 0;
+    let matchedExistingCount = 0;
+    let matchedProductCount = 0;
+    let invalidCostCount = 0;
+    let invalidMapCount = 0;
+    const startedAt = Date.now();
 
     // // ✅ Step 0: Clear old vendor products for Rough Country
     // await prisma.vendorProduct.deleteMany({ where: { vendor_id: 9 } });
@@ -15,115 +39,151 @@ const seedRoughCountry = async () => {
 
     const vendorProductsData = await RoughCountryCost();
 
-    // Loop through the vendorProductsData array and create/update vendor products
+    const [existingVendorProducts, roughCountryProducts] = await Promise.all([
+      prisma.vendorProduct.findMany({
+        where: { vendor_id: 9 },
+        select: { id: true, vendor_sku: true, product_sku: true },
+      }),
+      prisma.product.findMany({
+        where: { brand_name: "Rough Country" },
+        select: { sku: true, searchable_sku: true },
+      }),
+    ]);
+
+    const vendorProductBySku = new Map(
+      existingVendorProducts.map((vp) => [vp.vendor_sku, vp])
+    );
+    const productBySearchSku = new Map(
+      roughCountryProducts
+        .filter((p) => p.searchable_sku)
+        .map((p) => [p.searchable_sku, p])
+    );
+
+    const seenSkus = new Set();
+    const operations = [];
+
+    const totalCount = vendorProductsData.length;
+    logWithTimestamp(`roughCountry rows loaded: ${totalCount}`);
+
     for (const data of vendorProductsData) {
-console.log(`data:`, data);
       try {
-        // Check if a vendor product with the same vendor_sku already exists
-        const existingVendorProduct = await prisma.vendorProduct.findFirst({
-          where: {
-            vendor_sku: data["SKU"],
-            vendor_id: 9, // Replace with the appropriate vendor_id for roughCountry
-          },
-        });
+        const vendorSku = String(data["SKU"] ?? "").trim();
+        if (!vendorSku) {
+          emptySkuCount += 1;
+          continue;
+        }
+        if (seenSkus.has(vendorSku)) {
+          duplicateSkuCount += 1;
+          continue;
+        }
+        seenSkus.add(vendorSku);
 
-        // console.log(`existingVendorProduct:`, existingVendorProduct);
-
-        if (existingVendorProduct) {
-          vendorProductUpdatedCount++; // Increment the updated count
-          // Update the existing vendor product with new data
-          await prisma.vendorProduct.update({
-            where: {
-              id: existingVendorProduct.id,
-            },
-            data: {
-              vendor_sku: data["SKU"],
-              vendor_cost: data["COST"]*1.5, // Convert to float
-              vendor_inventory_string: data["AVAILABILITY"],
-              vendor_inventory: data["TN_STOCK"],
-          
-            },
-          });
-
-          //update the MAP in product table
-          await prisma.product.update({
-            where: {
-              sku: existingVendorProduct.product_sku,
-            },
-            data: {
-              MAP: data["MAP"], // Convert to float
-              // Add any other fields that you want to update
-            },
-          });
-          clr;
-
-          //CONSOLE LOG TO CONFITM IF THE MAP IS BEING UPDATED
-          console.log(`MAP:`, data["MAP"]);
-          console.log(`SKU:`, data["SKU"]);
-          console.log(`COST:`, data["COST"]*1.5);
-          console.log(`AVAILABILITY:`, data["AVAILABILITY"]);
-
-          continue; // Move to the next iteration
+        const rawCost = Number(data["COST"]);
+        if (!Number.isFinite(rawCost)) {
+          invalidCostCount += 1;
+          continue;
+        }
+        const vendorCost = rawCost * 1.5;
+        const vendorInventoryString = data["AVAILABILITY"];
+        const vendorInventory = data["TN_STOCK"];
+        const rawMapValue = Number(data["MAP"]);
+        const hasMapValue = Number.isFinite(rawMapValue);
+        if (!hasMapValue && data["MAP"] != null && data["MAP"] !== "") {
+          invalidMapCount += 1;
         }
 
-        // Retrieve the product_sku from the Product table using the roughCountry sku as reference
-        let product;
-        product = await prisma.product.findFirst({
-          where: {
-            searchable_sku: data["SKU"], // Replace with the appropriate field for roughCountry
-            OR: [{ brand_name: "Rough Country" }],
-          },
-        });
-
-        // console.log(`product:`, product);
+        const existingVendorProduct = vendorProductBySku.get(vendorSku);
+        const product = existingVendorProduct
+          ? { sku: existingVendorProduct.product_sku }
+          : productBySearchSku.get(vendorSku);
 
         if (!product) {
-          console
-            .error
-            // `Product not found for roughCountry sku: ${data["SKU"]}`
-            ();
-          continue; // Skip to the next iteration
+          missingProductCount += 1;
+          continue;
+        }
+        matchedProductCount += 1;
+
+        if (existingVendorProduct) {
+          matchedExistingCount += 1;
+          vendorProductUpdatedCount += 1;
+          operations.push(
+            prisma.vendorProduct.update({
+              where: { id: existingVendorProduct.id },
+              data: {
+                vendor_sku: vendorSku,
+                vendor_cost: vendorCost,
+                vendor_inventory_string: vendorInventoryString,
+                vendor_inventory: vendorInventory,
+                product: { connect: { sku: product.sku } },
+              },
+            })
+          );
+        } else {
+          vendorProductCreatedCount += 1;
+          operations.push(
+            prisma.vendorProduct.create({
+              data: {
+                vendor_sku: vendorSku,
+                vendor_cost: vendorCost,
+                vendor_inventory_string: vendorInventoryString,
+                vendor_inventory: vendorInventory,
+                vendor: { connect: { id: 9 } },
+                product: { connect: { sku: product.sku } },
+              },
+            })
+          );
         }
 
-        // Update the data with the retrieved product_sku and vendor_id
-        const vendorProductData = {
-          product_sku: product.sku,
-          vendor_id: 9, // Replace with the appropriate vendor_id for roughCountry
-          vendor_sku: data["SKU"],
-          vendor_cost: data["COST"]*1.5, // Convert to float
-          vendor_inventory_string: data["AVAILABILITY"],
-          vendor_inventory: data["TN_STOCK"]
+        if (hasMapValue) {
+          operations.push(
+            prisma.product.update({
+              where: { sku: product.sku },
+              data: { MAP: rawMapValue },
+            })
+          );
+        }
 
-        };
-          //CONSOLE LOG TO CONFITM IF vendor_inventory_string IS BEING UPDATED
-          console.log(`vendor_inventory_string:`, data["AVAILABILITY"])
+        processedCount += 1;
+        if (processedCount % LOG_EVERY === 0) {
+          const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
+          logWithTimestamp(
+            `roughCountry progress: ${processedCount}/${totalCount} in ${elapsedSeconds}s (created ${vendorProductCreatedCount}, updated ${vendorProductUpdatedCount}, missing ${missingProductCount}, dupes ${duplicateSkuCount})`
+          );
+        }
 
-        vendorProductCreatedCount++; // Increment the created count
-        // Create the vendor product
-        await prisma.vendorProduct.create({
-          data: vendorProductData,
-        });
-
-        //update the MAP in product table
-        await prisma.product.update({
-          where: {
-            sku: product.sku,
-          },
-          data: {
-            MAP: data["MAP"], // Convert to float
-            // Add any other fields that you want to update
-          },
-        });
-
+        if (operations.length >= WRITE_BATCH_SIZE) {
+          const batch = operations.splice(0, operations.length);
+          for (const ops of chunk(batch, WRITE_BATCH_SIZE)) {
+            await prisma.$transaction(ops);
+          }
+        }
       } catch (error) {
         // console.error(`Error processing vendor_sku:`, error);
-        // You can choose to continue to the next iteration or handle the error as needed
       }
     }
 
-    console.log(`roughCountry vendor products seeded successfully! 
-      Total roughCountry products created: ${vendorProductCreatedCount}
-      Total roughCountry products updated: ${vendorProductUpdatedCount}`);
+    if (operations.length > 0) {
+      for (const ops of chunk(operations, WRITE_BATCH_SIZE)) {
+        await prisma.$transaction(ops);
+      }
+    }
+
+    const totalElapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
+    const rowsPerSecond = totalElapsedSeconds
+      ? Math.round(processedCount / totalElapsedSeconds)
+      : processedCount;
+    logWithTimestamp(
+      `roughCountry seed runtime: ${totalElapsedSeconds}s (${rowsPerSecond} rows/s over ${processedCount} rows)`
+    );
+    logWithTimestamp(
+      `roughCountry seed summary: matched products ${matchedProductCount}, existing vendor products ${matchedExistingCount}, missing products ${missingProductCount}, empty SKU ${emptySkuCount}, duplicate SKU ${duplicateSkuCount}`
+    );
+    logWithTimestamp(
+      `roughCountry seed data issues: invalid cost ${invalidCostCount}, invalid MAP ${invalidMapCount}`
+    );
+    logWithTimestamp(
+      `roughCountry vendor products seeded successfully! Created: ${vendorProductCreatedCount}, Updated: ${vendorProductUpdatedCount}`
+    );
   } catch (error) {
     console.error("Error seeding vendor products from roughCountry:", error);
   } finally {

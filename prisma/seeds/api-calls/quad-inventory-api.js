@@ -33,29 +33,44 @@ const quadratecInventory = () => {
 
   // Step 3: Access JSON Data
   const finalResults = jsonData.slice(1).map((obj) => {
-    let quadratecCode;
-    if (
-      obj["Brand"] === "Quadratec" ||
-      obj["Brand"] === "QuadraTop" ||
-      obj["Brand"] === "TACTIK" ||
-      obj["Brand"] === "Tecstyle" ||
-      obj["Brand"] === "Diver Down" ||
-      obj["Brand"] === "RES-Q" ||
-      obj["Brand"] === "Lynx" ||
-      obj["Brand"] === "Tom Woods"
-    ) {
-      quadratecCode = obj["Brand"].toString() + obj["Quadratec Part No"].toString();
+    const brand = obj["Brand"]?.toString() || "";
+    const partNo = obj["Part No"]?.toString() || "";
+    const quadPartNo = obj["Quadratec Part No"]?.toString() || "";
+
+    const useQuadratecPnForBrand =
+      brand === "Quadratec" ||
+      brand === "QuadraTop" ||
+      brand === "TACTIK" ||
+      brand === "Tecstyle" ||
+      brand === "Diver Down" ||
+      brand === "RES-Q" ||
+      brand === "Lynx" ||
+      brand === "Tom Woods";
+
+    // Some products for these brands use Quadratec Part No, others use Part No.
+    // Emit both codes so downstream can match either.
+    let quadratecCode = "";
+    let quadratecCodeAlt = "";
+
+    if (useQuadratecPnForBrand) {
+      quadratecCode = brand + quadPartNo;
+      if (partNo && partNo !== quadPartNo) {
+        quadratecCodeAlt = brand + partNo;
+      }
     } else {
-      quadratecCode = obj["Brand"] && obj["Part No"]
-      ? obj["Brand"].toString() + obj["Part No"].toString()
-      : null;
+      quadratecCode = brand && partNo ? brand + partNo : "";
+      if (quadPartNo && quadPartNo !== partNo) {
+        quadratecCodeAlt = brand + quadPartNo;
+      }
     }
+
     return {
-      MPN: obj["Part No"].toString(),
-      brand: obj["Brand"],
+      MPN: partNo,
+      brand,
       wholesalePrice: obj["Cost"],
       quadratec_code: quadratecCode,
-      quadratec_sku: obj["Quadratec Part No"].toString(),
+      quadratec_code_alt: quadratecCodeAlt || null,
+      quadratec_sku: quadPartNo,
       quadratec_inventory: obj["Inventory Total"],
     };
   });
