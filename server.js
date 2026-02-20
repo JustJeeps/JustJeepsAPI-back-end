@@ -26,7 +26,8 @@ app.use(
     origin: [
       "http://localhost:5173", // local frontend
 			"http://127.0.0.1:5173", // local frontend (loopback)
-      "https://lionfish-app-v8v9s.ondigitalocean.app", // production frontend,
+      "https://lionfish-app-v8v9s.ondigitalocean.app", // production frontend (old)
+      "https://pricingtool.justjeeps.com", // production frontend (custom domain)
     ],
     credentials: true,
   })
