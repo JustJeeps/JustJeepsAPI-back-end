@@ -618,9 +618,9 @@ module.exports = [
   {
     jj_prefix: "BHO",
     brand_name: "Black Horse Offroad",
-    vendors: "Keystone, Quadratec",
+    vendors: "Keystone, Quadratec, Meyer",
     keystone_code: "BLK",
-    meyer_code: "",
+    meyer_code: "BHO",
     quadratec_code: "Black Horse Offroad",
     truck_parts_code: "Black Horse Off Road",
     partsEngine_code: "-vp-black-horse-49.aspx",
