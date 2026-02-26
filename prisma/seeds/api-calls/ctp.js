@@ -7,9 +7,6 @@ const ctpInventory = async () => {
   const workbook = XLSX.readFile(filePath);
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
 
-  console.log("Loaded file:", filePath);
-  console.log("Sheet names:", workbook.SheetNames);
-
   const jsonData = XLSX.utils.sheet_to_json(sheet, {
     defval: "",
   });
@@ -27,7 +24,7 @@ const ctpInventory = async () => {
       };
     });
 
-  console.log(finalResults);
+  console.log(`CTP inventory rows: ${finalResults.length}`);
   return finalResults;
 };
 

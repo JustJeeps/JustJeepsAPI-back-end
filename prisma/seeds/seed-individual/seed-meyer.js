@@ -525,9 +525,9 @@ const seedMeyerVendorProducts = async () => {
     let vendorProductUpdatedCount = 0;
     const batchSize = Number(process.env.SEED_MEYER_DB_BATCH_SIZE || 500);
 
-     // ✅ Step 0: Clear old vendor products for Meyer
-    await prisma.vendorProduct.deleteMany({ where: { vendor_id: 2 } });
-    console.log("🗑️ Deleted all existing Meyer vendor products (vendor_id = 2)");
+    //  // ✅ Step 0: Clear old vendor products for Meyer
+    // await prisma.vendorProduct.deleteMany({ where: { vendor_id: 2 } });
+    // console.log("🗑️ Deleted all existing Meyer vendor products (vendor_id = 2)");
 
     // Call MeyerCost and get the processed responses
     const vendorProductsData = await meyerApi();

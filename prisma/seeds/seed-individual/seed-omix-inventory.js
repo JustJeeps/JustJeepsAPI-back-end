@@ -2,75 +2,130 @@ const fetchOmixInventory = require('../api-calls/omix-inventory-api');
 
 const prisma = require('../../../lib/prisma');
 
+function buildInventoryUpdate(existingVendorProduct, rawInventory) {
+  const isOutOfStock =
+    rawInventory === undefined ||
+    rawInventory === null ||
+    typeof rawInventory !== 'string' ||
+    rawInventory.toLowerCase().includes('out');
+
+  if (isOutOfStock) {
+    const nextInventoryString = rawInventory || 'Out of Stock';
+    const needsInventoryNull = existingVendorProduct.vendor_inventory !== null;
+    const needsStringUpdate =
+      existingVendorProduct.vendor_inventory_string !== nextInventoryString;
+
+    if (!needsInventoryNull && !needsStringUpdate) return null;
+
+    return {
+      vendor_inventory_string: nextInventoryString,
+      vendor_inventory: needsInventoryNull ? null : existingVendorProduct.vendor_inventory,
+    };
+  }
+
+  const inventory = parseFloat(rawInventory);
+
+  if (!isNaN(inventory)) {
+    const needsInventoryUpdate = existingVendorProduct.vendor_inventory !== inventory;
+    const needsStringNull = existingVendorProduct.vendor_inventory_string !== null;
+
+    if (!needsInventoryUpdate && !needsStringNull) return null;
+
+    return {
+      vendor_inventory: inventory,
+      vendor_inventory_string: null,
+    };
+  }
+
+  const needsStringUpdate =
+    existingVendorProduct.vendor_inventory_string !== rawInventory;
+  const needsInventoryNull = existingVendorProduct.vendor_inventory !== null;
+
+  if (!needsStringUpdate && !needsInventoryNull) return null;
+
+  return {
+    vendor_inventory_string: rawInventory,
+    vendor_inventory: null,
+  };
+}
+
+async function runWithConcurrency(items, limit, worker) {
+  let index = 0;
+  const maxWorkers = Math.min(limit, items.length);
+  const workers = Array.from({ length: maxWorkers }, async () => {
+    while (true) {
+      const currentIndex = index++;
+      if (currentIndex >= items.length) break;
+      await worker(items[currentIndex], currentIndex);
+    }
+  });
+
+  await Promise.all(workers);
+}
+
 async function seedOmixInventory() {
+  const startTimeMs = Date.now();
+  console.time('omixInventorySeed');
   try {
     let vendorProductUpdatedCount = 0;
 
     const inventoryData = await fetchOmixInventory();
 
-    for (const item of inventoryData.links) {
-      const sku = item.sku;
-      const rawInventory = item.inventory;
+    const inventoryLinks = Array.isArray(inventoryData?.links)
+      ? inventoryData.links
+      : [];
+    if (inventoryLinks.length === 0) {
+      console.warn('⚠️ No Omix inventory links returned.');
+      return;
+    }
 
-      const existingVendorProduct = await prisma.vendorProduct.findFirst({
-        where: {
-          vendor_sku: sku,
-          vendor_id: 3,
-        },
+    const skus = inventoryLinks
+      .map((item) => item?.sku)
+      .filter((sku) => typeof sku === 'string' && sku.length > 0);
+
+    const vendorProducts = await prisma.vendorProduct.findMany({
+      where: {
+        vendor_id: 3,
+        vendor_sku: { in: skus },
+      },
+      select: {
+        id: true,
+        vendor_sku: true,
+        vendor_inventory: true,
+        vendor_inventory_string: true,
+      },
+    });
+
+    const vendorProductBySku = new Map(
+      vendorProducts.map((product) => [product.vendor_sku, product])
+    );
+
+    await runWithConcurrency(inventoryLinks, 15, async (item) => {
+      const sku = item?.sku;
+      if (typeof sku !== 'string' || sku.length === 0) return;
+
+      const existingVendorProduct = vendorProductBySku.get(sku);
+      if (!existingVendorProduct) return;
+
+      const rawInventory = item?.inventory;
+      const updateData = buildInventoryUpdate(existingVendorProduct, rawInventory);
+      if (!updateData) return;
+
+      await prisma.vendorProduct.update({
+        where: { id: existingVendorProduct.id },
+        data: updateData,
       });
 
-      if (!existingVendorProduct) continue;
-
-      const isOutOfStock =
-        rawInventory === undefined ||
-        rawInventory === null ||
-        typeof rawInventory !== 'string' ||
-        rawInventory.toLowerCase().includes('out');
-
-      if (isOutOfStock) {
-        // If previously had numeric inventory, clear it
-        const updateData = {
-          vendor_inventory_string: rawInventory || 'Out of Stock',
-        };
-
-        if (existingVendorProduct.vendor_inventory !== null) {
-          updateData.vendor_inventory = null;
-        }
-
-        await prisma.vendorProduct.update({
-          where: { id: existingVendorProduct.id },
-          data: updateData,
-        });
-      } else {
-        const inventory = parseFloat(rawInventory);
-
-        if (!isNaN(inventory)) {
-          await prisma.vendorProduct.update({
-            where: { id: existingVendorProduct.id },
-            data: {
-              vendor_inventory: inventory,
-              vendor_inventory_string: null,
-            },
-          });
-        } else {
-          // fallback if not numeric, store as string
-          await prisma.vendorProduct.update({
-            where: { id: existingVendorProduct.id },
-            data: {
-              vendor_inventory_string: rawInventory,
-              vendor_inventory: null,
-            },
-          });
-        }
-      }
-
       vendorProductUpdatedCount++;
-    }
+    });
 
     console.log(`✅ Omix inventory updated. Total updated: ${vendorProductUpdatedCount}`);
   } catch (error) {
     console.error('❌ Error seeding Omix inventory:', error);
   } finally {
+    console.timeEnd('omixInventorySeed');
+    const durationMs = Date.now() - startTimeMs;
+    console.log(`⏱️ Omix inventory seed completed in ${durationMs}ms`);
     await prisma.$disconnect();
   }
 }

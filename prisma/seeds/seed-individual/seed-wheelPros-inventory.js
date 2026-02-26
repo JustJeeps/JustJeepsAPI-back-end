@@ -27,7 +27,9 @@ function getStockString(row) {
 }
 
 function getVendorInventory(row) {
-  return safeInt(row.TotalQOH);
+  // If inventory is missing, return 0
+  const inv = safeInt(row.TotalQOH);
+  return Number.isFinite(inv) ? inv : 0;
 }
 
 // Read + parse CSV (sync, like your current script)
@@ -125,11 +127,14 @@ async function seedWheelProsInventory() {
       }
       haveSku++;
 
-      const vendor_inventory = getVendorInventory(row);
+      // Always set inventory to 0 if missing or invalid
+      let vendor_inventory = getVendorInventory(row);
+      if (!Number.isFinite(vendor_inventory) || vendor_inventory === null || vendor_inventory === undefined) {
+        vendor_inventory = 0;
+      }
       const vendor_inventory_string = getStockString(row);
 
       // If duplicates happen across files, keep the row with HIGHER TotalQOH
-      // (this is a safe default; adjust if you want a different rule).
       if (map.has(vendor_sku)) {
         duplicates++;
         fileDuplicates++;

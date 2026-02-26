@@ -4,6 +4,7 @@ const prisma = require("../../../lib/prisma");
 
 const WRITE_BATCH_SIZE = 200;
 const LOG_EVERY = 500;
+const ROUGH_COUNTRY_VENDOR_ID = 9;
 
 const chunk = (list, size) => {
   const batches = [];
@@ -41,7 +42,7 @@ const seedRoughCountry = async () => {
 
     const [existingVendorProducts, roughCountryProducts] = await Promise.all([
       prisma.vendorProduct.findMany({
-        where: { vendor_id: 9 },
+        where: { vendor_id: ROUGH_COUNTRY_VENDOR_ID },
         select: { id: true, vendor_sku: true, product_sku: true },
       }),
       prisma.product.findMany({
@@ -60,7 +61,39 @@ const seedRoughCountry = async () => {
     );
 
     const seenSkus = new Set();
-    const operations = [];
+    const createRows = [];
+    const updateOperations = [];
+    const mapUpdateOperations = [];
+
+    const flushCreates = async () => {
+      if (createRows.length === 0) {
+        return;
+      }
+      for (const batch of chunk(createRows, WRITE_BATCH_SIZE)) {
+        await prisma.vendorProduct.createMany({ data: batch });
+      }
+      createRows.length = 0;
+    };
+
+    const flushUpdates = async () => {
+      if (updateOperations.length === 0) {
+        return;
+      }
+      for (const ops of chunk(updateOperations, WRITE_BATCH_SIZE)) {
+        await prisma.$transaction(ops);
+      }
+      updateOperations.length = 0;
+    };
+
+    const flushMapUpdates = async () => {
+      if (mapUpdateOperations.length === 0) {
+        return;
+      }
+      for (const ops of chunk(mapUpdateOperations, WRITE_BATCH_SIZE)) {
+        await prisma.$transaction(ops);
+      }
+      mapUpdateOperations.length = 0;
+    };
 
     const totalCount = vendorProductsData.length;
     logWithTimestamp(`roughCountry rows loaded: ${totalCount}`);
@@ -106,7 +139,7 @@ const seedRoughCountry = async () => {
         if (existingVendorProduct) {
           matchedExistingCount += 1;
           vendorProductUpdatedCount += 1;
-          operations.push(
+          updateOperations.push(
             prisma.vendorProduct.update({
               where: { id: existingVendorProduct.id },
               data: {
@@ -120,22 +153,18 @@ const seedRoughCountry = async () => {
           );
         } else {
           vendorProductCreatedCount += 1;
-          operations.push(
-            prisma.vendorProduct.create({
-              data: {
-                vendor_sku: vendorSku,
-                vendor_cost: vendorCost,
-                vendor_inventory_string: vendorInventoryString,
-                vendor_inventory: vendorInventory,
-                vendor: { connect: { id: 9 } },
-                product: { connect: { sku: product.sku } },
-              },
-            })
-          );
+          createRows.push({
+            vendor_sku: vendorSku,
+            vendor_cost: vendorCost,
+            vendor_inventory_string: vendorInventoryString,
+            vendor_inventory: vendorInventory,
+            vendor_id: ROUGH_COUNTRY_VENDOR_ID,
+            product_sku: product.sku,
+          });
         }
 
         if (hasMapValue) {
-          operations.push(
+          mapUpdateOperations.push(
             prisma.product.update({
               where: { sku: product.sku },
               data: { MAP: rawMapValue },
@@ -151,22 +180,23 @@ const seedRoughCountry = async () => {
           );
         }
 
-        if (operations.length >= WRITE_BATCH_SIZE) {
-          const batch = operations.splice(0, operations.length);
-          for (const ops of chunk(batch, WRITE_BATCH_SIZE)) {
-            await prisma.$transaction(ops);
-          }
+        if (createRows.length >= WRITE_BATCH_SIZE) {
+          await flushCreates();
+        }
+        if (updateOperations.length >= WRITE_BATCH_SIZE) {
+          await flushUpdates();
+        }
+        if (mapUpdateOperations.length >= WRITE_BATCH_SIZE) {
+          await flushMapUpdates();
         }
       } catch (error) {
         // console.error(`Error processing vendor_sku:`, error);
       }
     }
 
-    if (operations.length > 0) {
-      for (const ops of chunk(operations, WRITE_BATCH_SIZE)) {
-        await prisma.$transaction(ops);
-      }
-    }
+    await flushCreates();
+    await flushUpdates();
+    await flushMapUpdates();
 
     const totalElapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
     const rowsPerSecond = totalElapsedSeconds

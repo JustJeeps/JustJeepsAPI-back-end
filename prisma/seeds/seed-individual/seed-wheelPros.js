@@ -178,6 +178,7 @@ const updateMapBatch = async (pairs, batchLabel) => {
   );
 };
 
+  // ✅ Step 0: Clear old vendor products for WheelPros (moved into async function)
 const seedWheelProsProducts = async () => {
   console.log("🚀 Seeding WheelPros vendor products...");
 
@@ -235,6 +236,15 @@ const seedWheelProsProducts = async () => {
     const productBySearchable = new Map();
     const chunkSize = 20000;
 
+    // WheelPros allowed brands (must match getWheelProsSkus)
+    const wheelProsBrands = [
+      "American Racing", "Black Rhino", "Fuel Off-Road", "KMC Wheels",
+      "ReadyLIFT", "Morimoto", "TeraFlex", "Gorilla Automotive",
+      "G2 Axle & Gear", "Poison Spyder Customs", "PRO COMP Alloy Wheels",
+      "PRO COMP Steel Wheels", "PRO COMP Suspension", "Pro Comp Tires",
+      "Rubicon Express", "Smittybilt", "Nitto Tire", "Bilstein", "Fox Racing"
+    ];
+
     for (let i = 0; i < formattedSkus.length; i += chunkSize) {
       const chunk = formattedSkus.slice(i, i + chunkSize);
 
@@ -242,13 +252,15 @@ const seedWheelProsProducts = async () => {
         () =>
           prisma.product.findMany({
             where: { searchable_sku: { in: chunk } },
-            select: { sku: true, searchable_sku: true },
+            select: { sku: true, searchable_sku: true, brand_name: true },
           }),
         `findMany Product searchable_sku chunk ${i / chunkSize + 1}`
       );
 
       for (const p of products) {
-        if (p.searchable_sku) productBySearchable.set(p.searchable_sku, p.sku);
+        if (p.searchable_sku && wheelProsBrands.includes(p.brand_name)) {
+          productBySearchable.set(p.searchable_sku, p.sku);
+        }
       }
     }
     console.timeEnd("fetch products mapping");
@@ -367,8 +379,17 @@ const seedWheelProsProducts = async () => {
   }
 };
 
-seedWheelProsProducts();
+
+// Run the seeder if called directly
+if (require.main === module) {
+  seedWheelProsProducts();
+}
+
 module.exports = seedWheelProsProducts;
+
+//     // ✅ Step 0: Clear old vendor products for WheelPros
+//     await prisma.vendorProduct.deleteMany({ where: { vendor_id: 5 } });
+//     console.log("🗑️ Deleted all existing WheelPros vendor products (vendor_id = 5)");
 
 
 // const { 

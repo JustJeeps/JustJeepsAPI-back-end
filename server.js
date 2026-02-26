@@ -314,6 +314,7 @@ app.get('/api/products/export', async (req, res) => {
 			meyer_length: true,
 			meyer_width: true,
 			meyer_height: true,
+			black_friday_sale: true,
 			weight: true,
 			length: true,
 			width: true,
@@ -469,13 +470,13 @@ app.get('/api/products/:sku', async (req, res) => {
 				meyer_length: true,
 				meyer_width: true,
 				meyer_height: true,
+				black_friday_sale: true,
 				weight: true,
 				length: true,
 				width: true,
 				height: true,
 				shippingFreight: true,
 				partsEngine_code: true,
-				black_friday_sale: true,
 				tdot_url: true,
 				keystone_code_site: true,
 				part: true,
@@ -1611,6 +1612,7 @@ async function gracefulShutdown(signal) {
 
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGUSR2', () => gracefulShutdown('SIGUSR2'));
 
 // 🕐 Cron Job: Run seed-all daily at 7:00 PM (Toronto timezone)
 cron.schedule('0 19 * * *', () => {
