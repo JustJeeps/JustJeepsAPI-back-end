@@ -4,7 +4,7 @@
 
 service: justjeeps-api
 
-image: ricardotassionunchi/justjeeps-api
+image: <%= ENV.fetch('KAMAL_REGISTRY_USERNAME') %>/justjeeps-api
 
 # =============================================================================
 # SERVIDORES
