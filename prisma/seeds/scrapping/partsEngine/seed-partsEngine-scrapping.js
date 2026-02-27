@@ -9,7 +9,7 @@ const COMPETITOR_ID = 3; // PartsEngine
 const FILE_PATH = path.join(__dirname, "results.csv");
 
 const LOOKUP_BATCH_SIZE = 1000;
-const UPDATE_BATCH_SIZE = 200;
+const UPDATE_BATCH_SIZE = 500;
 const LOG_EVERY = 500;
 
 function chunkArray(items, size) {

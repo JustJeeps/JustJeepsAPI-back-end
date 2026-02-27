@@ -11,7 +11,7 @@ if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
 const vendorSeeds = [
   { main: "seed-quadratec",   dependent: "seed-quad-inventory" },
   { main: "seed-omix",        dependent: "seed-omix-inventory" },
-  // { main: "seed-keystone-ftp2", dependent: "seed-keystone-ftp-codes" },
+  { main: "seed-keystone-ftp2", dependent: "seed-keystone-ftp-codes" },
   { main: "seed-wheelPros",   dependent: "seed-wp-inventory" },
   // Keep Keystone pair if you want FTP→API ordering
 ];
@@ -22,7 +22,7 @@ const otherSeeds = [
   "seed-orders-all",
   "seed-meyer",
   "seed-tdot",
-  // "seed-roughCountry",
+  "seed-roughCountry",
   "seed-tireDiscounter",
   // "seed-aev",
   // "seed-ctp",

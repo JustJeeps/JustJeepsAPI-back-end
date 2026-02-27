@@ -3,7 +3,7 @@ const tdotCost = require("../api-calls/tdot-api.js");
 const prisma = require("../../../lib/prisma");
 
 const LOOKUP_BATCH_SIZE = 1000;
-const UPDATE_BATCH_SIZE = 200;
+const UPDATE_BATCH_SIZE = 500;
 const LOG_EVERY = 500;
 
 function chunkArray(items, size) {
