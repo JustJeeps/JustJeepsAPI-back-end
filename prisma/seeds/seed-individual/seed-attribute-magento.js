@@ -30,7 +30,7 @@ const VENDOR_CONFIGS = {
   'priority': [
     { name: 'Omix', batch: 100, concurrency: 10 },
     { name: 'AEV', batch: 75, concurrency: 8 },
-    { name: 'Rough Country', batch: 100, concurrency: 10 },
+    { name: 'Rough Country', batch: 100, concurrency: 250 },
     { name: 'MetalCloak', batch: 75, concurrency: 8 },
     { name: 'KeyParts', batch: 50, concurrency: 8 }
   ],
@@ -130,14 +130,30 @@ async function parallelUpdateMagentoProducts(products, concurrency = 10) {
     const chunk = products.slice(i, i + concurrency);
     console.log(`📦 Processing chunk ${Math.floor(i/concurrency) + 1}/${Math.ceil(products.length/concurrency)} (${chunk.length} products)...`);
     
-    const promises = chunk.map(product =>
-      updateMagentoProduct(
+    const promises = chunk.map(product => {
+      // Prefer vendor_inventory if present, else vendor_inventory_string, else 'NO INFO'
+      // For Rough Country, treat numeric zero inventory as a fallback case to inventory string.
+      let inventoryValue = product.vendor_inventory;
+      const isRoughCountryVendor =
+        typeof product.vendor_name === 'string' &&
+        product.vendor_name.toLowerCase().includes('rough country');
+
+      if (inventoryValue === null || inventoryValue === undefined) {
+        inventoryValue = product.vendor_inventory_string || 'NO INFO';
+      } else if (
+        isRoughCountryVendor &&
+        Number(inventoryValue) === 0 &&
+        product.vendor_inventory_string
+      ) {
+        inventoryValue = product.vendor_inventory_string;
+      }
+      return updateMagentoProduct(
         product.sku,
         product.vendor_cost,
-        product.vendor_inventory || 0,
+        inventoryValue,
         product.vendor_name
-      )
-    );
+      );
+    });
 
     const chunkResults = await Promise.all(promises);
     
@@ -195,6 +211,7 @@ async function getVendorProducts(vendorName, limit = null, offset = 0) {
       sku: vp.product.sku,
       vendor_cost: vp.vendor_cost,
       vendor_inventory: vp.vendor_inventory,
+      vendor_inventory_string: vp.vendor_inventory_string,
       vendor_name: vendor.name
     }));
   } catch (error) {
