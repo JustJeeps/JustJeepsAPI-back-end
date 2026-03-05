@@ -573,7 +573,7 @@ app.get('/api/orders', async (req, res) => {
     // Filter parameters
     const status = req.query.status || null;
     const search = req.query.search || '';
-    const poStatus = req.query.poStatus || null; // 'not_set', 'set', 'partial'
+	const poStatus = req.query.poStatus || null; // 'not_set', 'set', 'partial', 'pm_not_set', 'kd_not_set'
     const region = req.query.region || null;
     const dateFrom = req.query.dateFrom || null;
     const dateTo = req.query.dateTo || null;
@@ -707,6 +707,18 @@ app.get('/api/orders', async (req, res) => {
         { custom_po_number: { contains: 'not set', mode: 'insensitive' } },
         { NOT: { custom_po_number: { equals: 'not set', mode: 'insensitive' } } },
       ];
+		} else if (poStatus === 'pm_not_set') {
+			where.AND = [
+				...(where.AND || []),
+				{ custom_po_number: { contains: 'pm', mode: 'insensitive' } },
+				{ custom_po_number: { contains: 'not set', mode: 'insensitive' } },
+			];
+		} else if (poStatus === 'kd_not_set') {
+			where.AND = [
+				...(where.AND || []),
+				{ custom_po_number: { contains: 'kd', mode: 'insensitive' } },
+				{ custom_po_number: { contains: 'not set', mode: 'insensitive' } },
+			];
     }
 
     // Region filter
@@ -846,6 +858,7 @@ app.get('/api/orders/metrics', async (req, res) => {
       yesterdayCount,
       last7DaysCount,
       pmNotSetCount,
+			kdNotSetCount,
       gwCount,
       totalCount
     ] = await Promise.all([
@@ -882,6 +895,13 @@ app.get('/api/orders/metrics', async (req, res) => {
         AND LOWER(custom_po_number) LIKE '%not set%'
       `.then(result => Number(result[0]?.count || 0)),
 
+			// KD Not Set Orders
+			prisma.$queryRaw`
+				SELECT COUNT(*) as count FROM "Order"
+				WHERE LOWER(custom_po_number) LIKE '%kd%'
+				AND LOWER(custom_po_number) LIKE '%not set%'
+			`.then(result => Number(result[0]?.count || 0)),
+
       // GW Orders
       prisma.$queryRaw`
         SELECT COUNT(*) as count FROM "Order"
@@ -898,6 +918,7 @@ app.get('/api/orders/metrics', async (req, res) => {
       yesterdayCount,
       last7DaysCount,
       pmNotSetCount,
+			kdNotSetCount,
       gwCount,
       totalCount,
     });
