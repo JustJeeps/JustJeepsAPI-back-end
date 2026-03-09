@@ -49,7 +49,7 @@ const omixCost = () => {
         "Quoted Price": obj["Quoted Price"],
       };
     });
-  console.log(finalResults);
+  console.log(`Omix rows loaded: ${finalResults.length}`);
   return finalResults;
 };
 
