@@ -573,7 +573,7 @@ app.get('/api/orders', async (req, res) => {
     // Filter parameters
     const status = req.query.status || null;
     const search = req.query.search || '';
-	const poStatus = req.query.poStatus || null; // 'not_set', 'set', 'partial', 'pm_not_set', 'kd_not_set'
+	const poStatus = req.query.poStatus || null; // 'not_set', 'not_set_4days', 'set', 'partial', 'pm_not_set', 'kd_not_set'
     const region = req.query.region || null;
     const dateFrom = req.query.dateFrom || null;
     const dateTo = req.query.dateTo || null;
@@ -686,13 +686,30 @@ app.get('/api/orders', async (req, res) => {
       }
     }
 
-    // PO Status filter (preserve existing AND conditions from date filter)
+		const fourDaysAgoUtc = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000)
+			.toISOString()
+			.replace('T', ' ')
+			.substring(0, 19);
+
+		// PO Status filter (preserve existing AND conditions from date filter)
     if (poStatus === 'not_set') {
       where.OR = [
         { custom_po_number: null },
         { custom_po_number: '' },
         { custom_po_number: { equals: 'not set', mode: 'insensitive' } },
       ];
+		} else if (poStatus === 'not_set_4days') {
+			where.AND = [
+				...(where.AND || []),
+				{
+					OR: [
+						{ custom_po_number: null },
+						{ custom_po_number: '' },
+						{ custom_po_number: { equals: 'not set', mode: 'insensitive' } },
+					],
+				},
+				{ created_at: { lte: fourDaysAgoUtc } },
+			];
     } else if (poStatus === 'set') {
       where.AND = [
         ...(where.AND || []),
@@ -850,10 +867,15 @@ app.get('/api/orders/metrics', async (req, res) => {
     const sevenDaysAgo = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
     const sevenDaysAgoStr = torontoFormatter.format(sevenDaysAgo);
     const sevenDaysAgoRange = getUTCRange(sevenDaysAgoStr);
+		const fourDaysAgoUtc = new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000)
+			.toISOString()
+			.replace('T', ' ')
+			.substring(0, 19);
 
     // Run all counts in parallel for performance
     const [
       notSetCount,
+			staleNotSetCount,
       todayCount,
       yesterdayCount,
       last7DaysCount,
@@ -869,6 +891,17 @@ app.get('/api/orders/metrics', async (req, res) => {
         OR custom_po_number = ''
         OR LOWER(custom_po_number) = 'not set'
       `.then(result => Number(result[0]?.count || 0)),
+
+			// Not Set Orders older than 4 days
+			prisma.$queryRaw`
+				SELECT COUNT(*) as count FROM "Order"
+				WHERE (
+					custom_po_number IS NULL
+					OR custom_po_number = ''
+					OR LOWER(custom_po_number) = 'not set'
+				)
+				AND created_at <= ${fourDaysAgoUtc}
+			`.then(result => Number(result[0]?.count || 0)),
 
       // Today's Orders (Toronto timezone)
       prisma.$queryRaw`
@@ -914,6 +947,7 @@ app.get('/api/orders/metrics', async (req, res) => {
 
     res.json({
       notSetCount,
+			staleNotSetCount,
       todayCount,
       yesterdayCount,
       last7DaysCount,
