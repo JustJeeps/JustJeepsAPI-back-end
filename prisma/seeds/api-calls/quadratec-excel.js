@@ -41,7 +41,9 @@ const quadratecCost = () => {
       brand === "Lynx" ||
       brand === "Tom Woods" ||
       brand === "Tru-Fit" ||
-      brand === "Carnivore";
+      brand === "Carnivore" ||
+      brand === "Seatbelt Solutions" ;
+
 
     // Some products for these brands use Quadratec PN, others use MPN.
     // Emit both codes so the seeder can match either.

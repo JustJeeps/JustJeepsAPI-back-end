@@ -31,6 +31,13 @@ const toStringOrNull = (v) => {
   return String(v);
 };
 
+const normalizeOmixCode = (value) => {
+  const str = toStringOrNull(value);
+  if (!str) return null;
+
+  return str.replace(/\.(\d+)$/, (_, decimals) => `.${decimals.padEnd(2, "0")}`);
+};
+
 const getCustomAttr = (custom_attributes, code) => {
   if (!custom_attributes) return "";
   return (
@@ -204,7 +211,7 @@ const buildRowFromMagento = (item) => {
 
     omix_code:
       jjPrefix === "OA" || jjPrefix === "ALY" || jjPrefix === "RR" || jjPrefix === "HVC"
-        ? toStringOrNull(searchable_sku)
+        ? normalizeOmixCode(searchable_sku)
         : null,
 
     brand_name: toStringOrNull(brandName),

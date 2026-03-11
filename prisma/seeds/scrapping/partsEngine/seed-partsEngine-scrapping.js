@@ -31,8 +31,16 @@ async function seedPartsEngineCompetitorProducts() {
     .pipe(csv())
     .on("data", (row) => results.push(row))
     .on("end", async () => {
-      let created = 0;
+      let added = 0;
       let updated = 0;
+      let deleted = 0;
+
+      logWithTimestamp("Deleting existing PartsEngine competitorProduct records...");
+      const deleteResult = await prisma.competitorProduct.deleteMany({
+        where: { competitor_id: COMPETITOR_ID },
+      });
+      deleted = deleteResult.count;
+      logWithTimestamp(`Deleted ${deleted} existing records.`);
 
       const validRows = results
         .map((row) => {
@@ -135,7 +143,7 @@ async function seedPartsEngineCompetitorProducts() {
           data: creates,
           skipDuplicates: true,
         });
-        created = creates.length;
+        added = creates.length;
       }
 
       if (updates.length > 0) {
@@ -158,7 +166,7 @@ async function seedPartsEngineCompetitorProducts() {
         logWithTimestamp(`Updated ${updatedSoFar}/${updates.length} records...`);
       }
 
-      logWithTimestamp(`Done! ${created} created, ${updated} updated.`);
+      logWithTimestamp(`Done! ${deleted} deleted, ${added} added, ${updated} updated.`);
       await prisma.$disconnect();
     });
 }
