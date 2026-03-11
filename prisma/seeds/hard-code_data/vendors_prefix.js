@@ -3032,7 +3032,7 @@ module.exports = [
     jj_prefix: "PIA",
     brand_name: "PIAA",
     vendors: "Meyer, Keystone, Quadratec",
-    keystone_code: "P27",
+    keystone_code: "VNA",
     meyer_code: "PIA",
     quadratec_code: "PIAA",
     tdot_code: "PIAA",

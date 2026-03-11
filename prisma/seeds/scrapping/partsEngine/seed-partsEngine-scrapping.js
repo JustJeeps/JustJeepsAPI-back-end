@@ -35,12 +35,13 @@ async function seedPartsEngineCompetitorProducts() {
       let updated = 0;
       let deleted = 0;
 
-      logWithTimestamp("Deleting existing PartsEngine competitorProduct records...");
-      const deleteResult = await prisma.competitorProduct.deleteMany({
-        where: { competitor_id: COMPETITOR_ID },
-      });
-      deleted = deleteResult.count;
-      logWithTimestamp(`Deleted ${deleted} existing records.`);
+      // // Delete existing records for this competitor
+      // logWithTimestamp("Deleting existing PartsEngine competitorProduct records...");
+      // const deleteResult = await prisma.competitorProduct.deleteMany({
+      //   where: { competitor_id: COMPETITOR_ID },
+      // });
+      // deleted = deleteResult.count;
+      // logWithTimestamp(`Deleted ${deleted} existing records.`);
 
       const validRows = results
         .map((row) => {
