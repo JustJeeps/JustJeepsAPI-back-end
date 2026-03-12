@@ -15,6 +15,7 @@ const MAGENTO_CONFIG = {
 function parseArgs(argv) {
   const options = {
     jjPrefix: 'AEV',
+    vendorsOnly: null,
     status: 2,
     concurrency: 10,
     limit: null,
@@ -28,6 +29,8 @@ function parseArgs(argv) {
       options.jjPrefix = argv[++i];
     } else if (arg === '--vendor' && argv[i + 1]) {
       options.jjPrefix = argv[++i];
+    } else if (arg === '--vendors-only' && argv[i + 1]) {
+      options.vendorsOnly = argv[++i];
     } else if (arg === '--status' && argv[i + 1]) {
       options.status = Number(argv[++i]);
     } else if (arg === '--concurrency' && argv[i + 1]) {
@@ -40,6 +43,10 @@ function parseArgs(argv) {
   }
 
   return options;
+}
+
+function normalizeVendorName(value) {
+  return (value || '').trim().toLowerCase();
 }
 
 async function getSkusByJjPrefix(jjPrefix, limit = null) {
@@ -61,8 +68,51 @@ async function getSkusByJjPrefix(jjPrefix, limit = null) {
   });
 
   return {
-    jjPrefix: normalizedPrefix,
+    filterType: 'jj_prefix',
+    filterValue: normalizedPrefix,
+    sampleBrands: [],
     skus: products.map((product) => product.sku),
+  };
+}
+
+async function getSkusByOnlyVendor(vendorName, limit = null) {
+  const normalizedVendor = normalizeVendorName(vendorName);
+  if (!normalizedVendor) {
+    throw new Error('--vendors-only requires a non-empty vendor name');
+  }
+
+  const products = await prisma.product.findMany({
+    where: {
+      vendors: {
+        equals: vendorName,
+        mode: 'insensitive',
+      },
+    },
+    select: {
+      sku: true,
+      vendors: true,
+      brand_name: true,
+    },
+    orderBy: { sku: 'asc' },
+  });
+
+  const filteredProducts = products.filter(
+    (product) => normalizeVendorName(product.vendors) === normalizedVendor
+  );
+
+  const finalProducts = limit ? filteredProducts.slice(0, limit) : filteredProducts;
+
+  const brandSet = new Set(
+    finalProducts
+      .map((product) => product.brand_name)
+      .filter(Boolean)
+  );
+
+  return {
+    filterType: 'vendors_only',
+    filterValue: vendorName,
+    sampleBrands: [...brandSet].slice(0, 20),
+    skus: finalProducts.map((product) => product.sku),
   };
 }
 
@@ -144,6 +194,7 @@ function printUsage() {
   console.log('  --jj-prefix <code>      Product jj_prefix filter (default: AEV)');
   console.log('  --prefix <code>         Alias for --jj-prefix');
   console.log('  --vendor <code>         Backward-compatible alias for --jj-prefix');
+  console.log('  --vendors-only <name>   Filter products whose vendors field has only this vendor');
   console.log('  --status <number>       Magento status value (default: 2)');
   console.log('  --concurrency <number>  Concurrent Magento updates (default: 10)');
   console.log('  --limit <number>        Limit products fetched from DB');
@@ -172,15 +223,27 @@ async function main() {
   }
 
   const startedAt = Date.now();
+  const usingVendorsOnlyFilter = Boolean(options.vendorsOnly);
 
   console.log('🚀 US Store Product Status Update');
-  console.log(`🏷️  jj_prefix: ${options.jjPrefix}`);
+  if (usingVendorsOnlyFilter) {
+    console.log(`🏷️  vendors-only: ${options.vendorsOnly}`);
+  } else {
+    console.log(`🏷️  jj_prefix: ${options.jjPrefix}`);
+  }
   console.log(`🎯 Target status: ${options.status}`);
   console.log(`🌐 Endpoint: ${MAGENTO_CONFIG.baseURL}/products/{sku}`);
 
-  const { jjPrefix, skus } = await getSkusByJjPrefix(options.jjPrefix, options.limit);
+  const { filterType, filterValue, sampleBrands, skus } = usingVendorsOnlyFilter
+    ? await getSkusByOnlyVendor(options.vendorsOnly, options.limit)
+    : await getSkusByJjPrefix(options.jjPrefix, options.limit);
 
-  console.log(`📋 jj_prefix filter: ${jjPrefix}`);
+  if (filterType === 'vendors_only') {
+    console.log(`📋 vendors-only filter: ${filterValue}`);
+    console.log(`🏷️  Brands found: ${sampleBrands.length > 0 ? sampleBrands.join(', ') : 'none in current result'}`);
+  } else {
+    console.log(`📋 jj_prefix filter: ${filterValue}`);
+  }
   console.log(`📦 Unique SKUs found: ${skus.length}`);
 
   if (skus.length === 0) {
