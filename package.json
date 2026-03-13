@@ -61,6 +61,7 @@
     "magento-attributes-metalcloak": "node prisma/seeds/seed-individual/seed-attribute-magento.js vendor \"MetalCloak\"",
     "magento-attributes-omix": "node prisma/seeds/seed-individual/seed-attribute-magento.js vendor \"Omix\"",
     "disable-products-us-store": "node pricing_update/us_store/disable-products-us-store.js",
+    "update-quadratec-us-store-prices": "node pricing_update/us_store/update-quadratec-only-prices-us-store.js",
     "magento-bf-no-sale": "node magento_update/update-black-friday-no-sale.js",
 
     "seed-attribute-magento": "node prisma/seeds/seed-individual/seed-attribute-magento.js",
