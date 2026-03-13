@@ -16,7 +16,6 @@ const SPECIAL_ORDER_FILE = path.join(BASE_DIR, "SpecialOrder.csv");
 
 // Insert + lookup tuning
 const BATCH_SIZE_INSERT = 5000; // like Quad
-const BATCH_SIZE_CODES = 10000; // chunk size for Product lookup
 const LOG_EVERY_BATCH = 5;
 
 // ---- helpers ----
@@ -221,37 +220,38 @@ async function loadKeystoneMapFromCSVs() {
   return invMap;
 }
 
-async function loadProductsByKeystoneCodes(allCodes) {
-  console.log(`🔎 Loading Products by keystone_code for ${allCodes.length.toLocaleString()} codes...`);
+async function loadProductsByKeystoneCodes() {
+  console.log(`🔎 Loading all Products by non-null keystone_code...`);
 
   const t0 = nowMs();
   const codeToSku = new Map();
   let collisionsResolved = 0;
 
-  for (let i = 0; i < allCodes.length; i += BATCH_SIZE_CODES) {
-    const chunk = allCodes.slice(i, i + BATCH_SIZE_CODES);
+  const products = await withRetry(
+    () =>
+      prisma.product.findMany({
+        where: {
+          keystone_code: {
+            not: null,
+          },
+        },
+        select: { sku: true, keystone_code: true },
+      }),
+    "product.findMany(all keystone_code)"
+  );
 
-    const products = await withRetry(
-      () =>
-        prisma.product.findMany({
-          where: { keystone_code: { in: chunk } },
-          select: { sku: true, keystone_code: true },
-        }),
-      "product.findMany"
-    );
+  for (const p of products) {
+    const code = p.keystone_code;
+    if (!code) continue;
 
-    for (const p of products) {
-      const code = p.keystone_code;
-      if (!code) continue;
-
-      const current = codeToSku.get(code);
-      const chosen = preferSku(current, p.sku);
-      if (current && chosen !== current) collisionsResolved++;
-      codeToSku.set(code, chosen);
-    }
+    const current = codeToSku.get(code);
+    const chosen = preferSku(current, p.sku);
+    if (current && chosen !== current) collisionsResolved++;
+    codeToSku.set(code, chosen);
   }
 
   const t1 = nowMs();
+  console.log(`ℹ️ Loaded ${codeToSku.size.toLocaleString()} unique keystone_code mappings from Product.`);
   console.log(`ℹ️ Resolved ${collisionsResolved} duplicate keystone_code collisions (prefer non-dash SKUs).`);
   console.log(`fetch products mapping: ${((t1 - t0) / 1000).toFixed(3)}s`);
 
@@ -267,20 +267,16 @@ async function seedKeystoneBulk() {
 
   // Build fallback codes for Keystone quirks (VendorCode + ManufacturerPartNo)
   const fallbackCodeByVcpn = new Map();
-  const fallbackCodes = [];
   for (const [vcpn, rec] of invMap.entries()) {
     if (!rec.vendorCode || !rec.manufacturerPartNo) continue;
     const fallback = `${rec.vendorCode}${rec.manufacturerPartNo}`;
     if (fallback && fallback !== vcpn) {
       fallbackCodeByVcpn.set(vcpn, fallback);
-      fallbackCodes.push(fallback);
     }
   }
 
-  const allCodes = codes.concat(fallbackCodes);
-
-  // 2) Load Products mapping by keystone_code (chunked)
-  const codeToSku = await loadProductsByKeystoneCodes(allCodes);
+  // 2) Load Products mapping by keystone_code (single read)
+  const codeToSku = await loadProductsByKeystoneCodes();
 
   // 3) Build VendorProduct rows (unique by code due to invMap)
   const rowsToInsert = [];
