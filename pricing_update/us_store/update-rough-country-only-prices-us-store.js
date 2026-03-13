@@ -8,8 +8,6 @@ const roughCountryFeed = require('../../prisma/seeds/api-calls/roughCountry-exce
 dotenv.config();
 
 const STORE_ID_US = 2;
-const MIN_FINAL_MARGIN = 0.15;
-const MIN_PRICE_USD = 11.95;
 
 const MAGENTO_CONFIG = {
   baseURL: process.env.M2_BASE_URL_DEFAULT || 'https://www.justjeeps.com/rest/default/V1',
@@ -23,7 +21,7 @@ function normalize(value) {
 
 function parseArgs(argv) {
   const options = {
-    vendorName: 'rough country',
+    brandName: 'Rough Country',
     limit: null,
     batchSize: 1000,
     delayMs: 400,
@@ -33,8 +31,8 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
 
-    if (arg === '--vendor' && argv[i + 1]) {
-      options.vendorName = argv[++i];
+    if ((arg === '--brand' || arg === '--vendor') && argv[i + 1]) {
+      options.brandName = argv[++i];
     } else if (arg === '--limit' && argv[i + 1]) {
       options.limit = Number(argv[++i]);
     } else if (arg === '--batch-size' && argv[i + 1]) {
@@ -53,81 +51,33 @@ function isSamePrice(a, b) {
   return Math.abs(Number(a) - Number(b)) < 0.00001;
 }
 
-function toUsStorePrice(vendorRetailPriceUsd, vendorCostUsd) {
+function roundUpToPoint95(value) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue) || numericValue <= 0) {
+    return null;
+  }
+
+  return Number((Math.ceil(numericValue + 0.05) - 0.05).toFixed(2));
+}
+
+function toUsStorePrice(vendorRetailPriceUsd) {
   const retailUsd = Number(vendorRetailPriceUsd);
-  const costUsd = Number(vendorCostUsd);
   if (!Number.isFinite(retailUsd) || retailUsd <= 0) return null;
 
-  const useEdgeCaseMargin = Number.isFinite(costUsd) && isSamePrice(retailUsd, costUsd);
-  const multiplier = useEdgeCaseMargin ? 1.2 : 0.95;
-  const roundedWhole = Math.round((retailUsd * multiplier) / 0.85);
-  const finalPrice = roundedWhole - 0.05;
-
-  return {
-    price: Number(finalPrice.toFixed(2)),
-    usedEdgeCaseMargin: useEdgeCaseMargin,
-  };
+  const targetBasePrice = retailUsd / 0.85;
+  return roundUpToPoint95(targetBasePrice);
 }
 
 function calculateFinalMargin(price, costUsd) {
   const computedPrice = Number(price);
   const cost = Number(costUsd);
+
   if (!Number.isFinite(computedPrice) || !Number.isFinite(cost) || cost <= 0) {
     return null;
   }
 
   const margin = ((computedPrice * 0.85) - cost) / cost;
   return Number(margin.toFixed(4));
-}
-
-function applyMinMarginFloor(price, costUsd, minMargin = MIN_FINAL_MARGIN) {
-  const cost = Number(costUsd);
-  const currentPrice = Number(price);
-
-  if (!Number.isFinite(cost) || cost <= 0 || !Number.isFinite(currentPrice) || currentPrice <= 0) {
-    return {
-      price: currentPrice,
-      marginFloorApplied: false,
-    };
-  }
-
-  const currentMargin = calculateFinalMargin(currentPrice, cost);
-  if (currentMargin == null || currentMargin >= minMargin) {
-    return {
-      price: currentPrice,
-      marginFloorApplied: false,
-    };
-  }
-
-  const requiredPrice = (cost * (1 + minMargin)) / 0.85;
-  const flooredToPoint95 = Math.ceil(requiredPrice + 0.05) - 0.05;
-
-  return {
-    price: Number(flooredToPoint95.toFixed(2)),
-    marginFloorApplied: true,
-  };
-}
-
-function applyMinPriceFloor(price, minPrice = MIN_PRICE_USD) {
-  const currentPrice = Number(price);
-  if (!Number.isFinite(currentPrice) || currentPrice <= 0) {
-    return {
-      price: currentPrice,
-      minPriceFloorApplied: false,
-    };
-  }
-
-  if (currentPrice >= minPrice) {
-    return {
-      price: currentPrice,
-      minPriceFloorApplied: false,
-    };
-  }
-
-  return {
-    price: Number(minPrice.toFixed(2)),
-    minPriceFloorApplied: true,
-  };
 }
 
 async function getFeedMap() {
@@ -149,18 +99,18 @@ async function getFeedMap() {
   return map;
 }
 
-async function getRoughCountryPriceRows(vendorName, limit = null) {
-  const normalizedVendor = normalize(vendorName);
-  if (!normalizedVendor) {
-    throw new Error('--vendor requires a non-empty value');
+async function getRoughCountryPriceRows(brandName, limit = null) {
+  const normalizedBrand = normalize(brandName);
+  if (!normalizedBrand) {
+    throw new Error('--brand requires a non-empty value');
   }
 
   const feedMap = await getFeedMap();
 
   const products = await prisma.product.findMany({
     where: {
-      vendors: {
-        equals: vendorName,
+      brand_name: {
+        equals: brandName,
         mode: 'insensitive',
       },
       sku: {
@@ -171,7 +121,7 @@ async function getRoughCountryPriceRows(vendorName, limit = null) {
     },
     select: {
       sku: true,
-      vendors: true,
+      brand_name: true,
       searchable_sku: true,
     },
     ...(limit ? { take: limit } : {}),
@@ -179,21 +129,18 @@ async function getRoughCountryPriceRows(vendorName, limit = null) {
   });
 
   const rows = [];
-  let skippedVendorMismatch = 0;
   let skippedMissingRetail = 0;
   let skippedMissingFeedSku = 0;
   let skippedInvalidPrice = 0;
-  let usedEdgeCaseMarginCount = 0;
-  let minMarginFloorAppliedCount = 0;
-  let minPriceFloorAppliedCount = 0;
+  let mapProtectionAdjustedCount = 0;
   let rowsWithFinalMargin = 0;
+  let rowsMissingCostForMargin = 0;
   let minFinalMargin = null;
   let maxFinalMargin = null;
   let sumFinalMargin = 0;
 
   for (const product of products) {
-    if (normalize(product.vendors) !== normalizedVendor) {
-      skippedVendorMismatch++;
+    if (normalize(product.brand_name) !== normalizedBrand) {
       continue;
     }
 
@@ -212,28 +159,21 @@ async function getRoughCountryPriceRows(vendorName, limit = null) {
       continue;
     }
 
-    const result = toUsStorePrice(retailUsd, costUsd);
-    if (result == null || result.price <= 0) {
+    const computedBase = retailUsd / 0.85;
+    const finalPrice = toUsStorePrice(retailUsd);
+    if (!Number.isFinite(finalPrice) || finalPrice <= 0) {
       skippedInvalidPrice++;
       continue;
     }
 
-    if (result.usedEdgeCaseMargin) {
-      usedEdgeCaseMarginCount++;
+    if (!isSamePrice(computedBase, finalPrice)) {
+      mapProtectionAdjustedCount++;
     }
 
-    const floorAdjusted = applyMinMarginFloor(result.price, costUsd);
-    if (floorAdjusted.marginFloorApplied) {
-      minMarginFloorAppliedCount++;
-    }
-
-    const minPriceAdjusted = applyMinPriceFloor(floorAdjusted.price);
-    if (minPriceAdjusted.minPriceFloorApplied) {
-      minPriceFloorAppliedCount++;
-    }
-
-    const finalMargin = calculateFinalMargin(minPriceAdjusted.price, costUsd);
-    if (finalMargin != null) {
+    const finalMargin = calculateFinalMargin(finalPrice, costUsd);
+    if (finalMargin == null) {
+      rowsMissingCostForMargin++;
+    } else {
       rowsWithFinalMargin++;
       sumFinalMargin += finalMargin;
       minFinalMargin = minFinalMargin == null ? finalMargin : Math.min(minFinalMargin, finalMargin);
@@ -243,25 +183,22 @@ async function getRoughCountryPriceRows(vendorName, limit = null) {
     rows.push({
       sku: product.sku,
       store_id: STORE_ID_US,
-      price: minPriceAdjusted.price,
+      price: finalPrice,
+      map_price: retailUsd,
       vendor_cost_usd: Number.isFinite(costUsd) ? costUsd : null,
       final_margin: finalMargin,
-      min_margin_floor_applied: floorAdjusted.marginFloorApplied,
-      min_price_floor_applied: minPriceAdjusted.minPriceFloorApplied,
     });
   }
 
   return {
     rows,
     scanned: products.length,
-    skippedVendorMismatch,
     skippedMissingRetail,
     skippedMissingFeedSku,
     skippedInvalidPrice,
-    usedEdgeCaseMarginCount,
-    minMarginFloorAppliedCount,
-    minPriceFloorAppliedCount,
+    mapProtectionAdjustedCount,
     rowsWithFinalMargin,
+    rowsMissingCostForMargin,
     avgFinalMargin: rowsWithFinalMargin > 0 ? Number((sumFinalMargin / rowsWithFinalMargin).toFixed(4)) : null,
     minFinalMargin,
     maxFinalMargin,
@@ -293,19 +230,18 @@ function chunk(array, size) {
 }
 
 function printUsage() {
-  console.log('Update Magento US store base prices for products where vendors is Rough Country only.');
-  console.log('Retail source: price from Rough Country feed (fallback: sale_price).');
-  console.log('Formula:');
-  console.log('  - Standard: round((price * 0.95) / 0.85, 0) - 0.05');
-  console.log('  - Edge case (price == cost): round((price * 1.2) / 0.85, 0) - 0.05');
-  console.log(`  - Margin floor: if final margin < ${(MIN_FINAL_MARGIN * 100).toFixed(0)}%, lift to minimum and keep .95 ending`);
-  console.log(`  - Min price floor: ${MIN_PRICE_USD.toFixed(2)}`);
+  console.log('Update Magento US store base prices for products where brand is Rough Country.');
+  console.log('MAP/retail source: price from Rough Country feed (fallback: sale_price).');
+  console.log('Formula: price = roundUpToPoint95(retail / 0.85).');
+  console.log('This keeps post-promo price (15% off) at or above MAP/retail.');
+  console.log('Final margin report: ((price * 0.85) - cost_usd) / cost_usd');
   console.log('');
   console.log('Usage:');
   console.log('  node pricing_update/us_store/update-rough-country-only-prices-us-store.js [options]');
   console.log('');
   console.log('Options:');
-  console.log('  --vendor <name>        Vendor value in Product.vendors (default: rough country)');
+  console.log('  --brand <name>         Brand value in Product.brand_name (default: Rough Country)');
+  console.log('  --vendor <name>        Alias for --brand (backward compatibility)');
   console.log('  --limit <number>       Limit products fetched from DB');
   console.log('  --batch-size <number>  Prices per Magento request (default: 1000)');
   console.log('  --delay-ms <number>    Delay between batches in milliseconds (default: 400)');
@@ -336,35 +272,31 @@ async function main() {
   const startedAt = Date.now();
 
   console.log('🚀 US Store Rough Country-Only Price Update');
-  console.log(`🏷️  Vendor filter: ${options.vendorName}`);
-  console.log('🧮 Formula: standard 0.95, edge-case (retail == cost) 1.2, then /0.85, round, -0.05');
+  console.log(`🏷️  Brand filter: ${options.brandName}`);
+  console.log('🧮 Formula: roundUpToPoint95(retail / 0.85)  (15% promo-safe vs MAP)');
 
   const {
     rows,
     scanned,
-    skippedVendorMismatch,
     skippedMissingRetail,
     skippedMissingFeedSku,
     skippedInvalidPrice,
-    usedEdgeCaseMarginCount,
-    minMarginFloorAppliedCount,
-    minPriceFloorAppliedCount,
+    mapProtectionAdjustedCount,
     rowsWithFinalMargin,
+    rowsMissingCostForMargin,
     avgFinalMargin,
     minFinalMargin,
     maxFinalMargin,
-  } = await getRoughCountryPriceRows(options.vendorName, options.limit);
+  } = await getRoughCountryPriceRows(options.brandName, options.limit);
 
   console.log(`📦 Products scanned: ${scanned}`);
   console.log(`✅ Price rows prepared: ${rows.length}`);
-  console.log(`⚠️ Skipped (vendor mismatch): ${skippedVendorMismatch}`);
   console.log(`⚠️ Skipped (missing feed sku/searchable_sku): ${skippedMissingFeedSku}`);
   console.log(`⚠️ Skipped (missing price): ${skippedMissingRetail}`);
   console.log(`⚠️ Skipped (invalid computed price): ${skippedInvalidPrice}`);
-  console.log(`🧩 Edge-case formula used (retail == cost): ${usedEdgeCaseMarginCount}`);
-  console.log(`🛡️ Min-margin floor applied: ${minMarginFloorAppliedCount}`);
-  console.log(`🧱 Min-price floor applied (${MIN_PRICE_USD.toFixed(2)}): ${minPriceFloorAppliedCount}`);
+  console.log(`🛡️ MAP-safe .95 adjustment applied: ${mapProtectionAdjustedCount}`);
   console.log(`📈 Rows with final margin: ${rowsWithFinalMargin}`);
+  console.log(`⚠️ Rows missing/invalid cost for margin: ${rowsMissingCostForMargin}`);
   if (rowsWithFinalMargin > 0) {
     console.log(`📈 Final margin avg/min/max: ${avgFinalMargin} / ${minFinalMargin} / ${maxFinalMargin}`);
   }
