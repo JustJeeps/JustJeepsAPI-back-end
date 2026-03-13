@@ -13,15 +13,63 @@
  */
 
 const axios = require('axios');
+const https = require('https');
 const prisma = require('../../../lib/prisma');
 
 // Magento API Configuration
 const MAGENTO_CONFIG = {
   baseURL: 'https://www.justjeeps.com/rest/default/V1',
-  token: 'y6hyef5lqs7c94f43sui1vhb38693zy4',
+  token: process.env.MAGENTO_KEY || process.env.MAGENTO_TOKEN || '',
   storeId: 1,
-  timeout: 10000
+  timeout: 10000,
+  maxRetries: 3,
+  retryDelayMs: 500,
+  chunkDelayMs: 1000,
+  batchDelayMs: 2000
 };
+
+const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 100 });
+const magentoClient = axios.create({
+  baseURL: MAGENTO_CONFIG.baseURL,
+  timeout: MAGENTO_CONFIG.timeout,
+  httpsAgent,
+  headers: {
+    'Authorization': `Bearer ${MAGENTO_CONFIG.token}`,
+    'Content-Type': 'application/json'
+  }
+});
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+function isRetryableStatus(status) {
+  return status === 429 || (status >= 500 && status < 600);
+}
+
+async function magentoRequestWithRetry(method, sku, payload) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= MAGENTO_CONFIG.maxRetries; attempt++) {
+    try {
+      return await magentoClient.request({
+        method,
+        url: `/products/${encodeURIComponent(sku)}`,
+        params: { storeId: MAGENTO_CONFIG.storeId },
+        data: payload
+      });
+    } catch (error) {
+      lastError = error;
+      const status = error?.response?.status;
+      if (attempt === MAGENTO_CONFIG.maxRetries || !isRetryableStatus(status)) {
+        throw error;
+      }
+
+      const delay = MAGENTO_CONFIG.retryDelayMs * attempt;
+      await sleep(delay);
+    }
+  }
+
+  throw lastError;
+}
 
 /**
  * Predefined vendor configurations for seeding
@@ -34,29 +82,29 @@ const VENDOR_CONFIGS = {
     { name: 'MetalCloak', batch: 75, concurrency: 8 },
     { name: 'KeyParts', batch: 50, concurrency: 8 }
   ],
-  // 'all': [
-  //   { name: 'AEV', batch: 75, concurrency: 8 },
-  //   { name: 'Rough Country', batch: 100, concurrency: 10 },
-  //   { name: 'MetalCloak', batch: 75, concurrency: 8 },
-  //   { name: 'Omix', batch: 100, concurrency: 10 },
-  //   { name: 'KeyParts', batch: 50, concurrency: 8 },
-  //   { name: 'Alpine', batch: 50, concurrency: 5 },
-  //   { name: 'CTP', batch: 200, concurrency: 15 },
-  //   { name: 'Curt', batch: 150, concurrency: 12 },
-  //   { name: 'Downsview', batch: 75, concurrency: 8 },
-  //   { name: 'Keystone', batch: 200, concurrency: 15 },
-  //   { name: 'Meyer', batch: 200, concurrency: 15 },
-  //   { name: 'Quadratec', batch: 200, concurrency: 15 },
-  //   { name: 'T14', batch: 150, concurrency: 12 },
-  //   { name: 'Tire Discounter', batch: 75, concurrency: 8 },
-  //   { name: 'WheelPros', batch: 100, concurrency: 10 }
-  // ]
+  'all': [
+    { name: 'AEV', batch: 75, concurrency: 8 },
+    { name: 'Rough Country', batch: 100, concurrency: 10 },
+    { name: 'MetalCloak', batch: 75, concurrency: 8 },
+    { name: 'Omix', batch: 100, concurrency: 10 },
+    { name: 'KeyParts', batch: 50, concurrency: 8 },
+    { name: 'Alpine', batch: 50, concurrency: 5 },
+    { name: 'CTP', batch: 200, concurrency: 15 },
+    { name: 'Curt', batch: 150, concurrency: 12 },
+    { name: 'Downsview', batch: 75, concurrency: 8 },
+    { name: 'Keystone', batch: 200, concurrency: 15 },
+    { name: 'Meyer', batch: 200, concurrency: 15 },
+    { name: 'Quadratec', batch: 200, concurrency: 15 },
+    { name: 'T14', batch: 150, concurrency: 12 },
+    { name: 'Tire Discounter', batch: 75, concurrency: 8 },
+    { name: 'WheelPros', batch: 100, concurrency: 10 }
+  ]
 };
 
 /**
  * Update a single product in Magento
  */
-async function updateMagentoProduct(sku, vendorCost, vendorInventory, vendorName) {
+async function updateMagentoProduct(sku, vendorCost, vendorInventory) {
   try {
     const costUSD = (parseFloat(vendorCost) / 1.50).toFixed(2);
     
@@ -78,32 +126,12 @@ async function updateMagentoProduct(sku, vendorCost, vendorInventory, vendorName
 
     // Try PUT first (standard method)
     try {
-      const response = await axios.put(
-        `${MAGENTO_CONFIG.baseURL}/products/${encodeURIComponent(sku)}?storeId=${MAGENTO_CONFIG.storeId}`,
-        payload,
-        {
-          headers: {
-            'Authorization': `Bearer ${MAGENTO_CONFIG.token}`,
-            'Content-Type': 'application/json'
-          },
-          timeout: MAGENTO_CONFIG.timeout
-        }
-      );
+      const response = await magentoRequestWithRetry('put', sku, payload);
       return { success: true, sku, response: response.status, method: 'PUT' };
     } catch (putError) {
       // If PUT fails with Method Not Allowed, try POST
       if (putError.response?.status === 405) {
-        const postResponse = await axios.post(
-          `${MAGENTO_CONFIG.baseURL}/products/${encodeURIComponent(sku)}?storeId=${MAGENTO_CONFIG.storeId}`,
-          payload,
-          {
-            headers: {
-              'Authorization': `Bearer ${MAGENTO_CONFIG.token}`,
-              'Content-Type': 'application/json'
-            },
-            timeout: MAGENTO_CONFIG.timeout
-          }
-        );
+        const postResponse = await magentoRequestWithRetry('post', sku, payload);
         return { success: true, sku, response: postResponse.status, method: 'POST' };
       }
       throw putError;
@@ -150,28 +178,37 @@ async function parallelUpdateMagentoProducts(products, concurrency = 10) {
       return updateMagentoProduct(
         product.sku,
         product.vendor_cost,
-        inventoryValue,
-        product.vendor_name
+        inventoryValue
       );
     });
 
     const chunkResults = await Promise.all(promises);
+    let chunkSuccess = 0;
+    let chunkFailed = 0;
     
     chunkResults.forEach(result => {
       if (result.success) {
         results.successful++;
-        console.log(`  ✅ ${result.sku}`);
+        chunkSuccess++;
       } else {
         results.failed++;
+        chunkFailed++;
         results.errors.push(result);
-        console.log(`  ❌ ${result.sku}: ${JSON.stringify(result.error).substring(0, 100)}`);
       }
     });
+
+    console.log(`   ✅ Chunk success: ${chunkSuccess} | ❌ Chunk failed: ${chunkFailed}`);
+    if (chunkFailed > 0) {
+      const sampleErrors = chunkResults.filter(r => !r.success).slice(0, 3);
+      sampleErrors.forEach((errorResult) => {
+        console.log(`   ❌ ${errorResult.sku}: ${JSON.stringify(errorResult.error).substring(0, 120)}`);
+      });
+    }
 
     // Rate limiting between chunks
     if (i + concurrency < products.length) {
       console.log('⏳ Waiting 1 second before next chunk...');
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await sleep(MAGENTO_CONFIG.chunkDelayMs);
     }
   }
 
@@ -182,19 +219,12 @@ async function parallelUpdateMagentoProducts(products, concurrency = 10) {
 /**
  * Get vendor products for seeding
  */
-async function getVendorProducts(vendorName, limit = null, offset = 0) {
+async function getVendorProducts(vendor, limit = null, lastSeenId = 0) {
   try {
-    const vendor = await prisma.vendor.findFirst({
-      where: { name: { contains: vendorName, mode: 'insensitive' } }
-    });
-
-    if (!vendor) {
-      throw new Error(`Vendor '${vendorName}' not found`);
-    }
-
     const products = await prisma.vendorProduct.findMany({
       where: {
         vendor_id: vendor.id,
+        id: { gt: lastSeenId },
         vendor_cost: { gt: 0 }
       },
       include: {
@@ -203,11 +233,11 @@ async function getVendorProducts(vendorName, limit = null, offset = 0) {
         }
       },
       take: limit,
-      skip: offset,
       orderBy: { id: 'asc' }
     });
 
     return products.map(vp => ({
+      id: vp.id,
       sku: vp.product.sku,
       vendor_cost: vp.vendor_cost,
       vendor_inventory: vp.vendor_inventory,
@@ -215,7 +245,7 @@ async function getVendorProducts(vendorName, limit = null, offset = 0) {
       vendor_name: vendor.name
     }));
   } catch (error) {
-    console.error(`❌ Error fetching ${vendorName} products:`, error.message);
+    console.error(`❌ Error fetching ${vendor.name} products:`, error.message);
     return [];
   }
 }
@@ -252,7 +282,7 @@ async function seedVendor(vendorName, batchSize = 100, concurrency = 10, maxProd
     let totalProcessed = 0;
     let totalSuccessful = 0;
     let totalFailed = 0;
-    let offset = 0;
+    let lastSeenId = 0;
 
     const processingLimit = maxProducts || totalVendorProducts;
 
@@ -260,13 +290,17 @@ async function seedVendor(vendorName, batchSize = 100, concurrency = 10, maxProd
       const remainingProducts = processingLimit - totalProcessed;
       const currentBatchSize = Math.min(batchSize, remainingProducts);
 
-      console.log(`\n📦 Fetching batch ${Math.floor(offset/batchSize) + 1} (${currentBatchSize} products, offset: ${offset})`);
+      console.log(`\n📦 Fetching batch ${Math.floor(totalProcessed / batchSize) + 1} (${currentBatchSize} products, last id: ${lastSeenId})`);
       
-      const products = await getVendorProducts(vendorName, currentBatchSize, offset);
+      const products = await getVendorProducts(vendor, currentBatchSize, lastSeenId);
       
       if (products.length === 0) {
         console.log('No more products to process');
         break;
+      }
+
+      if (products.length > 0) {
+        lastSeenId = products[products.length - 1].id;
       }
 
       // Process the batch
@@ -284,7 +318,6 @@ async function seedVendor(vendorName, batchSize = 100, concurrency = 10, maxProd
       totalSuccessful += batchResult.successful;
       totalFailed += batchResult.failed;
       totalProcessed += products.length;
-      offset += products.length;
 
       // Progress tracking
       const elapsedTime = (Date.now() - startTime) / 1000;
@@ -301,7 +334,7 @@ async function seedVendor(vendorName, batchSize = 100, concurrency = 10, maxProd
       // Wait between batches
       if (totalProcessed < processingLimit) {
         console.log('⏳ Waiting 2 seconds before next batch...');
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await sleep(MAGENTO_CONFIG.batchDelayMs);
       }
     }
 
@@ -365,8 +398,16 @@ async function seedMultipleVendors(vendorConfigs) {
  */
 async function testSeed(vendorName, testSize = 5) {
   console.log(`🧪 Testing ${vendorName} seeding with ${testSize} products...`);
+
+  const vendor = await prisma.vendor.findFirst({
+    where: { name: { contains: vendorName, mode: 'insensitive' } }
+  });
+  if (!vendor) {
+    console.log(`❌ Vendor '${vendorName}' not found`);
+    return;
+  }
   
-  const products = await getVendorProducts(vendorName, testSize, 0);
+  const products = await getVendorProducts(vendor, testSize, 0);
   if (products.length === 0) {
     console.log(`❌ No products found for ${vendorName}`);
     return;
@@ -438,9 +479,17 @@ async function main() {
   const args = process.argv.slice(2);
   const command = args[0];
 
+  if (!MAGENTO_CONFIG.token) {
+    console.error('❌ MAGENTO_KEY (or MAGENTO_TOKEN) is required. Export it before running this script.');
+    process.exit(1);
+  }
+
   try {
     switch (command) {
       case 'all':
+        if (!Array.isArray(VENDOR_CONFIGS.all) || VENDOR_CONFIGS.all.length === 0) {
+          throw new Error('VENDOR_CONFIGS.all is not configured');
+        }
         await seedMultipleVendors(VENDOR_CONFIGS.all);
         break;
         
