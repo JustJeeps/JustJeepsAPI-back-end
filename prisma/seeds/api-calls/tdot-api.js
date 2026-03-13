@@ -59,18 +59,20 @@ const tdotCost = async () => {
   return unique;
 };
 
-// ✅ Execute when run directly
-(async () => {
-  try {
-    console.log("🚀 Running tdot-api.js...");
-    const results = await tdotCost();
-    console.log("🔍 First 10 results:", results.slice(0, 10));
-    console.log(`✅ Processed ${results.length} unique rows`);
-  } catch (err) {
-    console.error("❌ Error in tdot-api.js:", err.message);
-  } finally {
-    console.log("🏁 Script finished");
-  }
-})();
+// ✅ Execute only when run directly
+if (require.main === module) {
+  (async () => {
+    try {
+      console.log("🚀 Running tdot-api.js...");
+      const results = await tdotCost();
+      console.log("🔍 First 10 results:", results.slice(0, 10));
+      console.log(`✅ Processed ${results.length} unique rows`);
+    } catch (err) {
+      console.error("❌ Error in tdot-api.js:", err.message);
+    } finally {
+      console.log("🏁 Script finished");
+    }
+  })();
+}
 
 module.exports = tdotCost;

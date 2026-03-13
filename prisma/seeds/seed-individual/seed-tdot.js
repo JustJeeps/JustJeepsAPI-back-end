@@ -3,8 +3,9 @@ const tdotCost = require("../api-calls/tdot-api.js");
 const prisma = require("../../../lib/prisma");
 
 const LOOKUP_BATCH_SIZE = 1000;
-const UPDATE_BATCH_SIZE = 500;
+const UPSERT_BATCH_SIZE = 2000;
 const LOG_EVERY = 500;
+const TDOT_COMPETITOR_ID = 4;
 
 function chunkArray(items, size) {
   const chunks = [];
@@ -86,19 +87,20 @@ const seedTdot = async () => {
     for (const codeChunk of chunkArray(uniqueCodes, LOOKUP_BATCH_SIZE)) {
       const existing = await prisma.competitorProduct.findMany({
         where: {
-          competitor_id: 4,
+          competitor_id: TDOT_COMPETITOR_ID,
           competitor_sku: { in: codeChunk },
         },
-        select: { id: true, competitor_sku: true },
+        select: { competitor_sku: true },
       });
 
       for (const record of existing) {
-        existingBySku.set(record.competitor_sku, record.id);
+        existingBySku.set(record.competitor_sku, true);
       }
     }
 
-    const creates = [];
-    const updates = [];
+    const upsertRows = [];
+    let createsCount = 0;
+    let updatesCount = 0;
     let missingProductCount = 0;
 
     for (const [tdotCode, row] of rowByTdotCode.entries()) {
@@ -108,62 +110,98 @@ const seedTdot = async () => {
         continue;
       }
 
-      const existingId = existingBySku.get(tdotCode);
-      if (existingId) {
-        updates.push({
-          id: existingId,
-          data: {
-            competitor_price: row.price * 1,
-            product_url: row.productUrl,
-          },
-        });
+      if (existingBySku.has(tdotCode)) {
+        updatesCount++;
       } else {
-        creates.push({
-          product_sku: productSku,
-          competitor_id: 4,
-          competitor_price: row.price * 1,
-          competitor_sku: tdotCode,
-          product_url: row.productUrl,
-        });
+        createsCount++;
       }
+
+      upsertRows.push({
+        product_sku: productSku,
+        competitor_sku: tdotCode,
+        competitor_price: row.price * 1,
+        product_url: row.productUrl,
+      });
     }
 
     logWithTimestamp(`Missing products for tdot codes: ${missingProductCount}`);
     logWithTimestamp(`Existing competitor products found: ${existingBySku.size}`);
-    logWithTimestamp(`Creates queued: ${creates.length}`);
+    logWithTimestamp(`Creates queued: ${createsCount}`);
+    logWithTimestamp(`Updates queued: ${updatesCount}`);
 
-    if (creates.length > 0) {
-      logWithTimestamp(`Creating ${creates.length} records...`);
-      await prisma.competitorProduct.createMany({
-        data: creates,
-        skipDuplicates: true,
-      });
-    }
+    const upsertBatch = async (batch) => {
+      if (!batch || batch.length === 0) return;
+      const payload = JSON.stringify(batch);
 
-    if (updates.length > 0) {
-      logWithTimestamp(
-        `Updating ${updates.length} records in chunks of ${UPDATE_BATCH_SIZE}...`
-      );
-    }
-
-    let competitorProductUpdatedCount = 0;
-    for (const updateChunk of chunkArray(updates, UPDATE_BATCH_SIZE)) {
-      await prisma.$transaction(
-        updateChunk.map((update) =>
-          prisma.competitorProduct.update({
-            where: { id: update.id },
-            data: update.data,
-          })
+      const updateSql = `
+        WITH input AS (
+          SELECT *
+          FROM jsonb_to_recordset($2::jsonb) AS x(
+            product_sku text,
+            competitor_sku text,
+            competitor_price double precision,
+            product_url text
+          )
         )
-      );
-      competitorProductUpdatedCount += updateChunk.length;
+        UPDATE "CompetitorProduct" cp
+        SET
+          product_sku = input.product_sku,
+          competitor_price = input.competitor_price,
+          product_url = input.product_url
+        FROM input
+        WHERE cp.competitor_id = $1
+          AND cp.competitor_sku = input.competitor_sku;
+      `;
+
+      const insertSql = `
+        WITH input AS (
+          SELECT *
+          FROM jsonb_to_recordset($2::jsonb) AS x(
+            product_sku text,
+            competitor_sku text,
+            competitor_price double precision,
+            product_url text
+          )
+        )
+        INSERT INTO "CompetitorProduct" (
+          product_sku,
+          competitor_id,
+          competitor_price,
+          competitor_sku,
+          product_url
+        )
+        SELECT
+          input.product_sku,
+          $1,
+          input.competitor_price,
+          input.competitor_sku,
+          input.product_url
+        FROM input
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM "CompetitorProduct" cp
+          WHERE cp.competitor_id = $1
+            AND cp.competitor_sku = input.competitor_sku
+        );
+      `;
+
+      await prisma.$transaction([
+        prisma.$executeRawUnsafe(updateSql, TDOT_COMPETITOR_ID, payload),
+        prisma.$executeRawUnsafe(insertSql, TDOT_COMPETITOR_ID, payload),
+      ]);
+    };
+
+    let processedUpserts = 0;
+    for (const upsertChunk of chunkArray(upsertRows, UPSERT_BATCH_SIZE)) {
+      await upsertBatch(upsertChunk);
+      processedUpserts += upsertChunk.length;
       logWithTimestamp(
-        `Updated ${competitorProductUpdatedCount}/${updates.length} records...`
+        `Upserted ${processedUpserts}/${upsertRows.length} competitor records...`
       );
     }
 
     logWithTimestamp(
-      `Competitor products from Tdot seeded successfully! Created: ${creates.length}, Updated: ${competitorProductUpdatedCount}`
+      `Competitor products from Tdot seeded successfully! Created: ${createsCount}, Updated: ${updatesCount}`
     );
   } catch (error) {
     console.error("Error seeding competitor products from Tdot:", error);
