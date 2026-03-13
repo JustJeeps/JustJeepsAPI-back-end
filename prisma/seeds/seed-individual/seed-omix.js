@@ -3,7 +3,7 @@ const omixCost = require("../api-calls/omix-excel.js");
 
 const VENDOR_ID = 3; // Omix
 const IN_QUERY_CHUNK_SIZE = 1000;
-const UPDATE_BATCH_SIZE = 50;
+const UPSERT_BATCH_SIZE = 2000;
 
 const chunkArray = (items, chunkSize) => {
   if (!items.length) return [];
@@ -26,9 +26,86 @@ const normalizePartNumber = (value) => {
     .replace(/\.0+$/, "");
 };
 
+const upsertVendorProductsBatch = async (rows) => {
+  if (!rows.length) return;
+
+  const payload = JSON.stringify(rows);
+
+  const updateSql = `
+    WITH input AS (
+      SELECT *
+      FROM jsonb_to_recordset($2::jsonb) AS x(
+        vendor_sku text,
+        canonical_vendor_sku text,
+        vendor_cost double precision,
+        product_sku text
+      )
+    )
+    UPDATE "VendorProduct" vp
+    SET
+      vendor_sku = input.vendor_sku,
+      vendor_cost = input.vendor_cost,
+      vendor_id = $1
+    FROM input
+    WHERE vp.vendor_id = $1
+      AND (
+        vp.vendor_sku = input.vendor_sku
+        OR (
+          input.canonical_vendor_sku IS NOT NULL
+          AND input.canonical_vendor_sku <> ''
+          AND vp.vendor_sku = input.canonical_vendor_sku
+        )
+      );
+  `;
+
+  const insertSql = `
+    WITH input AS (
+      SELECT *
+      FROM jsonb_to_recordset($2::jsonb) AS x(
+        vendor_sku text,
+        canonical_vendor_sku text,
+        vendor_cost double precision,
+        product_sku text
+      )
+    )
+    INSERT INTO "VendorProduct" (
+      product_sku,
+      vendor_id,
+      vendor_sku,
+      vendor_cost
+    )
+    SELECT
+      input.product_sku,
+      $1,
+      input.vendor_sku,
+      input.vendor_cost
+    FROM input
+    WHERE input.product_sku IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1
+        FROM "VendorProduct" vp
+        WHERE vp.vendor_id = $1
+          AND (
+            vp.vendor_sku = input.vendor_sku
+            OR (
+              input.canonical_vendor_sku IS NOT NULL
+              AND input.canonical_vendor_sku <> ''
+              AND vp.vendor_sku = input.canonical_vendor_sku
+            )
+          )
+      );
+  `;
+
+  await prisma.$transaction([
+    prisma.$executeRawUnsafe(updateSql, VENDOR_ID, payload),
+    prisma.$executeRawUnsafe(insertSql, VENDOR_ID, payload),
+  ]);
+};
+
 // seed Omix products
 const seedOmix = async () => {
   try {
+    const startedAt = Date.now();
     // Call OmixAPI and get the processed responses
     const vendorProductsData = await omixCost();
     let vendorProductCreatedCount = 0;
@@ -143,8 +220,7 @@ const seedOmix = async () => {
       }
     }
 
-    const updates = [];
-    const creates = [];
+    const upsertRows = [];
 
     for (const row of normalizedRows) {
       const existingVendorProduct =
@@ -152,10 +228,13 @@ const seedOmix = async () => {
         existingVendorProductBySku.get(row.canonicalPartNumber);
 
       if (existingVendorProduct) {
-        updates.push({
-          id: existingVendorProduct.id,
+        vendorProductUpdatedCount++;
+
+        upsertRows.push({
           vendor_sku: row.partNumber,
+          canonical_vendor_sku: row.canonicalPartNumber || null,
           vendor_cost: row.vendorCost,
+          product_sku: null,
         });
         continue;
       }
@@ -169,43 +248,34 @@ const seedOmix = async () => {
         continue;
       }
 
-      creates.push({
-        product_sku: product.sku,
-        vendor_id: VENDOR_ID,
+      vendorProductCreatedCount++;
+
+      upsertRows.push({
         vendor_sku: row.partNumber,
+        canonical_vendor_sku: row.canonicalPartNumber || null,
         vendor_cost: row.vendorCost,
+        product_sku: product.sku,
       });
     }
 
-    // 3) Batched updates
-    for (const batch of chunkArray(updates, UPDATE_BATCH_SIZE)) {
-      await Promise.all(
-        batch.map((item) =>
-          prisma.vendorProduct.update({
-            where: { id: item.id },
-            data: {
-              vendor_id: VENDOR_ID,
-              vendor_sku: item.vendor_sku,
-              vendor_cost: item.vendor_cost,
-            },
-          })
-        )
-      );
+    if (upsertRows.length > 0) {
+      console.log(`Upserting ${upsertRows.length} Omix rows in batches of ${UPSERT_BATCH_SIZE}...`);
     }
 
-    // 4) Batched creates via createMany
-    for (const batch of chunkArray(creates, IN_QUERY_CHUNK_SIZE)) {
-      if (!batch.length) continue;
-      await prisma.vendorProduct.createMany({ data: batch });
+    let upsertedSoFar = 0;
+    for (const batch of chunkArray(upsertRows, UPSERT_BATCH_SIZE)) {
+      await upsertVendorProductsBatch(batch);
+      upsertedSoFar += batch.length;
+      console.log(`Upserted ${upsertedSoFar}/${upsertRows.length} Omix rows...`);
     }
 
-    vendorProductUpdatedCount = updates.length;
-    vendorProductCreatedCount = creates.length;
+    const durationSeconds = ((Date.now() - startedAt) / 1000).toFixed(1);
 
     console.log(
       `Vendor products from Omix seeded successfully!\n` +
       `  Total vendor products created: ${vendorProductCreatedCount}\n` +
-      `  Total vendor products updated: ${vendorProductUpdatedCount}`
+      `  Total vendor products updated: ${vendorProductUpdatedCount}\n` +
+      `  Elapsed: ${durationSeconds}s`
     );
   } catch (error) {
     console.error("Error seeding vendor products from Omix:", error);
@@ -214,7 +284,9 @@ const seedOmix = async () => {
   }
 };
 
-seedOmix();
+if (require.main === module) {
+  seedOmix();
+}
 module.exports = seedOmix;
 
 
