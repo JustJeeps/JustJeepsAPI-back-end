@@ -59,7 +59,7 @@ const keypartsCost = async () => {
       };
     });
 
-  console.log(finalResults);
+  console.log(`KeyParts rows loaded: ${finalResults.length}`);
   return finalResults;
 };
 

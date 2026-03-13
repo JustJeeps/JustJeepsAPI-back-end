@@ -5,8 +5,80 @@ const prisma = require("../../../lib/prisma");
 const VENDOR_ID = 11;
 const COST_MULTIPLIER = 1.5;
 const CLEAR_EXISTING = false;
-const CREATE_BATCH_SIZE = 500;
-const UPDATE_BATCH_SIZE = 100;
+const UPSERT_BATCH_SIZE = 2000;
+const MISSING_PRODUCT_SAMPLE_SIZE = 20;
+
+const chunkArray = (items, chunkSize) => {
+  if (!items.length) return [];
+  const chunks = [];
+  for (let index = 0; index < items.length; index += chunkSize) {
+    chunks.push(items.slice(index, index + chunkSize));
+  }
+  return chunks;
+};
+
+const upsertVendorProductsBatch = async (rows) => {
+  if (!rows.length) return;
+
+  const payload = JSON.stringify(rows);
+
+  const updateSql = `
+    WITH input AS (
+      SELECT *
+      FROM jsonb_to_recordset($2::jsonb) AS x(
+        vendor_sku text,
+        product_sku text,
+        vendor_cost double precision,
+        vendor_inventory_string text
+      )
+    )
+    UPDATE "VendorProduct" vp
+    SET
+      vendor_cost = input.vendor_cost,
+      vendor_inventory_string = input.vendor_inventory_string
+    FROM input
+    WHERE vp.vendor_id = $1
+      AND vp.vendor_sku = input.vendor_sku;
+  `;
+
+  const insertSql = `
+    WITH input AS (
+      SELECT *
+      FROM jsonb_to_recordset($2::jsonb) AS x(
+        vendor_sku text,
+        product_sku text,
+        vendor_cost double precision,
+        vendor_inventory_string text
+      )
+    )
+    INSERT INTO "VendorProduct" (
+      product_sku,
+      vendor_id,
+      vendor_sku,
+      vendor_cost,
+      vendor_inventory_string
+    )
+    SELECT
+      input.product_sku,
+      $1,
+      input.vendor_sku,
+      input.vendor_cost,
+      input.vendor_inventory_string
+    FROM input
+    WHERE input.product_sku IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1
+        FROM "VendorProduct" vp
+        WHERE vp.vendor_id = $1
+          AND vp.vendor_sku = input.vendor_sku
+      );
+  `;
+
+  await prisma.$transaction([
+    prisma.$executeRawUnsafe(updateSql, VENDOR_ID, payload),
+    prisma.$executeRawUnsafe(insertSql, VENDOR_ID, payload),
+  ]);
+};
 
 const seedKeyPartsProducts = async () => {
   const startTime = process.hrtime.bigint();
@@ -15,6 +87,8 @@ const seedKeyPartsProducts = async () => {
   const products = await keypartsCost();
   let created = 0;
   let updated = 0;
+  let missingProductCount = 0;
+  const missingProductSamples = [];
 
   // ✅ Step 0: Clear old vendor products for KeyParts
   if (CLEAR_EXISTING) {
@@ -68,13 +142,15 @@ const seedKeyPartsProducts = async () => {
     matchingProducts.map((row) => [row.searchable_sku, row])
   );
 
-  const toCreate = [];
-  const toUpdate = [];
+  const upsertRows = [];
 
   for (const [item, data] of itemsBySku) {
     const product = productBySearchableSku.get(item);
     if (!product) {
-      console.warn(`❌ Product not found for: ${item}`);
+      missingProductCount++;
+      if (missingProductSamples.length < MISSING_PRODUCT_SAMPLE_SIZE) {
+        missingProductSamples.push(item);
+      }
       continue;
     }
 
@@ -85,44 +161,32 @@ const seedKeyPartsProducts = async () => {
 
     const existing = existingBySku.get(item);
     if (existing && !CLEAR_EXISTING) {
-      toUpdate.push({ id: existing.id, data: payload });
+      updated++;
+      upsertRows.push({
+        vendor_sku: item,
+        product_sku: null,
+        ...payload,
+      });
       continue;
     }
 
-    toCreate.push({
-      product_sku: product.sku,
-      vendor_id: VENDOR_ID,
+    created++;
+    upsertRows.push({
       vendor_sku: item,
+      product_sku: product.sku,
       ...payload,
     });
   }
 
-  for (let i = 0; i < toCreate.length; i += CREATE_BATCH_SIZE) {
-    const batch = toCreate.slice(i, i + CREATE_BATCH_SIZE);
-    if (batch.length === 0) {
-      continue;
-    }
-    const result = await prisma.vendorProduct.createMany({
-      data: batch,
-      skipDuplicates: true,
-    });
-    created += result.count;
+  if (upsertRows.length > 0) {
+    console.log(`⏳ Upserting ${upsertRows.length} KeyParts rows in batches of ${UPSERT_BATCH_SIZE}...`);
   }
 
-  for (let i = 0; i < toUpdate.length; i += UPDATE_BATCH_SIZE) {
-    const batch = toUpdate.slice(i, i + UPDATE_BATCH_SIZE);
-    if (batch.length === 0) {
-      continue;
-    }
-    await prisma.$transaction(
-      batch.map((row) =>
-        prisma.vendorProduct.update({
-          where: { id: row.id },
-          data: row.data,
-        })
-      )
-    );
-    updated += batch.length;
+  let processed = 0;
+  for (const batch of chunkArray(upsertRows, UPSERT_BATCH_SIZE)) {
+    await upsertVendorProductsBatch(batch);
+    processed += batch.length;
+    console.log(`✅ Upserted ${processed}/${upsertRows.length}`);
   }
 
   console.log(`✅ KeyParts seeding complete:
@@ -135,10 +199,20 @@ const seedKeyPartsProducts = async () => {
     );
   }
 
+  if (missingProductCount > 0) {
+    console.warn(
+      `⚠️ Missing Product matches: ${missingProductCount}. Sample: ${missingProductSamples.join(", ")}`
+    );
+  }
+
   const elapsedMs = Number(process.hrtime.bigint() - startTime) / 1e6;
   console.log(`⏱️ Execution time: ${elapsedMs.toFixed(2)} ms`);
 
   await prisma.$disconnect();
 };
 
-seedKeyPartsProducts();
+if (require.main === module) {
+  seedKeyPartsProducts();
+}
+
+module.exports = seedKeyPartsProducts;
