@@ -124,6 +124,8 @@ model VendorProduct {
   vendor_id               Int
   vendor_sku              String
   vendor_cost             Float
+  vendor_cost_usd         Float?
+  vendor_retail_price_usd Float?
   vendor_inventory        Float?
   partStatus_meyer        String?
   vendor_inventory_string String?

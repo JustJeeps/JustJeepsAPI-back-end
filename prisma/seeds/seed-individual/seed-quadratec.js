@@ -32,6 +32,7 @@ async function seedQuadratec() {
     const mapByCode = new Map();
     for (const r of raw) {
       const wholesale = Number(r?.wholesalePrice);
+      const retail = Number(r?.retailPrice);
       if (!Number.isFinite(wholesale)) continue;
 
       const codes = [r?.quadratec_code, r?.quadratec_code_alt]
@@ -44,7 +45,9 @@ async function seedQuadratec() {
         mapByCode.set(code, {
           quadratec_code: code,
           quadratec_sku: r?.quadratec_sku ?? null,
+          vendor_cost_usd: round2(wholesale),
           vendor_cost: round2(wholesale * 1.5),
+          vendor_retail_price_usd: Number.isFinite(retail) ? round2(retail) : null,
         });
       }
     }
@@ -84,7 +87,9 @@ async function seedQuadratec() {
         product_sku: sku,
         vendor_id: VENDOR_ID,
         vendor_sku: r.quadratec_code,
+        vendor_cost_usd: r.vendor_cost_usd,
         vendor_cost: r.vendor_cost,
+        vendor_retail_price_usd: r.vendor_retail_price_usd,
         quadratec_sku: r.quadratec_sku,
       });
     }
