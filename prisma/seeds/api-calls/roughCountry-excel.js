@@ -5,7 +5,7 @@ const path = require("path");
 const RoughCountryCost = async () => {
   try {
     // Step 1: Download Excel file from URL
-    const url = "https://feeds.roughcountry.com/jobber_pc3.xlsx";
+    const url = "https://feeds.roughcountry.com/jobber_pc3A.xlsx";
     const response = await axios({
       url: url,
       method: 'GET',
@@ -82,6 +82,8 @@ const RoughCountryCost = async () => {
         AVAILABILITY: obj["availability"],
         TN_STOCK: obj["TN_Stock"],
         MAP: obj["cnd_map"],
+        PRICE: parseFloat(obj["price"]),
+        SALE_PRICE: parseFloat(obj["sale_price"]),
         COST: parseFloat(obj["cost"]), // Ensure to convert to number if needed
    
       };

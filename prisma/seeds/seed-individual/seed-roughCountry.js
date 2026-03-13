@@ -2,7 +2,7 @@ const RoughCountryCost = require("../api-calls/roughCountry-excel.js");
 
 const prisma = require("../../../lib/prisma");
 
-const WRITE_BATCH_SIZE = 200;
+const WRITE_BATCH_SIZE = 2000;
 const LOG_EVERY = 500;
 const ROUGH_COUNTRY_VENDOR_ID = 9;
 
@@ -32,6 +32,7 @@ const seedRoughCountry = async () => {
     let matchedProductCount = 0;
     let invalidCostCount = 0;
     let invalidMapCount = 0;
+    let invalidRetailPriceCount = 0;
     const startedAt = Date.now();
 
     // // ✅ Step 0: Clear old vendor products for Rough Country
@@ -61,38 +62,106 @@ const seedRoughCountry = async () => {
     );
 
     const seenSkus = new Set();
-    const createRows = [];
-    const updateOperations = [];
-    const mapUpdateOperations = [];
+    const rowsToUpsert = [];
+    const rowsToMapUpdate = [];
 
-    const flushCreates = async () => {
-      if (createRows.length === 0) {
-        return;
-      }
-      for (const batch of chunk(createRows, WRITE_BATCH_SIZE)) {
-        await prisma.vendorProduct.createMany({ data: batch });
-      }
-      createRows.length = 0;
+    const upsertVendorProductsBatch = async (batch) => {
+      if (!batch || batch.length === 0) return;
+      const payload = JSON.stringify(batch);
+
+      const updateSql = `
+        WITH input AS (
+          SELECT *
+          FROM jsonb_to_recordset($2::jsonb) AS x(
+            vendor_sku text,
+            product_sku text,
+            vendor_cost double precision,
+            vendor_cost_usd double precision,
+            vendor_retail_price_usd double precision,
+            vendor_inventory double precision,
+            vendor_inventory_string text
+          )
+        )
+        UPDATE "VendorProduct" vp
+        SET
+          product_sku = input.product_sku,
+          vendor_cost = input.vendor_cost,
+          vendor_cost_usd = input.vendor_cost_usd,
+          vendor_retail_price_usd = input.vendor_retail_price_usd,
+          vendor_inventory = input.vendor_inventory,
+          vendor_inventory_string = input.vendor_inventory_string
+        FROM input
+        WHERE vp.vendor_id = $1
+          AND vp.vendor_sku = input.vendor_sku;
+      `;
+
+      const insertSql = `
+        WITH input AS (
+          SELECT *
+          FROM jsonb_to_recordset($2::jsonb) AS x(
+            vendor_sku text,
+            product_sku text,
+            vendor_cost double precision,
+            vendor_cost_usd double precision,
+            vendor_retail_price_usd double precision,
+            vendor_inventory double precision,
+            vendor_inventory_string text
+          )
+        )
+        INSERT INTO "VendorProduct" (
+          product_sku,
+          vendor_id,
+          vendor_sku,
+          vendor_cost,
+          vendor_cost_usd,
+          vendor_retail_price_usd,
+          vendor_inventory,
+          vendor_inventory_string
+        )
+        SELECT
+          input.product_sku,
+          $1,
+          input.vendor_sku,
+          input.vendor_cost,
+          input.vendor_cost_usd,
+          input.vendor_retail_price_usd,
+          input.vendor_inventory,
+          input.vendor_inventory_string
+        FROM input
+        WHERE NOT EXISTS (
+          SELECT 1
+          FROM "VendorProduct" vp
+          WHERE vp.vendor_id = $1
+            AND vp.vendor_sku = input.vendor_sku
+        );
+      `;
+
+      await prisma.$transaction([
+        prisma.$executeRawUnsafe(updateSql, ROUGH_COUNTRY_VENDOR_ID, payload),
+        prisma.$executeRawUnsafe(insertSql, ROUGH_COUNTRY_VENDOR_ID, payload),
+      ]);
     };
 
-    const flushUpdates = async () => {
-      if (updateOperations.length === 0) {
-        return;
-      }
-      for (const ops of chunk(updateOperations, WRITE_BATCH_SIZE)) {
-        await prisma.$transaction(ops);
-      }
-      updateOperations.length = 0;
-    };
+    const updateProductMapBatch = async (batch) => {
+      if (!batch || batch.length === 0) return;
+      const payload = JSON.stringify(batch);
 
-    const flushMapUpdates = async () => {
-      if (mapUpdateOperations.length === 0) {
-        return;
-      }
-      for (const ops of chunk(mapUpdateOperations, WRITE_BATCH_SIZE)) {
-        await prisma.$transaction(ops);
-      }
-      mapUpdateOperations.length = 0;
+      const mapUpdateSql = `
+        WITH input AS (
+          SELECT *
+          FROM jsonb_to_recordset($1::jsonb) AS x(
+            product_sku text,
+            map_value double precision
+          )
+        )
+        UPDATE "Product" p
+        SET "MAP" = input.map_value
+        FROM input
+        WHERE p.sku = input.product_sku
+          AND input.map_value IS NOT NULL;
+      `;
+
+      await prisma.$executeRawUnsafe(mapUpdateSql, payload);
     };
 
     const totalCount = vendorProductsData.length;
@@ -116,9 +185,19 @@ const seedRoughCountry = async () => {
           invalidCostCount += 1;
           continue;
         }
+        const rawRetailPrice = Number.isFinite(Number(data["PRICE"]))
+          ? Number(data["PRICE"])
+          : Number(data["SALE_PRICE"]);
+        const hasRetailPrice = Number.isFinite(rawRetailPrice) && rawRetailPrice > 0;
+        if (!hasRetailPrice && ((data["PRICE"] != null && data["PRICE"] !== "") || (data["SALE_PRICE"] != null && data["SALE_PRICE"] !== ""))) {
+          invalidRetailPriceCount += 1;
+        }
         const vendorCost = rawCost * 1.5;
         const vendorInventoryString = data["AVAILABILITY"];
-        const vendorInventory = data["TN_STOCK"];
+        const rawInventory = Number(data["TN_STOCK"]);
+        const vendorInventory = Number.isFinite(rawInventory)
+          ? rawInventory
+          : null;
         const rawMapValue = Number(data["MAP"]);
         const hasMapValue = Number.isFinite(rawMapValue);
         if (!hasMapValue && data["MAP"] != null && data["MAP"] !== "") {
@@ -139,37 +218,25 @@ const seedRoughCountry = async () => {
         if (existingVendorProduct) {
           matchedExistingCount += 1;
           vendorProductUpdatedCount += 1;
-          updateOperations.push(
-            prisma.vendorProduct.update({
-              where: { id: existingVendorProduct.id },
-              data: {
-                vendor_sku: vendorSku,
-                vendor_cost: vendorCost,
-                vendor_inventory_string: vendorInventoryString,
-                vendor_inventory: vendorInventory,
-                product: { connect: { sku: product.sku } },
-              },
-            })
-          );
         } else {
           vendorProductCreatedCount += 1;
-          createRows.push({
-            vendor_sku: vendorSku,
-            vendor_cost: vendorCost,
-            vendor_inventory_string: vendorInventoryString,
-            vendor_inventory: vendorInventory,
-            vendor_id: ROUGH_COUNTRY_VENDOR_ID,
-            product_sku: product.sku,
-          });
         }
 
+        rowsToUpsert.push({
+          vendor_sku: vendorSku,
+          vendor_cost: vendorCost,
+          vendor_cost_usd: rawCost,
+          vendor_retail_price_usd: hasRetailPrice ? rawRetailPrice : null,
+          vendor_inventory_string: vendorInventoryString,
+          vendor_inventory: vendorInventory,
+          product_sku: product.sku,
+        });
+
         if (hasMapValue) {
-          mapUpdateOperations.push(
-            prisma.product.update({
-              where: { sku: product.sku },
-              data: { MAP: rawMapValue },
-            })
-          );
+          rowsToMapUpdate.push({
+            product_sku: product.sku,
+            map_value: rawMapValue,
+          });
         }
 
         processedCount += 1;
@@ -180,23 +247,18 @@ const seedRoughCountry = async () => {
           );
         }
 
-        if (createRows.length >= WRITE_BATCH_SIZE) {
-          await flushCreates();
-        }
-        if (updateOperations.length >= WRITE_BATCH_SIZE) {
-          await flushUpdates();
-        }
-        if (mapUpdateOperations.length >= WRITE_BATCH_SIZE) {
-          await flushMapUpdates();
-        }
       } catch (error) {
         // console.error(`Error processing vendor_sku:`, error);
       }
     }
 
-    await flushCreates();
-    await flushUpdates();
-    await flushMapUpdates();
+    for (const batch of chunk(rowsToUpsert, WRITE_BATCH_SIZE)) {
+      await upsertVendorProductsBatch(batch);
+    }
+
+    for (const batch of chunk(rowsToMapUpdate, WRITE_BATCH_SIZE)) {
+      await updateProductMapBatch(batch);
+    }
 
     const totalElapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
     const rowsPerSecond = totalElapsedSeconds
@@ -209,7 +271,7 @@ const seedRoughCountry = async () => {
       `roughCountry seed summary: matched products ${matchedProductCount}, existing vendor products ${matchedExistingCount}, missing products ${missingProductCount}, empty SKU ${emptySkuCount}, duplicate SKU ${duplicateSkuCount}`
     );
     logWithTimestamp(
-      `roughCountry seed data issues: invalid cost ${invalidCostCount}, invalid MAP ${invalidMapCount}`
+      `roughCountry seed data issues: invalid cost ${invalidCostCount}, invalid retail price ${invalidRetailPriceCount}, invalid MAP ${invalidMapCount}`
     );
     logWithTimestamp(
       `roughCountry vendor products seeded successfully! Created: ${vendorProductCreatedCount}, Updated: ${vendorProductUpdatedCount}`
