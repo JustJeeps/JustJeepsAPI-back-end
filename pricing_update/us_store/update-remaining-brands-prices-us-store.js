@@ -30,6 +30,7 @@ function parseArgs(argv) {
   const options = {
     excludeBrands: ['rough country', 'metalcloak','KeyParts','American Expedition Vehicles (MAP)' ],
     excludeVendors: ['quadratec'],
+    excludeVendorsContains: ['omix'],
     limit: null,
     batchSize: 1000,
     delayMs: 400,
@@ -43,6 +44,8 @@ function parseArgs(argv) {
       options.excludeBrands = parseListArg(argv[++i]);
     } else if (arg === '--exclude-vendors' && argv[i + 1]) {
       options.excludeVendors = parseListArg(argv[++i]);
+    } else if (arg === '--exclude-vendors-contains' && argv[i + 1]) {
+      options.excludeVendorsContains = parseListArg(argv[++i]);
     } else if (arg === '--limit' && argv[i + 1]) {
       options.limit = Number(argv[++i]);
     } else if (arg === '--batch-size' && argv[i + 1]) {
@@ -68,16 +71,32 @@ function toUsStorePriceFromCad(cadPrice, conversionRate = CAD_TO_USD_RATE) {
   return Number((Math.ceil(convertedUsd + 0.05) - 0.05).toFixed(2));
 }
 
-function shouldExcludeProduct(product, excludeBrandsSet, excludeVendorsSet) {
+function shouldExcludeProduct(product, excludeBrandsSet, excludeVendorsSet, excludeVendorsContainsList) {
   const brand = normalize(product.brand_name);
   const vendors = normalize(product.vendors);
   const brandExcluded = !!(brand && excludeBrandsSet.has(brand));
-  const vendorExcluded = !!(vendors && excludeVendorsSet.has(vendors));
+  const vendorExcludedExact = !!(vendors && excludeVendorsSet.has(vendors));
+
+  let matchedVendorContains = null;
+  if (vendors && Array.isArray(excludeVendorsContainsList)) {
+    for (const needle of excludeVendorsContainsList) {
+      if (needle && vendors.includes(needle)) {
+        matchedVendorContains = needle;
+        break;
+      }
+    }
+  }
+
+  const vendorExcludedContains = !!matchedVendorContains;
+  const vendorExcluded = vendorExcludedExact || vendorExcludedContains;
 
   return {
     excluded: brandExcluded || vendorExcluded,
     brandExcluded,
+    vendorExcludedExact,
+    vendorExcludedContains,
     vendorExcluded,
+    matchedVendorContains,
     brand,
     vendors,
   };
@@ -110,15 +129,17 @@ async function getRemainingBrandsPriceRows(options) {
 
   const excludeBrandsSet = new Set(options.excludeBrands.map((value) => normalize(value)).filter(Boolean));
   const excludeVendorsSet = new Set(options.excludeVendors.map((value) => normalize(value)).filter(Boolean));
+  const excludeVendorsContains = options.excludeVendorsContains.map((value) => normalize(value)).filter(Boolean);
 
   const rows = [];
   let skippedExcluded = 0;
   let skippedInvalidCadPrice = 0;
   const excludedByBrandCounts = new Map();
   const excludedByVendorCounts = new Map();
+  const excludedByVendorContainsCounts = new Map();
 
   for (const product of products) {
-    const exclusion = shouldExcludeProduct(product, excludeBrandsSet, excludeVendorsSet);
+    const exclusion = shouldExcludeProduct(product, excludeBrandsSet, excludeVendorsSet, excludeVendorsContains);
     if (exclusion.excluded) {
       skippedExcluded++;
 
@@ -127,9 +148,14 @@ async function getRemainingBrandsPriceRows(options) {
         excludedByBrandCounts.set(key, (excludedByBrandCounts.get(key) || 0) + 1);
       }
 
-      if (exclusion.vendorExcluded) {
+      if (exclusion.vendorExcludedExact) {
         const key = exclusion.vendors || '(blank)';
         excludedByVendorCounts.set(key, (excludedByVendorCounts.get(key) || 0) + 1);
+      }
+
+      if (exclusion.vendorExcludedContains) {
+        const key = exclusion.matchedVendorContains || '(blank)';
+        excludedByVendorContainsCounts.set(key, (excludedByVendorContainsCounts.get(key) || 0) + 1);
       }
 
       continue;
@@ -156,8 +182,10 @@ async function getRemainingBrandsPriceRows(options) {
     skippedInvalidCadPrice,
     excludeBrands: Array.from(excludeBrandsSet),
     excludeVendors: Array.from(excludeVendorsSet),
+    excludeVendorsContains,
     excludedByBrand: toSortedCountRows(excludedByBrandCounts),
     excludedByVendor: toSortedCountRows(excludedByVendorCounts),
+    excludedByVendorContains: toSortedCountRows(excludedByVendorContainsCounts),
   };
 }
 
@@ -192,6 +220,7 @@ function printUsage() {
   console.log('  - Brand: Rough Country');
   console.log('  - Brand: MetalCloak');
   console.log('  - Vendor exact match: quadratec');
+  console.log('  - Vendor contains: omix');
   console.log('');
   console.log('Usage:');
   console.log('  node pricing_update/us_store/update-remaining-brands-prices-us-store.js [options]');
@@ -201,6 +230,8 @@ function printUsage() {
   console.log('                           (default: "Rough Country, MetalCloak")');
   console.log('  --exclude-vendors <csv>  Comma-separated Product.vendors exclusions');
   console.log('                           Exact full-field match (default: "quadratec")');
+  console.log('  --exclude-vendors-contains <csv>  Exclude if Product.vendors contains any value');
+  console.log('                           (default: "omix")');
   console.log('  --limit <number>         Limit products fetched from DB');
   console.log('  --batch-size <number>    Prices per Magento request (default: 1000)');
   console.log('  --delay-ms <number>      Delay between batches in milliseconds (default: 400)');
@@ -240,8 +271,10 @@ async function main() {
     skippedInvalidCadPrice,
     excludeBrands,
     excludeVendors,
+    excludeVendorsContains,
     excludedByBrand,
     excludedByVendor,
+    excludedByVendorContains,
   } = await getRemainingBrandsPriceRows(options);
 
   console.log(`📦 Products scanned: ${scanned}`);
@@ -250,11 +283,15 @@ async function main() {
   console.log(`⚠️ Skipped (invalid CAD price): ${skippedInvalidCadPrice}`);
   console.log(`⛔ Excluded brands: ${excludeBrands.length ? excludeBrands.join(', ') : '(none)'}`);
   console.log(`⛔ Excluded vendors: ${excludeVendors.length ? excludeVendors.join(', ') : '(none)'}`);
+  console.log(`⛔ Excluded vendors (contains): ${excludeVendorsContains.length ? excludeVendorsContains.join(', ') : '(none)'}`);
   if (excludedByBrand.length > 0) {
     console.log('📊 Excluded SKUs by brand:', excludedByBrand);
   }
   if (excludedByVendor.length > 0) {
     console.log('📊 Excluded SKUs by vendor:', excludedByVendor);
+  }
+  if (excludedByVendorContains.length > 0) {
+    console.log('📊 Excluded SKUs by vendor contains:', excludedByVendorContains);
   }
 
   if (rows.length === 0) {

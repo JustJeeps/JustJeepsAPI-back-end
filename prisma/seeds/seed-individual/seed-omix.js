@@ -4,6 +4,7 @@ const omixCost = require("../api-calls/omix-excel.js");
 const VENDOR_ID = 3; // Omix
 const IN_QUERY_CHUNK_SIZE = 1000;
 const UPSERT_BATCH_SIZE = 2000;
+const USD_TO_CAD_RATE = 1.5;
 
 const chunkArray = (items, chunkSize) => {
   if (!items.length) return [];
@@ -37,6 +38,7 @@ const upsertVendorProductsBatch = async (rows) => {
       FROM jsonb_to_recordset($2::jsonb) AS x(
         vendor_sku text,
         canonical_vendor_sku text,
+        vendor_cost_usd double precision,
         vendor_cost double precision,
         product_sku text
       )
@@ -44,6 +46,7 @@ const upsertVendorProductsBatch = async (rows) => {
     UPDATE "VendorProduct" vp
     SET
       vendor_sku = input.vendor_sku,
+      vendor_cost_usd = input.vendor_cost_usd,
       vendor_cost = input.vendor_cost,
       vendor_id = $1
     FROM input
@@ -64,6 +67,7 @@ const upsertVendorProductsBatch = async (rows) => {
       FROM jsonb_to_recordset($2::jsonb) AS x(
         vendor_sku text,
         canonical_vendor_sku text,
+        vendor_cost_usd double precision,
         vendor_cost double precision,
         product_sku text
       )
@@ -72,12 +76,14 @@ const upsertVendorProductsBatch = async (rows) => {
       product_sku,
       vendor_id,
       vendor_sku,
+      vendor_cost_usd,
       vendor_cost
     )
     SELECT
       input.product_sku,
       $1,
       input.vendor_sku,
+      input.vendor_cost_usd,
       input.vendor_cost
     FROM input
     WHERE input.product_sku IS NOT NULL
@@ -135,14 +141,16 @@ const seedOmix = async () => {
         continue;
       }
 
-      // Business rule: 1.5x multiplier
-      const vendorCost = quoted * 1.5;
+      // Source quoted price is USD; store both USD and CAD costs.
+      const vendorCostUsd = quoted;
+      const vendorCost = quoted * USD_TO_CAD_RATE;
       const canonicalPartNumber = normalizePartNumber(partNumber);
       const dedupeKey = canonicalPartNumber || partNumber;
 
       normalizedByPartNumber.set(dedupeKey, {
         partNumber,
         canonicalPartNumber,
+        vendorCostUsd,
         vendorCost,
       });
     }
@@ -233,6 +241,7 @@ const seedOmix = async () => {
         upsertRows.push({
           vendor_sku: row.partNumber,
           canonical_vendor_sku: row.canonicalPartNumber || null,
+          vendor_cost_usd: row.vendorCostUsd,
           vendor_cost: row.vendorCost,
           product_sku: null,
         });
@@ -253,6 +262,7 @@ const seedOmix = async () => {
       upsertRows.push({
         vendor_sku: row.partNumber,
         canonical_vendor_sku: row.canonicalPartNumber || null,
+        vendor_cost_usd: row.vendorCostUsd,
         vendor_cost: row.vendorCost,
         product_sku: product.sku,
       });
