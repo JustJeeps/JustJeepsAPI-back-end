@@ -3,6 +3,7 @@
 const axios = require('axios');
 const dotenv = require('dotenv');
 const prisma = require('../../lib/prisma');
+const { ensureUsWebsiteAssignmentForSkus } = require('./ensure-us-website-assignment');
 
 dotenv.config();
 
@@ -30,7 +31,7 @@ function parseArgs(argv) {
   const options = {
     excludeBrands: ['rough country', 'metalcloak','KeyParts','American Expedition Vehicles (MAP)' ],
     excludeVendors: ['quadratec'],
-    excludeVendorsContains: ['omix'],
+    excludeVendorsContains: ['omix', 'keyparts'],
     limit: null,
     batchSize: 1000,
     delayMs: 400,
@@ -111,6 +112,7 @@ function toSortedCountRows(map) {
 async function getRemainingBrandsPriceRows(options) {
   const products = await prisma.product.findMany({
     where: {
+      status: 1,
       sku: {
         not: {
           endsWith: '-',
@@ -220,7 +222,7 @@ function printUsage() {
   console.log('  - Brand: Rough Country');
   console.log('  - Brand: MetalCloak');
   console.log('  - Vendor exact match: quadratec');
-  console.log('  - Vendor contains: omix');
+  console.log('  - Vendor contains: omix, keyparts');
   console.log('');
   console.log('Usage:');
   console.log('  node pricing_update/us_store/update-remaining-brands-prices-us-store.js [options]');
@@ -231,7 +233,7 @@ function printUsage() {
   console.log('  --exclude-vendors <csv>  Comma-separated Product.vendors exclusions');
   console.log('                           Exact full-field match (default: "quadratec")');
   console.log('  --exclude-vendors-contains <csv>  Exclude if Product.vendors contains any value');
-  console.log('                           (default: "omix")');
+  console.log('                           (default: "omix,keyparts")');
   console.log('  --limit <number>         Limit products fetched from DB');
   console.log('  --batch-size <number>    Prices per Magento request (default: 1000)');
   console.log('  --delay-ms <number>      Delay between batches in milliseconds (default: 400)');
@@ -303,6 +305,23 @@ async function main() {
     console.log('🧪 Dry run mode enabled. No Magento API calls sent.');
     console.log('Sample (20) SKUs to update:', rows.slice(0, 20));
     return;
+  }
+
+  const websiteSync = await ensureUsWebsiteAssignmentForSkus({
+    skus: rows.map((row) => row.sku),
+    websiteId: STORE_ID_US,
+    magentoConfig: MAGENTO_CONFIG,
+  });
+
+  console.log('🌐 US website assignment sync:', {
+    total: websiteSync.total,
+    assigned: websiteSync.assigned,
+    alreadyAssigned: websiteSync.alreadyAssigned,
+    missingInMagento: websiteSync.missingInMagento,
+    failed: websiteSync.failed,
+  });
+  if (websiteSync.failedSamples.length > 0) {
+    console.log('⚠️ Website assignment failure samples:', websiteSync.failedSamples);
   }
 
   const batches = chunk(rows, options.batchSize);

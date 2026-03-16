@@ -8,8 +8,8 @@ const { ensureUsWebsiteAssignmentForSkus } = require('./ensure-us-website-assign
 dotenv.config();
 
 const STORE_ID_US = 2;
-const OMIX_VENDOR_NEEDLES = ['omix-ada', 'omix'];
-const OMIX_FINAL_MARGIN = 0.3;
+const KEYPARTS_VENDOR_NEEDLES = ['keyparts', 'key parts'];
+const KEYPARTS_FINAL_MARGIN = 0.4;
 const MAGENTO_DISCOUNT_FACTOR = 0.85;
 
 const MAGENTO_CONFIG = {
@@ -47,7 +47,7 @@ function parseArgs(argv) {
   return options;
 }
 
-function hasOmixVendor(vendorsField) {
+function hasKeyPartsVendor(vendorsField) {
   const normalized = normalize(vendorsField);
   if (!normalized) return false;
 
@@ -56,12 +56,12 @@ function hasOmixVendor(vendorsField) {
     .map((token) => token.trim())
     .filter(Boolean);
 
-  return OMIX_VENDOR_NEEDLES.some(
+  return KEYPARTS_VENDOR_NEEDLES.some(
     (needle) => vendorTokens.includes(needle) || normalized.includes(needle)
   );
 }
 
-function toUsStorePriceFromCost(costUsd, finalMargin = OMIX_FINAL_MARGIN) {
+function toUsStorePriceFromCost(costUsd, finalMargin = KEYPARTS_FINAL_MARGIN) {
   const cost = Number(costUsd);
   const margin = Number(finalMargin);
 
@@ -79,19 +79,19 @@ function toSortedCountRows(map) {
     .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
 }
 
-async function getOmixOnlyPriceRows(limit = null) {
-  const omixVendor = await prisma.vendor.findFirst({
+async function getKeyPartsOnlyPriceRows(limit = null) {
+  const keyPartsVendor = await prisma.vendor.findFirst({
     where: {
       OR: [
         {
           name: {
-            contains: 'Omix-ADA',
+            contains: 'KeyParts',
             mode: 'insensitive',
           },
         },
         {
           name: {
-            contains: 'Omix',
+            contains: 'Key Parts',
             mode: 'insensitive',
           },
         },
@@ -103,17 +103,27 @@ async function getOmixOnlyPriceRows(limit = null) {
     },
   });
 
-  if (!omixVendor) {
-    throw new Error('Could not find vendor containing "Omix-ADA" or "Omix" in Vendor.name');
+  if (!keyPartsVendor) {
+    throw new Error('Could not find vendor containing "KeyParts" or "Key Parts" in Vendor.name');
   }
 
   const products = await prisma.product.findMany({
     where: {
       status: 1,
-      vendors: {
-        contains: 'Omix',
-        mode: 'insensitive',
-      },
+      OR: [
+        {
+          vendors: {
+            contains: 'KeyParts',
+            mode: 'insensitive',
+          },
+        },
+        {
+          vendors: {
+            contains: 'Key Parts',
+            mode: 'insensitive',
+          },
+        },
+      ],
       sku: {
         not: {
           endsWith: '-',
@@ -126,7 +136,7 @@ async function getOmixOnlyPriceRows(limit = null) {
       vendors: true,
       vendorProducts: {
         where: {
-          vendor_id: omixVendor.id,
+          vendor_id: keyPartsVendor.id,
         },
         select: {
           vendor_cost_usd: true,
@@ -143,23 +153,23 @@ async function getOmixOnlyPriceRows(limit = null) {
   const byBrandCounts = new Map();
 
   let skippedVendorMismatch = 0;
-  let skippedMissingCost = 0;
+  let skippedMissingCostUsd = 0;
   let skippedInvalidPrice = 0;
 
   for (const product of products) {
-    if (!hasOmixVendor(product.vendors)) {
+    if (!hasKeyPartsVendor(product.vendors)) {
       skippedVendorMismatch++;
       continue;
     }
 
     const vp = product.vendorProducts?.[0];
-    const omixCost = vp?.vendor_cost_usd ?? vp?.vendor_cost;
-    if (!Number.isFinite(Number(omixCost)) || Number(omixCost) <= 0) {
-      skippedMissingCost++;
+    const keyPartsCostUsd = vp?.vendor_cost_usd;
+    if (!Number.isFinite(Number(keyPartsCostUsd)) || Number(keyPartsCostUsd) <= 0) {
+      skippedMissingCostUsd++;
       continue;
     }
 
-    const priceUsd = toUsStorePriceFromCost(omixCost);
+    const priceUsd = toUsStorePriceFromCost(keyPartsCostUsd);
     if (!Number.isFinite(priceUsd) || priceUsd <= 0) {
       skippedInvalidPrice++;
       continue;
@@ -172,7 +182,7 @@ async function getOmixOnlyPriceRows(limit = null) {
       sku: product.sku,
       store_id: STORE_ID_US,
       price: priceUsd,
-      vendor_cost_used: Number(omixCost),
+      vendor_cost_used: Number(keyPartsCostUsd),
       brand_name: product.brand_name,
     });
   }
@@ -181,9 +191,9 @@ async function getOmixOnlyPriceRows(limit = null) {
     rows,
     scanned: products.length,
     skippedVendorMismatch,
-    skippedMissingCost,
+    skippedMissingCostUsd,
     skippedInvalidPrice,
-    omixVendorName: omixVendor.name,
+    keyPartsVendorName: keyPartsVendor.name,
     byBrand: toSortedCountRows(byBrandCounts),
   };
 }
@@ -213,13 +223,13 @@ function chunk(array, size) {
 }
 
 function printUsage() {
-  console.log('Update Magento US store base prices for products where vendors contains Omix-ADA.');
+  console.log('Update Magento US store base prices for products where vendors contains KeyParts.');
   console.log('Formula:');
-  console.log(`  - price_usd = roundUpToPoint95((omix_vendor_cost * ${(1 + OMIX_FINAL_MARGIN).toFixed(2)}) / ${MAGENTO_DISCOUNT_FACTOR})`);
-  console.log(`  - Targets final margin: ${(OMIX_FINAL_MARGIN * 100).toFixed(0)}% on Omix vendor cost`);
+  console.log(`  - price_usd = roundUpToPoint95((keyparts_vendor_cost_usd * ${(1 + KEYPARTS_FINAL_MARGIN).toFixed(2)}) / ${MAGENTO_DISCOUNT_FACTOR})`);
+  console.log(`  - Targets final margin: ${(KEYPARTS_FINAL_MARGIN * 100).toFixed(0)}% on KeyParts vendor cost USD`);
   console.log('');
   console.log('Usage:');
-  console.log('  node pricing_update/us_store/update-omix-ada-only-prices-us-store.js [options]');
+  console.log('  node pricing_update/us_store/update-keyparts-only-prices-us-store.js [options]');
   console.log('');
   console.log('Options:');
   console.log('  --limit <number>       Limit products fetched from DB');
@@ -251,27 +261,27 @@ async function main() {
 
   const startedAt = Date.now();
 
-  console.log('🚀 US Store Omix-ADA Price Update');
-  console.log(`🧮 Margin target: ${(OMIX_FINAL_MARGIN * 100).toFixed(0)}% final margin on Omix cost`);
+  console.log('🚀 US Store KeyParts Price Update');
+  console.log(`🧮 Margin target: ${(KEYPARTS_FINAL_MARGIN * 100).toFixed(0)}% final margin on KeyParts cost USD`);
 
   const {
     rows,
     scanned,
     skippedVendorMismatch,
-    skippedMissingCost,
+    skippedMissingCostUsd,
     skippedInvalidPrice,
-    omixVendorName,
+    keyPartsVendorName,
     byBrand,
-  } = await getOmixOnlyPriceRows(options.limit);
+  } = await getKeyPartsOnlyPriceRows(options.limit);
 
-  console.log(`🏷️  Omix vendor source: ${omixVendorName}`);
+  console.log(`🏷️  KeyParts vendor source: ${keyPartsVendorName}`);
   console.log(`📦 Products scanned: ${scanned}`);
   console.log(`✅ Price rows prepared: ${rows.length}`);
   console.log(`⚠️ Skipped (vendor mismatch): ${skippedVendorMismatch}`);
-  console.log(`⚠️ Skipped (missing/invalid Omix cost): ${skippedMissingCost}`);
+  console.log(`⚠️ Skipped (missing/invalid KeyParts cost USD): ${skippedMissingCostUsd}`);
   console.log(`⚠️ Skipped (invalid computed price): ${skippedInvalidPrice}`);
   if (byBrand.length > 0) {
-    console.log('📊 Omix SKUs by brand:', byBrand);
+    console.log('📊 KeyParts SKUs by brand:', byBrand);
   }
 
   if (rows.length === 0) {

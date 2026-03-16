@@ -3,6 +3,7 @@
 const axios = require('axios');
 const dotenv = require('dotenv');
 const prisma = require('../../lib/prisma');
+const { ensureUsWebsiteAssignmentForSkus } = require('./ensure-us-website-assignment');
 
 dotenv.config();
 
@@ -137,6 +138,7 @@ async function getQuadratecOnlyPriceRows(vendorName, limit = null) {
 
   const products = await prisma.product.findMany({
     where: {
+      status: 1,
       vendors: {
         equals: vendorName,
         mode: 'insensitive',
@@ -349,6 +351,23 @@ async function main() {
     console.log('🧪 Dry run mode enabled. No Magento API calls sent.');
     console.log('Sample (20) SKUs to update:', rows.slice(0, 20));
     return;
+  }
+
+  const websiteSync = await ensureUsWebsiteAssignmentForSkus({
+    skus: rows.map((row) => row.sku),
+    websiteId: STORE_ID_US,
+    magentoConfig: MAGENTO_CONFIG,
+  });
+
+  console.log('🌐 US website assignment sync:', {
+    total: websiteSync.total,
+    assigned: websiteSync.assigned,
+    alreadyAssigned: websiteSync.alreadyAssigned,
+    missingInMagento: websiteSync.missingInMagento,
+    failed: websiteSync.failed,
+  });
+  if (websiteSync.failedSamples.length > 0) {
+    console.log('⚠️ Website assignment failure samples:', websiteSync.failedSamples);
   }
 
   const batches = chunk(rows, options.batchSize);

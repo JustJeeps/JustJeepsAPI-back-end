@@ -28,12 +28,14 @@ const upsertVendorProductsBatch = async (rows) => {
       FROM jsonb_to_recordset($2::jsonb) AS x(
         vendor_sku text,
         product_sku text,
+        vendor_cost_usd double precision,
         vendor_cost double precision,
         vendor_inventory_string text
       )
     )
     UPDATE "VendorProduct" vp
     SET
+      vendor_cost_usd = input.vendor_cost_usd,
       vendor_cost = input.vendor_cost,
       vendor_inventory_string = input.vendor_inventory_string
     FROM input
@@ -47,6 +49,7 @@ const upsertVendorProductsBatch = async (rows) => {
       FROM jsonb_to_recordset($2::jsonb) AS x(
         vendor_sku text,
         product_sku text,
+        vendor_cost_usd double precision,
         vendor_cost double precision,
         vendor_inventory_string text
       )
@@ -55,6 +58,7 @@ const upsertVendorProductsBatch = async (rows) => {
       product_sku,
       vendor_id,
       vendor_sku,
+      vendor_cost_usd,
       vendor_cost,
       vendor_inventory_string
     )
@@ -62,6 +66,7 @@ const upsertVendorProductsBatch = async (rows) => {
       input.product_sku,
       $1,
       input.vendor_sku,
+      input.vendor_cost_usd,
       input.vendor_cost,
       input.vendor_inventory_string
     FROM input
@@ -154,8 +159,10 @@ const seedKeyPartsProducts = async () => {
       continue;
     }
 
+    const costUsd = Number(data.Cost);
     const payload = {
-      vendor_cost: Number(data.Cost) * COST_MULTIPLIER,
+      vendor_cost_usd: costUsd,
+      vendor_cost: costUsd * COST_MULTIPLIER,
       vendor_inventory_string: data.Inventory || null,
     };
 
