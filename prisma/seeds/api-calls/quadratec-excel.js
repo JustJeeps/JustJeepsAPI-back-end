@@ -1,6 +1,24 @@
 const XLSX = require("xlsx");
 const path = require("path");
 
+function normalizeText(value) {
+  return (value ?? "").toString().trim();
+}
+
+function startsWithQtc(value) {
+  return normalizeText(value).toUpperCase().startsWith("QTC-");
+}
+
+function shouldForceQuadratecBrand(brand, mpn, quadPn) {
+  const normalizedBrand = normalizeText(brand).toLowerCase();
+  if (normalizedBrand !== "accupart") return false;
+  return startsWithQtc(mpn) || startsWithQtc(quadPn);
+}
+
+function isAccuPartBrand(brand) {
+  return normalizeText(brand).toLowerCase() === "accupart";
+}
+
 const quadratecCost = () => {
   // Step 1: Load Excel file
   // Construct the absolute file path using __dirname and the file name
@@ -27,9 +45,11 @@ const quadratecCost = () => {
 
   // Step 3: Access JSON Data
   const finalResults = jsonData.slice(1).map((obj) => {
-    const brand = obj["Brand"]?.toString() || "";
-    const mpn = obj["MPN"]?.toString() || "";
-    const quadPn = obj["Quadratec PN"]?.toString() || "";
+    const originalBrand = normalizeText(obj["Brand"]);
+    const mpn = normalizeText(obj["MPN"]);
+    const quadPn = normalizeText(obj["Quadratec PN"]);
+    const forcedQuadratecBrand = shouldForceQuadratecBrand(originalBrand, mpn, quadPn);
+    const brand = forcedQuadratecBrand ? "Quadratec" : originalBrand;
 
     const useQuadratecPnForBrand =
       brand === "Quadratec" ||
@@ -62,13 +82,29 @@ const quadratecCost = () => {
       }
     }
 
+    let quadratecCodeAlt2 = null;
+    let quadratecCodeAlt3 = null;
+
+    if (!forcedQuadratecBrand && isAccuPartBrand(originalBrand)) {
+      if (quadPn) {
+        quadratecCodeAlt2 = `Quadratec${quadPn}`;
+      }
+      if (mpn && startsWithQtc(mpn)) {
+        quadratecCodeAlt3 = `Quadratec${mpn}`;
+      }
+    }
+
     return {
       MPN: mpn,
       brand,
+      original_brand: originalBrand,
+      forced_quadratec_brand: forcedQuadratecBrand,
       wholesalePrice: obj["Wholesale Price"],
       retailPrice: obj["Retail Price"],
       quadratec_code: quadratecCode,
       quadratec_code_alt: quadratecCodeAlt || null,
+      quadratec_code_alt2: quadratecCodeAlt2,
+      quadratec_code_alt3: quadratecCodeAlt3,
       quadratec_sku: quadPn,
     };
   });

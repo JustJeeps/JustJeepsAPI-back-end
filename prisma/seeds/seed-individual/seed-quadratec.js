@@ -35,15 +35,24 @@ async function seedQuadratec() {
       const retail = Number(r?.retailPrice);
       if (!Number.isFinite(wholesale)) continue;
 
-      const codes = [r?.quadratec_code, r?.quadratec_code_alt]
-        .map((value) => (value ?? "").trim())
-        .filter(Boolean);
+      const codes = [
+        { value: r?.quadratec_code, quadratecBrandOnly: false },
+        { value: r?.quadratec_code_alt, quadratecBrandOnly: false },
+        { value: r?.quadratec_code_alt2, quadratecBrandOnly: true },
+        { value: r?.quadratec_code_alt3, quadratecBrandOnly: true },
+      ]
+        .map((item) => ({
+          value: (item.value ?? "").trim(),
+          quadratecBrandOnly: item.quadratecBrandOnly,
+        }))
+        .filter((item) => item.value);
 
       if (codes.length === 0) continue;
 
-      for (const code of codes) {
+      for (const { value: code, quadratecBrandOnly } of codes) {
         mapByCode.set(code, {
           quadratec_code: code,
+          quadratec_brand_only_match: quadratecBrandOnly,
           quadratec_sku: r?.quadratec_sku ?? null,
           vendor_cost_usd: round2(wholesale),
           vendor_cost: round2(wholesale * 1.5),
@@ -59,6 +68,7 @@ async function seedQuadratec() {
     // 2) Prefetch Product.sku for those quadratec_code values (chunked)
     console.time("fetch products mapping");
     const codeToSku = new Map();
+    const codeToSkuQuadratecBrandOnly = new Map();
     const codes = cleaned.map((x) => x.quadratec_code);
 
     for (const codeChunk of chunk(codes, 5000)) {
@@ -67,7 +77,12 @@ async function seedQuadratec() {
         select: { sku: true, quadratec_code: true },
       });
       for (const p of products) {
-        if (p.quadratec_code) codeToSku.set(p.quadratec_code, p.sku);
+        if (p.quadratec_code) {
+          codeToSku.set(p.quadratec_code, p.sku);
+          if ((p.sku || "").toUpperCase().startsWith("QTC-")) {
+            codeToSkuQuadratecBrandOnly.set(p.quadratec_code, p.sku);
+          }
+        }
       }
     }
     console.timeEnd("fetch products mapping");
@@ -77,7 +92,9 @@ async function seedQuadratec() {
     let missingProduct = 0;
 
     for (const r of cleaned) {
-      const sku = codeToSku.get(r.quadratec_code);
+      const sku = r.quadratec_brand_only_match
+        ? codeToSkuQuadratecBrandOnly.get(r.quadratec_code)
+        : codeToSku.get(r.quadratec_code);
       if (!sku) {
         missingProduct++;
         continue;
