@@ -1,6 +1,24 @@
 const XLSX = require("xlsx");
 const path = require("path");
 
+function normalizeText(value) {
+  return (value ?? "").toString().trim();
+}
+
+function startsWithQtc(value) {
+  return normalizeText(value).toUpperCase().startsWith("QTC-");
+}
+
+function shouldForceQuadratecBrand(brand, mpn, quadPn) {
+  const normalizedBrand = normalizeText(brand).toLowerCase();
+  if (normalizedBrand !== "accupart") return false;
+  return startsWithQtc(mpn) || startsWithQtc(quadPn);
+}
+
+function isAccuPartBrand(brand) {
+  return normalizeText(brand).toLowerCase() === "accupart";
+}
+
 const quadratecInventory = () => {
   // Step 1: Load Excel file
   // Construct the absolute file path using __dirname and the file name
@@ -33,9 +51,11 @@ const quadratecInventory = () => {
 
   // Step 3: Access JSON Data
   const finalResults = jsonData.slice(1).map((obj) => {
-    const brand = obj["Brand"]?.toString() || "";
-    const partNo = obj["Part No"]?.toString() || "";
-    const quadPartNo = obj["Quadratec Part No"]?.toString() || "";
+    const originalBrand = normalizeText(obj["Brand"]);
+    const partNo = normalizeText(obj["Part No"]);
+    const quadPartNo = normalizeText(obj["Quadratec Part No"]);
+    const forcedQuadratecBrand = shouldForceQuadratecBrand(originalBrand, partNo, quadPartNo);
+    const brand = forcedQuadratecBrand ? "Quadratec" : originalBrand;
 
     const useQuadratecPnForBrand =
       brand === "Quadratec" ||
@@ -64,12 +84,28 @@ const quadratecInventory = () => {
       }
     }
 
+    let quadratecCodeAlt2 = null;
+    let quadratecCodeAlt3 = null;
+
+    if (!forcedQuadratecBrand && isAccuPartBrand(originalBrand)) {
+      if (quadPartNo) {
+        quadratecCodeAlt2 = `Quadratec${quadPartNo}`;
+      }
+      if (partNo && startsWithQtc(partNo)) {
+        quadratecCodeAlt3 = `Quadratec${partNo}`;
+      }
+    }
+
     return {
       MPN: partNo,
       brand,
+      original_brand: originalBrand,
+      forced_quadratec_brand: forcedQuadratecBrand,
       wholesalePrice: obj["Cost"],
       quadratec_code: quadratecCode,
       quadratec_code_alt: quadratecCodeAlt || null,
+      quadratec_code_alt2: quadratecCodeAlt2,
+      quadratec_code_alt3: quadratecCodeAlt3,
       quadratec_sku: quadPartNo,
       quadratec_inventory: obj["Inventory Total"],
     };

@@ -50,12 +50,24 @@ async function seedQuadInventoryBulk() {
     const cleaned = rows
       .flatMap((r) => {
         const inv = r?.quadratec_inventory;
-        const codes = [r?.quadratec_code, r?.quadratec_code_alt]
-          .map((value) => (value ?? "").trim())
-          .filter(Boolean);
+        const codes = [
+          { value: r?.quadratec_code, quadratecBrandOnly: false },
+          { value: r?.quadratec_code_alt, quadratecBrandOnly: false },
+          { value: r?.quadratec_code_alt2, quadratecBrandOnly: true },
+          { value: r?.quadratec_code_alt3, quadratecBrandOnly: true },
+        ]
+          .map((item) => ({
+            code: (item.value ?? "").trim(),
+            quadratecBrandOnly: item.quadratecBrandOnly,
+          }))
+          .filter((item) => item.code);
 
         if (!codes.length) return [];
-        return codes.map((code) => ({ code, inv }));
+        return codes.map((item) => ({
+          code: item.code,
+          inv,
+          quadratec_brand_only_match: item.quadratecBrandOnly,
+        }));
       })
       .filter((r) => r.code && r.inv !== undefined && r.inv !== null);
 
@@ -70,7 +82,8 @@ async function seedQuadInventoryBulk() {
         await tx.$executeRawUnsafe(`
           CREATE TEMP TABLE temp_quad_inv (
             vendor_sku TEXT PRIMARY KEY,
-            vendor_inventory DOUBLE PRECISION
+            vendor_inventory DOUBLE PRECISION,
+            quadratec_brand_only_match BOOLEAN
           ) ON COMMIT DROP;
         `);
 
@@ -81,7 +94,10 @@ async function seedQuadInventoryBulk() {
           const dedup = new Map();
           for (const r of batch) {
             if (!r?.code) continue;
-            dedup.set(r.code, r.inv); // keep last one
+            dedup.set(r.code, {
+              inv: r.inv,
+              quadratecBrandOnly: !!r.quadratec_brand_only_match,
+            }); // keep last one
           }
 
           await tx.$executeRawUnsafe(`TRUNCATE TABLE temp_quad_inv;`);
@@ -90,16 +106,18 @@ async function seedQuadInventoryBulk() {
           if (entries.length === 0) continue;
 
           const valuesSql = entries
-            .map(([code, inv]) => {
+            .map(([code, payload]) => {
               const safeSku = String(code).replace(/'/g, "''");
+              const inv = payload?.inv;
               const safeInv = Number.isFinite(Number(inv)) ? Number(inv) : 0;
-              return `('${safeSku}', ${safeInv})`;
+              const quadratecBrandOnly = payload?.quadratecBrandOnly ? "TRUE" : "FALSE";
+              return `('${safeSku}', ${safeInv}, ${quadratecBrandOnly})`;
             })
             .join(",\n");
 
           // No ON CONFLICT needed because we truncated the temp table
           await tx.$executeRawUnsafe(`
-            INSERT INTO temp_quad_inv (vendor_sku, vendor_inventory)
+            INSERT INTO temp_quad_inv (vendor_sku, vendor_inventory, quadratec_brand_only_match)
             VALUES
             ${valuesSql};
           `);
@@ -109,7 +127,8 @@ async function seedQuadInventoryBulk() {
             SET vendor_inventory = t.vendor_inventory
             FROM temp_quad_inv t
             WHERE vp.vendor_id = ${VENDOR_ID}
-              AND vp.vendor_sku = t.vendor_sku;
+              AND vp.vendor_sku = t.vendor_sku
+              AND (t.quadratec_brand_only_match = FALSE OR vp.product_sku LIKE 'QTC-%');
           `);
 
           // Progress / ETA
