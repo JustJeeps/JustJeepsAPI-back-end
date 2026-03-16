@@ -29,7 +29,7 @@ function parseListArg(value) {
 
 function parseArgs(argv) {
   const options = {
-    excludeBrands: ['rough country', 'metalcloak','KeyParts','American Expedition Vehicles (MAP)' ],
+    excludeBrands: ['rough country', 'metalcloak','KeyParts','American Expedition Vehicles (MAP)','Mopar' ],
     excludeVendors: ['quadratec'],
     excludeVendorsContains: ['omix', 'keyparts'],
     limit: null,

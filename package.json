@@ -64,6 +64,7 @@
     "update-quadratec-us-store-prices": "node pricing_update/us_store/update-quadratec-only-prices-us-store.js",
     "update-omix-us-store-prices": "node pricing_update/us_store/update-omix-ada-only-prices-us-store.js",
     "update-keyparts-us-store-prices": "node pricing_update/us_store/update-keyparts-only-prices-us-store.js",
+    "update-mopar-us-store-prices": "node pricing_update/us_store/update-mopar-prices-us-store.js",
     "update-remaining-us-store-prices": "node pricing_update/us_store/update-remaining-brands-prices-us-store.js",
     "magento-bf-no-sale": "node magento_update/update-black-friday-no-sale.js",
 
