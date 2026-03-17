@@ -53,6 +53,8 @@ async function seedQuadInventoryBulk() {
         const codes = [
           { value: r?.quadratec_code, quadratecBrandOnly: false },
           { value: r?.quadratec_code_alt, quadratecBrandOnly: false },
+          { value: r?.quadratec_code_alt4, quadratecBrandOnly: false },
+          { value: r?.quadratec_code_alt5, quadratecBrandOnly: false },
           { value: r?.quadratec_code_alt2, quadratecBrandOnly: true },
           { value: r?.quadratec_code_alt3, quadratecBrandOnly: true },
         ]

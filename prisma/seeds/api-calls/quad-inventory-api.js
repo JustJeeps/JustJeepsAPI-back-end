@@ -19,6 +19,21 @@ function isAccuPartBrand(brand) {
   return normalizeText(brand).toLowerCase() === "accupart";
 }
 
+function isPoisonSpyderBrand(brand) {
+  const normalized = normalizeText(brand).toLowerCase();
+  return normalized === "poison spyder" || normalized === "poison spyder customs";
+}
+
+function toPoisonSpyderDashedPartNumber(value) {
+  const text = normalizeText(value);
+  if (!text || text.includes("-")) return text;
+
+  const compact = text.replace(/\s+/g, "");
+  if (!/^[a-z0-9]+$/i.test(compact) || compact.length < 7) return text;
+
+  return `${compact.slice(0, 2)}-${compact.slice(2, 4)}-${compact.slice(4)}`;
+}
+
 const quadratecInventory = () => {
   // Step 1: Load Excel file
   // Construct the absolute file path using __dirname and the file name
@@ -86,6 +101,8 @@ const quadratecInventory = () => {
 
     let quadratecCodeAlt2 = null;
     let quadratecCodeAlt3 = null;
+    let quadratecCodeAlt4 = null;
+    let quadratecCodeAlt5 = null;
 
     if (!forcedQuadratecBrand && isAccuPartBrand(originalBrand)) {
       if (quadPartNo) {
@@ -93,6 +110,23 @@ const quadratecInventory = () => {
       }
       if (partNo && startsWithQtc(partNo)) {
         quadratecCodeAlt3 = `Quadratec${partNo}`;
+      }
+    }
+
+    if (isPoisonSpyderBrand(brand)) {
+      const dashedPartNo = toPoisonSpyderDashedPartNumber(partNo);
+      const dashedQuadPartNo = toPoisonSpyderDashedPartNumber(quadPartNo);
+
+      if (dashedPartNo && dashedPartNo !== partNo) {
+        quadratecCodeAlt4 = `${brand}${dashedPartNo}`;
+      }
+
+      if (
+        dashedQuadPartNo &&
+        dashedQuadPartNo !== quadPartNo &&
+        `${brand}${dashedQuadPartNo}` !== quadratecCodeAlt4
+      ) {
+        quadratecCodeAlt5 = `${brand}${dashedQuadPartNo}`;
       }
     }
 
@@ -106,6 +140,8 @@ const quadratecInventory = () => {
       quadratec_code_alt: quadratecCodeAlt || null,
       quadratec_code_alt2: quadratecCodeAlt2,
       quadratec_code_alt3: quadratecCodeAlt3,
+      quadratec_code_alt4: quadratecCodeAlt4,
+      quadratec_code_alt5: quadratecCodeAlt5,
       quadratec_sku: quadPartNo,
       quadratec_inventory: obj["Inventory Total"],
     };
