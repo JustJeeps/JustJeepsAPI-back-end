@@ -14,6 +14,7 @@
     "seed-quadratec": "node prisma/seeds/seed-individual/seed-quadratec.js",
     "seed-allProducts": "node prisma/seeds/seed-individual/seed-allProducts.js",
     "seed-meyer": "node prisma/seeds/seed-individual/seed-meyer.js",
+    "seed-meyer-us": "node prisma/seeds/seed-individual/seed-meyer-us.js",
     "seed-keystone": "node prisma/seeds/seed-individual/seed-keystone.js",
     "seed-orders": "node prisma/seeds/seed-individual/seed-orders.js",
     "seed-northridge": "node prisma/seeds/seed-individual/seed-northridge.js",
