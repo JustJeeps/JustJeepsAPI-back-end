@@ -9,14 +9,37 @@ function startsWithQtc(value) {
   return normalizeText(value).toUpperCase().startsWith("QTC-");
 }
 
+function isAccuPartLikeBrand(brand) {
+  const normalized = normalizeText(brand).toLowerCase();
+  return (
+    normalized === "accupart" ||
+    normalized === "accu part" ||
+    normalized === "acuupart"
+  );
+}
+
+function isStealthBrand(brand) {
+  return normalizeText(brand).toLowerCase() === "stealth";
+}
+
+function withQtcPrefix(value) {
+  const text = normalizeText(value);
+  if (!text) return "";
+  if (startsWithQtc(text)) return text.toUpperCase();
+
+  const hyphenated = text.replace(/\s+/g, "-");
+  if (startsWithQtc(hyphenated)) return hyphenated.toUpperCase();
+
+  return `QTC-${hyphenated}`.toUpperCase();
+}
+
 function shouldForceQuadratecBrand(brand, mpn, quadPn) {
-  const normalizedBrand = normalizeText(brand).toLowerCase();
-  if (normalizedBrand !== "accupart") return false;
+  if (!isAccuPartLikeBrand(brand) && !isStealthBrand(brand)) return false;
   return startsWithQtc(mpn) || startsWithQtc(quadPn);
 }
 
 function isAccuPartBrand(brand) {
-  return normalizeText(brand).toLowerCase() === "accupart";
+  return isAccuPartLikeBrand(brand);
 }
 
 function isPoisonSpyderBrand(brand) {
@@ -101,6 +124,10 @@ const quadratecCost = () => {
     let quadratecCodeAlt3 = null;
     let quadratecCodeAlt4 = null;
     let quadratecCodeAlt5 = null;
+    let quadratecCodeAlt6 = null;
+    let quadratecCodeAlt7 = null;
+    let quadratecCodeAlt8 = null;
+    let quadratecCodeAlt9 = null;
 
     if (!forcedQuadratecBrand && isAccuPartBrand(originalBrand)) {
       if (quadPn) {
@@ -128,6 +155,30 @@ const quadratecCost = () => {
       }
     }
 
+    if (isStealthBrand(originalBrand)) {
+      const qtcFromQuadPn = withQtcPrefix(quadPn);
+      const qtcFromMpn = withQtcPrefix(mpn);
+
+      if (quadPn) {
+        quadratecCodeAlt8 = `Quadratec${quadPn}`;
+      }
+
+      if (qtcFromQuadPn) {
+        quadratecCodeAlt9 = `Quadratec${qtcFromQuadPn}`;
+      }
+
+      if (qtcFromQuadPn) {
+        quadratecCodeAlt6 = `Stealth${qtcFromQuadPn}`;
+      }
+
+      if (
+        qtcFromMpn &&
+        `Stealth${qtcFromMpn}` !== quadratecCodeAlt6
+      ) {
+        quadratecCodeAlt7 = `Stealth${qtcFromMpn}`;
+      }
+    }
+
     return {
       MPN: mpn,
       brand,
@@ -141,6 +192,10 @@ const quadratecCost = () => {
       quadratec_code_alt3: quadratecCodeAlt3,
       quadratec_code_alt4: quadratecCodeAlt4,
       quadratec_code_alt5: quadratecCodeAlt5,
+      quadratec_code_alt6: quadratecCodeAlt6,
+      quadratec_code_alt7: quadratecCodeAlt7,
+      quadratec_code_alt8: quadratecCodeAlt8,
+      quadratec_code_alt9: quadratecCodeAlt9,
       quadratec_sku: quadPn,
     };
   });
