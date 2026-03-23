@@ -3071,10 +3071,10 @@ module.exports = [
   {
     jj_prefix: "PS",
     brand_name: "Poison Spyder Customs",
-    vendors: "Meyer", //no longer WheelPros (don't DS to US)
+    vendors: "Meyer, Quadratec", //no longer WheelPros (don't DS to US)
     // keystone_code: "",
     meyer_code: "PSI",
-    // quadratec_code: "Poison Spyder",
+    quadratec_code: "Poison Spyder",
     truck_parts_code: "Poison Spyder",
     partsEngine_code: "-vp-poison-spyder-769.aspx",
 
