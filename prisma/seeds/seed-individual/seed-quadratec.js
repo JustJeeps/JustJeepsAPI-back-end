@@ -44,6 +44,9 @@ async function seedQuadratec() {
         { value: r?.quadratec_code_alt7, quadratecBrandOnly: false },
         { value: r?.quadratec_code_alt8, quadratecBrandOnly: false },
         { value: r?.quadratec_code_alt9, quadratecBrandOnly: false },
+        { value: r?.quadratec_code_alt10, quadratecBrandOnly: false },
+        { value: r?.quadratec_code_alt11, quadratecBrandOnly: false },
+        { value: r?.quadratec_code_alt12, quadratecBrandOnly: false },
         { value: r?.quadratec_code_alt2, quadratecBrandOnly: true },
         { value: r?.quadratec_code_alt3, quadratecBrandOnly: true },
       ]

@@ -1,0 +1,34 @@
+{
+  "summary": {
+    "candidate_rows": 2,
+    "unique_qtc_skus_recoverable": 2
+  },
+  "matches": [
+    {
+      "qtc_sku": "QTC-14259-1100",
+      "quadratec_code": "Quadratec14259-1100",
+      "core_sku": "14259-1100",
+      "alt_product_sku": "TRF-14259-1100",
+      "alt_vendor_sku": "Tru-Fit14259-1100",
+      "alt_vendor_cost_usd": 38.99,
+      "alt_vendor_cost": 58.49,
+      "alt_quadratec_sku": "14259-1100",
+      "alt_brand_name": "Tru-Fit",
+      "alt_jj_prefix": "TRF",
+      "match_type": "quadratec_sku_match"
+    },
+    {
+      "qtc_sku": "QTC-14259-1104",
+      "quadratec_code": "Quadratec14259-1104",
+      "core_sku": "14259-1104",
+      "alt_product_sku": "TRF-14259-1104",
+      "alt_vendor_sku": "Tru-Fit14259-1104",
+      "alt_vendor_cost_usd": 38.67,
+      "alt_vendor_cost": 58.01,
+      "alt_quadratec_sku": "14259-1104",
+      "alt_brand_name": "Tru-Fit",
+      "alt_jj_prefix": "TRF",
+      "match_type": "quadratec_sku_match"
+    }
+  ]
+}

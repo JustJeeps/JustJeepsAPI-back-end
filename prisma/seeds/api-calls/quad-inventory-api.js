@@ -22,6 +22,23 @@ function isStealthBrand(brand) {
   return normalizeText(brand).toLowerCase() === "stealth";
 }
 
+function shouldEmitQuadratecFallbackForBrand(brand) {
+  const normalized = normalizeText(brand).toLowerCase();
+  return (
+    normalized === "accupart" ||
+    normalized === "accu part" ||
+    normalized === "acuupart" ||
+    normalized === "stealth" ||
+    normalized === "tactik" ||
+    normalized === "carnivore" ||
+    normalized === "tru-fit" ||
+    normalized === "lynx" ||
+    normalized === "kicker" ||
+    normalized === "res-q" ||
+    normalized === "performance tool"
+  );
+}
+
 function withQtcPrefix(value) {
   const text = normalizeText(value);
   if (!text) return "";
@@ -130,6 +147,9 @@ const quadratecInventory = () => {
     let quadratecCodeAlt7 = null;
     let quadratecCodeAlt8 = null;
     let quadratecCodeAlt9 = null;
+    let quadratecCodeAlt10 = null;
+    let quadratecCodeAlt11 = null;
+    let quadratecCodeAlt12 = null;
 
     if (!forcedQuadratecBrand && isAccuPartBrand(originalBrand)) {
       if (quadPartNo) {
@@ -181,6 +201,37 @@ const quadratecInventory = () => {
       }
     }
 
+    if (!forcedQuadratecBrand && shouldEmitQuadratecFallbackForBrand(originalBrand)) {
+      const existingCodes = new Set(
+        [
+          quadratecCode,
+          quadratecCodeAlt,
+          quadratecCodeAlt2,
+          quadratecCodeAlt3,
+          quadratecCodeAlt4,
+          quadratecCodeAlt5,
+          quadratecCodeAlt6,
+          quadratecCodeAlt7,
+          quadratecCodeAlt8,
+          quadratecCodeAlt9,
+        ].filter(Boolean)
+      );
+
+      const rawFallbacks = [
+        quadPartNo ? `Quadratec${quadPartNo}` : null,
+        startsWithQtc(partNo) ? `Quadratec${partNo}` : null,
+        withQtcPrefix(quadPartNo) ? `Quadratec${withQtcPrefix(quadPartNo)}` : null,
+        withQtcPrefix(partNo) ? `Quadratec${withQtcPrefix(partNo)}` : null,
+      ]
+        .filter(Boolean)
+        .filter((code, index, arr) => arr.indexOf(code) === index)
+        .filter((code) => !existingCodes.has(code));
+
+      quadratecCodeAlt10 = rawFallbacks[0] || null;
+      quadratecCodeAlt11 = rawFallbacks[1] || null;
+      quadratecCodeAlt12 = rawFallbacks[2] || null;
+    }
+
     return {
       MPN: partNo,
       brand,
@@ -197,6 +248,9 @@ const quadratecInventory = () => {
       quadratec_code_alt7: quadratecCodeAlt7,
       quadratec_code_alt8: quadratecCodeAlt8,
       quadratec_code_alt9: quadratecCodeAlt9,
+      quadratec_code_alt10: quadratecCodeAlt10,
+      quadratec_code_alt11: quadratecCodeAlt11,
+      quadratec_code_alt12: quadratecCodeAlt12,
       quadratec_sku: quadPartNo,
       quadratec_inventory: obj["Inventory Total"],
     };

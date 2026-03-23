@@ -1,0 +1,1774 @@
+{
+  "summary": {
+    "total_qtc_missing_vendor_rows": 155,
+    "qtc_found_under_any_other_brand_product": 3,
+    "qtc_found_under_any_other_brand_vendor_row": 3,
+    "qtc_recoverable_from_other_brand_vendor_cost": 3,
+    "vendor_candidate_brand_counts": [
+      {
+        "brand": "Lynx",
+        "count": 8
+      },
+      {
+        "brand": "Tru-Fit",
+        "count": 2
+      }
+    ]
+  },
+  "detailed": [
+    {
+      "qtc_sku": "QTC-11147-1001",
+      "quadratec_code": "Quadratec11147-1001",
+      "core_sku": "11147-1001",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-11147-1002",
+      "quadratec_code": "Quadratec11147-1002",
+      "core_sku": "11147-1002",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC- 12005-8122",
+      "quadratec_code": "Quadratec 12005-8122",
+      "core_sku": " 12005-8122",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-12005-8125",
+      "quadratec_code": "Quadratec12005-8125",
+      "core_sku": "12005-8125",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-12052-0907",
+      "quadratec_code": "Quadratec12052-0907",
+      "core_sku": "12052-0907",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-12110-2031",
+      "quadratec_code": "Quadratec12110-2031",
+      "core_sku": "12110-2031",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-12226-3011",
+      "quadratec_code": "Quadratec12226-3011",
+      "core_sku": "12226-3011",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-13004-200",
+      "quadratec_code": "Quadratec13004-200",
+      "core_sku": "13004-200",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-13011-97",
+      "quadratec_code": "Quadratec13011-97",
+      "core_sku": "13011-97",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-13111-0302",
+      "quadratec_code": "Quadratec13111-0302",
+      "core_sku": "13111-0302",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-13111-0741",
+      "quadratec_code": "Quadratec13111-0741",
+      "core_sku": "13111-0741",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-13111-0742",
+      "quadratec_code": "Quadratec13111-0742",
+      "core_sku": "13111-0742",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-13111-0746",
+      "quadratec_code": "Quadratec13111-0746",
+      "core_sku": "13111-0746",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-14017-311",
+      "quadratec_code": "Quadratec14017-311",
+      "core_sku": "14017-311",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-14125-3000",
+      "quadratec_code": "Quadratec14125-3000",
+      "core_sku": "14125-3000",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-14125-3001",
+      "quadratec_code": "Quadratec14125-3001",
+      "core_sku": "14125-3001",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-14125-3010",
+      "quadratec_code": "Quadratec14125-3010",
+      "core_sku": "14125-3010",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-14125-3010-1",
+      "quadratec_code": "Quadratec14125-3010-1",
+      "core_sku": "14125-3010-1",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-14125-3011",
+      "quadratec_code": "Quadratec14125-3011",
+      "core_sku": "14125-3011",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-14125-3012",
+      "quadratec_code": "Quadratec14125-3012",
+      "core_sku": "14125-3012",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-14133-3012",
+      "quadratec_code": "Quadratec14133-3012",
+      "core_sku": "14133-3012",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-14133-3013",
+      "quadratec_code": "Quadratec14133-3013",
+      "core_sku": "14133-3013",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-14133-3015",
+      "quadratec_code": "Quadratec14133-3015",
+      "core_sku": "14133-3015",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-14133-3016",
+      "quadratec_code": "Quadratec14133-3016",
+      "core_sku": "14133-3016",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-14133-3017",
+      "quadratec_code": "Quadratec14133-3017",
+      "core_sku": "14133-3017",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-14136-3906",
+      "quadratec_code": "Quadratec14136-3906",
+      "core_sku": "14136-3906",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-14254-7041",
+      "quadratec_code": "Quadratec14254-7041",
+      "core_sku": "14254-7041",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-14255-0311-1",
+      "quadratec_code": "Quadratec14255-0311-1",
+      "core_sku": "14255-0311-1",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-14255-7041",
+      "quadratec_code": "Quadratec14255-7041",
+      "core_sku": "14255-7041",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-14255-7244",
+      "quadratec_code": "Quadratec14255-7244",
+      "core_sku": "14255-7244",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-14256-1003",
+      "quadratec_code": "Quadratec14256-1003",
+      "core_sku": "14256-1003",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-14256-1004",
+      "quadratec_code": "Quadratec14256-1004",
+      "core_sku": "14256-1004",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-14256-1005",
+      "quadratec_code": "Quadratec14256-1005",
+      "core_sku": "14256-1005",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-14256-1006",
+      "quadratec_code": "Quadratec14256-1006",
+      "core_sku": "14256-1006",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-14256-1007",
+      "quadratec_code": "Quadratec14256-1007",
+      "core_sku": "14256-1007",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-14256-1008",
+      "quadratec_code": "Quadratec14256-1008",
+      "core_sku": "14256-1008",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-14257-7244",
+      "quadratec_code": "Quadratec14257-7244",
+      "core_sku": "14257-7244",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-14257-7249",
+      "quadratec_code": "Quadratec14257-7249",
+      "core_sku": "14257-7249",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-14259-1100",
+      "quadratec_code": "Quadratec14259-1100",
+      "core_sku": "14259-1100",
+      "other_brand_products_found": 2,
+      "other_brand_vendor_rows_found": 1,
+      "other_brand_vendor_rows_with_cost": 1,
+      "product_candidates": [
+        {
+          "sku": "TRF-14259-1100",
+          "brand_name": "Tru-Fit",
+          "jj_prefix": "TRF",
+          "quadratec_code": "Tru-Fit14259-1100",
+          "status": 1
+        },
+        {
+          "sku": "TRF-14259-1100-",
+          "brand_name": "Tru-Fit",
+          "jj_prefix": "TRF",
+          "quadratec_code": "Tru-Fit14259-1100-",
+          "status": 1
+        }
+      ],
+      "vendor_candidates": [
+        {
+          "product_sku": "TRF-14259-1100",
+          "vendor_sku": "Tru-Fit14259-1100",
+          "vendor_cost_usd": 38.99,
+          "vendor_cost": 58.49,
+          "quadratec_sku": "14259-1100",
+          "brand_name": "Tru-Fit",
+          "jj_prefix": "TRF",
+          "match_type": "quadratec_sku_exact"
+        }
+      ]
+    },
+    {
+      "qtc_sku": "QTC-14259-1102",
+      "quadratec_code": "Quadratec14259-1102",
+      "core_sku": "14259-1102",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-14259-1103",
+      "quadratec_code": "Quadratec14259-1103",
+      "core_sku": "14259-1103",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-14259-1104",
+      "quadratec_code": "Quadratec14259-1104",
+      "core_sku": "14259-1104",
+      "other_brand_products_found": 1,
+      "other_brand_vendor_rows_found": 1,
+      "other_brand_vendor_rows_with_cost": 1,
+      "product_candidates": [
+        {
+          "sku": "TRF-14259-1104",
+          "brand_name": "Tru-Fit",
+          "jj_prefix": "TRF",
+          "quadratec_code": "Tru-Fit14259-1104",
+          "status": 1
+        }
+      ],
+      "vendor_candidates": [
+        {
+          "product_sku": "TRF-14259-1104",
+          "vendor_sku": "Tru-Fit14259-1104",
+          "vendor_cost_usd": 38.67,
+          "vendor_cost": 58.01,
+          "quadratec_sku": "14259-1104",
+          "brand_name": "Tru-Fit",
+          "jj_prefix": "TRF",
+          "match_type": "quadratec_sku_exact"
+        }
+      ]
+    },
+    {
+      "qtc_sku": "QTC-14259-1104-1",
+      "quadratec_code": "Quadratec14259-1104-1",
+      "core_sku": "14259-1104-1",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-14259-1105",
+      "quadratec_code": "Quadratec14259-1105",
+      "core_sku": "14259-1105",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-15144-0100",
+      "quadratec_code": "Quadratec15144-0100",
+      "core_sku": "15144-0100",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-15144-0200",
+      "quadratec_code": "Quadratec15144-0200",
+      "core_sku": "15144-0200",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-15144-0300",
+      "quadratec_code": "Quadratec15144-0300",
+      "core_sku": "15144-0300",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-15145-0100",
+      "quadratec_code": "Quadratec15145-0100",
+      "core_sku": "15145-0100",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-16400-0030",
+      "quadratec_code": "Quadratec16400-0030",
+      "core_sku": "16400-0030",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-16400JK3-5--1",
+      "quadratec_code": "Quadratec16400JK3-5--1",
+      "core_sku": "16400JK3-5--1",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-19799-2000",
+      "quadratec_code": "Quadratec19799-2000",
+      "core_sku": "19799-2000",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-19799-202",
+      "quadratec_code": "Quadratec19799-202",
+      "core_sku": "19799-202",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-2034-1033",
+      "quadratec_code": "Quadratec2034-1033",
+      "core_sku": "2034-1033",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-44036-0301",
+      "quadratec_code": "Quadratec44036-0301",
+      "core_sku": "44036-0301",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-55213-0038",
+      "quadratec_code": "Quadratec55213-0038",
+      "core_sku": "55213-0038",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-55213-0039",
+      "quadratec_code": "Quadratec55213-0039",
+      "core_sku": "55213-0039",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-55213-0082",
+      "quadratec_code": "Quadratec55213-0082",
+      "core_sku": "55213-0082",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-55213-0083",
+      "quadratec_code": "Quadratec55213-0083",
+      "core_sku": "55213-0083",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-55213-0084",
+      "quadratec_code": "Quadratec55213-0084",
+      "core_sku": "55213-0084",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-55213-0085",
+      "quadratec_code": "Quadratec55213-0085",
+      "core_sku": "55213-0085",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-55213-0086",
+      "quadratec_code": "Quadratec55213-0086",
+      "core_sku": "55213-0086",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-55213-0087",
+      "quadratec_code": "Quadratec55213-0087",
+      "core_sku": "55213-0087",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-55213-0088",
+      "quadratec_code": "Quadratec55213-0088",
+      "core_sku": "55213-0088",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-55213-0089",
+      "quadratec_code": "Quadratec55213-0089",
+      "core_sku": "55213-0089",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-55213-0816",
+      "quadratec_code": "Quadratec55213-0816",
+      "core_sku": "55213-0816",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-55213-0817",
+      "quadratec_code": "Quadratec55213-0817",
+      "core_sku": "55213-0817",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-55213-0819",
+      "quadratec_code": "Quadratec55213-0819",
+      "core_sku": "55213-0819",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92034-0115",
+      "quadratec_code": "Quadratec92034-0115",
+      "core_sku": "92034-0115",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92122-2101",
+      "quadratec_code": "Quadratec92122-2101",
+      "core_sku": "92122-2101",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92122-2111",
+      "quadratec_code": "Quadratec92122-2111",
+      "core_sku": "92122-2111",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-1001",
+      "quadratec_code": "Quadratec92123-1001",
+      "core_sku": "92123-1001",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-1003",
+      "quadratec_code": "Quadratec92123-1003",
+      "core_sku": "92123-1003",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-1004",
+      "quadratec_code": "Quadratec92123-1004",
+      "core_sku": "92123-1004",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-1008",
+      "quadratec_code": "Quadratec92123-1008",
+      "core_sku": "92123-1008",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-1009",
+      "quadratec_code": "Quadratec92123-1009",
+      "core_sku": "92123-1009",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-2000",
+      "quadratec_code": "Quadratec92123-2000",
+      "core_sku": "92123-2000",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-2001",
+      "quadratec_code": "Quadratec92123-2001",
+      "core_sku": "92123-2001",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-2002",
+      "quadratec_code": "Quadratec92123-2002",
+      "core_sku": "92123-2002",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-2003",
+      "quadratec_code": "Quadratec92123-2003",
+      "core_sku": "92123-2003",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-2005",
+      "quadratec_code": "Quadratec92123-2005",
+      "core_sku": "92123-2005",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-2007",
+      "quadratec_code": "Quadratec92123-2007",
+      "core_sku": "92123-2007",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-2008",
+      "quadratec_code": "Quadratec92123-2008",
+      "core_sku": "92123-2008",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-2010",
+      "quadratec_code": "Quadratec92123-2010",
+      "core_sku": "92123-2010",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-2012",
+      "quadratec_code": "Quadratec92123-2012",
+      "core_sku": "92123-2012",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-2017",
+      "quadratec_code": "Quadratec92123-2017",
+      "core_sku": "92123-2017",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-3002",
+      "quadratec_code": "Quadratec92123-3002",
+      "core_sku": "92123-3002",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-3004",
+      "quadratec_code": "Quadratec92123-3004",
+      "core_sku": "92123-3004",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-3006",
+      "quadratec_code": "Quadratec92123-3006",
+      "core_sku": "92123-3006",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-3007",
+      "quadratec_code": "Quadratec92123-3007",
+      "core_sku": "92123-3007",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-3008",
+      "quadratec_code": "Quadratec92123-3008",
+      "core_sku": "92123-3008",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-3009",
+      "quadratec_code": "Quadratec92123-3009",
+      "core_sku": "92123-3009",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-3010",
+      "quadratec_code": "Quadratec92123-3010",
+      "core_sku": "92123-3010",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-3011",
+      "quadratec_code": "Quadratec92123-3011",
+      "core_sku": "92123-3011",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-3012",
+      "quadratec_code": "Quadratec92123-3012",
+      "core_sku": "92123-3012",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-4000",
+      "quadratec_code": "Quadratec92123-4000",
+      "core_sku": "92123-4000",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-4002",
+      "quadratec_code": "Quadratec92123-4002",
+      "core_sku": "92123-4002",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-4003",
+      "quadratec_code": "Quadratec92123-4003",
+      "core_sku": "92123-4003",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-4004",
+      "quadratec_code": "Quadratec92123-4004",
+      "core_sku": "92123-4004",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-4005",
+      "quadratec_code": "Quadratec92123-4005",
+      "core_sku": "92123-4005",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-4006",
+      "quadratec_code": "Quadratec92123-4006",
+      "core_sku": "92123-4006",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-4007",
+      "quadratec_code": "Quadratec92123-4007",
+      "core_sku": "92123-4007",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-4008",
+      "quadratec_code": "Quadratec92123-4008",
+      "core_sku": "92123-4008",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-4009",
+      "quadratec_code": "Quadratec92123-4009",
+      "core_sku": "92123-4009",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-4010",
+      "quadratec_code": "Quadratec92123-4010",
+      "core_sku": "92123-4010",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-4011",
+      "quadratec_code": "Quadratec92123-4011",
+      "core_sku": "92123-4011",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-4012",
+      "quadratec_code": "Quadratec92123-4012",
+      "core_sku": "92123-4012",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-6001",
+      "quadratec_code": "Quadratec92123-6001",
+      "core_sku": "92123-6001",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-6002",
+      "quadratec_code": "Quadratec92123-6002",
+      "core_sku": "92123-6002",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-6009",
+      "quadratec_code": "Quadratec92123-6009",
+      "core_sku": "92123-6009",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-6011",
+      "quadratec_code": "Quadratec92123-6011",
+      "core_sku": "92123-6011",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-6012",
+      "quadratec_code": "Quadratec92123-6012",
+      "core_sku": "92123-6012",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-6014",
+      "quadratec_code": "Quadratec92123-6014",
+      "core_sku": "92123-6014",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-6017",
+      "quadratec_code": "Quadratec92123-6017",
+      "core_sku": "92123-6017",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-6021",
+      "quadratec_code": "Quadratec92123-6021",
+      "core_sku": "92123-6021",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92123-6028",
+      "quadratec_code": "Quadratec92123-6028",
+      "core_sku": "92123-6028",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92144-1200",
+      "quadratec_code": "Quadratec92144-1200",
+      "core_sku": "92144-1200",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92144-7013",
+      "quadratec_code": "Quadratec92144-7013",
+      "core_sku": "92144-7013",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92144-7014",
+      "quadratec_code": "Quadratec92144-7014",
+      "core_sku": "92144-7014",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92144-7111",
+      "quadratec_code": "Quadratec92144-7111",
+      "core_sku": "92144-7111",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92615-2951",
+      "quadratec_code": "Quadratec92615-2951",
+      "core_sku": "92615-2951",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92615-3120",
+      "quadratec_code": "Quadratec92615-3120",
+      "core_sku": "92615-3120",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92615-3130",
+      "quadratec_code": "Quadratec92615-3130",
+      "core_sku": "92615-3130",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92615-3213",
+      "quadratec_code": "Quadratec92615-3213",
+      "core_sku": "92615-3213",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92615-3300",
+      "quadratec_code": "Quadratec92615-3300",
+      "core_sku": "92615-3300",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92615-3320",
+      "quadratec_code": "Quadratec92615-3320",
+      "core_sku": "92615-3320",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92615-3321",
+      "quadratec_code": "Quadratec92615-3321",
+      "core_sku": "92615-3321",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92615-3322",
+      "quadratec_code": "Quadratec92615-3322",
+      "core_sku": "92615-3322",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92615-3410",
+      "quadratec_code": "Quadratec92615-3410",
+      "core_sku": "92615-3410",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92615-3450",
+      "quadratec_code": "Quadratec92615-3450",
+      "core_sku": "92615-3450",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92615-38",
+      "quadratec_code": "Quadratec92615-38",
+      "core_sku": "92615-38",
+      "other_brand_products_found": 11,
+      "other_brand_vendor_rows_found": 8,
+      "other_brand_vendor_rows_with_cost": 8,
+      "product_candidates": [
+        {
+          "sku": "LYN-92615-3863",
+          "brand_name": "Lynx",
+          "jj_prefix": "LYN",
+          "quadratec_code": "Lynx92615-3863",
+          "status": 1
+        },
+        {
+          "sku": "LYN-92615-3863-",
+          "brand_name": "Lynx",
+          "jj_prefix": "LYN",
+          "quadratec_code": "Lynx92615-3863-",
+          "status": 1
+        },
+        {
+          "sku": "LYN-92615-3864",
+          "brand_name": "Lynx",
+          "jj_prefix": "LYN",
+          "quadratec_code": "Lynx92615-3864",
+          "status": 1
+        },
+        {
+          "sku": "LYN-92615-3865",
+          "brand_name": "Lynx",
+          "jj_prefix": "LYN",
+          "quadratec_code": "Lynx92615-3865",
+          "status": 1
+        },
+        {
+          "sku": "LYN-92615-3867",
+          "brand_name": "Lynx",
+          "jj_prefix": "LYN",
+          "quadratec_code": "Lynx92615-3867",
+          "status": 1
+        },
+        {
+          "sku": "LYN-92615-3869",
+          "brand_name": "Lynx",
+          "jj_prefix": "LYN",
+          "quadratec_code": "Lynx92615-3869",
+          "status": 1
+        },
+        {
+          "sku": "LYN-92615-3869-",
+          "brand_name": "Lynx",
+          "jj_prefix": "LYN",
+          "quadratec_code": "Lynx92615-3869-",
+          "status": 1
+        },
+        {
+          "sku": "LYN-92615-3870",
+          "brand_name": "Lynx",
+          "jj_prefix": "LYN",
+          "quadratec_code": "Lynx92615-3870",
+          "status": 1
+        },
+        {
+          "sku": "LYN-92615-3874",
+          "brand_name": "Lynx",
+          "jj_prefix": "LYN",
+          "quadratec_code": "Lynx92615-3874",
+          "status": 1
+        },
+        {
+          "sku": "LYN-92615-3874-",
+          "brand_name": "Lynx",
+          "jj_prefix": "LYN",
+          "quadratec_code": "Lynx92615-3874-",
+          "status": 1
+        },
+        {
+          "sku": "LYN-92615-3875",
+          "brand_name": "Lynx",
+          "jj_prefix": "LYN",
+          "quadratec_code": "Lynx92615-3875",
+          "status": 1
+        }
+      ],
+      "vendor_candidates": [
+        {
+          "product_sku": "LYN-92615-3863",
+          "vendor_sku": "Lynx92615-3863",
+          "vendor_cost_usd": 149.49,
+          "vendor_cost": 224.24,
+          "quadratec_sku": "92615-3863",
+          "brand_name": "Lynx",
+          "jj_prefix": "LYN",
+          "match_type": "vendor_sku_contains_core"
+        },
+        {
+          "product_sku": "LYN-92615-3864",
+          "vendor_sku": "Lynx92615-3864",
+          "vendor_cost_usd": 149.49,
+          "vendor_cost": 224.24,
+          "quadratec_sku": "92615-3864",
+          "brand_name": "Lynx",
+          "jj_prefix": "LYN",
+          "match_type": "vendor_sku_contains_core"
+        },
+        {
+          "product_sku": "LYN-92615-3865",
+          "vendor_sku": "Lynx92615-3865",
+          "vendor_cost_usd": 149.49,
+          "vendor_cost": 224.24,
+          "quadratec_sku": "92615-3865",
+          "brand_name": "Lynx",
+          "jj_prefix": "LYN",
+          "match_type": "vendor_sku_contains_core"
+        },
+        {
+          "product_sku": "LYN-92615-3867",
+          "vendor_sku": "Lynx92615-3867",
+          "vendor_cost_usd": 149.49,
+          "vendor_cost": 224.24,
+          "quadratec_sku": "92615-3867",
+          "brand_name": "Lynx",
+          "jj_prefix": "LYN",
+          "match_type": "vendor_sku_contains_core"
+        },
+        {
+          "product_sku": "LYN-92615-3869",
+          "vendor_sku": "Lynx92615-3869",
+          "vendor_cost_usd": 149.49,
+          "vendor_cost": 224.24,
+          "quadratec_sku": "92615-3869",
+          "brand_name": "Lynx",
+          "jj_prefix": "LYN",
+          "match_type": "vendor_sku_contains_core"
+        },
+        {
+          "product_sku": "LYN-92615-3870",
+          "vendor_sku": "Lynx92615-3870",
+          "vendor_cost_usd": 149.49,
+          "vendor_cost": 224.24,
+          "quadratec_sku": "92615-3870",
+          "brand_name": "Lynx",
+          "jj_prefix": "LYN",
+          "match_type": "vendor_sku_contains_core"
+        },
+        {
+          "product_sku": "LYN-92615-3874",
+          "vendor_sku": "Lynx92615-3874",
+          "vendor_cost_usd": 160.99,
+          "vendor_cost": 241.49,
+          "quadratec_sku": "92615-3874",
+          "brand_name": "Lynx",
+          "jj_prefix": "LYN",
+          "match_type": "vendor_sku_contains_core"
+        },
+        {
+          "product_sku": "LYN-92615-3875",
+          "vendor_sku": "Lynx92615-3875",
+          "vendor_cost_usd": 160.99,
+          "vendor_cost": 241.49,
+          "quadratec_sku": "92615-3875",
+          "brand_name": "Lynx",
+          "jj_prefix": "LYN",
+          "match_type": "vendor_sku_contains_core"
+        }
+      ]
+    },
+    {
+      "qtc_sku": "QTC-92615-3810",
+      "quadratec_code": "Quadratec92615-3810",
+      "core_sku": "92615-3810",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92806-9007",
+      "quadratec_code": "Quadratec92806-9007",
+      "core_sku": "92806-9007",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92806-9008",
+      "quadratec_code": "Quadratec92806-9008",
+      "core_sku": "92806-9008",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92806-9022",
+      "quadratec_code": "Quadratec92806-9022",
+      "core_sku": "92806-9022",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92806-9023",
+      "quadratec_code": "Quadratec92806-9023",
+      "core_sku": "92806-9023",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92807-5003",
+      "quadratec_code": "Quadratec92807-5003",
+      "core_sku": "92807-5003",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92807-5004",
+      "quadratec_code": "Quadratec92807-5004",
+      "core_sku": "92807-5004",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92807-5006",
+      "quadratec_code": "Quadratec92807-5006",
+      "core_sku": "92807-5006",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92807-5010",
+      "quadratec_code": "Quadratec92807-5010",
+      "core_sku": "92807-5010",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-92810-2010",
+      "quadratec_code": "Quadratec92810-2010",
+      "core_sku": "92810-2010",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-94011-0100",
+      "quadratec_code": "Quadratec94011-0100",
+      "core_sku": "94011-0100",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-94011-3000",
+      "quadratec_code": "Quadratec94011-3000",
+      "core_sku": "94011-3000",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-97109-0301",
+      "quadratec_code": "Quadratec97109-0301",
+      "core_sku": "97109-0301",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-97109-0302",
+      "quadratec_code": "Quadratec97109-0302",
+      "core_sku": "97109-0302",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-97109-1003",
+      "quadratec_code": "Quadratec97109-1003",
+      "core_sku": "97109-1003",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-97109-1023",
+      "quadratec_code": "Quadratec97109-1023",
+      "core_sku": "97109-1023",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-97109-1060",
+      "quadratec_code": "Quadratec97109-1060",
+      "core_sku": "97109-1060",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-97109-1061",
+      "quadratec_code": "Quadratec97109-1061",
+      "core_sku": "97109-1061",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-97109-1120",
+      "quadratec_code": "Quadratec97109-1120",
+      "core_sku": "97109-1120",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-97109-1121",
+      "quadratec_code": "Quadratec97109-1121",
+      "core_sku": "97109-1121",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-97109-1151",
+      "quadratec_code": "Quadratec97109-1151",
+      "core_sku": "97109-1151",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-97109-1160",
+      "quadratec_code": "Quadratec97109-1160",
+      "core_sku": "97109-1160",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-97109-1411",
+      "quadratec_code": "Quadratec97109-1411",
+      "core_sku": "97109-1411",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-97109-1413",
+      "quadratec_code": "Quadratec97109-1413",
+      "core_sku": "97109-1413",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    },
+    {
+      "qtc_sku": "QTC-97109JKB--1",
+      "quadratec_code": "Quadratec97109JKB--1",
+      "core_sku": "97109JKB--1",
+      "other_brand_products_found": 0,
+      "other_brand_vendor_rows_found": 0,
+      "other_brand_vendor_rows_with_cost": 0,
+      "product_candidates": [],
+      "vendor_candidates": []
+    }
+  ]
+}
