@@ -367,6 +367,41 @@ app.get('/api/products/export', async (req, res) => {
 	}
 });
 
+// Route for downloading specific source files used by seed updates
+app.get('/api/files/download/:fileKey', (req, res) => {
+	try {
+		const fileKey = req.params.fileKey;
+		const fileMap = {
+			'quad-price': {
+				path: path.join(__dirname, 'prisma/seeds/api-calls/pricingSheet_quad.xlsx'),
+				name: 'pricingSheet_quad.xlsx',
+			},
+			'keystone-instock-price': {
+				path: path.join(__dirname, 'prisma/seeds/api-calls/keystone_files/Inventory.csv'),
+				name: 'keystone_instock_inventory.csv',
+			},
+			'keystone-special-order-price': {
+				path: path.join(__dirname, 'prisma/seeds/api-calls/keystone_files/Inventory.csv'),
+				name: 'keystone_special_order_inventory.csv',
+			},
+		};
+
+		const fileConfig = fileMap[fileKey];
+		if (!fileConfig) {
+			return res.status(404).json({ error: 'File key not found' });
+		}
+
+		if (!fs.existsSync(fileConfig.path)) {
+			return res.status(404).json({ error: 'File not found on server' });
+		}
+
+		return res.download(fileConfig.path, fileConfig.name);
+	} catch (error) {
+		console.error('File download failed:', error);
+		return res.status(500).json({ error: 'Failed to download file' });
+	}
+});
+
 //Route for getting all products by brand name
 app.get('/api/products/brand/:brandName', async (req, res) => {
 	try {
