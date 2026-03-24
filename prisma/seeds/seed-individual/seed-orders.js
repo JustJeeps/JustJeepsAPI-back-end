@@ -28,6 +28,7 @@ const seedOrders = async () => {
 
       // Extract custom attributes
       let custom_po_number = null;
+      let sales_rep = null;
       let weltpixel_fraud_score = null;
       let region = null;
       let city = null;
@@ -58,6 +59,14 @@ const seedOrders = async () => {
             );
           if (poNumberAttribute) {
             custom_po_number = poNumberAttribute.value;
+          }
+
+          const salesRepAttribute =
+            extension_attributes.amasty_order_attributes.find(
+              (attr) => attr.attribute_code === "sales_rep"
+            );
+          if (salesRepAttribute) {
+            sales_rep = salesRepAttribute.label;
           }
         }
         if (extension_attributes.weltpixel_fraud_score !== undefined) {
@@ -105,6 +114,7 @@ const seedOrders = async () => {
       const orderDataWithCustomAttributes = {
         ...order,
         custom_po_number,
+        sales_rep,
         weltpixel_fraud_score,
         region,
         city,

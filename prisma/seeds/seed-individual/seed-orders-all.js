@@ -66,6 +66,7 @@ function extractOrderAttributes(orderData) {
   const { entity_id, items: orderItems = [], extension_attributes, ...order } = orderData;
 
   let custom_po_number = null;
+  let sales_rep = null;
   let weltpixel_fraud_score = null;
   let region = null;
   let city = null;
@@ -90,6 +91,11 @@ function extractOrderAttributes(orderData) {
         (a) => a.attribute_code === "custom_po_number"
       );
       if (poAttr) custom_po_number = poAttr.value ?? null;
+
+      const salesRepAttr = extension_attributes.amasty_order_attributes.find(
+        (a) => a.attribute_code === "sales_rep"
+      );
+      if (salesRepAttr) sales_rep = salesRepAttr.label ?? null;
     }
 
     if (extension_attributes.weltpixel_fraud_score !== undefined) {
@@ -134,6 +140,7 @@ function extractOrderAttributes(orderData) {
     orderDataWithCustomAttributes: {
       ...order,
       custom_po_number,
+      sales_rep,
       weltpixel_fraud_score,
       region,
       city,

@@ -25,6 +25,7 @@ model Order {
   shipping_amount       Float?
   shipping_description  String?
   custom_po_number      String?
+  sales_rep             String?
   weltpixel_fraud_score Float?
   city                  String?
   region                String?
