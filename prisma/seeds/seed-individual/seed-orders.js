@@ -24,7 +24,69 @@ const seedOrders = async () => {
 
     for (const orderData of orders) {
       orderCount++;
-      const { entity_id, items, extension_attributes, ...order } = orderData;
+      const {
+        entity_id,
+        items,
+        extension_attributes,
+        freight_shipping: magentoFreightShipping,
+        subtotal: magentoSubtotal,
+        base_subtotal: magentoBaseSubtotal,
+        tax_amount: magentoTaxAmount,
+        discount_amount: magentoDiscountAmount,
+        ...order
+      } = orderData;
+
+      const subtotalFromMagento = parseFloat(magentoSubtotal);
+      const baseSubtotalFromMagento = parseFloat(magentoBaseSubtotal);
+      const grandTotalFromMagento = parseFloat(order?.grand_total);
+      const taxAmountFromMagento = parseFloat(magentoTaxAmount);
+      const freightShippingFromMagento = parseFloat(magentoFreightShipping);
+      const discountAmountFromMagento = parseFloat(magentoDiscountAmount);
+      const giftCardAmountFromMagento = parseFloat(
+        extension_attributes?.mageworx_giftcards_amount
+      );
+      const freight_shipping = Number.isFinite(freightShippingFromMagento)
+        ? freightShippingFromMagento
+        : null;
+      const tax_amount = Number.isFinite(taxAmountFromMagento)
+        ? taxAmountFromMagento
+        : null;
+
+      let subtotal = null;
+      if (Number.isFinite(subtotalFromMagento)) {
+        subtotal = subtotalFromMagento;
+      } else if (Number.isFinite(baseSubtotalFromMagento)) {
+        subtotal = baseSubtotalFromMagento;
+      } else if (Number.isFinite(grandTotalFromMagento)) {
+        subtotal = grandTotalFromMagento - (Number.isFinite(taxAmountFromMagento) ? taxAmountFromMagento : 0);
+      }
+
+      const shippingAmountFromMagento = parseFloat(order?.shipping_amount);
+      const normalizedShipping = Number.isFinite(shippingAmountFromMagento)
+        ? shippingAmountFromMagento
+        : 0;
+      const normalizedSubtotal = Number.isFinite(subtotal) ? subtotal : 0;
+      const normalizedTax = Number.isFinite(taxAmountFromMagento)
+        ? taxAmountFromMagento
+        : 0;
+      const normalizedDiscount = Number.isFinite(discountAmountFromMagento)
+        ? Math.abs(discountAmountFromMagento)
+        : 0;
+      const normalizedGiftCard = Number.isFinite(giftCardAmountFromMagento)
+        ? Math.abs(giftCardAmountFromMagento)
+        : 0;
+
+      let order_bis = null;
+      if (Number.isFinite(grandTotalFromMagento)) {
+        const bisRaw =
+          grandTotalFromMagento -
+          normalizedSubtotal -
+          normalizedShipping -
+          normalizedTax +
+          normalizedDiscount +
+          normalizedGiftCard;
+        order_bis = Number(bisRaw.toFixed(2));
+      }
 
       // Extract custom attributes
       let custom_po_number = null;
@@ -113,6 +175,10 @@ const seedOrders = async () => {
 
       const orderDataWithCustomAttributes = {
         ...order,
+        freight_shipping,
+        subtotal,
+        tax_amount,
+        order_bis,
         custom_po_number,
         sales_rep,
         weltpixel_fraud_score,

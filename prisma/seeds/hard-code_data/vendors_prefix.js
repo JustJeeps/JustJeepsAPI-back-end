@@ -1882,7 +1882,7 @@ module.exports = [
     brand_name: "Holley",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "H19",
-    meyer_code: "HOL",
+    meyer_code: "BAM",
     quadratec_code: "Holley",
     truck_parts_code: "Holley",
     tdot_code: "Holley",

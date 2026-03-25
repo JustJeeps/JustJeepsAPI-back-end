@@ -17,12 +17,16 @@ model Order {
   customer_firstname    String?
   customer_lastname     String?
   grand_total           Float
+  subtotal              Float?
+  tax_amount            Float?
+  order_bis             Float?
   increment_id          String
   order_currency_code   String
   total_qty_ordered     Int
   status                String?
   base_total_due        Float?
   shipping_amount       Float?
+  freight_shipping      Float?
   shipping_description  String?
   custom_po_number      String?
   sales_rep             String?
