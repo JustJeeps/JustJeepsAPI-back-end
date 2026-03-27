@@ -609,6 +609,7 @@ app.get('/api/orders', async (req, res) => {
     const status = req.query.status || null;
 	// Multi-keyword search and exclude support
 	const search = req.query.search || '';
+	const searchMode = req.query.searchMode || 'all';
 	const exclude = req.query.exclude || '';
 	const reportDate = req.query.date || '';
 	const poStatus = req.query.poStatus || null; // 'not_set', 'not_set_4days', 'set', 'partial', 'pm_not_set', 'kd_not_set'
@@ -726,40 +727,51 @@ app.get('/api/orders', async (req, res) => {
 				where.items = { some: itemsFilter };
 			}
 		} else {
-			// Order mode (default): multi-keyword AND search by order fields
+			// Order mode (default): multi-keyword search by order fields
 			if (search) {
 				const keywords = search.split(' ').filter(Boolean);
-				where.AND = [
-					...(where.AND || []),
-					...keywords.map((kw) => ({
-						OR: [
-							{ increment_id: { contains: kw, mode: 'insensitive' } },
-							{ customer_firstname: { contains: kw, mode: 'insensitive' } },
-							{ customer_lastname: { contains: kw, mode: 'insensitive' } },
-							{ customer_email: { contains: kw, mode: 'insensitive' } },
-							{ custom_po_number: { contains: kw, mode: 'insensitive' } },
-						],
-					})),
-				];
-			}
-			// PurchaserReport: filter by date string in custom_po_number (word boundary, case-insensitive)
-			if (reportDate) {
-				// Use regex for word boundary match, fallback to contains if not supported
-				try {
+				if (searchMode === 'any') {
+					const anyConditions = keywords.flatMap((kw) => [
+						{ increment_id: { contains: kw, mode: 'insensitive' } },
+						{ customer_firstname: { contains: kw, mode: 'insensitive' } },
+						{ customer_lastname: { contains: kw, mode: 'insensitive' } },
+						{ customer_email: { contains: kw, mode: 'insensitive' } },
+						{ custom_po_number: { contains: kw, mode: 'insensitive' } },
+					]);
+					if (anyConditions.length > 0) {
+						where.AND = [
+							...(where.AND || []),
+							{ OR: anyConditions },
+						];
+					}
+				} else {
 					where.AND = [
 						...(where.AND || []),
-						{
-							custom_po_number: {
-								matches: `\\b${reportDate.replace(/[-/\\_]/g, ' ').replace(/\s+/g, ' ').trim()}\\b`,
-								mode: 'insensitive',
-							},
-						},
+						...keywords.map((kw) => ({
+							OR: [
+								{ increment_id: { contains: kw, mode: 'insensitive' } },
+								{ customer_firstname: { contains: kw, mode: 'insensitive' } },
+								{ customer_lastname: { contains: kw, mode: 'insensitive' } },
+								{ customer_email: { contains: kw, mode: 'insensitive' } },
+								{ custom_po_number: { contains: kw, mode: 'insensitive' } },
+							],
+						})),
 					];
-				} catch (e) {
-					// fallback: contains
+				}
+			}
+			// PurchaserReport: filter by date tokens in custom_po_number (order-independent)
+			if (reportDate) {
+				const dateTokens = reportDate
+					.replace(/[-/\\_]/g, ' ')
+					.split(/\s+/)
+					.map((token) => token.trim())
+					.filter(Boolean);
+				if (dateTokens.length > 0) {
 					where.AND = [
 						...(where.AND || []),
-						{ custom_po_number: { contains: reportDate, mode: 'insensitive' } },
+						...dateTokens.map((token) => ({
+							custom_po_number: { contains: token, mode: 'insensitive' },
+						})),
 					];
 				}
 			}
