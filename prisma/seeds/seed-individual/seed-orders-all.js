@@ -133,6 +133,8 @@ function extractOrderAttributes(orderData) {
   let region = null;
   let city = null;
   let method_title = null;
+  let custom_ship_status = null;
+  let custom_order_note = null;
 
   // Shipping fields
   let shipping_firstname = null;
@@ -149,15 +151,17 @@ function extractOrderAttributes(orderData) {
 
   if (extension_attributes) {
     if (Array.isArray(extension_attributes.amasty_order_attributes)) {
-      const poAttr = extension_attributes.amasty_order_attributes.find(
-        (a) => a.attribute_code === "custom_po_number"
-      );
-      if (poAttr) custom_po_number = poAttr.value ?? null;
-
-      const salesRepAttr = extension_attributes.amasty_order_attributes.find(
-        (a) => a.attribute_code === "sales_rep"
-      );
-      if (salesRepAttr) sales_rep = salesRepAttr.label ?? null;
+      const getAmastyAttr = (code, useLabel = false) => {
+        const attr = extension_attributes.amasty_order_attributes.find(
+          (a) => a.attribute_code === code
+        );
+        if (!attr) return null;
+        return useLabel ? attr.label ?? null : attr.value ?? null;
+      };
+      custom_po_number = getAmastyAttr("custom_po_number");
+      sales_rep = getAmastyAttr("sales_rep");
+      custom_ship_status = getAmastyAttr("custom_ship_status", true); // use label
+      custom_order_note = getAmastyAttr("custom_order_note");
     }
 
     if (extension_attributes.weltpixel_fraud_score !== undefined) {
@@ -211,6 +215,8 @@ function extractOrderAttributes(orderData) {
       region,
       city,
       method_title,
+      custom_ship_status,
+      custom_order_note,
       shipping_firstname,
       shipping_lastname,
       shipping_postcode,

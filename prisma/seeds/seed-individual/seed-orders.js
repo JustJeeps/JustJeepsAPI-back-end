@@ -95,6 +95,8 @@ const seedOrders = async () => {
       let region = null;
       let city = null;
       let method_title = null;
+      let custom_ship_status = null;
+      let custom_order_note = null;
 
       // ✅ new shipping fields
       let shipping_firstname = null;
@@ -115,21 +117,23 @@ const seedOrders = async () => {
 
       if (extension_attributes) {
         if (extension_attributes.amasty_order_attributes) {
-          const poNumberAttribute =
-            extension_attributes.amasty_order_attributes.find(
-              (attr) => attr.attribute_code === "custom_po_number"
+          const getAmastyAttr = (code) => {
+            const attr = extension_attributes.amasty_order_attributes.find(
+              (attr) => attr.attribute_code === code
             );
-          if (poNumberAttribute) {
-            custom_po_number = poNumberAttribute.value;
-          }
-
-          const salesRepAttribute =
-            extension_attributes.amasty_order_attributes.find(
-              (attr) => attr.attribute_code === "sales_rep"
-            );
-          if (salesRepAttribute) {
-            sales_rep = salesRepAttribute.label;
-          }
+            return attr ? attr.value : null;
+          };
+          custom_po_number = getAmastyAttr("custom_po_number");
+          sales_rep = getAmastyAttr("sales_rep");
+          custom_ship_status = getAmastyAttr("custom_ship_status");
+          custom_order_note = getAmastyAttr("custom_order_note");
+        }
+        // Set default values if missing
+        if (!custom_ship_status) {
+          custom_ship_status = "Test Status";
+        }
+        if (!custom_order_note) {
+          custom_order_note = "Test Note";
         }
         if (extension_attributes.weltpixel_fraud_score !== undefined) {
           weltpixel_fraud_score = extension_attributes.weltpixel_fraud_score;
@@ -185,6 +189,8 @@ const seedOrders = async () => {
         region,
         city,
         method_title,
+        custom_ship_status,
+        custom_order_note,
         shipping_firstname,
         shipping_lastname,
         shipping_postcode,

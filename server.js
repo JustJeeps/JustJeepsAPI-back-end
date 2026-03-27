@@ -607,7 +607,10 @@ app.get('/api/orders', async (req, res) => {
 
     // Filter parameters
     const status = req.query.status || null;
-    const search = req.query.search || '';
+	// Multi-keyword search and exclude support
+	const search = req.query.search || '';
+	const exclude = req.query.exclude || '';
+	const reportDate = req.query.date || '';
 	const poStatus = req.query.poStatus || null; // 'not_set', 'not_set_4days', 'set', 'partial', 'pm_not_set', 'kd_not_set'
     const region = req.query.region || null;
     const dateFrom = req.query.dateFrom || null;
@@ -687,39 +690,96 @@ app.get('/api/orders', async (req, res) => {
     }
 
     // Search and filter logic depends on filterMode
-    if (filterMode === 'items') {
-      // Items mode: search by SKU, product name, and filter by vendor
-      const itemsFilter = {};
+		if (filterMode === 'items') {
+			// Items mode: search by SKU, product name, and filter by vendor
+			const itemsFilter = {};
 
-      // Search by SKU or product name
-      if (search) {
-        itemsFilter.OR = [
-          { sku: { contains: search, mode: 'insensitive' } },
-          { name: { contains: search, mode: 'insensitive' } },
-        ];
-      }
-
-      // Filter by vendor (selected_supplier)
-      if (vendor) {
-        itemsFilter.selected_supplier = { equals: vendor, mode: 'insensitive' };
-      }
-
-      // Apply items filter if any conditions exist
-      if (Object.keys(itemsFilter).length > 0) {
-        where.items = { some: itemsFilter };
-      }
-    } else {
-      // Order mode (default): search by order fields
-      if (search) {
-        where.OR = [
-          { increment_id: { contains: search, mode: 'insensitive' } },
-          { customer_firstname: { contains: search, mode: 'insensitive' } },
-          { customer_lastname: { contains: search, mode: 'insensitive' } },
-          { customer_email: { contains: search, mode: 'insensitive' } },
-          { custom_po_number: { contains: search, mode: 'insensitive' } },
-        ];
-      }
-    }
+			// Multi-keyword AND search for SKU or product name
+			if (search) {
+				const keywords = search.split(' ').filter(Boolean);
+				itemsFilter.AND = keywords.map((kw) => ({
+					OR: [
+						{ sku: { contains: kw, mode: 'insensitive' } },
+						{ name: { contains: kw, mode: 'insensitive' } },
+					],
+				}));
+			}
+			// Exclude logic for items
+			if (exclude) {
+				const excludeWords = exclude.split(' ').filter(Boolean);
+				itemsFilter.AND = [
+					...(itemsFilter.AND || []),
+					...excludeWords.map((kw) => ({
+						AND: [
+							{ sku: { not: { contains: kw, mode: 'insensitive' } } },
+							{ name: { not: { contains: kw, mode: 'insensitive' } } },
+						],
+					})),
+				];
+			}
+			// Filter by vendor (selected_supplier)
+			if (vendor) {
+				itemsFilter.selected_supplier = { equals: vendor, mode: 'insensitive' };
+			}
+			// Apply items filter if any conditions exist
+			if (Object.keys(itemsFilter).length > 0) {
+				where.items = { some: itemsFilter };
+			}
+		} else {
+			// Order mode (default): multi-keyword AND search by order fields
+			if (search) {
+				const keywords = search.split(' ').filter(Boolean);
+				where.AND = [
+					...(where.AND || []),
+					...keywords.map((kw) => ({
+						OR: [
+							{ increment_id: { contains: kw, mode: 'insensitive' } },
+							{ customer_firstname: { contains: kw, mode: 'insensitive' } },
+							{ customer_lastname: { contains: kw, mode: 'insensitive' } },
+							{ customer_email: { contains: kw, mode: 'insensitive' } },
+							{ custom_po_number: { contains: kw, mode: 'insensitive' } },
+						],
+					})),
+				];
+			}
+			// PurchaserReport: filter by date string in custom_po_number (word boundary, case-insensitive)
+			if (reportDate) {
+				// Use regex for word boundary match, fallback to contains if not supported
+				try {
+					where.AND = [
+						...(where.AND || []),
+						{
+							custom_po_number: {
+								matches: `\\b${reportDate.replace(/[-/\\_]/g, ' ').replace(/\s+/g, ' ').trim()}\\b`,
+								mode: 'insensitive',
+							},
+						},
+					];
+				} catch (e) {
+					// fallback: contains
+					where.AND = [
+						...(where.AND || []),
+						{ custom_po_number: { contains: reportDate, mode: 'insensitive' } },
+					];
+				}
+			}
+			// Exclude logic for order fields
+			if (exclude) {
+				const excludeWords = exclude.split(' ').filter(Boolean);
+				where.AND = [
+					...(where.AND || []),
+					...excludeWords.map((kw) => ({
+						AND: [
+							{ increment_id: { not: { contains: kw, mode: 'insensitive' } } },
+							{ customer_firstname: { not: { contains: kw, mode: 'insensitive' } } },
+							{ customer_lastname: { not: { contains: kw, mode: 'insensitive' } } },
+							{ customer_email: { not: { contains: kw, mode: 'insensitive' } } },
+							{ custom_po_number: { not: { contains: kw, mode: 'insensitive' } } },
+						],
+					})),
+				];
+			}
+		}
 
 		const fourDaysAgoUtc = new Date(Date.now() - 4 * 24 * 60 * 60 * 1000)
 			.toISOString()
@@ -789,62 +849,106 @@ app.get('/api/orders', async (req, res) => {
       }
     }
 
-    const [orders, total] = await Promise.all([
-      prisma.order.findMany({
-        where,
-        skip,
-        take: limit,
-        include: {
-          items: {
-            include: {
-              product: {
-                select: {
-                  sku: true,
-                  name: true,
-                  price: true,
-                  brand_name: true,
-                  image: true,
-                  weight: true,
-                  shippingFreight: true,
-                  url_path: true,
-                  black_friday_sale: true,
-                },
-              },
-            },
-            where: {
-              base_price: {
-                gt: 0,
-              },
-            },
-          },
-        },
-        orderBy: {
-          created_at: 'desc',
-        },
-      }),
-      prisma.order.count({ where }),
-    ]);
+		const [orders, total] = await Promise.all([
+			prisma.order.findMany({
+				where,
+				skip,
+				take: limit,
+				   select: {
+					   entity_id: true,
+					   id: true,
+					   created_at: true,
+					   customer_email: true,
+					   coupon_code: true,
+					   customer_firstname: true,
+					   customer_lastname: true,
+					   grand_total: true,
+					   subtotal: true,
+					   tax_amount: true,
+					   order_bis: true,
+					   increment_id: true,
+					   order_currency_code: true,
+					   total_qty_ordered: true,
+					   status: true,
+					   base_total_due: true,
+					   shipping_amount: true,
+					   freight_shipping: true,
+					   shipping_description: true,
+					   custom_po_number: true,
+					   sales_rep: true,
+					   weltpixel_fraud_score: true,
+					   city: true,
+					   region: true,
+					   method_title: true,
+					   shipping_city: true,
+					   shipping_country_id: true,
+					   shipping_firstname: true,
+					   shipping_lastname: true,
+					   shipping_postcode: true,
+					   shipping_region: true,
+					   shipping_street1: true,
+					   shipping_street2: true,
+					   shipping_street3: true,
+					   shipping_telephone: true,
+					   shipping_company: true,
+					   custom_ship_status: true,
+					   custom_order_note: true,
+					   items: {
+						   include: {
+							   product: {
+								   select: {
+									   sku: true,
+									   name: true,
+									   price: true,
+									   brand_name: true,
+									   image: true,
+									   weight: true,
+									   shippingFreight: true,
+									   url_path: true,
+									   black_friday_sale: true,
+								   },
+							   },
+						   },
+						   where: {
+							   base_price: {
+								   gt: 0,
+							   },
+						   },
+					   },
+				   },
+				orderBy: {
+					created_at: 'desc',
+				},
+			}),
+			prisma.order.count({ where }),
+		]);
+		// Debug: print the first order to check for custom_ship_status and custom_order_note
+		if (orders && orders.length) {
+			console.log('First order from DB:', orders[0]);
+		} else {
+			console.log('No orders returned from DB');
+		}
 
-    res.json({
-      data: orders,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-      filters: {
-        status,
-        search,
-        poStatus,
-        region,
-        dateFrom,
-        dateTo,
-        filterMode,
-        vendor,
-        dateFilter,
-      },
-    });
+		res.json({
+			data: orders,
+			pagination: {
+				page,
+				limit,
+				total,
+				totalPages: Math.ceil(total / limit),
+			},
+			filters: {
+				status,
+				search,
+				poStatus,
+				region,
+				dateFrom,
+				dateTo,
+				filterMode,
+				vendor,
+				dateFilter,
+			},
+		});
   } catch (error) {
     console.error('Error fetching orders:', error);
     res.status(500).json({

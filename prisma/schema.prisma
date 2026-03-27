@@ -17,19 +17,14 @@ model Order {
   customer_firstname    String?
   customer_lastname     String?
   grand_total           Float
-  subtotal              Float?
-  tax_amount            Float?
-  order_bis             Float?
   increment_id          String
   order_currency_code   String
   total_qty_ordered     Int
   status                String?
   base_total_due        Float?
   shipping_amount       Float?
-  freight_shipping      Float?
   shipping_description  String?
   custom_po_number      String?
-  sales_rep             String?
   weltpixel_fraud_score Float?
   city                  String?
   region                String?
@@ -45,8 +40,17 @@ model Order {
   shipping_street3      String?
   shipping_telephone    String?
   shipping_company      String?
+  sales_rep             String?
+  subtotal              Float?
+  freight_shipping      Float?
+  order_bis             Float?
+  tax_amount            Float?
+  custom_order_note     String?
+  custom_ship_status    String?
   items                 OrderProduct[]
   purchaseOrder         PurchaseOrder[]
+
+  @@index([created_at])
 }
 
 model OrderProduct {
@@ -70,6 +74,9 @@ model OrderProduct {
   order                  Order          @relation(fields: [order_id], references: [entity_id], onDelete: Cascade)
   product                Product        @relation(fields: [sku], references: [sku], onDelete: Cascade)
   vendorProduct          VendorProduct? @relation(fields: [vendor_product_id], references: [id], onDelete: Cascade)
+
+  @@index([order_id])
+  @@index([sku])
 }
 
 model Product {
@@ -80,9 +87,6 @@ model Product {
   searchableSku      String
   searchable_sku     String?
   jj_prefix          String?
-  premier_code    String?
-  t14_code           String?
-  t14_id             String?
   meyer_code         String?
   keystone_code      String?
   omix_code          String?
@@ -96,7 +100,6 @@ model Product {
   gentecdirect_code  String?
   MAP                Float?
   partStatus_meyer   String?
-  black_friday_sale    String?
   height             Float?
   length             Float?
   width              Float?
@@ -113,13 +116,13 @@ model Product {
   keystone_code_site String?
   tdot_url           String?
   keystone_ftp_brand String?
+  t14_code           String?
+  premier_code       String?
+  black_friday_sale  String?
+  t14_id             String?
   competitorProducts CompetitorProduct[]
   orderProducts      OrderProduct[]
   vendorProducts     VendorProduct[]
-
-  @@index([brand_name])
-  @@index([status])
-  @@index([name])
 }
 
 model VendorProduct {
@@ -128,18 +131,16 @@ model VendorProduct {
   vendor_id               Int
   vendor_sku              String
   vendor_cost             Float
-  vendor_cost_usd         Float?
-  vendor_retail_price_usd Float?
   vendor_inventory        Float?
   partStatus_meyer        String?
   vendor_inventory_string String?
   quadratec_sku           String?
   manufacturer_sku        String?
+  vendor_retail_price_usd Float?
+  vendor_cost_usd         Float?
   orderProducts           OrderProduct[]
   product                 Product        @relation(fields: [product_sku], references: [sku], onDelete: Cascade)
   vendor                  Vendor         @relation(fields: [vendor_id], references: [id])
-
-  @@index([product_sku])
 }
 
 model Vendor {
@@ -204,6 +205,4 @@ model CompetitorProduct {
   competitor_sku   String?
   competitor       Competitor @relation(fields: [competitor_id], references: [id])
   product          Product    @relation(fields: [product_sku], references: [sku], onDelete: Cascade)
-
-  @@index([product_sku])
 }

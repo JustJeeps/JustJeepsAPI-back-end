@@ -2956,5 +2956,70 @@
     "scrapedAt": "2026-02-27T15:13:23.198Z",
     "needsManualMapping": true,
     "addedAt": "2026-02-27T15:17:53.330Z"
+  },
+  {
+    "title": "JL Wrangler | JT Gladiator Front Differential Cover & Glide Skid System [ M210 | 3rd Gen D44 ] Rubicon Edition",
+    "productCode": "6375*",
+    "category": "JT Gladiator",
+    "mapPrice": "$219.00",
+    "mapPriceNumeric": 219,
+    "yourPrice": "$142.35",
+    "yourPriceNumeric": 142.35,
+    "productUrl": "https://jobber.metalcloak.com/jl-wrangler-jt-gladiator-front-differential-cover-skid-plate-rubicon-edition.html",
+    "scrapedAt": "2026-03-25T23:45:14.167Z",
+    "needsManualMapping": true,
+    "addedAt": "2026-03-25T23:47:15.470Z"
+  },
+  {
+    "title": "JL Wrangler 2.5\" Base Camp Lift Kit",
+    "productCode": "A2325*",
+    "category": "JL Wrangler",
+    "mapPrice": "$1,444.00",
+    "mapPriceNumeric": 1444,
+    "yourPrice": "$1,010.50",
+    "yourPriceNumeric": 1010.5,
+    "productUrl": "https://jobber.metalcloak.com/a2325-jl-wrangler-base-camp-lift-kit.html",
+    "scrapedAt": "2026-03-25T23:45:25.966Z",
+    "needsManualMapping": true,
+    "addedAt": "2026-03-25T23:47:35.109Z"
+  },
+  {
+    "title": "JL Wrangler Rear 6Pak BLACK Shocks, Pair",
+    "productCode": "7433R",
+    "category": "JL Wrangler",
+    "mapPrice": "$1,449.00",
+    "mapPriceNumeric": 1449,
+    "yourPrice": "$941.85",
+    "yourPriceNumeric": 941.85,
+    "productUrl": "https://jobber.metalcloak.com/7428r-jl-wrangler-rear-6pak-black-shocks.html",
+    "scrapedAt": "2026-03-25T23:45:25.966Z",
+    "needsManualMapping": true,
+    "addedAt": "2026-03-25T23:47:41.309Z"
+  },
+  {
+    "title": "Bronco 6G Spare Tire Delete & License Plate Relocation Kit",
+    "productCode": "*B0202-BPC",
+    "category": "Ford Bronco 6G",
+    "mapPrice": "$99.00",
+    "mapPriceNumeric": 99,
+    "yourPrice": "$74.25",
+    "yourPriceNumeric": 74.25,
+    "productUrl": "https://jobber.metalcloak.com/b0202-bpc-bronco-spare-tire-delete-and-license-plate-relocation-kit.html",
+    "scrapedAt": "2026-03-25T23:45:52.119Z",
+    "needsManualMapping": true,
+    "addedAt": "2026-03-25T23:50:45.609Z"
+  },
+  {
+    "title": "RockSport BLACK 2.5 Ineos Grenadier Reservoir Long Travel Shocks, Adjustable, Rear, Pair",
+    "productCode": "1701",
+    "category": "Ineos Grenadier",
+    "mapPrice": "$1,499.00",
+    "mapPriceNumeric": 1499,
+    "yourPrice": "$1,124.25",
+    "yourPriceNumeric": 1124.25,
+    "productUrl": "https://jobber.metalcloak.com/1701-ineos-grenadier-rocksport-black-adjustable-reservoir-rear-shocks.html",
+    "scrapedAt": "2026-03-25T23:46:03.239Z",
+    "needsManualMapping": true,
+    "addedAt": "2026-03-25T23:51:05.610Z"
   }
 ]

@@ -18,8 +18,6 @@ module.exports = [
     premier_code: "",
     t14_code: "",
 
-
-
   },
   {
     jj_prefix: "4WP",
@@ -4583,6 +4581,23 @@ module.exports = [
     partsEngine_code: "-vp-yukon-gear-706.aspx",
     keystone_code_site: "Y11",
     keystone_ftp_brand: "YUKON GEAR",
+
+  },
+
+    {
+    jj_prefix: "WIX",
+    brand_name: "Wix Filters",
+    vendors: "Keystone, Meyer",
+    keystone_code: "W68",
+    meyer_code: "WIX",
+    quadratec_code: "",
+    tdot_code: "",
+    truck_parts_code: "",
+    partsEngine_code: "-",
+    keystone_code_site: "",
+    keystone_ftp_brand: "",
+    premier_code: "",
+    t14_code: "",
 
   },
   {

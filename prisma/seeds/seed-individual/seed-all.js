@@ -32,7 +32,7 @@ const otherSeeds = [
   // "seed-lowriders",
   // "seed-daily-turn14-production", // Daily Turn14 pricing/inventory updates
   // "seed-turn14-production"
-  "magento-attributes-priority"
+  // "magento-attributes-priority"
 ];
 
 const RUN_CODES_AFTER_VENDORS = false; // flip to true if you want a final pass

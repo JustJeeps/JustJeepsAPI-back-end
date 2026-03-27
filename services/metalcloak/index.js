@@ -129,10 +129,13 @@ class MetalCloakService {
    * @returns {Promise<Object|null>} - Matching product or null
    */
   async findMatchingProduct(metalCloakCode, title) {
+    // Normalize code: strip trailing * and whitespace
+    const normalizedCode = (metalCloakCode || '').replace(/\*.*$/, '').trim();
+
     // Match using searchable_sku (like other seeds) and ensure brand is MetalCloak
     const product = await this.prisma.product.findFirst({
       where: {
-        searchable_sku: metalCloakCode,
+        searchable_sku: normalizedCode,
         brand_name: 'MetalCloak'
       }
     });
