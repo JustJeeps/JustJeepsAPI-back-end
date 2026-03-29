@@ -159,7 +159,7 @@ function extractOrderAttributes(orderData) {
         return useLabel ? attr.label ?? null : attr.value ?? null;
       };
       custom_po_number = getAmastyAttr("custom_po_number");
-      sales_rep = getAmastyAttr("sales_rep");
+      sales_rep = getAmastyAttr("sales_rep", true);
       custom_ship_status = getAmastyAttr("custom_ship_status", true); // use label
       custom_order_note = getAmastyAttr("custom_order_note");
     }

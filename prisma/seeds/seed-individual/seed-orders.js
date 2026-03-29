@@ -117,14 +117,15 @@ const seedOrders = async () => {
 
       if (extension_attributes) {
         if (extension_attributes.amasty_order_attributes) {
-          const getAmastyAttr = (code) => {
+          const getAmastyAttr = (code, useLabel = false) => {
             const attr = extension_attributes.amasty_order_attributes.find(
               (attr) => attr.attribute_code === code
             );
-            return attr ? attr.value : null;
+            if (!attr) return null;
+            return useLabel ? attr.label ?? null : attr.value ?? null;
           };
           custom_po_number = getAmastyAttr("custom_po_number");
-          sales_rep = getAmastyAttr("sales_rep");
+          sales_rep = getAmastyAttr("sales_rep", true);
           custom_ship_status = getAmastyAttr("custom_ship_status");
           custom_order_note = getAmastyAttr("custom_order_note");
         }
