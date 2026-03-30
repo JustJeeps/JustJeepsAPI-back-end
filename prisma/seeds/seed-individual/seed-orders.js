@@ -1,5 +1,25 @@
+const axios = require("axios");
 const prisma = require("../../../lib/prisma");
 const magentoRecentOrders = require("../api-calls/magento-recentOrders.js");
+
+const MAGENTO_API_BASE = process.env.MAGENTO_API_BASE || "https://www.justjeeps.com/rest/V1";
+
+const isNumericString = (value) => typeof value === "string" && /^[0-9]+$/.test(value);
+
+const fetchSalesRepLabel = async (entityId) => {
+  const token = `Bearer ${process.env.MAGENTO_KEY}`;
+  const url = `${MAGENTO_API_BASE}/orders/${entityId}`;
+  const response = await axios.get(url, {
+    headers: {
+      Authorization: token,
+      "Content-Type": "application/json",
+    },
+  });
+  const attrs = response?.data?.extension_attributes?.amasty_order_attributes;
+  if (!Array.isArray(attrs)) return null;
+  const attr = attrs.find((item) => item.attribute_code === "sales_rep");
+  return attr?.label ?? null;
+};
 
 // Seed orders
 const seedOrders = async () => {
@@ -128,6 +148,21 @@ const seedOrders = async () => {
           sales_rep = getAmastyAttr("sales_rep", true);
           custom_ship_status = getAmastyAttr("custom_ship_status");
           custom_order_note = getAmastyAttr("custom_order_note");
+        }
+
+        if (!sales_rep || isNumericString(String(sales_rep))) {
+          try {
+            const fallbackLabel = await fetchSalesRepLabel(entity_id);
+            if (fallbackLabel) {
+              sales_rep = fallbackLabel;
+            }
+          } catch (error) {
+            console.error(
+              `Failed to fetch sales_rep label for entity_id=${entity_id}:`,
+              error.response?.status,
+              error.response?.data || error.message
+            );
+          }
         }
         // Set default values if missing
         if (!custom_ship_status) {
