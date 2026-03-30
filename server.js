@@ -1126,6 +1126,72 @@ app.get('/api/seed-orders', async (req, res) => {
 	});
 });
 
+const seedJobs = new Map();
+
+const createSeedJob = (limit) => {
+	const jobId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+	seedJobs.set(jobId, {
+		id: jobId,
+		limit,
+		status: 'running',
+		processed: 0,
+		total: null,
+		error: null,
+		startedAt: Date.now(),
+		updatedAt: Date.now(),
+		finishedAt: null,
+	});
+	setTimeout(() => seedJobs.delete(jobId), 60 * 60 * 1000);
+	return jobId;
+};
+
+const updateSeedJob = (jobId, patch) => {
+	const job = seedJobs.get(jobId);
+	if (!job) return;
+	seedJobs.set(jobId, {
+		...job,
+		...patch,
+		updatedAt: Date.now(),
+	});
+};
+
+app.post('/api/seed-orders/start', async (req, res) => {
+	const limit = Number(req.body?.limit) || 4000;
+	const jobId = createSeedJob(limit);
+
+	res.status(202).json({
+		jobId,
+		limit,
+	});
+
+	seedOrders(limit, {
+		onProgress: ({ total, processed, status, error }) => {
+			updateSeedJob(jobId, {
+				total,
+				processed,
+				status: status || 'running',
+				error: error || null,
+				finishedAt: status === 'done' || status === 'error' ? Date.now() : null,
+			});
+		},
+	}).catch((error) => {
+		console.error("Error seeding data:", error);
+		updateSeedJob(jobId, {
+			status: 'error',
+			error: error?.message || 'Seed failed',
+			finishedAt: Date.now(),
+		});
+	});
+});
+
+app.get('/api/seed-orders/status/:jobId', (req, res) => {
+	const job = seedJobs.get(req.params.jobId);
+	if (!job) {
+		return res.status(404).json({ error: 'Seed job not found' });
+	}
+	return res.json(job);
+});
+
 //Route for getting a single order
 app.get('/api/orders/:id', async (req, res) => {
 	try {

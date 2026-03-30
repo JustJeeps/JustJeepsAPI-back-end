@@ -305,8 +305,10 @@ const processOrder = async (orderData) => {
 
 // Seed orders
 const seedOrders = async (
-  limit = Number(process.env.SEED_ORDER_LIMIT) || 200
+  limit = Number(process.env.SEED_ORDER_LIMIT) || 200,
+  options = {}
 ) => {
+  const onProgress = typeof options.onProgress === "function" ? options.onProgress : null;
   const startedAt = Date.now();
   console.log(`[seed-orders] Start: limit=${limit}`);
   // const deleteOrders = async () => {
@@ -326,7 +328,12 @@ const seedOrders = async (
     // Fetch orders from API
     const response = await magentoRecentOrders(limit);
     const orders = response.data.items || [];
+    const totalOrders = orders.length;
     let orderCount = 0;
+
+    if (onProgress) {
+      onProgress({ total: totalOrders, processed: 0, status: "running" });
+    }
 
     for (let i = 0; i < orders.length; i += SEED_ORDER_CONCURRENCY) {
       const batch = orders.slice(i, i + SEED_ORDER_CONCURRENCY);
@@ -343,16 +350,28 @@ const seedOrders = async (
           }
         })
       );
+
+      if (onProgress) {
+        onProgress({ total: totalOrders, processed: orderCount, status: "running" });
+      }
     }
 
     const durationMs = Date.now() - startedAt;
     console.log("Orders seeded successfully");
     console.log(`Total orders processed: ${orderCount}`);
     console.log(`[seed-orders] Done in ${durationMs}ms (${(durationMs / 1000).toFixed(2)}s)`);
+
+    if (onProgress) {
+      onProgress({ total: totalOrders, processed: orderCount, status: "done" });
+    }
   } catch (error) {
     console.error("Error during seeding:", error);
     const durationMs = Date.now() - startedAt;
     console.log(`[seed-orders] Failed after ${durationMs}ms (${(durationMs / 1000).toFixed(2)}s)`);
+
+    if (onProgress) {
+      onProgress({ total: 0, processed: 0, status: "error", error: error?.message || "Seed failed" });
+    }
   }
 };
 
