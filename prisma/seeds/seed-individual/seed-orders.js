@@ -3,7 +3,7 @@ const prisma = require("../../../lib/prisma");
 const magentoRecentOrders = require("../api-calls/magento-recentOrders.js");
 
 const MAGENTO_API_BASE = process.env.MAGENTO_API_BASE || "https://www.justjeeps.com/rest/V1";
-const SEED_ORDER_CONCURRENCY = Number(process.env.SEED_ORDER_CONCURRENCY) || 25;
+const SEED_ORDER_CONCURRENCY = Number(process.env.SEED_ORDER_CONCURRENCY) || 15;
 const ORDER_PRODUCT_CHUNK_SIZE = 500;
 
 const isNumericString = (value) => typeof value === "string" && /^[0-9]+$/.test(value);
