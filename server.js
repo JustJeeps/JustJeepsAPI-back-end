@@ -1114,13 +1114,16 @@ app.get('/api/orders/metrics', async (req, res) => {
 });
 
 app.get('/api/seed-orders', async (req, res) => {
-  try {
-    await seedOrders();
-    res.status(200).send('Orders seeded successfully');
-  } catch (error) {
-    console.error("Error seeding data:", error);
-    res.status(500).send('Error seeding data');
-  }
+	const limit = Number(req.query.limit) || Number(process.env.SEED_ORDER_LIMIT) || 200;
+
+	res.status(202).json({
+		status: 'started',
+		limit,
+	});
+
+	seedOrders(limit).catch((error) => {
+		console.error("Error seeding data:", error);
+	});
 });
 
 //Route for getting a single order

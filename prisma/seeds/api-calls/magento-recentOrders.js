@@ -17,7 +17,9 @@ async function getRecentOrder(order_qty) {
         },
       }
     );
-    console.log(response.data.items);
+    if (process.env.SEED_ORDER_DEBUG === "true") {
+      console.log(response.data.items);
+    }
     return response;
   } catch (error) {
     console.log(error);
