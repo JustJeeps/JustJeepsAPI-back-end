@@ -884,6 +884,7 @@ app.get('/api/orders', async (req, res) => {
 					   status: true,
 					   base_total_due: true,
 					   shipping_amount: true,
+					   shipping_cost_jj: true,
 					   freight_shipping: true,
 					   shipping_description: true,
 					   custom_po_number: true,

@@ -153,6 +153,7 @@ const processOrder = async (orderData) => {
   let method_title = null;
   let custom_ship_status = null;
   let custom_order_note = null;
+  let shipping_cost_jj = null;
 
   // new shipping fields
   let shipping_firstname = null;
@@ -182,6 +183,7 @@ const processOrder = async (orderData) => {
       custom_ship_status =
         shipStatusLabel || getAmastyAttr("custom_ship_status");
       custom_order_note = getAmastyAttr("custom_order_note");
+      shipping_cost_jj = getAmastyAttr("shipping_cost");
     }
 
     if (!sales_rep || isNumericString(String(sales_rep))) {
@@ -257,6 +259,7 @@ const processOrder = async (orderData) => {
     method_title,
     custom_ship_status,
     custom_order_note,
+    shipping_cost_jj,
     shipping_firstname,
     shipping_lastname,
     shipping_postcode,

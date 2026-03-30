@@ -26,6 +26,7 @@ model Order {
   status                String?
   base_total_due        Float?
   shipping_amount       Float?
+  shipping_cost_jj      String?
   freight_shipping      Float?
   shipping_description  String?
   custom_po_number      String?

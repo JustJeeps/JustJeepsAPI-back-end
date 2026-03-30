@@ -135,6 +135,7 @@ function extractOrderAttributes(orderData) {
   let method_title = null;
   let custom_ship_status = null;
   let custom_order_note = null;
+  let shipping_cost_jj = null;
 
   // Shipping fields
   let shipping_firstname = null;
@@ -163,6 +164,7 @@ function extractOrderAttributes(orderData) {
       const shipStatusLabel = getAmastyAttr("custom_ship_status", true);
       custom_ship_status = shipStatusLabel || getAmastyAttr("custom_ship_status");
       custom_order_note = getAmastyAttr("custom_order_note");
+      shipping_cost_jj = getAmastyAttr("shipping_cost");
     }
 
     if (extension_attributes.weltpixel_fraud_score !== undefined) {
@@ -218,6 +220,7 @@ function extractOrderAttributes(orderData) {
       method_title,
       custom_ship_status,
       custom_order_note,
+      shipping_cost_jj,
       shipping_firstname,
       shipping_lastname,
       shipping_postcode,
