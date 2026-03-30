@@ -160,7 +160,8 @@ function extractOrderAttributes(orderData) {
       };
       custom_po_number = getAmastyAttr("custom_po_number");
       sales_rep = getAmastyAttr("sales_rep", true);
-      custom_ship_status = getAmastyAttr("custom_ship_status", true); // use label
+      const shipStatusLabel = getAmastyAttr("custom_ship_status", true);
+      custom_ship_status = shipStatusLabel || getAmastyAttr("custom_ship_status");
       custom_order_note = getAmastyAttr("custom_order_note");
     }
 
