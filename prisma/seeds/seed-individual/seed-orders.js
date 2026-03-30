@@ -167,10 +167,10 @@ const seedOrders = async () => {
         }
         // Set default values if missing
         if (!custom_ship_status) {
-          custom_ship_status = "Test Status";
+          custom_ship_status = "";
         }
         if (!custom_order_note) {
-          custom_order_note = "Test Note";
+          custom_order_note = "";
         }
         if (extension_attributes.weltpixel_fraud_score !== undefined) {
           weltpixel_fraud_score = extension_attributes.weltpixel_fraud_score;
