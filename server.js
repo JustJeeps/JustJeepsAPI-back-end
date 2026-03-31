@@ -12,6 +12,7 @@ const logger = require('./utils/logger');
 const { sendCronNotification, sendCronReport, sendPurchaserReportEmail } = require('./utils/emailService');
 const prisma = require('./lib/prisma');
 const seedOrders = require('./prisma/seeds/seed-individual/seed-orders.js');
+const seedOrdersAll = require('./prisma/seeds/seed-individual/seed-orders-all.js');
 const quadratecProducts = require('./prisma/seeds/api-calls/quadratec-excel.js');
 const { getWheelProsSkus, makeApiRequestsInChunks } = require('./prisma/seeds/api-calls/wheelPros-api.js');
 
@@ -1160,6 +1161,16 @@ app.get('/api/seed-orders', async (req, res) => {
 
 	seedOrders(limit).catch((error) => {
 		console.error("Error seeding data:", error);
+	});
+});
+
+app.get('/api/seed-orders-all', async (req, res) => {
+	res.status(202).json({
+		status: 'started',
+	});
+
+	seedOrdersAll().catch((error) => {
+		console.error("Error seeding all orders:", error);
 	});
 });
 

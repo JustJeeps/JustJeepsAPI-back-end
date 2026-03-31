@@ -236,13 +236,62 @@ function extractOrderAttributes(orderData) {
   };
 }
 
+const ORDER_FIELDS = new Set([
+  "created_at",
+  "customer_email",
+  "coupon_code",
+  "customer_firstname",
+  "customer_lastname",
+  "grand_total",
+  "increment_id",
+  "order_currency_code",
+  "total_qty_ordered",
+  "status",
+  "base_total_due",
+  "shipping_amount",
+  "shipping_description",
+  "custom_po_number",
+  "weltpixel_fraud_score",
+  "city",
+  "region",
+  "method_title",
+  "shipping_city",
+  "shipping_country_id",
+  "shipping_firstname",
+  "shipping_lastname",
+  "shipping_postcode",
+  "shipping_region",
+  "shipping_street1",
+  "shipping_street2",
+  "shipping_street3",
+  "shipping_telephone",
+  "shipping_company",
+  "sales_rep",
+  "subtotal",
+  "freight_shipping",
+  "order_bis",
+  "tax_amount",
+  "custom_order_note",
+  "custom_ship_status",
+]);
+
+function pickOrderFields(input) {
+  const output = {};
+  Object.keys(input || {}).forEach((key) => {
+    if (ORDER_FIELDS.has(key)) {
+      output[key] = input[key];
+    }
+  });
+  return output;
+}
+
 function buildBatchRows(parsedOrders) {
   const orderRows = [];
   const orderProductRows = [];
 
   for (const parsed of parsedOrders) {
     const { entity_id, orderItems, orderDataWithCustomAttributes } = parsed;
-    orderRows.push({ ...orderDataWithCustomAttributes, entity_id });
+    orderRows.push({ ...pickOrderFields(orderDataWithCustomAttributes), entity_id });
 
     for (const itemData of orderItems) {
       orderProductRows.push({
@@ -322,7 +371,11 @@ async function seedOrders() {
   }
 }
 
-seedOrders();
+if (require.main === module) {
+  seedOrders();
+}
+
+module.exports = seedOrders;
 
 
 
