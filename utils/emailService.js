@@ -189,8 +189,148 @@ async function sendCronReport({ jobName, success, exitCode, error, duration, res
   return await sendEmail({ to: recipient, subject, text, html });
 }
 
+const getShippingCostValue = (row) => {
+  if (!row) return '';
+  if (row.shipping_cost_jj !== undefined && row.shipping_cost_jj !== null) return row.shipping_cost_jj;
+  return row.shipping_cost || '';
+};
+
+const escapeHtml = (value) =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const formatDate = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('en-US');
+};
+
+const buildPurchaserTable = (rows) => {
+  const columns = [
+    { key: 'created_at', label: 'Order Date', width: 110, format: (row) => formatDate(row.created_at) },
+    {
+      key: 'increment_id',
+      label: 'Order ID',
+      width: 110,
+      format: (row) => {
+        if (!row.increment_id) return '';
+        if (row.entity_id) {
+          const href = `https://www.justjeeps.com/admin_19q7yi/sales/order/view/order_id/${row.entity_id}`;
+          return `<a href="${escapeHtml(href)}" style="color:#235789;text-decoration:none;font-weight:600;">${escapeHtml(row.increment_id)}</a>`;
+        }
+        return escapeHtml(row.increment_id);
+      },
+    },
+    { key: 'total_qty_ordered', label: 'Items Ordered Qty', width: 150 },
+    {
+      key: 'base_total_due',
+      label: 'Total Due',
+      width: 110,
+      format: (row) => {
+        const value = row.base_total_due ?? '';
+        const num = Number(value);
+        const due = Number.isFinite(num) && num > 0;
+        const pill = due
+          ? '<span style="display:inline-block;margin-right:6px;padding:2px 6px;border-radius:999px;background:#fee4e2;color:#b42318;font-size:11px;font-weight:700;letter-spacing:0.02em;">DUE</span>'
+          : '';
+        return `${pill}${escapeHtml(value)}`;
+      },
+    },
+    { key: 'custom_po_number', label: 'PO#', width: 140 },
+    { key: 'custom_ship_status', label: 'Ship Status', width: 140 },
+    { key: 'shipping_cost', label: 'Shipping Cost', width: 130, format: (row) => escapeHtml(getShippingCostValue(row)) },
+    { key: 'custom_order_note', label: 'Order Note', width: 260 },
+  ];
+
+  const colWidthStyle = (col) => col.width ? `min-width:${col.width}px;` : '';
+
+  const header = `
+    <tr>
+      ${columns
+        .map(
+          (col) =>
+            `<th style=\"text-align:left;padding:10px 12px;background:#f8f4ef;border:1px solid #d9d9d9;font-size:13px;color:#5b6676;${colWidthStyle(col)}\">${escapeHtml(col.label)}</th>`
+        )
+        .join('')}
+    </tr>
+  `;
+
+  const body = rows
+    .map((row, index) => {
+      const bg = index % 2 === 0 ? '#ffffff' : '#fcfbf9';
+      const cells = columns
+        .map((col) => {
+          const raw = col.format ? col.format(row) : escapeHtml(row[col.key] ?? '');
+          const align = ['total_qty_ordered', 'base_total_due', 'shipping_cost'].includes(col.key)
+            ? 'right'
+            : 'left';
+          const color = col.key === 'base_total_due' && Number(row.base_total_due) > 0 ? '#b42318' : '#1c2430';
+          return `<td style=\"padding:10px 12px;border:1px solid #d9d9d9;text-align:${align};color:${color};${colWidthStyle(col)}\">${raw}</td>`;
+        })
+        .join('');
+      return `<tr style="background:${bg};">${cells}</tr>`;
+    })
+    .join('');
+
+  return `
+    <table style=\"width:100%;border-collapse:collapse;font-family:Arial,sans-serif;font-size:13px;table-layout:auto;\">
+      <thead>${header}</thead>
+      <tbody>${body}</tbody>
+    </table>
+  `;
+};
+
+async function sendPurchaserReportEmail({ report, dateStr, initials }) {
+  const recipient = process.env.PURCHASER_REPORT_EMAILS || process.env.CRON_NOTIFICATION_EMAIL || '';
+  const recipients = recipient
+    .split(/[,\s]+/)
+    .map((email) => email.trim())
+    .filter(Boolean)
+    .join(',');
+
+  if (!recipients) {
+    return { success: false, error: 'No recipients configured' };
+  }
+
+  const subject = `Purchaser Report - ${dateStr}`;
+  const initialsText = Array.isArray(initials) && initials.length ? initials.join(', ') : 'All';
+
+  const renderSection = (title, rows) => {
+    if (!rows.length) {
+      return `
+        <h3 style="margin:16px 0 8px;color:#1c2430;">${escapeHtml(title)}</h3>
+        <p style="margin:0 0 12px;color:#5b6676;">No results.</p>
+      `;
+    }
+    return `
+      <h3 style="margin:16px 0 8px;color:#1c2430;">${escapeHtml(title)}</h3>
+      ${buildPurchaserTable(rows)}
+    `;
+  };
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:920px;margin:0 auto;color:#1c2430;">
+      <h2 style="margin:0 0 6px;">Purchaser Report</h2>
+      <p style="margin:0 0 16px;color:#5b6676;">Date: ${escapeHtml(dateStr)} | Initials: ${escapeHtml(initialsText)}</p>
+      ${renderSection(`Orders closed on ${dateStr}`, report?.closed || [])}
+      ${renderSection(`Orders followed up on ${dateStr}`, report?.followedUp || [])}
+      ${renderSection('Orders waiting for a response', report?.waiting || [])}
+    </div>
+  `;
+
+  const text = `Purchaser Report - ${dateStr}\nInitials: ${initialsText}`;
+
+  return await sendEmail({ to: recipients, subject, text, html });
+}
+
 module.exports = {
   sendEmail,
   sendCronNotification,
-  sendCronReport
+  sendCronReport,
+  sendPurchaserReportEmail
 };

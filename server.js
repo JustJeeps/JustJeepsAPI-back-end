@@ -9,7 +9,7 @@ const cors = require('cors');
 const cron = require('node-cron');
 const { spawn } = require('child_process');
 const logger = require('./utils/logger');
-const { sendCronNotification, sendCronReport } = require('./utils/emailService');
+const { sendCronNotification, sendCronReport, sendPurchaserReportEmail } = require('./utils/emailService');
 const prisma = require('./lib/prisma');
 const seedOrders = require('./prisma/seeds/seed-individual/seed-orders.js');
 const quadratecProducts = require('./prisma/seeds/api-calls/quadratec-excel.js');
@@ -37,8 +37,8 @@ app.use(
 
 
 // Express Configuration
-app.use(BodyParser.urlencoded({ extended: false }));
-app.use(BodyParser.json());
+app.use(BodyParser.urlencoded({ extended: false, limit: '10mb' }));
+app.use(BodyParser.json({ limit: '10mb' }));
 app.use(Express.static('public'));
 
 // Request logging middleware (Axiom)
@@ -94,6 +94,38 @@ app.get('/api/data', (req, res) =>
 		message: '/api/data route works!',
 	})
 );
+
+app.post('/api/reports/purchaser/email', async (req, res) => {
+	try {
+		const { report, date, initials } = req.body || {};
+		if (!report || !date) {
+			return res.status(400).json({ error: 'Missing report or date' });
+		}
+
+		if (process.env.ENABLE_AUTH === 'true' && req.user) {
+			const allowed = ['tess', 'paula', 'karoline'];
+			const username = (req.user.username || req.user.firstname || '').toLowerCase();
+			if (!allowed.includes(username)) {
+				return res.status(403).json({ error: 'Not authorized to send report' });
+			}
+		}
+
+		const result = await sendPurchaserReportEmail({
+			report,
+			dateStr: date,
+			initials,
+		});
+
+		if (!result?.success) {
+			return res.status(500).json({ error: result?.error || 'Failed to send email' });
+		}
+
+		return res.json({ success: true });
+	} catch (error) {
+		console.error('Failed to send purchaser report email:', error);
+		return res.status(500).json({ error: 'Failed to send email' });
+	}
+});
 
 // Route for getting all wheelPros products
 app.get('/api/wheelPros', async (req, res) => {
