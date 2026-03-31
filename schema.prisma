@@ -94,6 +94,7 @@ model Product {
   meyer_code         String?
   keystone_code      String?
   omix_code          String?
+  replace_oe         String?
   vendors            String?
   brand_name         String?
   image              String?
