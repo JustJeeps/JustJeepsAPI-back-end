@@ -12,6 +12,7 @@ model Order {
   entity_id             Int             @id
   id                    Int             @unique @default(autoincrement())
   created_at            String
+  updated_at            String          @default(dbgenerated("now()::text"))
   customer_email        String
   coupon_code           String?
   customer_firstname    String?
@@ -26,7 +27,7 @@ model Order {
   status                String?
   base_total_due        Float?
   shipping_amount       Float?
-  shipping_cost_jj      String?
+  shipping_cost_jj      String?         @db.Text
   freight_shipping      Float?
   shipping_description  String?
   custom_po_number      String?

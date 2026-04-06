@@ -910,6 +910,7 @@ app.get('/api/orders', async (req, res) => {
 					   entity_id: true,
 					   id: true,
 					   created_at: true,
+					   updated_at: true,
 					   customer_email: true,
 					   coupon_code: true,
 					   customer_firstname: true,

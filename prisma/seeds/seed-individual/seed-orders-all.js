@@ -17,7 +17,7 @@ const MAX_RETRIES = 3;
 const BASE_URL_PREFIX =
   "https://www.justjeeps.com/rest/V1/orders/?searchCriteria[sortOrders][0][field]=created_at";
 const FIELDS =
-  "items[created_at,status,customer_email,customer_firstname,customer_lastname,entity_id,grand_total,subtotal,base_subtotal,tax_amount,discount_amount,increment_id,order_currency_code,total_qty_ordered,base_total_due,coupon_code,shipping_description,shipping_amount,freight_shipping,items[base_total_due,name,sku,order_id,base_price,base_price_incl_tax,discount_amount,discount_invoiced,discount_percent,original_price,price,price_incl_tax,product_id,qty_ordered],extension_attributes[amasty_order_attributes,weltpixel_fraud_score,shipping_assignments,payment_additional_info,mageworx_giftcards_amount,base_mageworx_giftcards_amount]]";
+  "items[created_at,updated_at,status,customer_email,customer_firstname,customer_lastname,entity_id,grand_total,subtotal,base_subtotal,tax_amount,discount_amount,increment_id,order_currency_code,total_qty_ordered,base_total_due,coupon_code,shipping_description,shipping_amount,freight_shipping,items[base_total_due,name,sku,order_id,base_price,base_price_incl_tax,discount_amount,discount_invoiced,discount_percent,original_price,price,price_incl_tax,product_id,qty_ordered],extension_attributes[amasty_order_attributes,weltpixel_fraud_score,shipping_assignments,payment_additional_info,mageworx_giftcards_amount,base_mageworx_giftcards_amount]]";
 
 function authHeaders() {
   const token = `Bearer ${process.env.MAGENTO_KEY}`;
@@ -238,6 +238,7 @@ function extractOrderAttributes(orderData) {
 
 const ORDER_FIELDS = new Set([
   "created_at",
+  "updated_at",
   "customer_email",
   "coupon_code",
   "customer_firstname",
@@ -249,6 +250,7 @@ const ORDER_FIELDS = new Set([
   "status",
   "base_total_due",
   "shipping_amount",
+  "shipping_cost_jj",
   "shipping_description",
   "custom_po_number",
   "weltpixel_fraud_score",
