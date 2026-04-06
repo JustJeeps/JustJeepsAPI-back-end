@@ -774,6 +774,7 @@ app.get('/api/orders', async (req, res) => {
 						{ customer_lastname: { contains: kw, mode: 'insensitive' } },
 						{ customer_email: { contains: kw, mode: 'insensitive' } },
 						{ custom_po_number: { contains: kw, mode: 'insensitive' } },
+						{ custom_order_note: { contains: kw, mode: 'insensitive' } },
 					]);
 					if (anyConditions.length > 0) {
 						where.AND = [
@@ -791,6 +792,7 @@ app.get('/api/orders', async (req, res) => {
 								{ customer_lastname: { contains: kw, mode: 'insensitive' } },
 								{ customer_email: { contains: kw, mode: 'insensitive' } },
 								{ custom_po_number: { contains: kw, mode: 'insensitive' } },
+								{ custom_order_note: { contains: kw, mode: 'insensitive' } },
 							],
 						})),
 					];
@@ -824,6 +826,7 @@ app.get('/api/orders', async (req, res) => {
 							{ customer_lastname: { not: { contains: kw, mode: 'insensitive' } } },
 							{ customer_email: { not: { contains: kw, mode: 'insensitive' } } },
 							{ custom_po_number: { not: { contains: kw, mode: 'insensitive' } } },
+							{ custom_order_note: { not: { contains: kw, mode: 'insensitive' } } },
 						],
 					})),
 				];
