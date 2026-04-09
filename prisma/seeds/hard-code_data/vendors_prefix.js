@@ -3635,7 +3635,7 @@ module.exports = [
     brand_name: "Rugged Radios",
     vendors: "Meyer, Keystone",
     keystone_code: "RGR",
-    meyer_code: "OMI",
+    meyer_code: "RGR",
     truck_parts_code: "RUGGED RADIOS",
     partsEngine_code: "-vp-rugged-radios-2179.aspx",
     keystone_code_site: "RGR",
