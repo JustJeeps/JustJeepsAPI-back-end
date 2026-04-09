@@ -960,6 +960,21 @@ app.get('/api/orders', async (req, res) => {
 									   shippingFreight: true,
 									   url_path: true,
 									   black_friday_sale: true,
+									vendorProducts: {
+										select: {
+											id: true,
+											vendor_cost: true,
+											vendor_inventory: true,
+											vendor_inventory_string: true,
+											vendor_id: true,
+											vendor: {
+												select: {
+													id: true,
+													name: true,
+												},
+											},
+										},
+									},
 								   },
 							   },
 						   },
