@@ -25,7 +25,7 @@ const otherSeeds = [
   "seed-roughCountry",
   "seed-tireDiscounter",
   // "seed-aev",
-  // "seed-ctp",
+  "seed-ctp",
   "seed-keyparts",
   // "seed-alpine",
 
