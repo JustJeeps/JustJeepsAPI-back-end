@@ -9,6 +9,27 @@ class PremierPricing {
     this.auth = new PremierAuth();
   }
 
+  isUnauthorized(error) {
+    return error?.response?.status === 401;
+  }
+
+  async executeWithAuthRetry(requestFn) {
+    try {
+      const client = await this.auth.getAuthenticatedClient();
+      return await requestFn(client);
+    } catch (error) {
+      if (!this.isUnauthorized(error)) {
+        throw error;
+      }
+
+      console.warn('Premier pricing received 401, refreshing token and retrying once...');
+      this.auth.clearToken();
+
+      const client = await this.auth.getAuthenticatedClient();
+      return await requestFn(client);
+    }
+  }
+
   /**
    * Get pricing for a single item
    * @param {string} itemNumber - Premier item number
@@ -16,11 +37,11 @@ class PremierPricing {
    */
   async getItemPricing(itemNumber) {
     try {
-      const client = await this.auth.getAuthenticatedClient();
-      
-      const response = await client.get('/pricing', {
-        params: { itemNumber }
-      });
+      const response = await this.executeWithAuthRetry(client =>
+        client.get('/pricing', {
+          params: { itemNumber }
+        })
+      );
 
       return {
         success: true,
@@ -51,13 +72,13 @@ class PremierPricing {
     }
 
     try {
-      const client = await this.auth.getAuthenticatedClient();
-      
-      const response = await client.get('/pricing', {
-        params: { 
-          itemNumbers: itemNumbers.join(',')
-        }
-      });
+      const response = await this.executeWithAuthRetry(client =>
+        client.get('/pricing', {
+          params: {
+            itemNumbers: itemNumbers.join(',')
+          }
+        })
+      );
 
       return {
         success: true,

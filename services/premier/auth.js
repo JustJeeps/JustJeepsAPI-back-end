@@ -1,4 +1,5 @@
 const axios = require('axios');
+const config = require('./config');
 require('dotenv').config();
 
 /**
@@ -7,15 +8,14 @@ require('dotenv').config();
  */
 class PremierAuth {
   constructor() {
-    this.baseURL = process.env.PREMIER_BASE_URL || 'https://api.premierwd.com/api/v5';
-    this.apiKey = process.env.PREMIER_API_KEY;
-    this.sessionToken = null;
-    this.tokenExpiry = null;
-    
-    if (!this.apiKey) {
-      throw new Error('PREMIER_API_KEY environment variable is required');
-    }
+    this.config = config.getConfig();
+    this.baseURL = process.env.PREMIER_BASE_URL || this.config.baseURL;
+    this.apiKey = this.config.credentials.apiKey;
   }
+
+  static sessionToken = null;
+
+  static tokenExpiry = null;
 
   /**
    * Get a valid access token (cached or fresh)
@@ -23,8 +23,8 @@ class PremierAuth {
    */
   async getAccessToken() {
     // Check if we have a valid cached token
-    if (this.sessionToken && this.tokenExpiry && Date.now() < this.tokenExpiry) {
-      return this.sessionToken;
+    if (PremierAuth.sessionToken && PremierAuth.tokenExpiry && Date.now() < PremierAuth.tokenExpiry) {
+      return PremierAuth.sessionToken;
     }
 
     // Get fresh token
@@ -35,16 +35,16 @@ class PremierAuth {
         params: {
           apiKey: this.apiKey
         },
-        timeout: 10000
+        timeout: this.config.timeout.requestTimeout
       });
 
       if (response.data && response.data.sessionToken) {
-        this.sessionToken = response.data.sessionToken;
+        PremierAuth.sessionToken = response.data.sessionToken;
         // Premier tokens typically last 24 hours, set expiry for 23 hours to be safe
-        this.tokenExpiry = Date.now() + (23 * 60 * 60 * 1000);
+        PremierAuth.tokenExpiry = Date.now() + (23 * 60 * 60 * 1000);
         
         console.log('Premier session token obtained successfully');
-        return this.sessionToken;
+        return PremierAuth.sessionToken;
       } else {
         throw new Error('No session token in response');
       }
@@ -72,7 +72,7 @@ class PremierAuth {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       },
-      timeout: 30000
+      timeout: this.config.timeout.requestTimeout
     });
   }
 
@@ -80,8 +80,8 @@ class PremierAuth {
    * Clear cached token (force re-authentication)
    */
   clearToken() {
-    this.sessionToken = null;
-    this.tokenExpiry = null;
+    PremierAuth.sessionToken = null;
+    PremierAuth.tokenExpiry = null;
     console.log('Premier session token cleared');
   }
 }

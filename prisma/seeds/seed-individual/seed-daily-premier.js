@@ -8,6 +8,255 @@ const PremierService = require("../../../services/premier");
 
 const prisma = require("../../../lib/prisma");
 
+const EXCHANGE_RATE = 1.5;
+const DEFAULT_BATCH_SIZE = 20;
+const DEFAULT_DB_WRITE_CONCURRENCY = 3;
+const DEFAULT_FAILURE_BACKOFF_MS = 2000;
+const DEFAULT_PRELOAD_CHUNK_SIZE = 5000;
+const DEFAULT_PRICING_MAX_RETRIES = 2;
+const DEFAULT_PRICING_RETRY_DELAY_MS = 1500;
+
+const buildVendorProductKey = (productSku, vendorSku) => `${productSku}::${vendorSku}`;
+
+const toPositiveInt = (value, fallback) => {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const delay = (milliseconds) => new Promise(resolve => setTimeout(resolve, milliseconds));
+
+const chunkArray = (items, chunkSize) => {
+  const chunks = [];
+
+  for (let index = 0; index < items.length; index += chunkSize) {
+    chunks.push(items.slice(index, index + chunkSize));
+  }
+
+  return chunks;
+};
+
+const mapWithConcurrency = async (items, concurrency, worker) => {
+  const results = new Array(items.length);
+  let currentIndex = 0;
+
+  const runners = Array.from(
+    { length: Math.min(concurrency, items.length) },
+    async () => {
+      while (currentIndex < items.length) {
+        const index = currentIndex;
+        currentIndex += 1;
+        results[index] = await worker(items[index], index);
+      }
+    }
+  );
+
+  await Promise.all(runners);
+  return results;
+};
+
+const buildProductsByPremierCode = (products) => {
+  const productsByPremierCode = new Map();
+
+  for (const product of products) {
+    if (!product.premier_code) {
+      continue;
+    }
+
+    if (!productsByPremierCode.has(product.premier_code)) {
+      productsByPremierCode.set(product.premier_code, []);
+    }
+
+    productsByPremierCode.get(product.premier_code).push(product);
+  }
+
+  return productsByPremierCode;
+};
+
+const preloadExistingVendorProducts = async ({ vendorId, premierCodes, chunkSize }) => {
+  const chunks = chunkArray(premierCodes, chunkSize);
+  const existingVendorProducts = [];
+
+  for (const chunk of chunks) {
+    const rows = await prisma.vendorProduct.findMany({
+      where: {
+        vendor_id: vendorId,
+        vendor_sku: { in: chunk }
+      },
+      select: {
+        id: true,
+        product_sku: true,
+        vendor_sku: true
+      }
+    });
+
+    existingVendorProducts.push(...rows);
+  }
+
+  return existingVendorProducts;
+};
+
+const hasAnyPricingData = (results) => {
+  if (!Array.isArray(results) || results.length === 0) {
+    return false;
+  }
+
+  return results.some(result => {
+    const pricing = result?.pricing || {};
+    return (pricing.cost || 0) > 0 || (pricing.jobber || 0) > 0 || (pricing.map || 0) > 0;
+  });
+};
+
+const isRetryablePricingError = (message) => {
+  if (!message) {
+    return false;
+  }
+
+  return /(status code 500|status code 502|status code 503|status code 504|etimedout|econnreset|socket hang up|timeout|too many requests|status code 429)/i.test(message);
+};
+
+const getBatchProductInfoWithPricingRetry = async ({
+  premier,
+  batch,
+  batchNum,
+  totalBatches,
+  maxRetries,
+  retryDelayMs
+}) => {
+  let lastPricingError = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    const attemptNumber = attempt + 1;
+
+    if (attempt > 0) {
+      console.log(`  Retrying batch ${batchNum}/${totalBatches} (attempt ${attemptNumber}/${maxRetries + 1}) after pricing failure...`);
+    }
+
+    const batchResult = await premier.getBatchProductInfo(batch);
+
+    if (!batchResult.success) {
+      const errorMessage = batchResult.error || '';
+
+      if (isRetryablePricingError(errorMessage) && attempt < maxRetries) {
+        await delay(retryDelayMs);
+        continue;
+      }
+
+      return batchResult;
+    }
+
+    if (hasAnyPricingData(batchResult.results)) {
+      return batchResult;
+    }
+
+    const pricingProbe = await premier.pricing.getBatchPricing(batch);
+    if (pricingProbe.success) {
+      return batchResult;
+    }
+
+    lastPricingError = pricingProbe.error || 'Unknown pricing error';
+
+    if (isRetryablePricingError(lastPricingError) && attempt < maxRetries) {
+      await delay(retryDelayMs);
+      continue;
+    }
+
+    return {
+      ...batchResult,
+      success: false,
+      error: `Pricing retry failed: ${lastPricingError}`
+    };
+  }
+
+  return {
+    success: false,
+    results: [],
+    error: `Pricing retry exhausted: ${lastPricingError || 'Unknown pricing error'}`
+  };
+};
+
+const processBatchResult = async ({
+  result,
+  premierVendorId,
+  productsByPremierCode,
+  existingVendorProductsByKey
+}) => {
+  const summary = {
+    totalProcessed: 1,
+    successfulUpdates: 0,
+    createdRecords: 0,
+    updatedRecords: 0,
+    skippedZeroCost: 0,
+    errors: []
+  };
+
+  if (!result.success) {
+    console.log(`  ⚠️ ${result.itemNumber}: ${result.errors.join(', ')}`);
+    return summary;
+  }
+
+  const matchingProducts = productsByPremierCode.get(result.itemNumber) || [];
+
+  if (matchingProducts.length === 0) {
+    console.log(`  ⚠️ No product found with premier_code: ${result.itemNumber}`);
+    return summary;
+  }
+
+  if (result.pricing.cost <= 0) {
+    console.log(`  ⚠️ Skipped: ${result.itemNumber} - No pricing available (Cost: $0)`);
+    summary.skippedZeroCost += 1;
+    return summary;
+  }
+
+  const convertedCost = result.pricing.cost * EXCHANGE_RATE;
+
+  for (const product of matchingProducts) {
+    try {
+      const vendorProductKey = buildVendorProductKey(product.sku, result.itemNumber);
+      const existingVendorProduct = existingVendorProductsByKey.get(vendorProductKey);
+
+      const vendorData = {
+        product_sku: product.sku,
+        vendor_id: premierVendorId,
+        vendor_sku: result.itemNumber,
+        vendor_cost: convertedCost,
+        vendor_inventory: result.inventory.quantity || 0
+      };
+
+      if (existingVendorProduct) {
+        await prisma.vendorProduct.update({
+          where: { id: existingVendorProduct.id },
+          data: {
+            vendor_cost: convertedCost,
+            vendor_inventory: vendorData.vendor_inventory
+          }
+        });
+        summary.updatedRecords += 1;
+        console.log(`  ✅ Updated: ${product.sku} -> ${result.itemNumber} - Cost: $${result.pricing.cost} → CAD $${convertedCost.toFixed(2)}, Qty: ${result.inventory.quantity}`);
+      } else {
+        const createdVendorProduct = await prisma.vendorProduct.create({
+          data: vendorData
+        });
+        existingVendorProductsByKey.set(vendorProductKey, {
+          id: createdVendorProduct.id,
+          product_sku: product.sku,
+          vendor_sku: result.itemNumber
+        });
+        summary.createdRecords += 1;
+        console.log(`  ➕ Created: ${product.sku} -> ${result.itemNumber} - Cost: $${result.pricing.cost} → CAD $${convertedCost.toFixed(2)}, Qty: ${result.inventory.quantity}`);
+      }
+    } catch (error) {
+      console.error(`  ❌ Error processing ${result.itemNumber}/${product.sku}:`, error.message);
+      summary.errors.push(`${result.itemNumber}/${product.sku}: ${error.message}`);
+    }
+  }
+
+  if (summary.createdRecords > 0 || summary.updatedRecords > 0) {
+    summary.successfulUpdates += 1;
+  }
+
+  return summary;
+};
+
 const seedDailyPremierData = async () => {
   const startTime = Date.now();
   console.time("Premier Seed Duration");
@@ -75,6 +324,7 @@ const seedDailyPremierData = async () => {
     
     // Extract unique Premier codes and filter out invalid ones
     const allPremierCodes = [...new Set(productsWithPremierCodes.map(p => p.premier_code))];
+    const productsByPremierCode = buildProductsByPremierCode(productsWithPremierCodes);
     
     // Filter out invalid codes (ending with dash, too short, etc.)
     const premierCodes = allPremierCodes.filter(code => {
@@ -86,17 +336,41 @@ const seedDailyPremierData = async () => {
     
     console.log(`Found ${allPremierCodes.length} total codes, filtered to ${premierCodes.length} valid codes`);
     console.log(`Processing ${premierCodes.length} unique Premier codes\n`);
-    
-    // Initialize counters
     let totalProcessed = 0;
     let successfulUpdates = 0;
     let createdRecords = 0;
     let updatedRecords = 0;
     let skippedZeroCost = 0;
     let errors = [];
-    
-    // Process in batches of 10 (Premier API fails with larger batches)
-    const batchSize = 10;
+
+    const batchSize = toPositiveInt(process.env.PREMIER_SEED_BATCH_SIZE, DEFAULT_BATCH_SIZE);
+    const dbWriteConcurrency = toPositiveInt(process.env.PREMIER_SEED_DB_WRITE_CONCURRENCY, DEFAULT_DB_WRITE_CONCURRENCY);
+    const failureBackoffMs = toPositiveInt(process.env.PREMIER_SEED_FAILURE_BACKOFF_MS, DEFAULT_FAILURE_BACKOFF_MS);
+    const preloadChunkSize = toPositiveInt(process.env.PREMIER_SEED_PRELOAD_CHUNK_SIZE, DEFAULT_PRELOAD_CHUNK_SIZE);
+    const pricingMaxRetries = toPositiveInt(process.env.PREMIER_SEED_PRICING_MAX_RETRIES, DEFAULT_PRICING_MAX_RETRIES);
+    const pricingRetryDelayMs = toPositiveInt(process.env.PREMIER_SEED_PRICING_RETRY_DELAY_MS, DEFAULT_PRICING_RETRY_DELAY_MS);
+
+    console.log(`Using Premier batch size: ${batchSize}`);
+    console.log(`Using DB write concurrency: ${dbWriteConcurrency}`);
+    console.log(`Using preload chunk size: ${preloadChunkSize}\n`);
+    console.log(`Using pricing max retries: ${pricingMaxRetries}`);
+    console.log(`Using pricing retry delay: ${pricingRetryDelayMs}ms\n`);
+
+    console.log("Preloading existing Premier vendor product links...");
+    const existingVendorProducts = await preloadExistingVendorProducts({
+      vendorId: premierVendor.id,
+      premierCodes,
+      chunkSize: preloadChunkSize
+    });
+
+    const existingVendorProductsByKey = new Map(
+      existingVendorProducts.map(vendorProduct => [
+        buildVendorProductKey(vendorProduct.product_sku, vendorProduct.vendor_sku),
+        vendorProduct
+      ])
+    );
+
+    console.log(`Preloaded ${existingVendorProducts.length} existing Premier vendor product records\n`);
     
     for (let i = 0; i < premierCodes.length; i += batchSize) {
       const batch = premierCodes.slice(i, i + batchSize);
@@ -106,104 +380,48 @@ const seedDailyPremierData = async () => {
       console.log(`Processing batch ${batchNum}/${totalBatches} (${batch.length} items)`);
       
       try {
-        // Get batch data from Premier API
-        const batchResult = await premier.getBatchProductInfo(batch);
+        // Get batch data from Premier API with retry on transient pricing failures.
+        const batchResult = await getBatchProductInfoWithPricingRetry({
+          premier,
+          batch,
+          batchNum,
+          totalBatches,
+          maxRetries: pricingMaxRetries,
+          retryDelayMs: pricingRetryDelayMs
+        });
         
         if (!batchResult.success) {
           console.error(`Batch ${batchNum} failed:`, batchResult.error);
           errors.push(`Batch ${batchNum}: ${batchResult.error}`);
+          console.log(`  Backing off for ${failureBackoffMs}ms before continuing...\n`);
+          await delay(failureBackoffMs);
           continue;
         }
         
-        // Process each item in the batch
-        for (const result of batchResult.results) {
-          try {
-            totalProcessed++;
-            
-            if (!result.success) {
-              console.log(`  ⚠️ ${result.itemNumber}: ${result.errors.join(', ')}`);
-              continue;
-            }
-            
-            // Find the product that has this premier_code
-            const matchingProducts = await prisma.product.findMany({
-              where: {
-                premier_code: result.itemNumber
-              },
-              select: {
-                sku: true,
-                name: true,
-                premier_code: true
-              }
-            });
-            
-            if (matchingProducts.length === 0) {
-              console.log(`  ⚠️ No product found with premier_code: ${result.itemNumber}`);
-              continue;
-            }
-            
-            // Only process products with cost greater than zero
-            if (result.pricing.cost > 0) {
-              // Process each matching product (usually just one)
-              for (const product of matchingProducts) {
-                // Check if VendorProduct record exists
-                const existingVendorProduct = await prisma.vendorProduct.findFirst({
-                  where: {
-                    product_sku: product.sku,
-                    vendor_id: premierVendor.id,
-                    vendor_sku: result.itemNumber
-                  }
-                });
-                
-                const vendorData = {
-                  product_sku: product.sku,
-                  vendor_id: premierVendor.id,
-                  vendor_sku: result.itemNumber,
-                  vendor_cost: result.pricing.cost * 1.5, // Apply 1.5x exchange rate
-                  vendor_inventory: result.inventory.quantity || 0
-                };
-                
-                if (existingVendorProduct) {
-                  // Update existing record
-                  await prisma.vendorProduct.update({
-                    where: { id: existingVendorProduct.id },
-                    data: {
-                      vendor_cost: result.pricing.cost * 1.5, // Apply 1.5x exchange rate
-                      vendor_inventory: vendorData.vendor_inventory
-                    }
-                  });
-                  updatedRecords++;
-                  console.log(`  ✅ Updated: ${product.sku} -> ${result.itemNumber} - Cost: $${result.pricing.cost} → CAD $${(result.pricing.cost * 1.5).toFixed(2)}, Qty: ${result.inventory.quantity}`);
-                } else {
-                  // Create new record
-                  await prisma.vendorProduct.create({
-                    data: vendorData
-                  });
-                  createdRecords++;
-                  console.log(`  ➕ Created: ${product.sku} -> ${result.itemNumber} - Cost: $${result.pricing.cost} → CAD $${(result.pricing.cost * 1.5).toFixed(2)}, Qty: ${result.inventory.quantity}`);
-                }
-              }
-              successfulUpdates++;
-            } else {
-              console.log(`  ⚠️ Skipped: ${result.itemNumber} - No pricing available (Cost: $0)`);
-              skippedZeroCost++;
-            }
-            
-          } catch (error) {
-            console.error(`  ❌ Error processing ${result.itemNumber}:`, error.message);
-            errors.push(`${result.itemNumber}: ${error.message}`);
-          }
+        const batchSummaries = await mapWithConcurrency(
+          batchResult.results,
+          dbWriteConcurrency,
+          (result) => processBatchResult({
+            result,
+            premierVendorId: premierVendor.id,
+            productsByPremierCode,
+            existingVendorProductsByKey
+          })
+        );
+
+        for (const summary of batchSummaries) {
+          totalProcessed += summary.totalProcessed;
+          successfulUpdates += summary.successfulUpdates;
+          createdRecords += summary.createdRecords;
+          updatedRecords += summary.updatedRecords;
+          skippedZeroCost += summary.skippedZeroCost;
+          errors.push(...summary.errors);
         }
-        
-        // Rate limiting between batches
-        if (i + batchSize < premierCodes.length) {
-          console.log("  Waiting 2 seconds before next batch...\n");
-          await new Promise(resolve => setTimeout(resolve, 2000));
-        }
-        
       } catch (error) {
         console.error(`Batch ${batchNum} processing error:`, error.message);
         errors.push(`Batch ${batchNum}: ${error.message}`);
+        console.log(`  Backing off for ${failureBackoffMs}ms before continuing...\n`);
+        await delay(failureBackoffMs);
       }
     }
     
@@ -226,6 +444,7 @@ const seedDailyPremierData = async () => {
   } catch (error) {
     console.error("\n❌ Premier daily update failed:", error.message);
     console.error("Stack trace:", error.stack);
+    throw error;
   } finally {
     await prisma.$disconnect();
     

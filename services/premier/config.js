@@ -16,7 +16,7 @@ class PremierConfig {
    */
   getCredentials() {
     return {
-      apiKey: process.env.PREMIER_API_KEY || '336d0295-2c2f-451a-b5a5-0cfa55f41b16',
+      apiKey: process.env.PREMIER_API_KEY,
       environment: process.env.PREMIER_ENVIRONMENT || 'production'
     };
   }
@@ -77,8 +77,8 @@ class PremierConfig {
     const missing = required.filter(key => !process.env[key]);
     
     if (missing.length > 0) {
-      console.warn(`Missing Premier environment variables: ${missing.join(', ')}\n` +
-        'Using default API key. For production, please add to your .env file:\n' +
+      throw new Error(`Missing Premier environment variables: ${missing.join(', ')}\n` +
+        'Please add to your .env file:\n' +
         'PREMIER_API_KEY="your_api_key_here"\n' +
         'PREMIER_ENVIRONMENT="production"  # or "test"');
     }

@@ -9,6 +9,27 @@ class PremierInventory {
     this.auth = new PremierAuth();
   }
 
+  isUnauthorized(error) {
+    return error?.response?.status === 401;
+  }
+
+  async executeWithAuthRetry(requestFn) {
+    try {
+      const client = await this.auth.getAuthenticatedClient();
+      return await requestFn(client);
+    } catch (error) {
+      if (!this.isUnauthorized(error)) {
+        throw error;
+      }
+
+      console.warn('Premier inventory received 401, refreshing token and retrying once...');
+      this.auth.clearToken();
+
+      const client = await this.auth.getAuthenticatedClient();
+      return await requestFn(client);
+    }
+  }
+
   /**
    * Get inventory for a single item
    * @param {string} itemNumber - Premier item number
@@ -16,11 +37,11 @@ class PremierInventory {
    */
   async getItemInventory(itemNumber) {
     try {
-      const client = await this.auth.getAuthenticatedClient();
-      
-      const response = await client.get('/inventory', {
-        params: { itemNumber }
-      });
+      const response = await this.executeWithAuthRetry(client =>
+        client.get('/inventory', {
+          params: { itemNumber }
+        })
+      );
 
       return {
         success: true,
@@ -51,13 +72,13 @@ class PremierInventory {
     }
 
     try {
-      const client = await this.auth.getAuthenticatedClient();
-      
-      const response = await client.get('/inventory', {
-        params: { 
-          itemNumbers: itemNumbers.join(',')
-        }
-      });
+      const response = await this.executeWithAuthRetry(client =>
+        client.get('/inventory', {
+          params: {
+            itemNumbers: itemNumbers.join(',')
+          }
+        })
+      );
 
       return {
         success: true,
