@@ -4585,6 +4585,22 @@ module.exports = [
   },
 
     {
+      jj_prefix: "BAK",
+      brand_name: "Bak Industries",
+      vendors: "Meyer, Keystone",
+      keystone_code: "B65",
+      meyer_code: "BAK",
+      quadratec_code: "",
+      tdot_code: "BAK Industries",
+      truck_parts_code: "",
+      partsEngine_code: "-vp-bak-industries-13.aspx",
+      keystone_code_site: "",
+      keystone_ftp_brand: "",
+      premier_code: "",
+      t14_code: "",
+
+    },
+    {
     jj_prefix: "WIX",
     brand_name: "Wix Filters",
     vendors: "Keystone, Meyer",

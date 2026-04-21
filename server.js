@@ -983,6 +983,9 @@ app.get('/api/orders', async (req, res) => {
 								   gt: 0,
 							   },
 						   },
+						   orderBy: {
+							   id: 'asc',
+						   },
 					   },
 				   },
 				orderBy: {
