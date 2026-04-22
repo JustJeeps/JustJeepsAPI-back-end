@@ -108,6 +108,32 @@ const prisma = new PrismaClient();
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+function normalizeItemNumber(value) {
+  return (value ?? "")
+    .toString()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+}
+
+function isBestopMeyerCode(value) {
+  return (value ?? "").toString().toUpperCase().startsWith("BES");
+}
+
+function bestopDashlessFallback(value) {
+  const raw = (value ?? "").toString().toUpperCase().trim();
+  if (!raw || !isBestopMeyerCode(raw)) return null;
+  const dashless = raw.replace(/-/g, "");
+  return dashless !== raw ? dashless : null;
+}
+
+function chunkArray(items, size) {
+  const chunks = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
 function isRetryableHttp(err) {
   const status = err?.response?.status;
   if (!status) return true; // network / timeout
@@ -226,7 +252,44 @@ const MeyerCost = async () => {
           });
         }
       } else if (Array.isArray(data)) {
+        const mergedByItemNumber = new Map();
         for (const item of data) {
+          const key = normalizeItemNumber(item?.ItemNumber);
+          if (!key) continue;
+          mergedByItemNumber.set(key, item);
+        }
+
+        const missingBestopFallbacks = itemNumbers
+          .filter((itemNumber) => !mergedByItemNumber.has(normalizeItemNumber(itemNumber)))
+          .map(bestopDashlessFallback)
+          .filter((fallbackCode) => fallbackCode && !mergedByItemNumber.has(normalizeItemNumber(fallbackCode)));
+
+        if (missingBestopFallbacks.length > 0) {
+          const uniqueFallbacks = Array.from(new Set(missingBestopFallbacks));
+          console.log(
+            `Batch ${i + 1}: retrying ${uniqueFallbacks.length} missing BST/BES item(s) without dashes...`
+          );
+
+          const fallbackChunks = chunkArray(uniqueFallbacks, 100);
+          for (const fallbackChunk of fallbackChunks) {
+            const fallbackData = await fetchMeyerBatch(fallbackChunk, {
+              timeoutMs: Number(process.env.MEYER_TIMEOUT_MS || 30000),
+              maxRetries: Number(process.env.MEYER_RETRY_MAX || 5),
+              baseDelayMs: Number(process.env.MEYER_RETRY_DELAY_MS || 400),
+              minDelayBetweenCallsMs: Number(process.env.MEYER_MIN_DELAY_MS || 0),
+            });
+
+            if (Array.isArray(fallbackData)) {
+              for (const item of fallbackData) {
+                const key = normalizeItemNumber(item?.ItemNumber);
+                if (!key) continue;
+                mergedByItemNumber.set(key, item);
+              }
+            }
+          }
+        }
+
+        for (const item of mergedByItemNumber.values()) {
           flattenedResponses.push([item]);
         }
       }
