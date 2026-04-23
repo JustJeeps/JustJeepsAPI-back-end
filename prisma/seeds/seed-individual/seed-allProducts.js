@@ -38,6 +38,17 @@ const normalizeOmixCode = (value) => {
   return str.replace(/\.(\d+)$/, (_, decimals) => `.${decimals.padEnd(2, "0")}`);
 };
 
+const normalizeKeystoneSearchableSku = (jjPrefix, searchableSku) => {
+  if (!searchableSku) return searchableSku;
+
+  // Keystone uses RGA + EV... for Revolution Gear SKUs that begin with REV...
+  if (jjPrefix === "RGA" && /^REV/i.test(searchableSku)) {
+    return searchableSku.slice(1);
+  }
+
+  return searchableSku;
+};
+
 const getCustomAttr = (custom_attributes, code) => {
   if (!custom_attributes) return "";
   return (
@@ -83,11 +94,12 @@ const buildRowFromMagento = (item) => {
   }
 
   // Keystone code
+  const keystoneSearchableSku = normalizeKeystoneSearchableSku(jjPrefix, searchable_sku);
   let keystoneCode =
     vendorData && vendorData.keystone_code
       ? jjPrefix === "MKT"
         ? vendorData.keystone_code + searchable_sku.slice(-6)
-        : vendorData.keystone_code + searchable_sku.replace(/[-./_]/g, "")
+        : vendorData.keystone_code + keystoneSearchableSku.replace(/[-./_]/g, "")
       : "";
 
   // CARGOGLIDE: keystone_code => "CG" + remove hyphens
@@ -125,7 +137,7 @@ const buildRowFromMagento = (item) => {
   // Keystone site code
   let keystoneCodeSite =
     vendorData && vendorData.keystone_code_site
-      ? vendorData.keystone_code_site + searchable_sku
+      ? vendorData.keystone_code_site + keystoneSearchableSku
       : "";
 
   if (jjPrefix === "YUK") {

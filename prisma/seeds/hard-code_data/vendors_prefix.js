@@ -248,6 +248,15 @@ module.exports = [
     premier_code: "AMR", // American Racing
   },
   {
+    jj_prefix: "AMD",
+    brand_name: "American Modified",
+    vendors: "Quadratec, Keystone",
+    keystone_code: "AMD",
+    meyer_code: "",
+    quadratec_code: "American Modified",
+    partsEngine_code: "-vp-american-modified-3073.aspx",
+  },
+  {
     jj_prefix: "ATP",
     brand_name: "American Trail Products",
     vendors: "Quadratec",//meyer no longer

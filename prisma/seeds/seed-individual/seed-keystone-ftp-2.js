@@ -49,6 +49,20 @@ function formatEta(seconds) {
   return `~${m}m ${s}s`;
 }
 
+function getEquivalentKeystoneCodes(code) {
+  const out = [code];
+
+  // Revolution Gear legacy variant handling:
+  // Keystone often uses RGAEV..., while some products were generated as RGAREV...
+  if (/^RGAEV/i.test(code)) {
+    out.push(`RGAR${code.slice(3)}`); // RGAEV... -> RGAREV...
+  } else if (/^RGAREV/i.test(code)) {
+    out.push(`RGA${code.slice(4)}`); // RGAREV... -> RGAEV...
+  }
+
+  return out;
+}
+
 // Prefer SKUs that do NOT end with a dash when there's a collision on the same keystone_code
 function preferSku(currentSku, candidateSku) {
   if (!currentSku) return candidateSku;
@@ -285,10 +299,21 @@ async function seedKeystoneBulk() {
   let skippedNoCost = 0;
 
   for (const code of codes) {
-    let sku = codeToSku.get(code);
+    let sku = null;
+
+    for (const candidate of getEquivalentKeystoneCodes(code)) {
+      sku = codeToSku.get(candidate);
+      if (sku) break;
+    }
+
     if (!sku) {
       const fallback = fallbackCodeByVcpn.get(code);
-      if (fallback) sku = codeToSku.get(fallback);
+      if (fallback) {
+        for (const candidate of getEquivalentKeystoneCodes(fallback)) {
+          sku = codeToSku.get(candidate);
+          if (sku) break;
+        }
+      }
     }
     if (!sku) {
       missing++;

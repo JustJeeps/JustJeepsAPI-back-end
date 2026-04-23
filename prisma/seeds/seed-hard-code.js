@@ -170,10 +170,15 @@ const seedAllProducts = async () => {
           ? vendorData.meyer_code + searchable_sku
           : "";
 
+      const keystoneSearchableSku =
+        jjPrefix === "RGA" && /^REV/i.test(searchable_sku)
+          ? searchable_sku.slice(1)
+          : searchable_sku;
+
       //Generate keystone_code based on vendor data
       const keystoneCode =
         vendorData && vendorData.keystone_code
-          ? vendorData.keystone_code + searchable_sku.replace(/-/g, "")
+          ? vendorData.keystone_code + keystoneSearchableSku.replace(/-/g, "")
           : "";
 
       //Generate brand_name based on vendor data
