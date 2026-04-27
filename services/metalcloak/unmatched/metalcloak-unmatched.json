@@ -3034,5 +3034,31 @@
     "scrapedAt": "2026-04-08T22:42:15.162Z",
     "needsManualMapping": true,
     "addedAt": "2026-04-08T22:43:54.323Z"
+  },
+  {
+    "title": "RockSport RED Steering Stabilizer Kit, JL Wrangler, JT Gladiator",
+    "productCode": "7681*",
+    "category": "JT Gladiator",
+    "mapPrice": "$198.00",
+    "mapPriceNumeric": 198,
+    "yourPrice": "$142.60",
+    "yourPriceNumeric": 142.6,
+    "productUrl": "https://jobber.metalcloak.com/jl-wrangler-rocksport-steering-stabilizer-kit.html",
+    "scrapedAt": "2026-04-23T13:06:37.002Z",
+    "needsManualMapping": true,
+    "addedAt": "2026-04-23T13:08:30.320Z"
+  },
+  {
+    "title": "Bronco 6G 4-Door Bolt-On Rocker Step Kit",
+    "productCode": "B0260",
+    "category": "Ford Bronco 6G",
+    "mapPrice": "$349.00",
+    "mapPriceNumeric": 349,
+    "yourPrice": "$261.75",
+    "yourPriceNumeric": 261.75,
+    "productUrl": "https://jobber.metalcloak.com/b0260-bronco-6g-4door-rocker-step-kit.html",
+    "scrapedAt": "2026-04-23T13:07:19.430Z",
+    "needsManualMapping": true,
+    "addedAt": "2026-04-23T13:13:26.163Z"
   }
 ]

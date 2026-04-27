@@ -68,6 +68,7 @@
     "update-keyparts-us-store-prices": "node pricing_update/us_store/update-keyparts-only-prices-us-store.js",
     "update-mopar-us-store-prices": "node pricing_update/us_store/update-mopar-prices-us-store.js",
     "update-remaining-us-store-prices": "node pricing_update/us_store/update-remaining-brands-prices-us-store.js",
+    "update-quadratec-cad-store-prices": "node pricing_update/cad_store/update-quadratec-only-prices-cad-store.js",
     "magento-bf-no-sale": "node magento_update/update-black-friday-no-sale.js",
 
     "seed-attribute-magento": "node prisma/seeds/seed-individual/seed-attribute-magento.js",
