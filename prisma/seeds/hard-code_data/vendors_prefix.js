@@ -4103,7 +4103,6 @@ module.exports = [
     brand_name: "Toyo Tires",
     vendors: "Quadratec",//no longer keystone and meyer
     keystone_code: "T43",
-    // meyer_code: "TOY",
     quadratec_code: "Toyo Tires",
     tdot_code: "Toyo",
     partsEngine_code: "-vp-toyo-326.aspx",
