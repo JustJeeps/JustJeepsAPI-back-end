@@ -129,19 +129,26 @@ async function main() {
       return;
     }
 
-    const formatted = data.map(row => ({
-      month: row.month,
-      canceled_orders: Number(row.canceled_orders) || 0,
-      total_orders: Number(row.total_orders) || 0,
-      canceled_percentage: Number(row.canceled_percentage) || 0,
-    }));
+    const formatted = data.map(row => {
+      const canceledOrders = Number(row.canceled_orders) || 0;
+      const totalOrders = Number(row.total_orders) || 0;
+      return {
+        month: row.month,
+        valid_orders: Math.max(totalOrders - canceledOrders, 0),
+        canceled_orders: canceledOrders,
+        total_orders: totalOrders,
+        canceled_percentage: Number(row.canceled_percentage) || 0,
+      };
+    });
 
     console.table(formatted);
 
     const totalCanceled = overall.canceledOrders;
     const totalOrders = overall.totalOrders;
+    const totalValid = Math.max(totalOrders - totalCanceled, 0);
     const percent = totalOrders ? (totalCanceled / totalOrders) * 100 : 0;
 
+    console.log(`\nTotal valid orders (non-canceled): ${totalValid}`);
     console.log(`\nTotal canceled orders: ${totalCanceled}`);
     console.log(`Total orders (all statuses): ${totalOrders}`);
     console.log(`Canceled percentage: ${percent.toFixed(2)}%`);

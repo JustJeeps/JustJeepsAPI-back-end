@@ -65,7 +65,7 @@ async function fetchOrdersPage(pageSize, currentPage) {
 function extractOrderAttributes(orderData) {
   const {
     entity_id,
-    items: orderItems = [],
+    items,
     extension_attributes,
     freight_shipping: magentoFreightShipping,
     subtotal: magentoSubtotal,
@@ -203,6 +203,8 @@ function extractOrderAttributes(orderData) {
     }
   }
 
+  const orderItems = Array.isArray(items) ? items : [];
+
   return {
     entity_id,
     orderItems,
@@ -295,7 +297,8 @@ function buildBatchRows(parsedOrders) {
     const { entity_id, orderItems, orderDataWithCustomAttributes } = parsed;
     orderRows.push({ ...pickOrderFields(orderDataWithCustomAttributes), entity_id });
 
-    for (const itemData of orderItems) {
+    const safeOrderItems = Array.isArray(orderItems) ? orderItems : [];
+    for (const itemData of safeOrderItems) {
       orderProductRows.push({
         ...itemData,
         order_id: entity_id,
