@@ -598,7 +598,7 @@ module.exports = [
     brand_name: "BF Goodrich Tires",
     vendors: "Tire Discounter, Quadratec", // no meyer anymore
     keystone_code: "BFG",
-    // meyer_code: "BFG",
+    meyer_code: "BFG",
     quadratec_code: "BFGoodrich",
     tdot_code: "BFGoodrich",
     partsEngine_code: "-vp-bfgoodrich-323.aspx",
