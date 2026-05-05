@@ -248,7 +248,11 @@ async function sendCronReport({ jobName, success, exitCode, error, duration, res
     const log = r.logFile ? `Log: ${r.logFile}` : 'Log: N/A';
     const status = r.success ? 'SUCCESS' : 'FAILED';
     const err = r.error ? ` | Error: ${r.error}` : '';
-    return `- ${r.cmd}: ${status} (${dur}) | ${log}${err}`;
+    const excerpt = r.logExcerpt ? `\n  Recent log lines:\n${String(r.logExcerpt)
+      .split(/\r?\n/)
+      .map((line) => `  ${line}`)
+      .join('\n')}` : '';
+    return `- ${r.cmd}: ${status} (${dur}) | ${log}${err}${excerpt}`;
   };
 
   const text =
@@ -264,7 +268,7 @@ async function sendCronReport({ jobName, success, exitCode, error, duration, res
 
   const renderList = (items) =>
     items.length
-      ? `<ul>${items.map(r => `<li><strong>${r.cmd}</strong> - ${r.success ? 'Success' : 'Failed'} (${r.durationMs != null ? (r.durationMs / 1000).toFixed(1) + 's' : 'N/A'})${r.logFile ? ` <br/><small>${r.logFile}</small>` : ''}${r.error ? ` <br/><small style="color:#ff4d4f;">${r.error}</small>` : ''}</li>`).join('')}</ul>`
+      ? `<ul>${items.map(r => `<li><strong>${r.cmd}</strong> - ${r.success ? 'Success' : 'Failed'} (${r.durationMs != null ? (r.durationMs / 1000).toFixed(1) + 's' : 'N/A'})${r.logFile ? ` <br/><small>${escapeHtml(r.logFile)}</small>` : ''}${r.error ? ` <br/><small style="color:#ff4d4f;">${escapeHtml(r.error)}</small>` : ''}${r.logExcerpt ? ` <details style="margin-top:6px;"><summary style="cursor:pointer;color:#235789;">Recent log lines</summary><pre style="margin-top:8px;padding:10px;background:#f8f9fb;border:1px solid #d9d9d9;border-radius:4px;white-space:pre-wrap;font-size:12px;line-height:1.45;">${escapeHtml(r.logExcerpt)}</pre></details>` : ''}</li>`).join('')}</ul>`
       : '<p>(none)</p>';
 
   const html = `

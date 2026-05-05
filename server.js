@@ -19,6 +19,9 @@ const { getWheelProsSkus, makeApiRequestsInChunks } = require('./prisma/seeds/ap
 const cronEnabled = process.env.CRON_ENABLED !== 'false';
 const cronTimezone = process.env.CRON_TIMEZONE || 'America/Toronto';
 const dailySeedSchedule = process.env.CRON_SEED_ALL_SCHEDULE || '0 19 * * *';
+const meyerSeedSchedule = process.env.CRON_SEED_MEYER_SCHEDULE || '0 */4 * * *';
+const roughCountrySeedSchedule = process.env.CRON_SEED_ROUGH_COUNTRY_SCHEDULE || '0 */4 * * *';
+const magentoAttributesPrioritySchedule = process.env.CRON_MAGENTO_ATTRIBUTES_PRIORITY_SCHEDULE || '0 2 * * *';
 const testCronEnabled = process.env.CRON_TEST_ENABLED === 'true';
 const testCronSchedule = process.env.CRON_TEST_SCHEDULE || '*/5 * * * *';
 const testCronCommand = process.env.CRON_TEST_COMMAND || 'seed-tdot';
@@ -1972,12 +1975,41 @@ function formatDuration(startTime) {
 	return ((Date.now() - startTime) / 1000 / 60).toFixed(2) + ' minutes';
 }
 
+function readLogExcerpt(logFile) {
+	if (!logFile) return undefined;
+
+	const resolvedPath = path.resolve(__dirname, logFile);
+	if (!fs.existsSync(resolvedPath)) return undefined;
+
+	try {
+		const maxLines = Number(process.env.CRON_EMAIL_LOG_LINES || 8);
+		const maxChars = Number(process.env.CRON_EMAIL_LOG_CHARS || 1200);
+		const content = fs.readFileSync(resolvedPath, 'utf-8');
+		const excerpt = content
+			.split(/\r?\n/)
+			.filter(Boolean)
+			.slice(-maxLines)
+			.join('\n')
+			.slice(-maxChars)
+			.trim();
+
+		return excerpt || undefined;
+	} catch (error) {
+		logger.warn('Failed to read cron log excerpt', {
+			logFile: resolvedPath,
+			error: error.message,
+		});
+		return undefined;
+	}
+}
+
 function buildSingleResult({ command, success, durationMs, logFile, error }) {
 	return [{
 		cmd: command,
 		success,
 		durationMs,
 		logFile: logFile ? path.resolve(__dirname, logFile) : undefined,
+		logExcerpt: readLogExcerpt(logFile),
 		error,
 	}];
 }
@@ -2156,6 +2188,30 @@ function registerCronJobs() {
 		jobName: 'Daily Vendor Sync (seed-all)',
 		logPrefix: 'Daily seed-all',
 		readSummaryFile: 'prisma/seeds/logs/seed-all-summary.json',
+	});
+
+	registerCommandCronJob({
+		schedule: meyerSeedSchedule,
+		command: 'seed-meyer',
+		jobName: 'Meyer Sync',
+		logPrefix: 'Meyer sync',
+		reportLogFile: 'prisma/seeds/logs/seed-meyer.log',
+	});
+
+	registerCommandCronJob({
+		schedule: roughCountrySeedSchedule,
+		command: 'seed-roughCountry',
+		jobName: 'Rough Country Sync',
+		logPrefix: 'Rough Country sync',
+		reportLogFile: 'prisma/seeds/logs/seed-roughCountry.log',
+	});
+
+	registerCommandCronJob({
+		schedule: magentoAttributesPrioritySchedule,
+		command: 'magento-attributes-priority',
+		jobName: 'Magento Attributes Priority Sync',
+		logPrefix: 'Magento attributes priority sync',
+		reportLogFile: 'logs/magento-attributes-priority.log',
 	});
 
 	if (testCronEnabled) {

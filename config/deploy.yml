@@ -57,6 +57,9 @@ env:
     CRON_ENABLED: "true"
     CRON_TIMEZONE: America/Toronto
     CRON_SEED_ALL_SCHEDULE: "0 19 * * *"
+    CRON_SEED_MEYER_SCHEDULE: "0 */4 * * *"
+    CRON_SEED_ROUGH_COUNTRY_SCHEDULE: "0 */4 * * *"
+    CRON_MAGENTO_ATTRIBUTES_PRIORITY_SCHEDULE: "0 2 * * *"
     CRON_TEST_ENABLED: "true"
     CRON_TEST_SCHEDULE: "*/5 * * * *"
     CRON_TEST_COMMAND: seed-tdot
