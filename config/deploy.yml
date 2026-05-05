@@ -14,9 +14,9 @@ servers:
     hosts:
       - 138.197.173.222
     labels:
-      traefik.http.routers.justjeeps-api.rule: Host(`orderapi.nunchisolucoes.com`)
+      traefik.http.routers.justjeeps-api.rule: Host(`orderapi.nunchisolucoes.com`) || Host(`pricingtoolapi.justjeeps.com`)
       traefik.http.routers.justjeeps-api-secure.entrypoints: websecure
-      traefik.http.routers.justjeeps-api-secure.rule: Host(`orderapi.nunchisolucoes.com`)
+      traefik.http.routers.justjeeps-api-secure.rule: Host(`orderapi.nunchisolucoes.com`) || Host(`pricingtoolapi.justjeeps.com`)
       traefik.http.routers.justjeeps-api-secure.tls: true
       traefik.http.routers.justjeeps-api-secure.tls.certresolver: letsencrypt
     options:
@@ -28,7 +28,7 @@ servers:
 # =============================================================================
 proxy:
   ssl: true
-  host: orderapi.nunchisolucoes.com
+  host: pricingtoolapi.justjeeps.com
   app_port: 8080
   response_timeout: 120
   healthcheck:
