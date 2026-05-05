@@ -57,7 +57,7 @@ env:
     CRON_ENABLED: "true"
     CRON_TIMEZONE: America/Toronto
     CRON_SEED_ALL_SCHEDULE: "0 19 * * *"
-    CRON_TEST_ENABLED: "false"
+    CRON_TEST_ENABLED: "true"
     CRON_TEST_SCHEDULE: "*/5 * * * *"
     CRON_TEST_COMMAND: seed-tdot
     CRON_TEST_JOB_NAME: TDot Cron Test
