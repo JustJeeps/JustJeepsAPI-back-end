@@ -5,32 +5,33 @@ The JustJeeps API now supports email notifications for scheduled cron jobs. You'
 
 ## Configuration
 
-### 1. Set up Gmail App Password
-
-To send emails via Gmail, you need to create an **App Password** (not your regular Gmail password):
-
-1. Go to your Google Account: https://myaccount.google.com/
-2. Select **Security** > **2-Step Verification** (enable if not already)
-3. Scroll to **App passwords**: https://myaccount.google.com/apppasswords
-4. Select app: **Mail**
-5. Select device: **Other (Custom name)** → Enter "JustJeeps API"
-6. Click **Generate**
-7. Copy the 16-character password (spaces will be removed automatically)
-
-### 2. Add Environment Variables
+### 1. Add Environment Variables
 
 Add these variables to your `.env` file:
 
 ```bash
-# Email Configuration
-EMAIL_USER=your_email@gmail.com
-EMAIL_PASSWORD=your_16_char_app_password
+# SMTP configuration
+EMAIL_USER=your-smtp-user@example.com
+EMAIL_PASSWORD=your_smtp_password_or_api_key
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_SECURE=false
+EMAIL_FROM="JustJeeps API <noreply@yourdomain.com>"
 
 # Notification recipient
 CRON_NOTIFICATION_EMAIL=tsantos@justjeeps.com
 ```
 
-### 3. Restart the Server
+If outbound SMTP is blocked in production, use SendGrid's HTTPS API instead:
+
+```bash
+EMAIL_PROVIDER=sendgrid-api
+SENDGRID_API_KEY=SG.your_real_sendgrid_api_key
+EMAIL_FROM="tsantos@justjeeps.com"
+CRON_NOTIFICATION_EMAIL=tsantos@justjeeps.com
+```
+
+### 2. Restart the Server
 
 ```bash
 npm start
@@ -69,27 +70,10 @@ You should see:
 
 ## Testing Email Notifications
 
-To test the email service without waiting for the cron job:
+To test connectivity without waiting for the cron job:
 
-```javascript
-// Add this temporarily to server.js for testing
-const { sendCronNotification } = require('./utils/emailService');
-
-// Test success notification
-sendCronNotification({
-  jobName: 'Test Job',
-  success: true,
-  duration: '5 minutes'
-});
-
-// Test failure notification
-sendCronNotification({
-  jobName: 'Test Job',
-  success: false,
-  exitCode: 1,
-  error: 'Test error message',
-  duration: '2 minutes'
-});
+```bash
+npm run test-smtp-connectivity
 ```
 
 ## Troubleshooting
@@ -99,21 +83,23 @@ sendCronNotification({
 1. **Check environment variables:**
    ```bash
    echo $EMAIL_USER
+  echo $EMAIL_PROVIDER
    echo $CRON_NOTIFICATION_EMAIL
    ```
 
-2. **Verify App Password:**
-   - Use the 16-character password from Google
-   - Remove any spaces
-   - Don't use your regular Gmail password
+2. **Verify provider credentials:**
+  - For SMTP, confirm `EMAIL_USER` / `EMAIL_PASSWORD` or `SMTP_USER` / `SMTP_PASSWORD`
+  - For SendGrid API, confirm `SENDGRID_API_KEY`
+  - Confirm `EMAIL_FROM` is set for API-based sending
 
 3. **Check console logs:**
    - Look for `⚠️ Email notifications disabled` message
    - Check for any error messages when server starts
 
-4. **Gmail Security:**
-   - Ensure 2-Step Verification is enabled
-   - Make sure "Less secure app access" is OFF (use App Passwords instead)
+4. **Run the connectivity check:**
+  ```bash
+  npm run test-smtp-connectivity
+  ```
 
 ### Wrong Recipient
 
@@ -122,26 +108,7 @@ Change the recipient in `.env`:
 CRON_NOTIFICATION_EMAIL=newemail@justjeeps.com
 ```
 
-## Alternative Email Providers
-
-To use a different email provider (e.g., SendGrid, Mailgun, AWS SES):
-
-1. Update `utils/emailService.js`
-2. Modify the `createTransporter()` function
-3. Update environment variables accordingly
-
-Example for custom SMTP:
-```javascript
-const transporter = nodemailer.createTransport({
-  host: 'smtp.example.com',
-  port: 587,
-  secure: false,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASSWORD
-  }
-});
-```
+## Provider Options
 
 Recommended env vars for custom SMTP:
 ```bash
@@ -165,6 +132,5 @@ This path uses HTTPS on port 443 instead of SMTP on ports 465/587.
 ## Security Notes
 
 - ⚠️ Never commit `.env` file to git
-- ✅ Always use App Passwords for Gmail
 - ✅ Store credentials securely
 - ✅ Rotate passwords periodically

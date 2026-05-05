@@ -34,8 +34,8 @@ async function main() {
   const provider = getEmailProvider();
   const config = getEmailTransportConfig();
   const service = config.service || 'custom';
-  const host = config.host || (service === 'gmail' ? 'smtp.gmail.com' : null);
-  const port = config.port || (service === 'gmail' ? 465 : null);
+  const host = config.host || null;
+  const port = config.port || null;
   const timeoutMs = config.connectionTimeout || 10000;
 
   if (provider === 'sendgrid-api') {

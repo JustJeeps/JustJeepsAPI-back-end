@@ -4,7 +4,7 @@ require('dotenv').config();
 
 /**
  * Email Service for sending notifications
- * Supports Gmail SMTP (can be configured for other providers)
+ * Supports generic SMTP providers and SendGrid HTTP API
  */
 
 const parseBoolean = (value, defaultValue = false) => {
@@ -24,8 +24,8 @@ const getEmailFrom = () => {
 };
 
 const getEmailCredentials = () => {
-  const user = process.env.SMTP_USER || process.env.EMAIL_USER || process.env.GMAIL_USER;
-  const pass = process.env.SMTP_PASSWORD || process.env.EMAIL_PASSWORD || process.env.GMAIL_APP_PASSWORD;
+  const user = process.env.SMTP_USER || process.env.EMAIL_USER;
+  const pass = process.env.SMTP_PASSWORD || process.env.EMAIL_PASSWORD;
   return { user, pass };
 };
 
@@ -51,8 +51,6 @@ const getEmailTransportConfig = () => {
     config.host = host;
     config.port = port;
     config.secure = secure;
-  } else {
-    config.service = 'gmail';
   }
 
   if (user && pass) {
