@@ -16,6 +16,15 @@ const seedOrdersAll = require('./prisma/seeds/seed-individual/seed-orders-all.js
 const quadratecProducts = require('./prisma/seeds/api-calls/quadratec-excel.js');
 const { getWheelProsSkus, makeApiRequestsInChunks } = require('./prisma/seeds/api-calls/wheelPros-api.js');
 
+const cronEnabled = process.env.CRON_ENABLED !== 'false';
+const cronTimezone = process.env.CRON_TIMEZONE || 'America/Toronto';
+const dailySeedSchedule = process.env.CRON_SEED_ALL_SCHEDULE || '0 19 * * *';
+const testCronEnabled = process.env.CRON_TEST_ENABLED === 'true';
+const testCronSchedule = process.env.CRON_TEST_SCHEDULE || '*/5 * * * *';
+const testCronCommand = process.env.CRON_TEST_COMMAND || 'seed-tdot';
+const testCronJobName = process.env.CRON_TEST_JOB_NAME || 'Cron Test Job';
+const testCronLogFile = process.env.CRON_TEST_LOG_FILE || `prisma/seeds/logs/${testCronCommand}.log`;
+
 // 🔐 Import authentication components (safe - disabled by default)
 const authRoutes = require('./routes/auth');
 const { authenticateToken, optionalAuth } = require('./middleware/auth');
@@ -1959,100 +1968,223 @@ process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 process.on('SIGUSR2', () => gracefulShutdown('SIGUSR2'));
 
-// 🕐 Cron Job: Run seed-all daily at 7:00 PM (Toronto timezone)
-cron.schedule('0 19 * * *', () => {
-	const startTime = Date.now();
-	logger.info('🕐 Cron job started: Running seed-all at 7:00 PM');
-	console.log('🕐 [CRON] Starting daily seed-all at 7:00 PM...');
-	
-	const seedProcess = spawn('npm', ['run', 'seed-all'], {
-		cwd: __dirname,
-		stdio: 'inherit',
-		shell: true
+function formatDuration(startTime) {
+	return ((Date.now() - startTime) / 1000 / 60).toFixed(2) + ' minutes';
+}
+
+function buildSingleResult({ command, success, durationMs, logFile, error }) {
+	return [{
+		cmd: command,
+		success,
+		durationMs,
+		logFile: logFile ? path.resolve(__dirname, logFile) : undefined,
+		error,
+	}];
+}
+
+function registerCommandCronJob({
+	schedule,
+	command,
+	jobName,
+	logPrefix,
+	reportLogFile,
+	readSummaryFile,
+}) {
+	let isRunning = false;
+
+	logger.info('Registering cron job', {
+		jobName,
+		schedule,
+		cronTimezone,
+		command,
 	});
 
-	seedProcess.on('close', async (code) => {
-		const duration = ((Date.now() - startTime) / 1000 / 60).toFixed(2) + ' minutes';
-		const summaryFile = path.resolve(__dirname, 'prisma/seeds/logs/seed-all-summary.json');
-		let summary = null;
-
-		if (fs.existsSync(summaryFile)) {
-			try {
-				summary = JSON.parse(fs.readFileSync(summaryFile, 'utf-8'));
-			} catch (readErr) {
-				logger.error('⚠️ Failed to read seed-all summary file', { error: readErr.message });
-			}
+	cron.schedule(schedule, () => {
+		if (isRunning) {
+			logger.warn('Cron job skipped because previous run is still active', {
+				jobName,
+				schedule,
+				command,
+			});
+			console.log(`⏭️ [CRON] Skipping ${jobName}; previous run is still in progress`);
+			return;
 		}
-		
-		if (code === 0) {
-			logger.info('✅ Cron job completed: seed-all finished successfully', { duration });
-			console.log('✅ [CRON] Daily seed-all completed successfully');
-			
-			if (summary && Array.isArray(summary.results)) {
-				await sendCronReport({
-					jobName: 'Daily Vendor Sync (seed-all)',
-					success: true,
-					exitCode: code,
-					duration,
-					results: summary.results
-				});
-			} else {
-				// Fallback to basic success email
-				await sendCronNotification({
-					jobName: 'Daily Vendor Sync (seed-all)',
-					success: true,
-					duration
-				});
-			}
-		} else {
-			logger.error('❌ Cron job failed: seed-all exited with error', { exitCode: code, duration });
-			console.error(`❌ [CRON] Daily seed-all failed with exit code ${code}`);
-			
-			if (summary && Array.isArray(summary.results)) {
-				await sendCronReport({
-					jobName: 'Daily Vendor Sync (seed-all)',
-					success: false,
-					exitCode: code,
-					error: `Process exited with code ${code}`,
-					duration,
-					results: summary.results
-				});
-			} else {
-				// Fallback to basic failure email
-				await sendCronNotification({
-					jobName: 'Daily Vendor Sync (seed-all)',
-					success: false,
-					exitCode: code,
-					error: `Process exited with code ${code}`,
-					duration
-				});
-			}
-		}
-	});
 
-	seedProcess.on('error', async (error) => {
-		const duration = ((Date.now() - startTime) / 1000 / 60).toFixed(2) + ' minutes';
-		logger.error('❌ Cron job error: Failed to start seed-all', { error: error.message, duration });
-		console.error('❌ [CRON] Error running seed-all:', error.message);
-		
-		// Send error email
-		await sendCronNotification({
-			jobName: 'Daily Vendor Sync (seed-all)',
-			success: false,
-			error: error.message,
-			duration
+		isRunning = true;
+		const startTime = Date.now();
+		logger.info('🕐 Cron job started', {
+			jobName,
+			schedule,
+			timezone: cronTimezone,
+			command,
 		});
+		console.log(`🕐 [CRON] Starting ${jobName} with command "npm run ${command}" on schedule ${schedule} (${cronTimezone})...`);
+
+		const seedProcess = spawn('npm', ['run', command], {
+			cwd: __dirname,
+			stdio: 'inherit',
+			shell: true,
+		});
+
+		seedProcess.on('close', async (code) => {
+			const duration = formatDuration(startTime);
+			const durationMs = Date.now() - startTime;
+			let summary = null;
+
+			if (readSummaryFile) {
+				const summaryFile = path.resolve(__dirname, readSummaryFile);
+				if (fs.existsSync(summaryFile)) {
+					try {
+						summary = JSON.parse(fs.readFileSync(summaryFile, 'utf-8'));
+					} catch (readErr) {
+						logger.error('⚠️ Failed to read cron summary file', {
+							jobName,
+							summaryFile,
+							error: readErr.message,
+						});
+					}
+				}
+			}
+
+			try {
+				if (code === 0) {
+					logger.info('✅ Cron job completed successfully', { jobName, duration, command });
+					console.log(`✅ [CRON] ${logPrefix} completed successfully`);
+
+					if (summary && Array.isArray(summary.results)) {
+						await sendCronReport({
+							jobName,
+							success: true,
+							exitCode: code,
+							duration,
+							results: summary.results,
+						});
+					} else {
+						await sendCronReport({
+							jobName,
+							success: true,
+							exitCode: code,
+							duration,
+							results: buildSingleResult({
+								command,
+								success: true,
+								durationMs,
+								logFile: reportLogFile,
+							}),
+						});
+					}
+				} else {
+					const error = `Process exited with code ${code}`;
+					logger.error('❌ Cron job failed', { jobName, exitCode: code, duration, command });
+					console.error(`❌ [CRON] ${logPrefix} failed with exit code ${code}`);
+
+					if (summary && Array.isArray(summary.results)) {
+						await sendCronReport({
+							jobName,
+							success: false,
+							exitCode: code,
+							error,
+							duration,
+							results: summary.results,
+						});
+					} else {
+						await sendCronReport({
+							jobName,
+							success: false,
+							exitCode: code,
+							error,
+							duration,
+							results: buildSingleResult({
+								command,
+								success: false,
+								durationMs,
+								logFile: reportLogFile,
+								error,
+							}),
+						});
+					}
+				}
+			} finally {
+				isRunning = false;
+			}
+		});
+
+		seedProcess.on('error', async (error) => {
+			const duration = formatDuration(startTime);
+			const durationMs = Date.now() - startTime;
+			logger.error('❌ Cron job error: Failed to start command', {
+				jobName,
+				command,
+				error: error.message,
+				duration,
+			});
+			console.error(`❌ [CRON] Error running ${jobName}:`, error.message);
+
+			try {
+				await sendCronReport({
+					jobName,
+					success: false,
+					error: error.message,
+					duration,
+					results: buildSingleResult({
+						command,
+						success: false,
+						durationMs,
+						logFile: reportLogFile,
+						error: error.message,
+					}),
+				});
+			} finally {
+				isRunning = false;
+			}
+		});
+	}, {
+		scheduled: true,
+		timezone: cronTimezone,
 	});
-}, {
-	scheduled: true,
-	timezone: 'America/Toronto'
-});
+}
+
+function registerCronJobs() {
+	if (!cronEnabled) {
+		logger.info('Cron jobs disabled via CRON_ENABLED=false');
+		return;
+	}
+
+	registerCommandCronJob({
+		schedule: dailySeedSchedule,
+		command: 'seed-all',
+		jobName: 'Daily Vendor Sync (seed-all)',
+		logPrefix: 'Daily seed-all',
+		readSummaryFile: 'prisma/seeds/logs/seed-all-summary.json',
+	});
+
+	if (testCronEnabled) {
+		registerCommandCronJob({
+			schedule: testCronSchedule,
+			command: testCronCommand,
+			jobName: testCronJobName,
+			logPrefix: testCronJobName,
+			reportLogFile: testCronLogFile,
+		});
+	} else {
+		logger.info('Test cron job disabled via CRON_TEST_ENABLED=false');
+	}
+}
+
+registerCronJobs();
 
 app.listen(PORT, () => {
 	logger.info(`Server started on port ${PORT}`, { port: PORT, env: process.env.NODE_ENV });
 	console.log(
 		`Express seems to be listening on port ${PORT} so that's pretty good 👍`
 	);
-	console.log('🕐 [CRON] Daily seed-all scheduled for 7:00 PM (Toronto timezone)');
+	if (cronEnabled) {
+		console.log(`🕐 [CRON] Daily seed-all scheduled for ${dailySeedSchedule} (${cronTimezone})`);
+	} else {
+		console.log('🕐 [CRON] Cron jobs disabled via CRON_ENABLED=false');
+	}
+	if (cronEnabled && testCronEnabled) {
+		console.log(`🧪 [CRON] Test job "${testCronJobName}" scheduled for ${testCronSchedule} (${cronTimezone}) using npm run ${testCronCommand}`);
+	}
 	console.log('📧 [EMAIL] Notifications will be sent to:', process.env.CRON_NOTIFICATION_EMAIL || 'tsantos@justjeeps.com');
 });

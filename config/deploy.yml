@@ -54,6 +54,14 @@ env:
     PORT: 8080
     NODE_ENV: production
     ENABLE_AUTH: "true"
+    CRON_ENABLED: "true"
+    CRON_TIMEZONE: America/Toronto
+    CRON_SEED_ALL_SCHEDULE: "0 19 * * *"
+    CRON_TEST_ENABLED: "false"
+    CRON_TEST_SCHEDULE: "*/5 * * * *"
+    CRON_TEST_COMMAND: seed-tdot
+    CRON_TEST_JOB_NAME: TDot Cron Test
+    CRON_TEST_LOG_FILE: prisma/seeds/logs/seed-tdot.log
     JWT_EXPIRES_IN: 24h
     PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: "true"
     PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium
@@ -61,6 +69,9 @@ env:
     # Database & Auth
     - DATABASE_URL
     - JWT_SECRET
+    - CRON_NOTIFICATION_EMAIL
+    - EMAIL_USER
+    - EMAIL_PASSWORD
     # Magento
     - MAGENTO_KEY
     # Keystone
