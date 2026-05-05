@@ -2014,6 +2014,21 @@ function buildSingleResult({ command, success, durationMs, logFile, error }) {
 	}];
 }
 
+function finalizeLogStream(logStream, trailer) {
+	if (!logStream) return Promise.resolve();
+
+	return new Promise((resolve) => {
+		const finish = () => resolve();
+		logStream.once('finish', finish);
+		logStream.once('error', finish);
+		if (trailer) {
+			logStream.end(trailer);
+		} else {
+			logStream.end();
+		}
+	});
+}
+
 function registerCommandCronJob({
 	schedule,
 	command,
@@ -2052,16 +2067,42 @@ function registerCommandCronJob({
 		});
 		console.log(`🕐 [CRON] Starting ${jobName} with command "npm run ${command}" on schedule ${schedule} (${cronTimezone})...`);
 
+		const resolvedLogFile = reportLogFile ? path.resolve(__dirname, reportLogFile) : null;
+		let logStream = null;
+		if (resolvedLogFile) {
+			fs.mkdirSync(path.dirname(resolvedLogFile), { recursive: true });
+			logStream = fs.createWriteStream(resolvedLogFile, { flags: 'w' });
+			logStream.write(`[${new Date().toISOString()}] Starting ${jobName} (npm run ${command})\n`);
+		}
+
 		const seedProcess = spawn('npm', ['run', command], {
 			cwd: __dirname,
-			stdio: 'inherit',
+			stdio: ['ignore', 'pipe', 'pipe'],
 			shell: true,
 		});
+
+		if (seedProcess.stdout) {
+			seedProcess.stdout.on('data', (chunk) => {
+				process.stdout.write(chunk);
+				if (logStream) logStream.write(chunk);
+			});
+		}
+
+		if (seedProcess.stderr) {
+			seedProcess.stderr.on('data', (chunk) => {
+				process.stderr.write(chunk);
+				if (logStream) logStream.write(chunk);
+			});
+		}
 
 		seedProcess.on('close', async (code) => {
 			const duration = formatDuration(startTime);
 			const durationMs = Date.now() - startTime;
 			let summary = null;
+			await finalizeLogStream(
+				logStream,
+				`\n[${new Date().toISOString()}] Finished ${jobName} with exit code ${code}\n`
+			);
 
 			if (readSummaryFile) {
 				const summaryFile = path.resolve(__dirname, readSummaryFile);
@@ -2144,6 +2185,10 @@ function registerCommandCronJob({
 		seedProcess.on('error', async (error) => {
 			const duration = formatDuration(startTime);
 			const durationMs = Date.now() - startTime;
+			await finalizeLogStream(
+				logStream,
+				`\n[${new Date().toISOString()}] Failed to start ${jobName}: ${error.message}\n`
+			);
 			logger.error('❌ Cron job error: Failed to start command', {
 				jobName,
 				command,
