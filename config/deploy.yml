@@ -61,7 +61,7 @@ env:
     CRON_SEED_ROUGH_COUNTRY_SCHEDULE: "0 */4 * * *"
     CRON_MAGENTO_ATTRIBUTES_PRIORITY_SCHEDULE: "0 2 * * *"
     CRON_TEST_ENABLED: "true"
-    CRON_TEST_SCHEDULE: "*/5 * * * *"
+    CRON_TEST_SCHEDULE: "10 15 * * *"
     CRON_TEST_COMMAND: seed-tdot
     CRON_TEST_JOB_NAME: TDot Cron Test
     CRON_TEST_LOG_FILE: prisma/seeds/logs/seed-tdot.log
