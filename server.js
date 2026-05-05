@@ -2236,6 +2236,9 @@ app.listen(PORT, () => {
 	);
 	if (cronEnabled) {
 		console.log(`🕐 [CRON] Daily seed-all scheduled for ${dailySeedSchedule} (${cronTimezone})`);
+		console.log(`🕐 [CRON] Meyer Sync scheduled for ${meyerSeedSchedule} (${cronTimezone}) using npm run seed-meyer`);
+		console.log(`🕐 [CRON] Rough Country Sync scheduled for ${roughCountrySeedSchedule} (${cronTimezone}) using npm run seed-roughCountry`);
+		console.log(`🕐 [CRON] Magento Attributes Priority Sync scheduled for ${magentoAttributesPrioritySchedule} (${cronTimezone}) using npm run magento-attributes-priority`);
 	} else {
 		console.log('🕐 [CRON] Cron jobs disabled via CRON_ENABLED=false');
 	}
