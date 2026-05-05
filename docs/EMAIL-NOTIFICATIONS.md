@@ -153,6 +153,15 @@ SMTP_PASSWORD=your_password_or_api_key
 EMAIL_FROM="JustJeeps API <noreply@yourdomain.com>"
 ```
 
+If outbound SMTP is blocked in production, use SendGrid's HTTPS API instead:
+```bash
+EMAIL_PROVIDER=sendgrid-api
+SENDGRID_API_KEY=SG.your_real_sendgrid_api_key
+EMAIL_FROM="tsantos@justjeeps.com"
+```
+
+This path uses HTTPS on port 443 instead of SMTP on ports 465/587.
+
 ## Security Notes
 
 - ⚠️ Never commit `.env` file to git

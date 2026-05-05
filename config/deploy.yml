@@ -72,6 +72,7 @@ env:
     - CRON_NOTIFICATION_EMAIL
     - EMAIL_USER
     - EMAIL_PASSWORD
+    - EMAIL_PROVIDER
     - SMTP_HOST
     - SMTP_PORT
     - SMTP_SECURE
@@ -79,6 +80,7 @@ env:
     - SMTP_USER
     - SMTP_PASSWORD
     - EMAIL_FROM
+    - SENDGRID_API_KEY
     # Magento
     - MAGENTO_KEY
     # Keystone

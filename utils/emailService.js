@@ -1,3 +1,4 @@
+const axios = require('axios');
 const nodemailer = require('nodemailer');
 require('dotenv').config();
 
@@ -9,6 +10,17 @@ require('dotenv').config();
 const parseBoolean = (value, defaultValue = false) => {
   if (value === undefined || value === null || value === '') return defaultValue;
   return ['true', '1', 'yes', 'on'].includes(String(value).toLowerCase());
+};
+
+const getEmailProvider = () => {
+  if (process.env.EMAIL_PROVIDER) return process.env.EMAIL_PROVIDER;
+  if (process.env.SENDGRID_API_KEY) return 'sendgrid-api';
+  return 'smtp';
+};
+
+const getEmailFrom = () => {
+  const { user } = getEmailCredentials();
+  return process.env.EMAIL_FROM || process.env.MAIL_FROM || (user ? `"JustJeeps API" <${user}>` : '');
 };
 
 const getEmailCredentials = () => {
@@ -50,6 +62,52 @@ const getEmailTransportConfig = () => {
   return config;
 };
 
+const sendWithSendGridApi = async ({ to, subject, text, html }) => {
+  const apiKey = process.env.SENDGRID_API_KEY;
+  const from = getEmailFrom();
+
+  if (!apiKey) {
+    console.log('⚠️  Email notifications disabled - SENDGRID_API_KEY not configured');
+    return { success: false, message: 'SendGrid API not configured' };
+  }
+
+  if (!from) {
+    console.log('⚠️  Email notifications disabled - EMAIL_FROM not configured');
+    return { success: false, message: 'Email from address not configured' };
+  }
+
+  const personalizations = String(to)
+    .split(',')
+    .map((email) => email.trim())
+    .filter(Boolean)
+    .map((email) => ({ to: [{ email }] }));
+
+  const response = await axios.post(
+    'https://api.sendgrid.com/v3/mail/send',
+    {
+      personalizations,
+      from: { email: from.replace(/^.*<([^>]+)>.*$/, '$1'), name: 'JustJeeps API' },
+      subject,
+      content: [
+        { type: 'text/plain', value: text },
+        { type: 'text/html', value: html || text },
+      ],
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: Number(process.env.EMAIL_API_TIMEOUT_MS || 15000),
+      validateStatus: (status) => status >= 200 && status < 300,
+    }
+  );
+
+  const messageId = response.headers['x-message-id'] || 'sendgrid-accepted';
+  console.log('✅ Email sent successfully:', messageId);
+  return { success: true, messageId };
+};
+
 // Create reusable transporter
 const createTransporter = () => {
   return nodemailer.createTransport(getEmailTransportConfig());
@@ -65,6 +123,12 @@ const createTransporter = () => {
  */
 async function sendEmail({ to, subject, text, html }) {
   try {
+    const provider = getEmailProvider();
+
+    if (provider === 'sendgrid-api') {
+      return await sendWithSendGridApi({ to, subject, text, html });
+    }
+
     const { user } = getEmailCredentials();
 
     // Skip if email credentials are not configured
@@ -76,7 +140,7 @@ async function sendEmail({ to, subject, text, html }) {
     const transporter = createTransporter();
     
     const mailOptions = {
-      from: process.env.EMAIL_FROM || process.env.MAIL_FROM || `"JustJeeps API" <${user}>`,
+      from: getEmailFrom(),
       to,
       subject,
       text,
@@ -370,6 +434,7 @@ async function sendPurchaserReportEmail({ report, dateStr, initials }) {
 
 module.exports = {
   createTransporter,
+  getEmailProvider,
   getEmailTransportConfig,
   sendEmail,
   sendCronNotification,
