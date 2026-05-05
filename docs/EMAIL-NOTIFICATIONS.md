@@ -132,7 +132,7 @@ To use a different email provider (e.g., SendGrid, Mailgun, AWS SES):
 
 Example for custom SMTP:
 ```javascript
-const transporter = nodemailer.createTransporter({
+const transporter = nodemailer.createTransport({
   host: 'smtp.example.com',
   port: 587,
   secure: false,
@@ -141,6 +141,16 @@ const transporter = nodemailer.createTransporter({
     pass: process.env.SMTP_PASSWORD
   }
 });
+```
+
+Recommended env vars for custom SMTP:
+```bash
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your_username
+SMTP_PASSWORD=your_password_or_api_key
+EMAIL_FROM="JustJeeps API <noreply@yourdomain.com>"
 ```
 
 ## Security Notes

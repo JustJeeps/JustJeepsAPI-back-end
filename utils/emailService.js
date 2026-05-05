@@ -6,15 +6,53 @@ require('dotenv').config();
  * Supports Gmail SMTP (can be configured for other providers)
  */
 
+const parseBoolean = (value, defaultValue = false) => {
+  if (value === undefined || value === null || value === '') return defaultValue;
+  return ['true', '1', 'yes', 'on'].includes(String(value).toLowerCase());
+};
+
+const getEmailCredentials = () => {
+  const user = process.env.SMTP_USER || process.env.EMAIL_USER || process.env.GMAIL_USER;
+  const pass = process.env.SMTP_PASSWORD || process.env.EMAIL_PASSWORD || process.env.GMAIL_APP_PASSWORD;
+  return { user, pass };
+};
+
+const getEmailTransportConfig = () => {
+  const { user, pass } = getEmailCredentials();
+  const service = process.env.SMTP_SERVICE || process.env.EMAIL_SERVICE;
+  const host = process.env.SMTP_HOST;
+  const port = Number(process.env.SMTP_PORT || 587);
+  const secure = parseBoolean(process.env.SMTP_SECURE, port === 465);
+  const connectionTimeout = Number(process.env.SMTP_CONNECTION_TIMEOUT_MS || 10000);
+  const greetingTimeout = Number(process.env.SMTP_GREETING_TIMEOUT_MS || 10000);
+  const socketTimeout = Number(process.env.SMTP_SOCKET_TIMEOUT_MS || 15000);
+
+  const config = {
+    connectionTimeout,
+    greetingTimeout,
+    socketTimeout,
+  };
+
+  if (service) {
+    config.service = service;
+  } else if (host) {
+    config.host = host;
+    config.port = port;
+    config.secure = secure;
+  } else {
+    config.service = 'gmail';
+  }
+
+  if (user && pass) {
+    config.auth = { user, pass };
+  }
+
+  return config;
+};
+
 // Create reusable transporter
 const createTransporter = () => {
-  return nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: process.env.EMAIL_USER || process.env.GMAIL_USER,
-      pass: process.env.EMAIL_PASSWORD || process.env.GMAIL_APP_PASSWORD
-    }
-  });
+  return nodemailer.createTransport(getEmailTransportConfig());
 };
 
 /**
@@ -27,16 +65,18 @@ const createTransporter = () => {
  */
 async function sendEmail({ to, subject, text, html }) {
   try {
+    const { user } = getEmailCredentials();
+
     // Skip if email credentials are not configured
-    if (!process.env.EMAIL_USER && !process.env.GMAIL_USER) {
-      console.log('⚠️  Email notifications disabled - EMAIL_USER not configured');
+    if (!user) {
+      console.log('⚠️  Email notifications disabled - no SMTP user configured');
       return { success: false, message: 'Email not configured' };
     }
 
     const transporter = createTransporter();
     
     const mailOptions = {
-      from: `"JustJeeps API" <${process.env.EMAIL_USER || process.env.GMAIL_USER}>`,
+      from: process.env.EMAIL_FROM || process.env.MAIL_FROM || `"JustJeeps API" <${user}>`,
       to,
       subject,
       text,
@@ -329,6 +369,8 @@ async function sendPurchaserReportEmail({ report, dateStr, initials }) {
 }
 
 module.exports = {
+  createTransporter,
+  getEmailTransportConfig,
   sendEmail,
   sendCronNotification,
   sendCronReport,

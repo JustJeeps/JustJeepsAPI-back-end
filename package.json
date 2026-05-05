@@ -52,6 +52,7 @@
     "seed-turn14-production": "node prisma/seeds/seed-individual/seed-turn14-production.js",
     "seed-daily-premier": "node prisma/seeds/seed-individual/seed-daily-premier.js",
     "test-premier-api": "node test-premier-api.js",
+    "test-smtp-connectivity": "node scripts/test-smtp-connectivity.js",
     "scrape-metalcloak": "node prisma/seeds/scrapping/metalCloak/metalCloak-improved-scraper.js",
     "process-metalcloak": "node prisma/seeds/scrapping/metalCloak/metalcloak-integration.js",
     "magento-attributes": "node prisma/seeds/seed-individual/seed-attribute-magento.js",
