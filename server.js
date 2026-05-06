@@ -22,6 +22,7 @@ const dailySeedSchedule = process.env.CRON_SEED_ALL_SCHEDULE || '0 19 * * *';
 const meyerSeedSchedule = process.env.CRON_SEED_MEYER_SCHEDULE || '0 */4 * * *';
 const roughCountrySeedSchedule = process.env.CRON_SEED_ROUGH_COUNTRY_SCHEDULE || '0 */4 * * *';
 const magentoAttributesPrioritySchedule = process.env.CRON_MAGENTO_ATTRIBUTES_PRIORITY_SCHEDULE || '0 2 * * *';
+const magentoAttributesRoughSchedule = process.env.CRON_MAGENTO_ATTRIBUTES_ROUGH_SCHEDULE || '0 15 * * *';
 const testCronEnabled = process.env.CRON_TEST_ENABLED === 'true';
 const testCronSchedule = process.env.CRON_TEST_SCHEDULE || '*/5 * * * *';
 const testCronCommand = process.env.CRON_TEST_COMMAND || 'seed-tdot';
@@ -2259,6 +2260,14 @@ function registerCronJobs() {
 		reportLogFile: 'logs/magento-attributes-priority.log',
 	});
 
+	registerCommandCronJob({
+		schedule: magentoAttributesRoughSchedule,
+		command: 'magento-attributes-rough',
+		jobName: 'Magento Attributes Rough Country Sync',
+		logPrefix: 'Magento attributes Rough Country sync',
+		reportLogFile: 'logs/magento-attributes-rough.log',
+	});
+
 	if (testCronEnabled) {
 		registerCommandCronJob({
 			schedule: testCronSchedule,
@@ -2284,6 +2293,7 @@ app.listen(PORT, () => {
 		console.log(`🕐 [CRON] Meyer Sync scheduled for ${meyerSeedSchedule} (${cronTimezone}) using npm run seed-meyer`);
 		console.log(`🕐 [CRON] Rough Country Sync scheduled for ${roughCountrySeedSchedule} (${cronTimezone}) using npm run seed-roughCountry`);
 		console.log(`🕐 [CRON] Magento Attributes Priority Sync scheduled for ${magentoAttributesPrioritySchedule} (${cronTimezone}) using npm run magento-attributes-priority`);
+		console.log(`🕐 [CRON] Magento Attributes Rough Country Sync scheduled for ${magentoAttributesRoughSchedule} (${cronTimezone}) using npm run magento-attributes-rough`);
 	} else {
 		console.log('🕐 [CRON] Cron jobs disabled via CRON_ENABLED=false');
 	}
