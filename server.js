@@ -2030,6 +2030,77 @@ function finalizeLogStream(logStream, trailer) {
 	});
 }
 
+async function deliverCronNotification({
+	jobName,
+	success,
+	exitCode,
+	error,
+	duration,
+	results,
+}) {
+	const hasDetailedResults = Array.isArray(results) && results.length > 0;
+	const primaryDelivery = hasDetailedResults
+		? await sendCronReport({
+			jobName,
+			success,
+			exitCode,
+			error,
+			duration,
+			results,
+		})
+		: await sendCronNotification({
+			jobName,
+			success,
+			exitCode,
+			error,
+			duration,
+		});
+
+	if (primaryDelivery?.success) {
+		logger.info('Cron notification email delivered', {
+			jobName,
+			success,
+			detailedReport: hasDetailedResults,
+		});
+		return primaryDelivery;
+	}
+
+	logger.error('Cron notification email failed', {
+		jobName,
+		success,
+		detailedReport: hasDetailedResults,
+		error: primaryDelivery?.error || primaryDelivery?.message || 'Unknown email delivery failure',
+	});
+
+	if (!hasDetailedResults) {
+		return primaryDelivery;
+	}
+
+	const fallbackDelivery = await sendCronNotification({
+		jobName,
+		success,
+		exitCode,
+		error,
+		duration,
+	});
+
+	if (fallbackDelivery?.success) {
+		logger.warn('Detailed cron report email failed; fallback summary email delivered', {
+			jobName,
+			success,
+		});
+		return fallbackDelivery;
+	}
+
+	logger.error('Fallback cron notification email also failed', {
+		jobName,
+		success,
+		error: fallbackDelivery?.error || fallbackDelivery?.message || 'Unknown fallback email failure',
+	});
+
+	return fallbackDelivery;
+}
+
 function registerCommandCronJob({
 	schedule,
 	command,
@@ -2126,7 +2197,7 @@ function registerCommandCronJob({
 					console.log(`✅ [CRON] ${logPrefix} completed successfully`);
 
 					if (summary && Array.isArray(summary.results)) {
-						await sendCronReport({
+						await deliverCronNotification({
 							jobName,
 							success: true,
 							exitCode: code,
@@ -2134,7 +2205,7 @@ function registerCommandCronJob({
 							results: summary.results,
 						});
 					} else {
-						await sendCronReport({
+						await deliverCronNotification({
 							jobName,
 							success: true,
 							exitCode: code,
@@ -2153,7 +2224,7 @@ function registerCommandCronJob({
 					console.error(`❌ [CRON] ${logPrefix} failed with exit code ${code}`);
 
 					if (summary && Array.isArray(summary.results)) {
-						await sendCronReport({
+						await deliverCronNotification({
 							jobName,
 							success: false,
 							exitCode: code,
@@ -2162,7 +2233,7 @@ function registerCommandCronJob({
 							results: summary.results,
 						});
 					} else {
-						await sendCronReport({
+						await deliverCronNotification({
 							jobName,
 							success: false,
 							exitCode: code,
@@ -2199,7 +2270,7 @@ function registerCommandCronJob({
 			console.error(`❌ [CRON] Error running ${jobName}:`, error.message);
 
 			try {
-				await sendCronReport({
+				await deliverCronNotification({
 					jobName,
 					success: false,
 					error: error.message,
