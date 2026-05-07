@@ -19,6 +19,7 @@ const { getWheelProsSkus, makeApiRequestsInChunks } = require('./prisma/seeds/ap
 const cronEnabled = process.env.CRON_ENABLED !== 'false';
 const cronTimezone = process.env.CRON_TIMEZONE || 'America/Toronto';
 const dailySeedSchedule = process.env.CRON_SEED_ALL_SCHEDULE || '0 19 * * *';
+const allProductsSeedSchedule = process.env.CRON_SEED_ALL_PRODUCTS_SCHEDULE || '0 */2 * * *';
 const meyerSeedSchedule = process.env.CRON_SEED_MEYER_SCHEDULE || '0 */4 * * *';
 const roughCountrySeedSchedule = process.env.CRON_SEED_ROUGH_COUNTRY_SCHEDULE || '0 */4 * * *';
 const magentoAttributesPrioritySchedule = process.env.CRON_MAGENTO_ATTRIBUTES_PRIORITY_SCHEDULE || '0 2 * * *';
@@ -28,6 +29,383 @@ const testCronSchedule = process.env.CRON_TEST_SCHEDULE || '*/5 * * * *';
 const testCronCommand = process.env.CRON_TEST_COMMAND || 'seed-tdot';
 const testCronJobName = process.env.CRON_TEST_JOB_NAME || 'Cron Test Job';
 const testCronLogFile = process.env.CRON_TEST_LOG_FILE || `prisma/seeds/logs/${testCronCommand}.log`;
+const cronJobRegistry = new Map();
+const cronHistoryFile = path.resolve(__dirname, 'logs', 'cron-job-history.json');
+const cronHistoryLookbackDays = Number(process.env.CRON_HISTORY_LOOKBACK_DAYS || 5);
+const cronHistoryRetentionDays = Number(process.env.CRON_HISTORY_RETENTION_DAYS || 30);
+
+function getCronJobDefinitions() {
+	const jobs = [
+		{
+			schedule: dailySeedSchedule,
+			command: 'seed-all',
+			jobName: 'Daily Vendor Sync (seed-all)',
+			logPrefix: 'Daily seed-all',
+			readSummaryFile: 'prisma/seeds/logs/seed-all-summary.json',
+		},
+		{
+			schedule: allProductsSeedSchedule,
+			command: 'seed-allProducts',
+			jobName: 'Magento Products Sync',
+			logPrefix: 'Magento products sync',
+			reportLogFile: 'prisma/seeds/logs/seed-allProducts.log',
+		},
+		{
+			schedule: meyerSeedSchedule,
+			command: 'seed-meyer',
+			jobName: 'Meyer Sync',
+			logPrefix: 'Meyer sync',
+			reportLogFile: 'prisma/seeds/logs/seed-meyer.log',
+		},
+		{
+			schedule: roughCountrySeedSchedule,
+			command: 'seed-roughCountry',
+			jobName: 'Rough Country Sync',
+			logPrefix: 'Rough Country sync',
+			reportLogFile: 'prisma/seeds/logs/seed-roughCountry.log',
+		},
+		{
+			schedule: magentoAttributesPrioritySchedule,
+			command: 'magento-attributes-priority',
+			jobName: 'Magento Attributes Priority Sync',
+			logPrefix: 'Magento attributes priority sync',
+			reportLogFile: 'logs/magento-attributes-priority.log',
+		},
+		{
+			schedule: magentoAttributesRoughSchedule,
+			command: 'magento-attributes-rough',
+			jobName: 'Magento Attributes Rough Country Sync',
+			logPrefix: 'Magento attributes Rough Country sync',
+			reportLogFile: 'logs/magento-attributes-rough.log',
+		},
+	];
+
+	if (testCronEnabled) {
+		jobs.push({
+			schedule: testCronSchedule,
+			command: testCronCommand,
+			jobName: testCronJobName,
+			logPrefix: testCronJobName,
+			reportLogFile: testCronLogFile,
+		});
+	}
+
+	return jobs;
+}
+
+function upsertCronJobRecord(command, patch) {
+	const current = cronJobRegistry.get(command) || { command };
+	const next = {
+		...current,
+		...patch,
+		updatedAt: new Date().toISOString(),
+	};
+	cronJobRegistry.set(command, next);
+	return next;
+}
+
+function readJsonFileSafe(relativeFilePath) {
+	if (!relativeFilePath) return null;
+
+	const resolvedPath = path.resolve(__dirname, relativeFilePath);
+	if (!fs.existsSync(resolvedPath)) return null;
+
+	try {
+		return JSON.parse(fs.readFileSync(resolvedPath, 'utf-8'));
+	} catch (error) {
+		logger.warn('Failed to read JSON file', {
+			filePath: resolvedPath,
+			error: error.message,
+		});
+		return null;
+	}
+}
+
+function readJsonAbsoluteFileSafe(filePath) {
+	if (!filePath || !fs.existsSync(filePath)) return null;
+
+	try {
+		return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+	} catch (error) {
+		logger.warn('Failed to read JSON file', {
+			filePath,
+			error: error.message,
+		});
+		return null;
+	}
+}
+
+function readCronHistoryEntries() {
+	const history = readJsonAbsoluteFileSafe(cronHistoryFile);
+	return Array.isArray(history) ? history : [];
+}
+
+function pruneCronHistoryEntries(entries) {
+	const cutoff = Date.now() - (cronHistoryRetentionDays * 24 * 60 * 60 * 1000);
+	return entries
+		.filter((entry) => {
+			const timestamp = new Date(entry.finishedAt || entry.startedAt || entry.createdAt || 0).getTime();
+			return Number.isFinite(timestamp) && timestamp >= cutoff;
+		})
+		.sort((left, right) => {
+			const leftTime = new Date(left.finishedAt || left.startedAt || left.createdAt || 0).getTime();
+			const rightTime = new Date(right.finishedAt || right.startedAt || right.createdAt || 0).getTime();
+			return rightTime - leftTime;
+		});
+}
+
+function appendCronHistoryEntry(entry) {
+	try {
+		const current = readCronHistoryEntries();
+		const next = pruneCronHistoryEntries([entry, ...current]);
+		fs.mkdirSync(path.dirname(cronHistoryFile), { recursive: true });
+		fs.writeFileSync(cronHistoryFile, JSON.stringify(next, null, 2));
+	} catch (error) {
+		logger.error('Failed to persist cron history entry', {
+			command: entry?.command,
+			error: error.message,
+		});
+	}
+}
+
+function getRecentCronHistoryForCommand(command, historyEntries = null) {
+	const entries = Array.isArray(historyEntries) ? historyEntries : readCronHistoryEntries();
+	const cutoff = Date.now() - (cronHistoryLookbackDays * 24 * 60 * 60 * 1000);
+	return entries
+		.filter((entry) => entry.command === command)
+		.filter((entry) => {
+			const timestamp = new Date(entry.finishedAt || entry.startedAt || entry.createdAt || 0).getTime();
+			return Number.isFinite(timestamp) && timestamp >= cutoff;
+		})
+		.sort((left, right) => {
+			const leftTime = new Date(left.finishedAt || left.startedAt || left.createdAt || 0).getTime();
+			const rightTime = new Date(right.finishedAt || right.startedAt || right.createdAt || 0).getTime();
+			return rightTime - leftTime;
+		});
+}
+
+function readLogLines(logFile) {
+	if (!logFile) return [];
+
+	const resolvedPath = path.resolve(__dirname, logFile);
+	if (!fs.existsSync(resolvedPath)) return [];
+
+	try {
+		return fs.readFileSync(resolvedPath, 'utf-8').split(/\r?\n/).filter(Boolean);
+	} catch (error) {
+		logger.warn('Failed to read cron log lines', {
+			logFile: resolvedPath,
+			error: error.message,
+		});
+		return [];
+	}
+}
+
+function findLastLine(lines, matcher) {
+	for (let index = lines.length - 1; index >= 0; index -= 1) {
+		if (matcher(lines[index])) {
+			return lines[index];
+		}
+	}
+	return null;
+}
+
+function extractBracketTimestamp(line) {
+	const match = String(line || '').match(/^\[([^\]]+)\]/);
+	if (!match) return null;
+	const date = new Date(match[1]);
+	return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function buildDurationFromTimestamps(startedAt, finishedAt) {
+	if (!startedAt || !finishedAt) return null;
+	const startMs = new Date(startedAt).getTime();
+	const finishMs = new Date(finishedAt).getTime();
+	if (!Number.isFinite(startMs) || !Number.isFinite(finishMs) || finishMs < startMs) {
+		return null;
+	}
+
+	const durationMs = finishMs - startMs;
+	return {
+		durationMs,
+		durationLabel: formatDurationMs(durationMs),
+	};
+}
+
+function formatDurationMs(durationMs) {
+	if (!Number.isFinite(durationMs) || durationMs < 0) return null;
+
+	if (durationMs < 60 * 1000) {
+		return `${Math.round(durationMs / 1000)}s`;
+	}
+
+	if (durationMs < 60 * 60 * 1000) {
+		return `${(durationMs / (60 * 1000)).toFixed(2)} min`;
+	}
+
+	return `${(durationMs / (60 * 60 * 1000)).toFixed(2)} hr`;
+}
+
+function parseCronProgress(lines) {
+	let discoveredTotal = null;
+
+	for (let index = lines.length - 1; index >= 0; index -= 1) {
+		const line = lines[index];
+		const processedMatch = line.match(/Processed:\s*(\d+)\/(\d+)/i);
+		if (processedMatch) {
+			const processed = Number(processedMatch[1]);
+			const total = Number(processedMatch[2]);
+			return {
+				processed,
+				total,
+				percent: total > 0 ? Math.min(100, Math.round((processed / total) * 100)) : 0,
+			};
+		}
+
+		const foundMatch = line.match(/Found\s+(\d+)\s+.+products with valid costs/i);
+		if (!discoveredTotal && foundMatch) {
+			discoveredTotal = Number(foundMatch[1]);
+		}
+	}
+
+	if (discoveredTotal) {
+		return {
+			processed: 0,
+			total: discoveredTotal,
+			percent: 0,
+		};
+	}
+
+	return null;
+}
+
+function summarizeCronResults(results = []) {
+	if (!Array.isArray(results) || results.length === 0) return null;
+	const succeeded = results.filter((result) => result.success).length;
+	const failed = results.filter((result) => !result.success).length;
+	return {
+		total: results.length,
+		succeeded,
+		failed,
+	};
+}
+
+function buildNotificationSnapshot(notificationResult) {
+	if (!notificationResult) return null;
+	return {
+		success: Boolean(notificationResult.success),
+		mode: notificationResult.mode,
+		fallbackUsed: Boolean(notificationResult.fallbackUsed),
+		message: notificationResult.error || notificationResult.message || null,
+		updatedAt: new Date().toISOString(),
+	};
+}
+
+function recordCronRunHistory({
+	command,
+	jobName,
+	status,
+	startedAt,
+	finishedAt,
+	durationMs,
+	durationLabel,
+	exitCode,
+	error,
+	notification,
+	summary,
+}) {
+	appendCronHistoryEntry({
+		id: `${command}-${finishedAt || startedAt || new Date().toISOString()}`,
+		command,
+		jobName,
+		status,
+		startedAt,
+		finishedAt,
+		durationMs,
+		durationLabel,
+		exitCode,
+		error: error || null,
+		notification: notification || null,
+		summary: summary || null,
+		createdAt: new Date().toISOString(),
+	});
+}
+
+function deriveCronArtifacts({ reportLogFile, readSummaryFile }) {
+	const lines = readLogLines(reportLogFile);
+	const recentLogLines = lines.slice(-40);
+	const lastStartLine = findLastLine(lines, (line) => /Starting .*\(npm run/.test(line));
+	const lastFinishLine = findLastLine(lines, (line) => /Finished .* exit code \d+/.test(line));
+	const lastFailedToStartLine = findLastLine(lines, (line) => /Failed to start .+:/i.test(line));
+	const lastErrorLine = findLastLine(lines, (line) => /❌|Error:/i.test(line));
+	const lastFinishMatch = lastFinishLine?.match(/exit code\s+(\d+)/i);
+	const exitCode = lastFinishMatch ? Number(lastFinishMatch[1]) : null;
+	const lastStartedAt = extractBracketTimestamp(lastStartLine);
+	const lastFinishedAt = extractBracketTimestamp(lastFinishLine);
+	const derivedDuration = buildDurationFromTimestamps(lastStartedAt, lastFinishedAt);
+	const progress = parseCronProgress(lines);
+	const summary = readJsonFileSafe(readSummaryFile);
+	const resultSummary = summarizeCronResults(summary?.results);
+
+	let status = null;
+	if (lastFinishMatch) {
+		status = exitCode === 0 ? 'success' : 'failed';
+	} else if (lastFailedToStartLine) {
+		status = 'failed';
+	} else if (lastStartLine) {
+		status = 'interrupted';
+	}
+
+	return {
+		status,
+		lastStartedAt,
+		lastFinishedAt,
+		lastDurationMs: derivedDuration?.durationMs || null,
+		lastDurationLabel: derivedDuration?.durationLabel || null,
+		lastExitCode: exitCode,
+		lastError: lastErrorLine || null,
+		progress,
+		recentLogLines,
+		summary: resultSummary,
+	};
+}
+
+function buildCronJobStatus(definition, historyEntries = null) {
+	const live = cronJobRegistry.get(definition.command) || {};
+	const artifacts = deriveCronArtifacts(definition);
+	const history = getRecentCronHistoryForCommand(definition.command, historyEntries);
+	const latestHistory = history[0] || null;
+	const isRunning = Boolean(live.isRunning);
+	const persistedStatus = live.lastStatus && !['scheduled', 'disabled'].includes(live.lastStatus)
+		? live.lastStatus
+		: null;
+	const status = isRunning
+		? 'running'
+		: persistedStatus || artifacts.status || live.lastStatus || (cronEnabled ? 'scheduled' : 'disabled');
+
+	return {
+		id: definition.command,
+		command: definition.command,
+		jobName: definition.jobName,
+		schedule: definition.schedule,
+		timezone: cronTimezone,
+		logFile: definition.reportLogFile ? path.resolve(__dirname, definition.reportLogFile) : null,
+		status,
+		isRunning,
+		lastStartedAt: live.lastStartedAt || artifacts.lastStartedAt || latestHistory?.startedAt || null,
+		lastFinishedAt: live.lastFinishedAt || artifacts.lastFinishedAt || latestHistory?.finishedAt || null,
+		lastDurationMs: live.lastDurationMs || latestHistory?.durationMs || artifacts.lastDurationMs || null,
+		lastDurationLabel: live.lastDurationLabel || latestHistory?.durationLabel || artifacts.lastDurationLabel || null,
+		lastExitCode: live.lastExitCode ?? artifacts.lastExitCode ?? null,
+		lastError: live.lastError || artifacts.lastError || latestHistory?.error || null,
+		lastNotification: live.lastNotification || latestHistory?.notification || null,
+		progress: isRunning ? (artifacts.progress || live.progress || null) : (live.progress || artifacts.progress || null),
+		summary: live.summary || artifacts.summary || latestHistory?.summary || null,
+		recentLogLines: artifacts.recentLogLines,
+		history,
+		updatedAt: live.updatedAt || null,
+	};
+}
 
 // 🔐 Import authentication components (safe - disabled by default)
 const authRoutes = require('./routes/auth');
@@ -108,6 +486,25 @@ app.get('/api/data', (req, res) =>
 		message: '/api/data route works!',
 	})
 );
+
+app.get('/api/cron-jobs', (req, res) => {
+	try {
+		const historyEntries = readCronHistoryEntries();
+		const jobs = getCronJobDefinitions().map((definition) => buildCronJobStatus(definition, historyEntries));
+		res.json({
+			jobs,
+			generatedAt: new Date().toISOString(),
+			cronEnabled,
+			timezone: cronTimezone,
+			historyLookbackDays: cronHistoryLookbackDays,
+		});
+	} catch (error) {
+		logger.error('Failed to build cron job status response', {
+			error: error.message,
+		});
+		res.status(500).json({ error: 'Failed to fetch cron job status' });
+	}
+});
 
 app.post('/api/reports/purchaser/email', async (req, res) => {
 	try {
@@ -1973,7 +2370,7 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 process.on('SIGUSR2', () => gracefulShutdown('SIGUSR2'));
 
 function formatDuration(startTime) {
-	return ((Date.now() - startTime) / 1000 / 60).toFixed(2) + ' minutes';
+	return formatDurationMs(Date.now() - startTime);
 }
 
 function readLogExcerpt(logFile) {
@@ -2031,6 +2428,7 @@ function finalizeLogStream(logStream, trailer) {
 }
 
 async function deliverCronNotification({
+	command,
 	jobName,
 	success,
 	exitCode,
@@ -2059,21 +2457,31 @@ async function deliverCronNotification({
 	if (primaryDelivery?.success) {
 		logger.info('Cron notification email delivered', {
 			jobName,
+			command,
 			success,
 			detailedReport: hasDetailedResults,
 		});
-		return primaryDelivery;
+		return {
+			...primaryDelivery,
+			mode: hasDetailedResults ? 'report' : 'summary',
+			fallbackUsed: false,
+		};
 	}
 
 	logger.error('Cron notification email failed', {
 		jobName,
+		command,
 		success,
 		detailedReport: hasDetailedResults,
 		error: primaryDelivery?.error || primaryDelivery?.message || 'Unknown email delivery failure',
 	});
 
 	if (!hasDetailedResults) {
-		return primaryDelivery;
+		return {
+			...primaryDelivery,
+			mode: 'summary',
+			fallbackUsed: false,
+		};
 	}
 
 	const fallbackDelivery = await sendCronNotification({
@@ -2087,18 +2495,28 @@ async function deliverCronNotification({
 	if (fallbackDelivery?.success) {
 		logger.warn('Detailed cron report email failed; fallback summary email delivered', {
 			jobName,
+			command,
 			success,
 		});
-		return fallbackDelivery;
+		return {
+			...fallbackDelivery,
+			mode: 'summary',
+			fallbackUsed: true,
+		};
 	}
 
 	logger.error('Fallback cron notification email also failed', {
 		jobName,
+		command,
 		success,
 		error: fallbackDelivery?.error || fallbackDelivery?.message || 'Unknown fallback email failure',
 	});
 
-	return fallbackDelivery;
+	return {
+		...fallbackDelivery,
+		mode: 'summary',
+		fallbackUsed: true,
+	};
 }
 
 function registerCommandCronJob({
@@ -2110,6 +2528,14 @@ function registerCommandCronJob({
 	readSummaryFile,
 }) {
 	let isRunning = false;
+	upsertCronJobRecord(command, {
+		jobName,
+		schedule,
+		logFile: reportLogFile ? path.resolve(__dirname, reportLogFile) : null,
+		readSummaryFile: readSummaryFile ? path.resolve(__dirname, readSummaryFile) : null,
+		isRunning: false,
+		lastStatus: cronEnabled ? 'scheduled' : 'disabled',
+	});
 
 	logger.info('Registering cron job', {
 		jobName,
@@ -2120,6 +2546,10 @@ function registerCommandCronJob({
 
 	cron.schedule(schedule, () => {
 		if (isRunning) {
+			upsertCronJobRecord(command, {
+				lastStatus: 'skipped',
+				lastError: 'Previous run still in progress',
+			});
 			logger.warn('Cron job skipped because previous run is still active', {
 				jobName,
 				schedule,
@@ -2131,6 +2561,13 @@ function registerCommandCronJob({
 
 		isRunning = true;
 		const startTime = Date.now();
+		upsertCronJobRecord(command, {
+			isRunning: true,
+			lastStatus: 'running',
+			lastStartedAt: new Date(startTime).toISOString(),
+			lastError: null,
+			progress: null,
+		});
 		logger.info('🕐 Cron job started', {
 			jobName,
 			schedule,
@@ -2170,6 +2607,8 @@ function registerCommandCronJob({
 		seedProcess.on('close', async (code) => {
 			const duration = formatDuration(startTime);
 			const durationMs = Date.now() - startTime;
+			const startedAt = new Date(startTime).toISOString();
+			const finishedAt = new Date().toISOString();
 			let summary = null;
 			await finalizeLogStream(
 				logStream,
@@ -2192,12 +2631,14 @@ function registerCommandCronJob({
 			}
 
 			try {
+				let notificationResult = null;
 				if (code === 0) {
 					logger.info('✅ Cron job completed successfully', { jobName, duration, command });
 					console.log(`✅ [CRON] ${logPrefix} completed successfully`);
 
 					if (summary && Array.isArray(summary.results)) {
-						await deliverCronNotification({
+						notificationResult = await deliverCronNotification({
+							command,
 							jobName,
 							success: true,
 							exitCode: code,
@@ -2205,7 +2646,8 @@ function registerCommandCronJob({
 							results: summary.results,
 						});
 					} else {
-						await deliverCronNotification({
+						notificationResult = await deliverCronNotification({
+							command,
 							jobName,
 							success: true,
 							exitCode: code,
@@ -2218,13 +2660,38 @@ function registerCommandCronJob({
 							}),
 						});
 					}
+
+					upsertCronJobRecord(command, {
+						isRunning: false,
+						lastStatus: 'success',
+						lastFinishedAt: finishedAt,
+						lastDurationMs: durationMs,
+						lastDurationLabel: duration,
+						lastExitCode: code,
+						lastError: null,
+						lastNotification: buildNotificationSnapshot(notificationResult),
+						summary: summarizeCronResults(summary?.results),
+					});
+					recordCronRunHistory({
+						command,
+						jobName,
+						status: 'success',
+						startedAt,
+						finishedAt,
+						durationMs,
+						durationLabel: duration,
+						exitCode: code,
+						notification: buildNotificationSnapshot(notificationResult),
+						summary: summarizeCronResults(summary?.results),
+					});
 				} else {
 					const error = `Process exited with code ${code}`;
 					logger.error('❌ Cron job failed', { jobName, exitCode: code, duration, command });
 					console.error(`❌ [CRON] ${logPrefix} failed with exit code ${code}`);
 
 					if (summary && Array.isArray(summary.results)) {
-						await deliverCronNotification({
+						notificationResult = await deliverCronNotification({
+							command,
 							jobName,
 							success: false,
 							exitCode: code,
@@ -2233,7 +2700,8 @@ function registerCommandCronJob({
 							results: summary.results,
 						});
 					} else {
-						await deliverCronNotification({
+						notificationResult = await deliverCronNotification({
+							command,
 							jobName,
 							success: false,
 							exitCode: code,
@@ -2248,6 +2716,31 @@ function registerCommandCronJob({
 							}),
 						});
 					}
+
+					upsertCronJobRecord(command, {
+						isRunning: false,
+						lastStatus: 'failed',
+						lastFinishedAt: finishedAt,
+						lastDurationMs: durationMs,
+						lastDurationLabel: duration,
+						lastExitCode: code,
+						lastError: error,
+						lastNotification: buildNotificationSnapshot(notificationResult),
+						summary: summarizeCronResults(summary?.results),
+					});
+					recordCronRunHistory({
+						command,
+						jobName,
+						status: 'failed',
+						startedAt,
+						finishedAt,
+						durationMs,
+						durationLabel: duration,
+						exitCode: code,
+						error,
+						notification: buildNotificationSnapshot(notificationResult),
+						summary: summarizeCronResults(summary?.results),
+					});
 				}
 			} finally {
 				isRunning = false;
@@ -2257,6 +2750,8 @@ function registerCommandCronJob({
 		seedProcess.on('error', async (error) => {
 			const duration = formatDuration(startTime);
 			const durationMs = Date.now() - startTime;
+			const startedAt = new Date(startTime).toISOString();
+			const finishedAt = new Date().toISOString();
 			await finalizeLogStream(
 				logStream,
 				`\n[${new Date().toISOString()}] Failed to start ${jobName}: ${error.message}\n`
@@ -2270,7 +2765,8 @@ function registerCommandCronJob({
 			console.error(`❌ [CRON] Error running ${jobName}:`, error.message);
 
 			try {
-				await deliverCronNotification({
+				const notificationResult = await deliverCronNotification({
+					command,
 					jobName,
 					success: false,
 					error: error.message,
@@ -2282,6 +2778,28 @@ function registerCommandCronJob({
 						logFile: reportLogFile,
 						error: error.message,
 					}),
+				});
+
+				upsertCronJobRecord(command, {
+					isRunning: false,
+					lastStatus: 'failed',
+					lastFinishedAt: finishedAt,
+					lastDurationMs: durationMs,
+					lastDurationLabel: duration,
+					lastExitCode: null,
+					lastError: error.message,
+					lastNotification: buildNotificationSnapshot(notificationResult),
+				});
+				recordCronRunHistory({
+					command,
+					jobName,
+					status: 'failed',
+					startedAt,
+					finishedAt,
+					durationMs,
+					durationLabel: duration,
+					error: error.message,
+					notification: buildNotificationSnapshot(notificationResult),
 				});
 			} finally {
 				isRunning = false;
@@ -2299,55 +2817,11 @@ function registerCronJobs() {
 		return;
 	}
 
-	registerCommandCronJob({
-		schedule: dailySeedSchedule,
-		command: 'seed-all',
-		jobName: 'Daily Vendor Sync (seed-all)',
-		logPrefix: 'Daily seed-all',
-		readSummaryFile: 'prisma/seeds/logs/seed-all-summary.json',
-	});
+	for (const definition of getCronJobDefinitions()) {
+		registerCommandCronJob(definition);
+	}
 
-	registerCommandCronJob({
-		schedule: meyerSeedSchedule,
-		command: 'seed-meyer',
-		jobName: 'Meyer Sync',
-		logPrefix: 'Meyer sync',
-		reportLogFile: 'prisma/seeds/logs/seed-meyer.log',
-	});
-
-	registerCommandCronJob({
-		schedule: roughCountrySeedSchedule,
-		command: 'seed-roughCountry',
-		jobName: 'Rough Country Sync',
-		logPrefix: 'Rough Country sync',
-		reportLogFile: 'prisma/seeds/logs/seed-roughCountry.log',
-	});
-
-	registerCommandCronJob({
-		schedule: magentoAttributesPrioritySchedule,
-		command: 'magento-attributes-priority',
-		jobName: 'Magento Attributes Priority Sync',
-		logPrefix: 'Magento attributes priority sync',
-		reportLogFile: 'logs/magento-attributes-priority.log',
-	});
-
-	registerCommandCronJob({
-		schedule: magentoAttributesRoughSchedule,
-		command: 'magento-attributes-rough',
-		jobName: 'Magento Attributes Rough Country Sync',
-		logPrefix: 'Magento attributes Rough Country sync',
-		reportLogFile: 'logs/magento-attributes-rough.log',
-	});
-
-	if (testCronEnabled) {
-		registerCommandCronJob({
-			schedule: testCronSchedule,
-			command: testCronCommand,
-			jobName: testCronJobName,
-			logPrefix: testCronJobName,
-			reportLogFile: testCronLogFile,
-		});
-	} else {
+	if (!testCronEnabled) {
 		logger.info('Test cron job disabled via CRON_TEST_ENABLED=false');
 	}
 }
@@ -2360,16 +2834,13 @@ app.listen(PORT, () => {
 		`Express seems to be listening on port ${PORT} so that's pretty good 👍`
 	);
 	if (cronEnabled) {
-		console.log(`🕐 [CRON] Daily seed-all scheduled for ${dailySeedSchedule} (${cronTimezone})`);
-		console.log(`🕐 [CRON] Meyer Sync scheduled for ${meyerSeedSchedule} (${cronTimezone}) using npm run seed-meyer`);
-		console.log(`🕐 [CRON] Rough Country Sync scheduled for ${roughCountrySeedSchedule} (${cronTimezone}) using npm run seed-roughCountry`);
-		console.log(`🕐 [CRON] Magento Attributes Priority Sync scheduled for ${magentoAttributesPrioritySchedule} (${cronTimezone}) using npm run magento-attributes-priority`);
-		console.log(`🕐 [CRON] Magento Attributes Rough Country Sync scheduled for ${magentoAttributesRoughSchedule} (${cronTimezone}) using npm run magento-attributes-rough`);
+		for (const definition of getCronJobDefinitions()) {
+			console.log(
+				`🕐 [CRON] ${definition.jobName} scheduled for ${definition.schedule} (${cronTimezone}) using npm run ${definition.command}`
+			);
+		}
 	} else {
 		console.log('🕐 [CRON] Cron jobs disabled via CRON_ENABLED=false');
-	}
-	if (cronEnabled && testCronEnabled) {
-		console.log(`🧪 [CRON] Test job "${testCronJobName}" scheduled for ${testCronSchedule} (${cronTimezone}) using npm run ${testCronCommand}`);
 	}
 	console.log('📧 [EMAIL] Notifications will be sent to:', process.env.CRON_NOTIFICATION_EMAIL || 'tsantos@justjeeps.com');
 });
