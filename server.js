@@ -1983,8 +1983,8 @@ function readLogExcerpt(logFile) {
 	if (!fs.existsSync(resolvedPath)) return undefined;
 
 	try {
-		const maxLines = Number(process.env.CRON_EMAIL_LOG_LINES || 8);
-		const maxChars = Number(process.env.CRON_EMAIL_LOG_CHARS || 1200);
+		const maxLines = Number(process.env.CRON_EMAIL_LOG_LINES || 20);
+		const maxChars = Number(process.env.CRON_EMAIL_LOG_CHARS || 4000);
 		const content = fs.readFileSync(resolvedPath, 'utf-8');
 		const excerpt = content
 			.split(/\r?\n/)
