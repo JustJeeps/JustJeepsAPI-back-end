@@ -10,6 +10,7 @@ const scrapePart = require("./partsengine-scraper");
 puppeteer.use(StealthPlugin());
 
 const BACKUP_EVERY = 50;
+const SCRAPE_TIMEOUT_MS = 45000;
 const URLS_FILE = "urls.txt";
 const FAILED_FILE = "failed-urls.txt";
 const RESUME_FILE = "resume-progress.json";
@@ -101,10 +102,9 @@ function logErrorSummary() {
     console.log(`   ${count}x ${message}`);
   }
 }
-
-
 const RESTART_EVERY = 20;
-let browser, page;
+let browser;
+let browserCloseExpected = false;
 
 function shouldRunHeadless() {
   const value = process.env.PARTSENGINE_HEADLESS;
@@ -123,10 +123,59 @@ async function launchBrowser() {
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
   });
 
-  page = await browser.newPage();
-  await page.setUserAgent(
+  browser.on("disconnected", () => {
+    if (!browserCloseExpected) {
+      console.warn("⚠️ Browser disconnected unexpectedly");
+    }
+  });
+
+  return browser;
+}
+
+async function createPage() {
+  const nextPage = await browser.newPage();
+
+  nextPage.setDefaultNavigationTimeout(SCRAPE_TIMEOUT_MS);
+  nextPage.setDefaultTimeout(SCRAPE_TIMEOUT_MS);
+  await nextPage.setUserAgent(
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
   );
+
+  return nextPage;
+}
+
+async function closePage(pageToClose) {
+  if (!pageToClose || pageToClose.isClosed()) {
+    return;
+  }
+
+  try {
+    await pageToClose.close();
+  } catch (error) {
+    console.warn(`⚠️ Failed to close page cleanly: ${error.message}`);
+  }
+}
+
+async function restartBrowser(reason) {
+  browserCloseExpected = true;
+  await browser?.close().catch(() => {});
+  browserCloseExpected = false;
+  console.log(`🔁 Restarting browser${reason ? `: ${reason}` : ""}...`);
+  await launchBrowser();
+}
+
+async function scrapeWithTimeout(page, url) {
+  let timeoutId;
+
+  const timer = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(`Scrape timeout after ${SCRAPE_TIMEOUT_MS}ms`)), SCRAPE_TIMEOUT_MS);
+  });
+
+  try {
+    return await Promise.race([scrapePart(page, url), timer]);
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 (async () => {
@@ -140,34 +189,58 @@ async function launchBrowser() {
 
   for (let i = start; i < urls.length; i++) {
     const url = urls[i];
+    let page;
+    const itemStart = Date.now();
 
     try {
       console.log(`🔍 [${i + 1}/${urls.length}] ${url}`);
-      
-let data;
-try {
-  data = { ...(await scrapePart(page, url)), url };
-} catch (err) {
-  if (err.message.includes("Waiting for selector")) {
-    console.warn(`❌ Page not found for ${url}`);
-    recordError("Page not found");
-    data = {
-      sku: "N/A",
-      price: "N/A",
-      title: "Page Not Found",
-      url,
-    };
-  } else {
-    throw err;
-  }
-}
+
+      page = await createPage();
+
+      let data;
+      try {
+        data = { ...(await scrapeWithTimeout(page, url)), url };
+      } catch (err) {
+        if (err.message.includes("Redirected to search page")) {
+          console.warn(`↪️ Redirected to search page for ${url}`);
+          recordError("Redirected to search page");
+          data = {
+            sku: "N/A",
+            price: "N/A",
+            title: "Redirected to Search Page",
+            url,
+          };
+        } else if (err.message.includes("Waiting for selector")) {
+          console.warn(`❌ Page not found for ${url}`);
+          recordError("Page not found");
+          data = {
+            sku: "N/A",
+            price: "N/A",
+            title: "Page Not Found",
+            url,
+          };
+        } else {
+          throw err;
+        }
+      }
 
       console.log(`🧾 SKU: ${data.sku} | Price: $${data.price}`);
+      console.log(`⏱️ ${Date.now() - itemStart}ms`);
       allResults.push(data);
     } catch (err) {
       console.warn(`❌ Failed: ${url} — ${err.message}`);
       recordError(err.message);
       logFailed(url);
+
+      if (
+        err.message.includes("Scrape timeout") ||
+        err.message.includes("Target closed") ||
+        err.message.includes("Session closed")
+      ) {
+        await restartBrowser(`after failure on SKU #${i + 1}`);
+      }
+    } finally {
+      await closePage(page);
     }
 
     if ((i + 1) % BACKUP_EVERY === 0) {
@@ -176,9 +249,7 @@ try {
     }
 
     if ((i + 1) % RESTART_EVERY === 0) {
-      await browser.close();
-      console.log(`🔁 Restarting browser at SKU #${i + 1}...`);
-      await launchBrowser();
+      await restartBrowser(`at SKU #${i + 1}`);
     }
 
     // await new Promise((r) => setTimeout(r, 3000 + Math.random() * 2000));
@@ -186,6 +257,7 @@ try {
 
   }
 
+  browserCloseExpected = true;
   await browser.close();
 
   saveProgress(urls.length);

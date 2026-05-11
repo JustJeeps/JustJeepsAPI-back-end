@@ -9,27 +9,35 @@ puppeteer.use(StealthPlugin());
 async function scrapePart(page, url) {
   try {
     const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-const status = response?.status();
-if (status !== 200) throw new Error(`Status ${status}`);
+    const status = response?.status();
+    if (status !== 200) throw new Error(`Status ${status}`);
 
-// ⏩ Fail fast on search result pages
-const isSearchPage = await page.evaluate(() => {
-  const h1 = document.querySelector("h1");
-  return h1 && h1.textContent.includes("results for");
-});
-if (isSearchPage) {
-  throw new Error("Redirected to search page");
-}
+    const pageType = await page.evaluate(() => {
+      const headingText = document.querySelector('h1')?.textContent?.replace(/\s+/g, ' ').trim().toLowerCase() || '';
 
-// Proceed only on valid product pages
-await page.waitForSelector("#PDPTitleBoxV2 h1 b span:nth-of-type(2)", { timeout: 1500 });
-await page.waitForFunction(
-  () => {
-    const el = document.querySelector("#variantPrice");
-    return el && el.textContent && el.textContent.trim().length > 1;
-  },
-  { timeout: 2000 }
-);
+      return {
+        isSearchPage:
+          window.location.pathname.toLowerCase().includes('/search.aspx') ||
+          headingText.includes('results for') ||
+          headingText.includes('which parts are you looking for?') ||
+          Boolean(document.querySelector('a[href*="/search.aspx?SearchTerm="]')),
+        hasProductHeader: Boolean(document.querySelector('#PDPTitleBoxV2 h1 b span:nth-of-type(2)')),
+      };
+    });
+
+    if (pageType.isSearchPage && !pageType.hasProductHeader) {
+      throw new Error('Redirected to search page');
+    }
+
+    // Proceed only on valid product pages
+    await page.waitForSelector('#PDPTitleBoxV2 h1 b span:nth-of-type(2)', { timeout: 1500 });
+    await page.waitForFunction(
+      () => {
+        const el = document.querySelector('#variantPrice');
+        return el && el.textContent && el.textContent.trim().length > 1;
+      },
+      { timeout: 2000 }
+    );
 
     // const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
     // const status = response?.status();
@@ -52,8 +60,8 @@ await page.waitForFunction(
 
     // ✅ Extract the data now that we're sure it's visible
     const data = await page.evaluate(() => {
-      const skuEl = document.querySelector("#PDPTitleBoxV2 h1 b span:nth-of-type(2)");
-      const priceEl = document.querySelector("#variantPrice");
+      const skuEl = document.querySelector('#PDPTitleBoxV2 h1 b span:nth-of-type(2)');
+      const priceEl = document.querySelector('#variantPrice');
 
       const sku = skuEl?.textContent?.trim() || null;
       const priceText = priceEl?.textContent?.replace(/[^\d.]/g, "");

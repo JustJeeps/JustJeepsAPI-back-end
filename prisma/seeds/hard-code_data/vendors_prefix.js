@@ -4101,7 +4101,7 @@ module.exports = [
   {
     jj_prefix: "TO",
     brand_name: "Toyo Tires",
-    vendors: "Quadratec",//no longer keystone and meyer
+    vendors: "Quadratec, Tire Discounter",//no longer keystone and meyer
     keystone_code: "T43",
     quadratec_code: "Toyo Tires",
     tdot_code: "Toyo",
