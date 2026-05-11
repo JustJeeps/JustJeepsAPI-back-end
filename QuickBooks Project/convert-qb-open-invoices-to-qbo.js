@@ -5,14 +5,24 @@ const path = require('path');
 const XLSX = require('xlsx');
 const { stringify } = require('csv-stringify/sync');
 
-const COLUMN_INDEX = {
-  customer: 1,
-  type: 4,
-  invoiceDate: 6,
-  invoiceNo: 8,
-  dueDate: 14,
-  itemAmount: 22,
-};
+const COLUMN_INDEX_CANDIDATES = [
+  {
+    customer: 1,
+    type: 3,
+    invoiceDate: 4,
+    invoiceNo: 6,
+    dueDate: 13,
+    itemAmount: 22,
+  },
+  {
+    customer: 1,
+    type: 4,
+    invoiceDate: 6,
+    invoiceNo: 8,
+    dueDate: 14,
+    itemAmount: 22,
+  },
+];
 
 const OUTPUT_HEADERS = [
   'InvoiceNo',
@@ -45,6 +55,27 @@ function normalizeText(value) {
 
 function isTotalLabel(value) {
   return /^total\b/i.test(normalizeText(value));
+}
+
+function resolveColumnIndex(rows) {
+  const headerRow = rows.find((row) => row.some((value) => normalizeText(value)));
+  if (!headerRow) {
+    return COLUMN_INDEX_CANDIDATES[0];
+  }
+
+  const normalizedHeader = headerRow.map((value) => normalizeText(value));
+
+  return (
+    COLUMN_INDEX_CANDIDATES.find((candidate) => {
+      return (
+        normalizedHeader[candidate.type] === 'Type' &&
+        normalizedHeader[candidate.invoiceDate] === 'Date' &&
+        normalizedHeader[candidate.invoiceNo] === 'Num' &&
+        normalizedHeader[candidate.dueDate] === 'Due Date' &&
+        normalizedHeader[candidate.itemAmount] === 'Open Balance'
+      );
+    }) || COLUMN_INDEX_CANDIDATES[0]
+  );
 }
 
 function formatDate(value) {
@@ -108,16 +139,18 @@ function readRows(inputPath) {
 }
 
 function convertRows(rows) {
+  const columnIndex = resolveColumnIndex(rows);
+  console.log(`Detected columns: ${JSON.stringify(columnIndex)}`);
   let latestCustomer = '';
   let invoiceCount = 0;
   let totalAmount = 0;
   const outputRows = [];
 
   for (const row of rows) {
-    const customerCell = normalizeText(getCell(row, COLUMN_INDEX.customer));
-    const type = normalizeText(getCell(row, COLUMN_INDEX.type));
+    const customerCell = normalizeText(getCell(row, columnIndex.customer));
+    const type = normalizeText(getCell(row, columnIndex.type));
 
-    if (customerCell && !isTotalLabel(customerCell)) {
+    if (customerCell && type !== 'Invoice' && !isTotalLabel(customerCell)) {
       latestCustomer = customerCell;
     }
 
@@ -125,8 +158,8 @@ function convertRows(rows) {
       continue;
     }
 
-    const invoiceNo = normalizeText(getCell(row, COLUMN_INDEX.invoiceNo));
-    const amount = parseAmount(getCell(row, COLUMN_INDEX.itemAmount));
+    const invoiceNo = normalizeText(getCell(row, columnIndex.invoiceNo));
+    const amount = parseAmount(getCell(row, columnIndex.itemAmount));
 
     if (!latestCustomer || !invoiceNo || amount === null) {
       continue;
@@ -135,8 +168,8 @@ function convertRows(rows) {
     outputRows.push({
       InvoiceNo: invoiceNo,
       Customer: latestCustomer,
-      InvoiceDate: formatDate(getCell(row, COLUMN_INDEX.invoiceDate)),
-      DueDate: formatDate(getCell(row, COLUMN_INDEX.dueDate)),
+      InvoiceDate: formatDate(getCell(row, columnIndex.invoiceDate)),
+      DueDate: formatDate(getCell(row, columnIndex.dueDate)),
       'Product/Service': STATIC_VALUES.productService,
       ItemAmount: amount.toFixed(2),
       ItemTaxCode: STATIC_VALUES.itemTaxCode,
