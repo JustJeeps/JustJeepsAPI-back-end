@@ -11,6 +11,7 @@ puppeteer.use(StealthPlugin());
 
 const BACKUP_EVERY = 50;
 const SCRAPE_TIMEOUT_MS = 45000;
+const BROWSER_LAUNCH_TIMEOUT_MS = 20000;
 const URLS_FILE = "urls.txt";
 const FAILED_FILE = "failed-urls.txt";
 const RESUME_FILE = "resume-progress.json";
@@ -102,7 +103,7 @@ function logErrorSummary() {
     console.log(`   ${count}x ${message}`);
   }
 }
-const RESTART_EVERY = 20;
+const RESTART_EVERY = Number(process.env.PARTSENGINE_RESTART_EVERY || 0);
 let browser;
 let browserCloseExpected = false;
 
@@ -117,11 +118,17 @@ function shouldRunHeadless() {
 }
 
 async function launchBrowser() {
-  browser = await puppeteer.launch({
+  const launchPromise = puppeteer.launch({
     headless: shouldRunHeadless() ? "new" : false,
     executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
   });
+
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error(`Browser launch timeout after ${BROWSER_LAUNCH_TIMEOUT_MS}ms`)), BROWSER_LAUNCH_TIMEOUT_MS);
+  });
+
+  browser = await Promise.race([launchPromise, timeoutPromise]);
 
   browser.on("disconnected", () => {
     if (!browserCloseExpected) {
@@ -184,6 +191,12 @@ async function scrapeWithTimeout(page, url) {
   const start = loadResumeIndex();
 
   console.log(`▶️ Starting PartsEngine scrape for ${urls.length} URLs`);
+
+  if (RESTART_EVERY > 0) {
+    console.log(`♻️ Scheduled browser restart every ${RESTART_EVERY} SKUs`);
+  } else {
+    console.log("♻️ Scheduled browser restarts disabled");
+  }
 
   await launchBrowser();
 
@@ -248,7 +261,7 @@ async function scrapeWithTimeout(page, url) {
       saveResultsCSV(allResults);
     }
 
-    if ((i + 1) % RESTART_EVERY === 0) {
+    if (RESTART_EVERY > 0 && (i + 1) % RESTART_EVERY === 0) {
       await restartBrowser(`at SKU #${i + 1}`);
     }
 
