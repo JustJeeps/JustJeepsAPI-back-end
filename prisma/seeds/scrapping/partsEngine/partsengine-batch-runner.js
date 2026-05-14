@@ -20,6 +20,7 @@ const OUTPUT_FILE = "results.csv";
 let allResults = [];
 let failed = [];
 const errorCounts = new Map();
+const retryCounts = new Map();
 
 function recordError(errorMessage) {
   const normalizedMessage = errorMessage || "Unknown error";
@@ -102,6 +103,22 @@ function logErrorSummary() {
   for (const [message, count] of Array.from(errorCounts.entries()).sort((a, b) => b[1] - a[1])) {
     console.log(`   ${count}x ${message}`);
   }
+}
+
+function isBrowserConnectionError(message = "") {
+  return (
+    message.includes("Scrape timeout") ||
+    message.includes("Target closed") ||
+    message.includes("Session closed") ||
+    message.includes("Connection closed") ||
+    message.includes("Browser has disconnected")
+  );
+}
+
+function shouldRetryUrl(url) {
+  const nextCount = (retryCounts.get(url) || 0) + 1;
+  retryCounts.set(url, nextCount);
+  return nextCount <= 1;
 }
 const RESTART_EVERY = Number(process.env.PARTSENGINE_RESTART_EVERY || 0);
 let browser;
@@ -243,15 +260,18 @@ async function scrapeWithTimeout(page, url) {
     } catch (err) {
       console.warn(`❌ Failed: ${url} — ${err.message}`);
       recordError(err.message);
-      logFailed(url);
 
-      if (
-        err.message.includes("Scrape timeout") ||
-        err.message.includes("Target closed") ||
-        err.message.includes("Session closed")
-      ) {
+      if (isBrowserConnectionError(err.message)) {
         await restartBrowser(`after failure on SKU #${i + 1}`);
+
+        if (shouldRetryUrl(url)) {
+          console.log(`🔁 Retrying ${url} after browser recovery`);
+          i -= 1;
+          continue;
+        }
       }
+
+      logFailed(url);
     } finally {
       await closePage(page);
     }
