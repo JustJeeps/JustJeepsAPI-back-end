@@ -99,6 +99,7 @@ model Product {
   weight             Float?
   url_path           String?
   quadratec_code     String?
+  quadratec_pn       String?
   rough_country_code String?
   gentecdirect_code  String?
   MAP                Float?

@@ -12,6 +12,7 @@ puppeteer.use(StealthPlugin());
 const BACKUP_EVERY = 50;
 const SCRAPE_TIMEOUT_MS = 45000;
 const BROWSER_LAUNCH_TIMEOUT_MS = 20000;
+const BROWSER_PROTOCOL_TIMEOUT_MS = 60000;
 const URLS_FILE = "urls.txt";
 const FAILED_FILE = "failed-urls.txt";
 const RESUME_FILE = "resume-progress.json";
@@ -37,6 +38,18 @@ function loadResumeIndex() {
 
 function saveProgress(index) {
   fs.writeFileSync(RESUME_FILE, JSON.stringify({ lastIndex: index }, null, 2));
+}
+
+function loadUrlsFromFile() {
+  if (!fs.existsSync(URLS_FILE)) {
+    throw new Error(`Database unavailable and ${URLS_FILE} was not found`);
+  }
+
+  const urls = fs.readFileSync(URLS_FILE, "utf-8").split("\n").map((url) => url.trim()).filter(Boolean);
+
+  console.log(`🗂️ Loaded ${urls.length} PartsEngine URLs from cached ${URLS_FILE}`);
+
+  return urls;
 }
 
 async function loadUrlsFromDatabase() {
@@ -81,6 +94,15 @@ async function loadUrlsFromDatabase() {
   return urls;
 }
 
+async function loadUrls() {
+  try {
+    return await loadUrlsFromDatabase();
+  } catch (error) {
+    console.warn(`⚠️ Failed to load URLs from database: ${error.message}`);
+    return loadUrlsFromFile();
+  }
+}
+
 function saveResultsCSV(results) {
   const csv = ["URL,SKU,Price", ...results.map(r => `${r.url},${r.sku},${r.price}`)].join("\n");
   fs.writeFileSync(OUTPUT_FILE, csv);
@@ -111,7 +133,11 @@ function isBrowserConnectionError(message = "") {
     message.includes("Target closed") ||
     message.includes("Session closed") ||
     message.includes("Connection closed") ||
-    message.includes("Browser has disconnected")
+    message.includes("Browser has disconnected") ||
+    message.includes("ERR_NETWORK_CHANGED") ||
+    message.includes("Navigation timeout") ||
+    message.includes("Network.enable timed out") ||
+    message.includes("Protocol error")
   );
 }
 
@@ -138,6 +164,7 @@ async function launchBrowser() {
   const launchPromise = puppeteer.launch({
     headless: shouldRunHeadless() ? "new" : false,
     executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    protocolTimeout: BROWSER_PROTOCOL_TIMEOUT_MS,
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
   });
 
@@ -204,7 +231,7 @@ async function scrapeWithTimeout(page, url) {
 
 (async () => {
   const startTime = Date.now();
-  const urls = await loadUrlsFromDatabase();
+  const urls = await loadUrls();
   const start = loadResumeIndex();
 
   console.log(`▶️ Starting PartsEngine scrape for ${urls.length} URLs`);
