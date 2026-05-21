@@ -4,6 +4,7 @@ const fs = require("fs");
 const path = require("path");
 
 const magentoAllProducts = require("../api-calls/magento-allProducts.js");
+const quadratecCost = require("../api-calls/quadratec-excel.js");
 const vendorsPrefix = require("../hard-code_data/vendors_prefix");
 
 const prisma = require("../../../lib/prisma");
@@ -61,7 +62,41 @@ const getCustomAttr = (custom_attributes, code) => {
   );
 };
 
-const buildRowFromMagento = (item) => {
+const buildQuadratecPnLookup = async () => {
+  const rows = await quadratecCost();
+  const lookup = new Map();
+
+  for (const row of rows) {
+    const quadratecPn = toStringOrNull(row?.quadratec_sku);
+    if (!quadratecPn) continue;
+
+    const codes = [
+      row?.quadratec_code,
+      row?.quadratec_code_alt,
+      row?.quadratec_code_alt2,
+      row?.quadratec_code_alt3,
+      row?.quadratec_code_alt4,
+      row?.quadratec_code_alt5,
+      row?.quadratec_code_alt6,
+      row?.quadratec_code_alt7,
+      row?.quadratec_code_alt8,
+      row?.quadratec_code_alt9,
+      row?.quadratec_code_alt10,
+      row?.quadratec_code_alt11,
+      row?.quadratec_code_alt12,
+    ];
+
+    for (const codeRaw of codes) {
+      const code = toStringOrNull(codeRaw);
+      if (!code) continue;
+      lookup.set(code, quadratecPn);
+    }
+  }
+
+  return lookup;
+};
+
+const buildRowFromMagento = (item, quadratecPnLookup = new Map()) => {
   const { sku, status, name, price, weight, media_gallery_entries, custom_attributes } = item;
 
   const jjPrefix = sku.split("-")[0];
@@ -110,6 +145,7 @@ const buildRowFromMagento = (item) => {
   // Quadratec
   const quadratecCode =
     vendorData && vendorData.quadratec_code ? vendorData.quadratec_code + searchable_sku : "";
+  const quadratecPn = quadratecPnLookup.get(quadratecCode) || null;
 
   // TDOT code (space between prefix and sku)
   const tdotCode =
@@ -212,6 +248,7 @@ const buildRowFromMagento = (item) => {
     meyer_code: toStringOrNull(meyerCode),
     keystone_code: toStringOrNull(keystoneCode),
     quadratec_code: toStringOrNull(quadratecCode),
+    quadratec_pn: toStringOrNull(quadratecPn),
     tdot_code: toStringOrNull(tdotCode),
     t14_code: toStringOrNull(t14Code),
     premier_code: toStringOrNull(premierCode),
@@ -349,6 +386,7 @@ const seedAllProducts = async () => {
       meyer_code: r.meyer_code,
       keystone_code: r.keystone_code,
       quadratec_code: r.quadratec_code,
+      quadratec_pn: r.quadratec_pn,
       tdot_code: r.tdot_code,
       t14_code: r.t14_code,
       premier_code: r.premier_code,
@@ -390,6 +428,7 @@ const seedAllProducts = async () => {
           meyer_code text,
           keystone_code text,
           quadratec_code text,
+          quadratec_pn text,
           tdot_code text,
           t14_code text,
           premier_code text,
@@ -424,6 +463,7 @@ const seedAllProducts = async () => {
         meyer_code = data.meyer_code,
         keystone_code = data.keystone_code,
         quadratec_code = data.quadratec_code,
+        quadratec_pn = data.quadratec_pn,
         tdot_code = data.tdot_code,
         t14_code = data.t14_code,
         premier_code = data.premier_code,
@@ -449,6 +489,11 @@ const seedAllProducts = async () => {
     const allProducts = await magentoAllProducts();
     console.timeEnd("fetch magento products");
 
+    console.time("fetch quadratec pn lookup");
+    const quadratecPnLookup = await buildQuadratecPnLookup();
+    console.timeEnd("fetch quadratec pn lookup");
+    console.log(`✅ Quadratec PN code mappings: ${quadratecPnLookup.size.toLocaleString()}`);
+
     console.log(`✅ Magento rows received: ${allProducts.length.toLocaleString()}`);
     const usable = allProducts.filter((p) => p && p.sku);
     console.log(`✅ Rows usable (have sku): ${usable.length.toLocaleString()}`);
@@ -471,7 +516,7 @@ const seedAllProducts = async () => {
       const slice = usable.slice(start, end);
 
       // Build transformed rows (same logic as original)
-      const rows = slice.map((item) => buildRowFromMagento(item));
+      const rows = slice.map((item) => buildRowFromMagento(item, quadratecPnLookup));
 
       // If resume enabled, drop rows before resumeIndex inside this batch
       let rowsToProcess = rows;
@@ -562,7 +607,7 @@ const seedAllProducts = async () => {
       const sampleSkus = sampleItems.map((item) => String(item.sku));
       const expectedBySku = new Map(
         sampleItems.map((item) => {
-          const row = buildRowFromMagento(item);
+          const row = buildRowFromMagento(item, quadratecPnLookup);
           return [row.sku, row];
         })
       );
