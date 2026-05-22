@@ -13,6 +13,44 @@ const prisma = require("../../../lib/prisma");
 const KEYSTONE_FILES_DIR = path.resolve(__dirname, "../api-calls/keystone_files");
 const KEYSTONE_FILES = ["Inventory.csv", "SpecialOrder.csv"];
 
+const getProductCreateFieldSet = () => {
+  try {
+    const dmmfModel = prisma?._dmmf?.datamodel?.models?.find((m) => m.name === "Product");
+    if (dmmfModel?.fields?.length) {
+      return new Set(dmmfModel.fields.map((f) => f.name));
+    }
+  } catch (_) {
+    // no-op: fallback below
+  }
+  return null;
+};
+
+const productCreateFieldSet = getProductCreateFieldSet();
+
+const sanitizeCreateRowsForClient = (rows) => {
+  if (!productCreateFieldSet) return rows;
+
+  const supportsKeystoneBrand = productCreateFieldSet.has("keystone_brand_code");
+  const supportsKeystoneQb = productCreateFieldSet.has("keystone_qb_code");
+
+  if (!supportsKeystoneBrand || !supportsKeystoneQb) {
+    console.warn(
+      "⚠️ Active Prisma Client is missing Product create fields for keystone_brand_code and/or keystone_qb_code. " +
+        "Falling back to compatible createMany payload (update path still writes full fields)."
+    );
+  }
+
+  return rows.map((row) => {
+    const sanitized = {};
+    for (const [key, value] of Object.entries(row)) {
+      if (productCreateFieldSet.has(key)) {
+        sanitized[key] = value;
+      }
+    }
+    return sanitized;
+  });
+};
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const isRetryablePrismaError = (error) => {
@@ -662,10 +700,11 @@ const seedAllProducts = async () => {
 
       // Bulk create
       if (toCreate.length) {
+        const createPayload = sanitizeCreateRowsForClient(toCreate);
         await runWithRetry(
           () =>
             prisma.product.createMany({
-              data: toCreate,
+              data: createPayload,
               // Should not happen because we split by existing, but safe:
               skipDuplicates: true,
             }),
