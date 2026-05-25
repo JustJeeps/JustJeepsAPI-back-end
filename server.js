@@ -11,6 +11,12 @@ const { spawn } = require('child_process');
 const logger = require('./utils/logger');
 const { sendCronNotification, sendCronReport, sendPurchaserReportEmail } = require('./utils/emailService');
 const prisma = require('./lib/prisma');
+const {
+	loadDataIfNeeded: loadQuickBooksLookupData,
+	searchCustomers: searchQuickBooksCustomers,
+	buildCustomerResponse: getQuickBooksCustomerDetails,
+	getQuickBooksLookupMeta,
+} = require('./services/quickbooksCustomerLookup');
 const seedOrders = require('./prisma/seeds/seed-individual/seed-orders.js');
 const seedOrdersAll = require('./prisma/seeds/seed-individual/seed-orders-all.js');
 const quadratecProducts = require('./prisma/seeds/api-calls/quadratec-excel.js');
@@ -412,6 +418,15 @@ const authRoutes = require('./routes/auth');
 const { authenticateToken, optionalAuth } = require('./middleware/auth');
 require('dotenv').config();
 
+try {
+	loadQuickBooksLookupData();
+	logger.info('QuickBooks customer lookup data loaded', getQuickBooksLookupMeta());
+} catch (error) {
+	logger.warn('QuickBooks customer lookup data failed to preload', {
+		error: error.message,
+	});
+}
+
 // Use cors middleware
 app.use(
   cors({
@@ -486,6 +501,65 @@ app.get('/api/data', (req, res) =>
 		message: '/api/data route works!',
 	})
 );
+
+app.get('/api/quickbooks/customers/search', (req, res) => {
+	try {
+		const query = req.query.q || req.query.query || '';
+		const field = req.query.field || 'all';
+		const limit = Number(req.query.limit || 20);
+
+		if (!String(query || '').trim()) {
+			return res.status(400).json({ error: 'Missing required query parameter: q' });
+		}
+
+		const results = searchQuickBooksCustomers({ query, field, limit });
+		return res.json({
+			query,
+			field,
+			count: results.length,
+			results,
+		});
+	} catch (error) {
+		logger.error('QuickBooks customer search failed', {
+			error: error.message,
+		});
+		return res.status(500).json({ error: 'Failed to search QuickBooks customers' });
+	}
+});
+
+app.get('/api/quickbooks/customers/details', (req, res) => {
+	try {
+		const customerCode = String(req.query.customerCode || '').trim();
+
+		if (!customerCode) {
+			return res.status(400).json({ error: 'Missing required query parameter: customerCode' });
+		}
+
+		const customer = getQuickBooksCustomerDetails(customerCode);
+		if (!customer) {
+			return res.status(404).json({ error: 'Customer not found' });
+		}
+
+		return res.json(customer);
+	} catch (error) {
+		logger.error('QuickBooks customer detail fetch failed', {
+			error: error.message,
+		});
+		return res.status(500).json({ error: 'Failed to fetch QuickBooks customer details' });
+	}
+});
+
+app.get('/api/quickbooks/customers/meta', (req, res) => {
+	try {
+		const meta = getQuickBooksLookupMeta();
+		return res.json(meta);
+	} catch (error) {
+		logger.error('QuickBooks customer meta fetch failed', {
+			error: error.message,
+		});
+		return res.status(500).json({ error: 'Failed to fetch QuickBooks lookup metadata' });
+	}
+});
 
 app.get('/api/cron-jobs', (req, res) => {
 	try {
