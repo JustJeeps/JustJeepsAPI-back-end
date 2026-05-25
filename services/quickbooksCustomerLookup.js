@@ -61,6 +61,81 @@ function normalizePhone(value) {
   return nonEmpty(value).replace(/\D/g, '');
 }
 
+function normalizePhoneVariants(digits) {
+  const raw = nonEmpty(digits).replace(/\D/g, '');
+  if (!raw) return [];
+
+  const variants = new Set([raw]);
+
+  // Normalize North American prefix variations (1 + 10-digit number).
+  if (raw.length === 11 && raw.startsWith('1')) {
+    variants.add(raw.slice(1));
+  }
+  if (raw.length === 10) {
+    variants.add(`1${raw}`);
+  }
+
+  return [...variants];
+}
+
+function extractPhoneCandidates(text) {
+  const source = nonEmpty(text);
+  if (!source) return [];
+
+  const matches = source.match(/(?:\+?1[\s.\-]?)?(?:\(?\d{3}\)?[\s.\-]?)\d{3}[\s.\-]?\d{4}/g);
+  if (!matches) return [];
+
+  return matches
+    .map((match) => normalizePhone(match))
+    .filter((digits) => digits.length >= 10);
+}
+
+function buildPhoneSearchDigits(mainPhone, invoiceToAddress) {
+  const candidates = new Set();
+
+  const addWithVariants = (digits) => {
+    normalizePhoneVariants(digits).forEach((variant) => {
+      if (variant.length >= 10) {
+        candidates.add(variant);
+      }
+    });
+  };
+
+  addWithVariants(normalizePhone(mainPhone));
+  extractPhoneCandidates(invoiceToAddress).forEach(addWithVariants);
+
+  return [...candidates];
+}
+
+function hasPhoneMatch(customer, queryDigits) {
+  const variants = normalizePhoneVariants(queryDigits);
+  if (!variants.length) return false;
+
+  const searchable = Array.isArray(customer.phoneSearchDigits)
+    ? customer.phoneSearchDigits
+    : customer.phoneDigits
+      ? normalizePhoneVariants(customer.phoneDigits)
+      : [];
+
+  if (!searchable.length) return false;
+
+  return variants.some((queryVariant) => searchable.some((storedVariant) => (
+    storedVariant.includes(queryVariant) || queryVariant.includes(storedVariant)
+  )));
+}
+
+function isPhoneLikeQuery(value) {
+  const raw = nonEmpty(value);
+  if (!raw) return false;
+
+  // If query contains letters or an email marker, treat it as non-phone input.
+  if (/[a-z@]/i.test(raw)) return false;
+
+  const digits = normalizePhone(raw);
+  // Require enough signal to avoid noisy matches like "13".
+  return digits.length >= 6;
+}
+
 function normalizeCode(value) {
   return nonEmpty(value).toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
@@ -264,6 +339,7 @@ function loadCustomers() {
         email: nonEmpty(row[emailIndex]),
         phone: nonEmpty(row[phoneIndex]),
         phoneDigits: normalizePhone(row[phoneIndex]),
+        phoneSearchDigits: buildPhoneSearchDigits(row[phoneIndex], invoiceToAddress),
         balance: roundMoney(parseMoney(row[balanceIndex])),
         street1: nonEmpty(row[street1Index]),
         street2: nonEmpty(row[street2Index]),
@@ -401,6 +477,7 @@ function searchCustomers({ query, field = 'all', limit = 20 }) {
   const normalizedQuery = normalizeText(cleanQuery);
   const normalizedCodeQuery = normalizeCode(cleanQuery.replace(/^code\s*:\s*/i, ''));
   const normalizedPhone = normalizePhone(cleanQuery);
+  const canUsePhoneMatch = isPhoneLikeQuery(cleanQuery);
   const normalizedField = nonEmpty(field).toLowerCase();
   const maxResults = Math.max(1, Math.min(Number(limit) || 20, 100));
 
@@ -408,13 +485,16 @@ function searchCustomers({ query, field = 'all', limit = 20 }) {
     const byName = normalizeText(customer.customerName).includes(normalizedQuery);
     const byAddress = normalizeText(customer.invoiceToAddress || buildAddress(customer)).includes(normalizedQuery);
     const byEmail = normalizeText(customer.email).includes(normalizedQuery);
-    const byPhone = normalizedPhone && customer.phoneDigits.includes(normalizedPhone);
+    const byPhone = canUsePhoneMatch && normalizedPhone && hasPhoneMatch(customer, normalizedPhone);
     const byCode = normalizedCodeQuery && normalizeCode(customer.customerCode).includes(normalizedCodeQuery);
 
     if (normalizedField === 'name') return byName;
     if (normalizedField === 'address') return byAddress;
     if (normalizedField === 'email') return byEmail;
-    if (normalizedField === 'phone') return Boolean(byPhone);
+    if (normalizedField === 'phone') {
+      if (!normalizedPhone) return false;
+      return hasPhoneMatch(customer, normalizedPhone);
+    }
     if (normalizedField === 'code') return Boolean(byCode);
 
     return byName || byAddress || byEmail || Boolean(byPhone) || Boolean(byCode);
