@@ -1,20 +1,114 @@
+const axios = require('axios');
 const nodemailer = require('nodemailer');
 require('dotenv').config();
 
 /**
  * Email Service for sending notifications
- * Supports Gmail SMTP (can be configured for other providers)
+ * Supports generic SMTP providers and SendGrid HTTP API
  */
+
+const parseBoolean = (value, defaultValue = false) => {
+  if (value === undefined || value === null || value === '') return defaultValue;
+  return ['true', '1', 'yes', 'on'].includes(String(value).toLowerCase());
+};
+
+const getEmailProvider = () => {
+  if (process.env.EMAIL_PROVIDER) return process.env.EMAIL_PROVIDER;
+  if (process.env.SENDGRID_API_KEY) return 'sendgrid-api';
+  return 'smtp';
+};
+
+const getEmailFrom = () => {
+  const { user } = getEmailCredentials();
+  return process.env.EMAIL_FROM || process.env.MAIL_FROM || (user ? `"JustJeeps API" <${user}>` : '');
+};
+
+const getEmailCredentials = () => {
+  const user = process.env.SMTP_USER || process.env.EMAIL_USER;
+  const pass = process.env.SMTP_PASSWORD || process.env.EMAIL_PASSWORD;
+  return { user, pass };
+};
+
+const getEmailTransportConfig = () => {
+  const { user, pass } = getEmailCredentials();
+  const service = process.env.SMTP_SERVICE || process.env.EMAIL_SERVICE;
+  const host = process.env.SMTP_HOST;
+  const port = Number(process.env.SMTP_PORT || 587);
+  const secure = parseBoolean(process.env.SMTP_SECURE, port === 465);
+  const connectionTimeout = Number(process.env.SMTP_CONNECTION_TIMEOUT_MS || 10000);
+  const greetingTimeout = Number(process.env.SMTP_GREETING_TIMEOUT_MS || 10000);
+  const socketTimeout = Number(process.env.SMTP_SOCKET_TIMEOUT_MS || 15000);
+
+  const config = {
+    connectionTimeout,
+    greetingTimeout,
+    socketTimeout,
+  };
+
+  if (service) {
+    config.service = service;
+  } else if (host) {
+    config.host = host;
+    config.port = port;
+    config.secure = secure;
+  }
+
+  if (user && pass) {
+    config.auth = { user, pass };
+  }
+
+  return config;
+};
+
+const sendWithSendGridApi = async ({ to, subject, text, html }) => {
+  const apiKey = process.env.SENDGRID_API_KEY;
+  const from = getEmailFrom();
+
+  if (!apiKey) {
+    console.log('⚠️  Email notifications disabled - SENDGRID_API_KEY not configured');
+    return { success: false, message: 'SendGrid API not configured' };
+  }
+
+  if (!from) {
+    console.log('⚠️  Email notifications disabled - EMAIL_FROM not configured');
+    return { success: false, message: 'Email from address not configured' };
+  }
+
+  const personalizations = String(to)
+    .split(',')
+    .map((email) => email.trim())
+    .filter(Boolean)
+    .map((email) => ({ to: [{ email }] }));
+
+  const response = await axios.post(
+    'https://api.sendgrid.com/v3/mail/send',
+    {
+      personalizations,
+      from: { email: from.replace(/^.*<([^>]+)>.*$/, '$1'), name: 'JustJeeps API' },
+      subject,
+      content: [
+        { type: 'text/plain', value: text },
+        { type: 'text/html', value: html || text },
+      ],
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: Number(process.env.EMAIL_API_TIMEOUT_MS || 15000),
+      validateStatus: (status) => status >= 200 && status < 300,
+    }
+  );
+
+  const messageId = response.headers['x-message-id'] || 'sendgrid-accepted';
+  console.log('✅ Email sent successfully:', messageId);
+  return { success: true, messageId };
+};
 
 // Create reusable transporter
 const createTransporter = () => {
-  return nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: process.env.EMAIL_USER || process.env.GMAIL_USER,
-      pass: process.env.EMAIL_PASSWORD || process.env.GMAIL_APP_PASSWORD
-    }
-  });
+  return nodemailer.createTransport(getEmailTransportConfig());
 };
 
 /**
@@ -27,16 +121,24 @@ const createTransporter = () => {
  */
 async function sendEmail({ to, subject, text, html }) {
   try {
+    const provider = getEmailProvider();
+
+    if (provider === 'sendgrid-api') {
+      return await sendWithSendGridApi({ to, subject, text, html });
+    }
+
+    const { user } = getEmailCredentials();
+
     // Skip if email credentials are not configured
-    if (!process.env.EMAIL_USER && !process.env.GMAIL_USER) {
-      console.log('⚠️  Email notifications disabled - EMAIL_USER not configured');
+    if (!user) {
+      console.log('⚠️  Email notifications disabled - no SMTP user configured');
       return { success: false, message: 'Email not configured' };
     }
 
     const transporter = createTransporter();
     
     const mailOptions = {
-      from: `"JustJeeps API" <${process.env.EMAIL_USER || process.env.GMAIL_USER}>`,
+      from: getEmailFrom(),
       to,
       subject,
       text,
@@ -146,7 +248,11 @@ async function sendCronReport({ jobName, success, exitCode, error, duration, res
     const log = r.logFile ? `Log: ${r.logFile}` : 'Log: N/A';
     const status = r.success ? 'SUCCESS' : 'FAILED';
     const err = r.error ? ` | Error: ${r.error}` : '';
-    return `- ${r.cmd}: ${status} (${dur}) | ${log}${err}`;
+    const excerpt = r.logExcerpt ? `\n  Recent log lines:\n${String(r.logExcerpt)
+      .split(/\r?\n/)
+      .map((line) => `  ${line}`)
+      .join('\n')}` : '';
+    return `- ${r.cmd}: ${status} (${dur}) | ${log}${err}${excerpt}`;
   };
 
   const text =
@@ -162,7 +268,7 @@ async function sendCronReport({ jobName, success, exitCode, error, duration, res
 
   const renderList = (items) =>
     items.length
-      ? `<ul>${items.map(r => `<li><strong>${r.cmd}</strong> - ${r.success ? 'Success' : 'Failed'} (${r.durationMs != null ? (r.durationMs / 1000).toFixed(1) + 's' : 'N/A'})${r.logFile ? ` <br/><small>${r.logFile}</small>` : ''}${r.error ? ` <br/><small style="color:#ff4d4f;">${r.error}</small>` : ''}</li>`).join('')}</ul>`
+      ? `<ul>${items.map(r => `<li><strong>${r.cmd}</strong> - ${r.success ? 'Success' : 'Failed'} (${r.durationMs != null ? (r.durationMs / 1000).toFixed(1) + 's' : 'N/A'})${r.logFile ? ` <br/><small>${escapeHtml(r.logFile)}</small>` : ''}${r.error ? ` <br/><small style="color:#ff4d4f;">${escapeHtml(r.error)}</small>` : ''}${r.logExcerpt ? ` <details style="margin-top:6px;"><summary style="cursor:pointer;color:#235789;">Recent log lines</summary><pre style="margin-top:8px;padding:10px;background:#f8f9fb;border:1px solid #d9d9d9;border-radius:4px;white-space:pre-wrap;font-size:12px;line-height:1.45;">${escapeHtml(r.logExcerpt)}</pre></details>` : ''}</li>`).join('')}</ul>`
       : '<p>(none)</p>';
 
   const html = `
@@ -329,6 +435,9 @@ async function sendPurchaserReportEmail({ report, dateStr, initials }) {
 }
 
 module.exports = {
+  createTransporter,
+  getEmailProvider,
+  getEmailTransportConfig,
   sendEmail,
   sendCronNotification,
   sendCronReport,

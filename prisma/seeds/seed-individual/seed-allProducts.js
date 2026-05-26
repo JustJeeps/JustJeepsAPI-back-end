@@ -2,11 +2,54 @@
 
 const fs = require("fs");
 const path = require("path");
+const csv = require("csv-parser");
 
 const magentoAllProducts = require("../api-calls/magento-allProducts.js");
+const quadratecCost = require("../api-calls/quadratec-excel.js");
 const vendorsPrefix = require("../hard-code_data/vendors_prefix");
 
 const prisma = require("../../../lib/prisma");
+
+const KEYSTONE_FILES_DIR = path.resolve(__dirname, "../api-calls/keystone_files");
+const KEYSTONE_FILES = ["Inventory.csv", "SpecialOrder.csv"];
+
+const getProductCreateFieldSet = () => {
+  try {
+    const dmmfModel = prisma?._dmmf?.datamodel?.models?.find((m) => m.name === "Product");
+    if (dmmfModel?.fields?.length) {
+      return new Set(dmmfModel.fields.map((f) => f.name));
+    }
+  } catch (_) {
+    // no-op: fallback below
+  }
+  return null;
+};
+
+const productCreateFieldSet = getProductCreateFieldSet();
+
+const sanitizeCreateRowsForClient = (rows) => {
+  if (!productCreateFieldSet) return rows;
+
+  const supportsKeystoneBrand = productCreateFieldSet.has("keystone_brand_code");
+  const supportsKeystoneQb = productCreateFieldSet.has("keystone_qb_code");
+
+  if (!supportsKeystoneBrand || !supportsKeystoneQb) {
+    console.warn(
+      "⚠️ Active Prisma Client is missing Product create fields for keystone_brand_code and/or keystone_qb_code. " +
+        "Falling back to compatible createMany payload (update path still writes full fields)."
+    );
+  }
+
+  return rows.map((row) => {
+    const sanitized = {};
+    for (const [key, value] of Object.entries(row)) {
+      if (productCreateFieldSet.has(key)) {
+        sanitized[key] = value;
+      }
+    }
+    return sanitized;
+  });
+};
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -29,6 +72,92 @@ const toStringOrNull = (v) => {
   if (v === "" || v === undefined) return null;
   if (v === null) return null;
   return String(v);
+};
+
+const cleanCsvField = (v) => {
+  if (v === null || v === undefined) return "";
+  let s = String(v).trim();
+  if (!s) return "";
+  if (/^=\s*".*"$/.test(s)) s = s.replace(/^=\s*"(.*)"$/, "$1");
+  return s.replace(/^"+|"+$/g, "").trim();
+};
+
+const normalizeCode = (value) => {
+  if (!value) return "";
+  return String(value).toUpperCase().replace(/[^A-Z0-9]/g, "");
+};
+
+const getCsvField = (row, ...names) => {
+  for (const name of names) {
+    if (row[name] !== undefined) return row[name];
+  }
+  return undefined;
+};
+
+const buildKeystoneBrandCodeLookup = async () => {
+  const lookup = new Map();
+  const summary = [];
+
+  for (const fileName of KEYSTONE_FILES) {
+    const filePath = path.join(KEYSTONE_FILES_DIR, fileName);
+
+    if (!fs.existsSync(filePath)) {
+      console.warn(`⚠️ Keystone file not found: ${filePath}`);
+      summary.push({ file: fileName, parsed: 0, mapped: 0, skippedMissingVendorName: 0 });
+      continue;
+    }
+
+    const fileSummary = { file: fileName, parsed: 0, mapped: 0, skippedMissingVendorName: 0 };
+
+    await new Promise((resolve, reject) => {
+      fs.createReadStream(filePath)
+        .pipe(csv())
+        .on("data", (row) => {
+          fileSummary.parsed += 1;
+
+          const vendorCodeRaw = cleanCsvField(
+            getCsvField(row, "VendorCode", "Vendor Code", "Vendor", "VENDOR")
+          );
+          const vendorNameRaw = cleanCsvField(
+            getCsvField(row, "VendorName", "Vendor Name", "Brand", "Manufacturer")
+          );
+          const vcpnRaw = cleanCsvField(
+            getCsvField(row, "VCPN", "vcPn", "VcPn", "KeystonePN", "KeystoneCode", "Keystone_Code")
+          );
+          const partNumberRaw = cleanCsvField(
+            getCsvField(row, "PartNumber", "Part Number", "PARTNUMBER", "PartNo", "Part #", "PN")
+          );
+
+          const vendorCode = normalizeCode(vendorCodeRaw);
+          if (!vendorCode) return;
+
+          if (!vendorNameRaw) {
+            fileSummary.skippedMissingVendorName += 1;
+            return;
+          }
+
+          let vcpn = normalizeCode(vcpnRaw);
+          if (!vcpn && partNumberRaw) {
+            vcpn = normalizeCode(`${vendorCode}${partNumberRaw}`);
+          }
+
+          if (!vcpn) return;
+          if (lookup.has(vcpn)) return;
+
+          lookup.set(vcpn, vendorNameRaw);
+          fileSummary.mapped += 1;
+        })
+        .on("end", resolve)
+        .on("error", reject);
+    });
+
+    summary.push(fileSummary);
+  }
+
+  console.log("🧩 Keystone brand-name lookup summary:", summary);
+  console.log(`✅ Keystone VCPN -> VendorName mappings: ${lookup.size.toLocaleString()}`);
+
+  return lookup;
 };
 
 const normalizeOmixCode = (value) => {
@@ -61,7 +190,45 @@ const getCustomAttr = (custom_attributes, code) => {
   );
 };
 
-const buildRowFromMagento = (item) => {
+const buildQuadratecPnLookup = async () => {
+  const rows = await quadratecCost();
+  const lookup = new Map();
+
+  for (const row of rows) {
+    const quadratecPn = toStringOrNull(row?.quadratec_sku);
+    if (!quadratecPn) continue;
+
+    const codes = [
+      row?.quadratec_code,
+      row?.quadratec_code_alt,
+      row?.quadratec_code_alt2,
+      row?.quadratec_code_alt3,
+      row?.quadratec_code_alt4,
+      row?.quadratec_code_alt5,
+      row?.quadratec_code_alt6,
+      row?.quadratec_code_alt7,
+      row?.quadratec_code_alt8,
+      row?.quadratec_code_alt9,
+      row?.quadratec_code_alt10,
+      row?.quadratec_code_alt11,
+      row?.quadratec_code_alt12,
+    ];
+
+    for (const codeRaw of codes) {
+      const code = toStringOrNull(codeRaw);
+      if (!code) continue;
+      lookup.set(code, quadratecPn);
+    }
+  }
+
+  return lookup;
+};
+
+const buildRowFromMagento = (
+  item,
+  quadratecPnLookup = new Map(),
+  keystoneBrandCodeLookup = new Map()
+) => {
   const { sku, status, name, price, weight, media_gallery_entries, custom_attributes } = item;
 
   const jjPrefix = sku.split("-")[0];
@@ -95,11 +262,12 @@ const buildRowFromMagento = (item) => {
 
   // Keystone code
   const keystoneSearchableSku = normalizeKeystoneSearchableSku(jjPrefix, searchable_sku);
+  const normalizedKeystoneSku = keystoneSearchableSku.replace(/[-./_]/g, "");
   let keystoneCode =
     vendorData && vendorData.keystone_code
       ? jjPrefix === "MKT"
         ? vendorData.keystone_code + searchable_sku.slice(-6)
-        : vendorData.keystone_code + keystoneSearchableSku.replace(/[-./_]/g, "")
+        : vendorData.keystone_code + normalizedKeystoneSku
       : "";
 
   // CARGOGLIDE: keystone_code => "CG" + remove hyphens
@@ -110,6 +278,7 @@ const buildRowFromMagento = (item) => {
   // Quadratec
   const quadratecCode =
     vendorData && vendorData.quadratec_code ? vendorData.quadratec_code + searchable_sku : "";
+  const quadratecPn = quadratecPnLookup.get(quadratecCode) || null;
 
   // TDOT code (space between prefix and sku)
   const tdotCode =
@@ -154,6 +323,11 @@ const buildRowFromMagento = (item) => {
 
   const brandName = vendorData ? vendorData.brand_name : "";
   const vendors = vendorData ? vendorData.vendors : "";
+  const keystoneBrandCode =
+    keystoneBrandCodeLookup.get(normalizeCode(keystoneCode)) ||
+    toStringOrNull(vendorData?.brand_name) ||
+    "";
+  const keystoneQbCode = keystoneBrandCode ? `${keystoneBrandCode}${normalizedKeystoneSku}` : "";
 
   // Magento custom attrs
   const searchableSkuRaw = getCustomAttr(custom_attributes, "searchable_sku");
@@ -211,7 +385,10 @@ const buildRowFromMagento = (item) => {
     jj_prefix: toStringOrNull(jjPrefix),
     meyer_code: toStringOrNull(meyerCode),
     keystone_code: toStringOrNull(keystoneCode),
+    keystone_brand_code: toStringOrNull(keystoneBrandCode),
+    keystone_qb_code: toStringOrNull(keystoneQbCode),
     quadratec_code: toStringOrNull(quadratecCode),
+    quadratec_pn: toStringOrNull(quadratecPn),
     tdot_code: toStringOrNull(tdotCode),
     t14_code: toStringOrNull(t14Code),
     premier_code: toStringOrNull(premierCode),
@@ -348,7 +525,10 @@ const seedAllProducts = async () => {
       jj_prefix: r.jj_prefix,
       meyer_code: r.meyer_code,
       keystone_code: r.keystone_code,
+      keystone_brand_code: r.keystone_brand_code,
+      keystone_qb_code: r.keystone_qb_code,
       quadratec_code: r.quadratec_code,
+      quadratec_pn: r.quadratec_pn,
       tdot_code: r.tdot_code,
       t14_code: r.t14_code,
       premier_code: r.premier_code,
@@ -389,7 +569,10 @@ const seedAllProducts = async () => {
           jj_prefix text,
           meyer_code text,
           keystone_code text,
+          keystone_brand_code text,
+          keystone_qb_code text,
           quadratec_code text,
+          quadratec_pn text,
           tdot_code text,
           t14_code text,
           premier_code text,
@@ -423,7 +606,10 @@ const seedAllProducts = async () => {
         jj_prefix = data.jj_prefix,
         meyer_code = data.meyer_code,
         keystone_code = data.keystone_code,
+        keystone_brand_code = data.keystone_brand_code,
+        keystone_qb_code = data.keystone_qb_code,
         quadratec_code = data.quadratec_code,
+        quadratec_pn = data.quadratec_pn,
         tdot_code = data.tdot_code,
         t14_code = data.t14_code,
         premier_code = data.premier_code,
@@ -449,6 +635,15 @@ const seedAllProducts = async () => {
     const allProducts = await magentoAllProducts();
     console.timeEnd("fetch magento products");
 
+    console.time("fetch quadratec pn lookup");
+    const quadratecPnLookup = await buildQuadratecPnLookup();
+    console.timeEnd("fetch quadratec pn lookup");
+    console.log(`✅ Quadratec PN code mappings: ${quadratecPnLookup.size.toLocaleString()}`);
+
+    console.time("fetch keystone brand-code lookup");
+    const keystoneBrandCodeLookup = await buildKeystoneBrandCodeLookup();
+    console.timeEnd("fetch keystone brand-code lookup");
+
     console.log(`✅ Magento rows received: ${allProducts.length.toLocaleString()}`);
     const usable = allProducts.filter((p) => p && p.sku);
     console.log(`✅ Rows usable (have sku): ${usable.length.toLocaleString()}`);
@@ -471,7 +666,9 @@ const seedAllProducts = async () => {
       const slice = usable.slice(start, end);
 
       // Build transformed rows (same logic as original)
-      const rows = slice.map((item) => buildRowFromMagento(item));
+      const rows = slice.map((item) =>
+        buildRowFromMagento(item, quadratecPnLookup, keystoneBrandCodeLookup)
+      );
 
       // If resume enabled, drop rows before resumeIndex inside this batch
       let rowsToProcess = rows;
@@ -503,10 +700,11 @@ const seedAllProducts = async () => {
 
       // Bulk create
       if (toCreate.length) {
+        const createPayload = sanitizeCreateRowsForClient(toCreate);
         await runWithRetry(
           () =>
             prisma.product.createMany({
-              data: toCreate,
+              data: createPayload,
               // Should not happen because we split by existing, but safe:
               skipDuplicates: true,
             }),
@@ -562,7 +760,7 @@ const seedAllProducts = async () => {
       const sampleSkus = sampleItems.map((item) => String(item.sku));
       const expectedBySku = new Map(
         sampleItems.map((item) => {
-          const row = buildRowFromMagento(item);
+          const row = buildRowFromMagento(item, quadratecPnLookup, keystoneBrandCodeLookup);
           return [row.sku, row];
         })
       );

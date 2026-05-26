@@ -357,7 +357,7 @@ module.exports = [
   {
     jj_prefix: "ARS",
     brand_name: "Aries Automotive",
-    vendors: "Meyer, Keystone, Quadratec, Curt",
+    vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "A1S",
     meyer_code: "ARI",
     quadratec_code: "Aries",
@@ -4064,7 +4064,7 @@ module.exports = [
     brand_name: "Thule Racks",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "T22",
-    meyer_code: "THU",
+    meyer_code: "TCA",
     quadratec_code: "Thule",
     tdot_code: "Thule",
     truck_parts_code: "Thule",
@@ -4101,7 +4101,7 @@ module.exports = [
   {
     jj_prefix: "TO",
     brand_name: "Toyo Tires",
-    vendors: "Quadratec",//no longer keystone and meyer
+    vendors: "Quadratec, Tire Discounter",//no longer keystone and meyer
     keystone_code: "T43",
     quadratec_code: "Toyo Tires",
     tdot_code: "Toyo",

@@ -91,6 +91,9 @@ model Product {
   jj_prefix          String?
   meyer_code         String?
   keystone_code      String?
+  keystone_code_site String?
+  keystone_brand_code String?
+  keystone_qb_code     String?
   omix_code          String?
   replace_oe         String?
   vendors            String?
@@ -99,6 +102,7 @@ model Product {
   weight             Float?
   url_path           String?
   quadratec_code     String?
+  quadratec_pn       String?
   rough_country_code String?
   gentecdirect_code  String?
   MAP                Float?
@@ -116,7 +120,6 @@ model Product {
   thumbnail          String?
   ctp_code           String?
   partsEngine_code   String?
-  keystone_code_site String?
   tdot_url           String?
   keystone_ftp_brand String?
   t14_code           String?
