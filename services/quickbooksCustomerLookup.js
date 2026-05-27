@@ -468,20 +468,20 @@ function buildCustomerResponse(customerCode) {
   };
 }
 
-function searchCustomers({ query, field = 'all', limit = 20 }) {
+function queryCustomers({ query = '', field = 'all', limit = 20, page = 1 }) {
   loadDataIfNeeded();
 
   const cleanQuery = nonEmpty(query);
-  if (!cleanQuery) return [];
-
   const normalizedQuery = normalizeText(cleanQuery);
   const normalizedCodeQuery = normalizeCode(cleanQuery.replace(/^code\s*:\s*/i, ''));
   const normalizedPhone = normalizePhone(cleanQuery);
   const canUsePhoneMatch = isPhoneLikeQuery(cleanQuery);
   const normalizedField = nonEmpty(field).toLowerCase();
   const maxResults = Math.max(1, Math.min(Number(limit) || 20, 100));
+  const currentPage = Math.max(1, Number(page) || 1);
 
-  const matches = cache.customerRecords.filter((customer) => {
+  const baseRecords = cleanQuery
+    ? cache.customerRecords.filter((customer) => {
     const byName = normalizeText(customer.customerName).includes(normalizedQuery);
     const byAddress = normalizeText(customer.invoiceToAddress || buildAddress(customer)).includes(normalizedQuery);
     const byEmail = normalizeText(customer.email).includes(normalizedQuery);
@@ -498,11 +498,26 @@ function searchCustomers({ query, field = 'all', limit = 20 }) {
     if (normalizedField === 'code') return Boolean(byCode);
 
     return byName || byAddress || byEmail || Boolean(byPhone) || Boolean(byCode);
+  })
+    : [...cache.customerRecords];
+
+  const sortedRecords = baseRecords.sort((left, right) => {
+    const leftName = normalizeText(left.customerName || left.customerCode);
+    const rightName = normalizeText(right.customerName || right.customerCode);
+    if (leftName > rightName) return 1;
+    if (leftName < rightName) return -1;
+    return 0;
   });
 
-  return matches
-    .slice(0, maxResults)
-    .map((customer) => {
+  const total = sortedRecords.length;
+  const start = (currentPage - 1) * maxResults;
+  const pagedRecords = sortedRecords.slice(start, start + maxResults);
+
+  return {
+    total,
+    page: currentPage,
+    limit: maxResults,
+    results: pagedRecords.map((customer) => {
       const stats = cache.customerStatsByCode.get(customer.customerCode) || calculateStats([]);
 
       return {
@@ -522,7 +537,12 @@ function searchCustomers({ query, field = 'all', limit = 20 }) {
         yearsAsCustomer: stats.yearsAsCustomer,
         fraudIndicators: stats.fraudIndicators,
       };
-    });
+    }),
+  };
+}
+
+function searchCustomers({ query, field = 'all', limit = 20 }) {
+  return queryCustomers({ query, field, limit, page: 1 }).results;
 }
 
 function getQuickBooksLookupMeta() {
@@ -538,6 +558,7 @@ function getQuickBooksLookupMeta() {
 
 module.exports = {
   loadDataIfNeeded,
+  queryCustomers,
   searchCustomers,
   buildCustomerResponse,
   getQuickBooksLookupMeta,

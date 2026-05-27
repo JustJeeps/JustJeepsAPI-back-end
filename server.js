@@ -13,6 +13,7 @@ const { sendCronNotification, sendCronReport, sendPurchaserReportEmail } = requi
 const prisma = require('./lib/prisma');
 const {
 	loadDataIfNeeded: loadQuickBooksLookupData,
+	queryCustomers: queryQuickBooksCustomers,
 	searchCustomers: searchQuickBooksCustomers,
 	buildCustomerResponse: getQuickBooksCustomerDetails,
 	getQuickBooksLookupMeta,
@@ -507,15 +508,16 @@ app.get('/api/quickbooks/customers/search', (req, res) => {
 		const query = req.query.q || req.query.query || '';
 		const field = req.query.field || 'all';
 		const limit = Number(req.query.limit || 20);
+		const page = Number(req.query.page || 1);
 
-		if (!String(query || '').trim()) {
-			return res.status(400).json({ error: 'Missing required query parameter: q' });
-		}
-
-		const results = searchQuickBooksCustomers({ query, field, limit });
+		const payload = queryQuickBooksCustomers({ query, field, limit, page });
+		const results = payload.results || [];
 		return res.json({
 			query,
 			field,
+			page: payload.page,
+			limit: payload.limit,
+			total: payload.total,
 			count: results.length,
 			results,
 		});
