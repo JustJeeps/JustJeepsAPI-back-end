@@ -509,12 +509,16 @@ app.get('/api/quickbooks/customers/search', (req, res) => {
 		const field = req.query.field || 'all';
 		const limit = Number(req.query.limit || 20);
 		const page = Number(req.query.page || 1);
+ 		const sortBy = req.query.sortBy || 'customerName';
+		const sortOrder = req.query.sortOrder || 'asc';
 
-		const payload = queryQuickBooksCustomers({ query, field, limit, page });
+		const payload = queryQuickBooksCustomers({ query, field, limit, page, sortBy, sortOrder });
 		const results = payload.results || [];
 		return res.json({
 			query,
 			field,
+			sortBy: payload.sortBy,
+			sortOrder: payload.sortOrder,
 			page: payload.page,
 			limit: payload.limit,
 			total: payload.total,

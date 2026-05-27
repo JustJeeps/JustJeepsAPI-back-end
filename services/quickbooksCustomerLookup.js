@@ -468,7 +468,7 @@ function buildCustomerResponse(customerCode) {
   };
 }
 
-function queryCustomers({ query = '', field = 'all', limit = 20, page = 1 }) {
+function queryCustomers({ query = '', field = 'all', limit = 20, page = 1, sortBy = 'customerName', sortOrder = 'asc' }) {
   loadDataIfNeeded();
 
   const cleanQuery = nonEmpty(query);
@@ -501,11 +501,63 @@ function queryCustomers({ query = '', field = 'all', limit = 20, page = 1 }) {
   })
     : [...cache.customerRecords];
 
-  const sortedRecords = baseRecords.sort((left, right) => {
-    const leftName = normalizeText(left.customerName || left.customerCode);
-    const rightName = normalizeText(right.customerName || right.customerCode);
-    if (leftName > rightName) return 1;
-    if (leftName < rightName) return -1;
+  const sortField = nonEmpty(sortBy) || 'customerName';
+  const direction = String(sortOrder).toLowerCase() === 'desc' ? -1 : 1;
+
+  const enrichedRecords = baseRecords.map((customer) => {
+    const stats = cache.customerStatsByCode.get(customer.customerCode) || calculateStats([]);
+
+    return {
+      customerCode: customer.customerCode,
+      customerName: customer.customerName,
+      email: customer.email,
+      phone: customer.phone,
+      address: customer.invoiceToAddress || buildAddress(customer),
+      currentQuickBooksBalance: customer.balance,
+      hasPurchasedBefore: stats.hasPurchasedBefore,
+      totalInvoices: stats.invoiceCount,
+      totalPayments: stats.paymentCount,
+      totalAmountPurchased: stats.totalAmountPurchased,
+      firstPurchaseDate: stats.firstPurchaseDate,
+      lastPurchaseDate: stats.lastPurchaseDate,
+      lifetimeValue: stats.lifetimeValue,
+      yearsAsCustomer: stats.yearsAsCustomer,
+      fraudIndicators: stats.fraudIndicators,
+    };
+  });
+
+  const valueForSort = (record) => {
+    switch (sortField) {
+      case 'email':
+        return normalizeText(record.email);
+      case 'phone':
+        return normalizePhone(record.phone);
+      case 'totalInvoices':
+        return Number(record.totalInvoices || 0);
+      case 'totalPayments':
+        return Number(record.totalPayments || 0);
+      case 'lifetimeValue':
+        return Number(record.lifetimeValue || 0);
+      case 'address':
+        return normalizeText(record.address);
+      case 'customerCode':
+        return normalizeText(record.customerCode);
+      case 'customerName':
+      default:
+        return normalizeText(record.customerName || record.customerCode);
+    }
+  };
+
+  const sortedRecords = enrichedRecords.sort((left, right) => {
+    const leftValue = valueForSort(left);
+    const rightValue = valueForSort(right);
+
+    if (typeof leftValue === 'number' && typeof rightValue === 'number') {
+      return (leftValue - rightValue) * direction;
+    }
+
+    if (leftValue > rightValue) return 1 * direction;
+    if (leftValue < rightValue) return -1 * direction;
     return 0;
   });
 
@@ -517,27 +569,9 @@ function queryCustomers({ query = '', field = 'all', limit = 20, page = 1 }) {
     total,
     page: currentPage,
     limit: maxResults,
-    results: pagedRecords.map((customer) => {
-      const stats = cache.customerStatsByCode.get(customer.customerCode) || calculateStats([]);
-
-      return {
-        customerCode: customer.customerCode,
-        customerName: customer.customerName,
-        email: customer.email,
-        phone: customer.phone,
-        address: customer.invoiceToAddress || buildAddress(customer),
-        currentQuickBooksBalance: customer.balance,
-        hasPurchasedBefore: stats.hasPurchasedBefore,
-        totalInvoices: stats.invoiceCount,
-        totalPayments: stats.paymentCount,
-        totalAmountPurchased: stats.totalAmountPurchased,
-        firstPurchaseDate: stats.firstPurchaseDate,
-        lastPurchaseDate: stats.lastPurchaseDate,
-        lifetimeValue: stats.lifetimeValue,
-        yearsAsCustomer: stats.yearsAsCustomer,
-        fraudIndicators: stats.fraudIndicators,
-      };
-    }),
+    sortBy: sortField,
+    sortOrder: direction === -1 ? 'desc' : 'asc',
+    results: pagedRecords,
   };
 }
 
