@@ -74,18 +74,10 @@ env:
     # Database & Auth
     - DATABASE_URL
     - JWT_SECRET
+    # Email (Brevo HTTP API)
+    - BREVO_API_KEY
+    - BREVO_FROM
     - CRON_NOTIFICATION_EMAIL
-    - EMAIL_USER
-    - EMAIL_PASSWORD
-    - EMAIL_PROVIDER
-    - SMTP_HOST
-    - SMTP_PORT
-    - SMTP_SECURE
-    - SMTP_SERVICE
-    - SMTP_USER
-    - SMTP_PASSWORD
-    - EMAIL_FROM
-    - SENDGRID_API_KEY
     # Magento
     - MAGENTO_KEY
     # Keystone

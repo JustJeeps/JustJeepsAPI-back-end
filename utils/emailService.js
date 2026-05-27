@@ -14,6 +14,7 @@ const parseBoolean = (value, defaultValue = false) => {
 
 const getEmailProvider = () => {
   if (process.env.EMAIL_PROVIDER) return process.env.EMAIL_PROVIDER;
+  if (process.env.BREVO_API_KEY) return 'brevo-api';
   if (process.env.SENDGRID_API_KEY) return 'sendgrid-api';
   return 'smtp';
 };
@@ -106,6 +107,56 @@ const sendWithSendGridApi = async ({ to, subject, text, html }) => {
   return { success: true, messageId };
 };
 
+const sendWithBrevoApi = async ({ to, subject, text, html }) => {
+  const apiKey = process.env.BREVO_API_KEY;
+  const from = process.env.BREVO_FROM || getEmailFrom();
+
+  if (!apiKey) {
+    console.log('⚠️  Email notifications disabled - BREVO_API_KEY not configured');
+    return { success: false, message: 'Brevo API not configured' };
+  }
+
+  if (!from) {
+    console.log('⚠️  Email notifications disabled - BREVO_FROM/EMAIL_FROM not configured');
+    return { success: false, message: 'Email from address not configured' };
+  }
+
+  const senderMatch = String(from).match(/^(.+?)\s*<([^>]+)>$/);
+  const sender = senderMatch
+    ? { name: senderMatch[1].trim(), email: senderMatch[2].trim() }
+    : { name: 'JustJeeps API', email: String(from).trim() };
+
+  const recipients = String(to)
+    .split(',')
+    .map((email) => email.trim())
+    .filter(Boolean)
+    .map((email) => ({ email }));
+
+  const response = await axios.post(
+    'https://api.brevo.com/v3/smtp/email',
+    {
+      sender,
+      to: recipients,
+      subject,
+      htmlContent: html || text,
+      textContent: text,
+    },
+    {
+      headers: {
+        'api-key': apiKey,
+        'Content-Type': 'application/json',
+        accept: 'application/json',
+      },
+      timeout: Number(process.env.EMAIL_API_TIMEOUT_MS || 15000),
+      validateStatus: (status) => status >= 200 && status < 300,
+    }
+  );
+
+  const messageId = response.data?.messageId || 'brevo-accepted';
+  console.log('✅ Email sent successfully via Brevo:', messageId);
+  return { success: true, messageId };
+};
+
 // Create reusable transporter
 const createTransporter = () => {
   return nodemailer.createTransport(getEmailTransportConfig());
@@ -122,6 +173,10 @@ const createTransporter = () => {
 async function sendEmail({ to, subject, text, html }) {
   try {
     const provider = getEmailProvider();
+
+    if (provider === 'brevo-api') {
+      return await sendWithBrevoApi({ to, subject, text, html });
+    }
 
     if (provider === 'sendgrid-api') {
       return await sendWithSendGridApi({ to, subject, text, html });

@@ -143,3 +143,6 @@ prisma/seeds/scrapping/**/resume-progress.json
 *.dump
 .env2
 .env2
+
+# Playwright MCP runtime cache
+.playwright-mcp/

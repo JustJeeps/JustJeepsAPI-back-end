@@ -99,6 +99,11 @@ RUN rm -rf \
     .vscode \
     .claude
 
+# Garante que diretorios de log usados em runtime existam com owner correto
+# (server.js linhas 78/85 + utils/cronHistory + prisma/seeds/seed-all.js linha 7-8)
+RUN mkdir -p /app/logs /app/prisma/seeds/logs && \
+    chown -R nodejs:nodejs /app/logs /app/prisma/seeds/logs
+
 # Muda para usuario nao-root
 USER nodejs
 
