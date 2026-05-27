@@ -532,6 +532,10 @@ function queryCustomers({ query = '', field = 'all', limit = 20, page = 1, sortB
         return normalizeText(record.email);
       case 'phone':
         return normalizePhone(record.phone);
+      case 'lastPurchaseDate': {
+        const dateValue = Date.parse(record.lastPurchaseDate || '');
+        return Number.isFinite(dateValue) ? dateValue : 0;
+      }
       case 'totalInvoices':
         return Number(record.totalInvoices || 0);
       case 'totalPayments':
