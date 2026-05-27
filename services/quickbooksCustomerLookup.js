@@ -61,6 +61,18 @@ function normalizePhone(value) {
   return nonEmpty(value).replace(/\D/g, '');
 }
 
+function normalizeDisplayPhone(value) {
+  const raw = nonEmpty(value);
+  if (!raw) return '';
+
+  const lowered = raw.toLowerCase();
+  if (lowered === '-' || lowered === '--' || lowered === 'n/a' || lowered === 'na') {
+    return '';
+  }
+
+  return raw;
+}
+
 function normalizePhoneVariants(digits) {
   const raw = nonEmpty(digits).replace(/\D/g, '');
   if (!raw) return [];
@@ -82,12 +94,27 @@ function extractPhoneCandidates(text) {
   const source = nonEmpty(text);
   if (!source) return [];
 
-  const matches = source.match(/(?:\+?1[\s.\-]?)?(?:\(?\d{3}\)?[\s.\-]?)\d{3}[\s.\-]?\d{4}/g);
-  if (!matches) return [];
+  const formattedMatches = source.match(/(?:\+?1[\s.\-]?)?(?:\(?\d{3}\)?[\s.\-]?)\d{3}[\s.\-]?\d{4}/g) || [];
+  const compactMatches = source.match(/\b(?:1\d{10}|\d{10})\b/g) || [];
+  const matches = [...formattedMatches, ...compactMatches];
+  if (!matches.length) return [];
 
   return matches
     .map((match) => normalizePhone(match))
     .filter((digits) => digits.length >= 10);
+}
+
+function extractDisplayPhoneFromText(text) {
+  const source = nonEmpty(text);
+  if (!source) return '';
+
+  const formattedMatches = source.match(/(?:\+?1[\s.\-]?)?(?:\(?\d{3}\)?[\s.\-]?)\d{3}[\s.\-]?\d{4}/g) || [];
+  const compactMatches = source.match(/\b(?:1\d{10}|\d{10})\b/g) || [];
+  const matches = [...formattedMatches, ...compactMatches];
+  if (!matches || !matches.length) return '';
+
+  // Prefer the last matched phone sequence because Invoice To often ends with phone.
+  return nonEmpty(matches[matches.length - 1]);
 }
 
 function buildPhoneSearchDigits(mainPhone, invoiceToAddress) {
@@ -221,6 +248,16 @@ function buildAddress(customer) {
   return parts.join(', ');
 }
 
+function getPreferredCustomerName(customer) {
+  const fullName = `${nonEmpty(customer.firstName)} ${nonEmpty(customer.lastName)}`.trim();
+  if (fullName) return fullName;
+
+  const streetAddress = nonEmpty(customer.street1);
+  if (streetAddress) return streetAddress;
+
+  return 'no first and last name on db';
+}
+
 function safeNumber(value, fallback = 0) {
   return Number.isFinite(value) ? value : fallback;
 }
@@ -269,8 +306,10 @@ function calculateStats(transactions) {
   const invoiceCount = invoices.length;
   const paymentCount = payments.length;
   const hasPurchasedBefore = paymentCount > 0;
-  const isFirstTimeCustomer = paymentCount === 1;
-  const hasSignificantHistory = paymentCount >= 5 || totalAmountPurchased >= 5000;
+  // A first-time customer should represent a single completed purchase event,
+  // even if it is paid in multiple transactions.
+  const isFirstTimeCustomer = invoiceCount === 1 && hasPurchasedBefore;
+  const hasSignificantHistory = paymentCount >= 5;
 
   return {
     hasPurchasedBefore,
@@ -318,6 +357,9 @@ function loadCustomers() {
       const customerCode = toUpperCode(row[customerIndex]);
       const invoiceTo = nonEmpty(row[invoiceToIndex]);
       const invoiceToAddress = normalizeInvoiceToAddress(row[invoiceToIndex]);
+      const mainPhone = normalizeDisplayPhone(row[phoneIndex]);
+      const fallbackPhone = extractDisplayPhoneFromText(invoiceToAddress);
+      const resolvedPhone = mainPhone || fallbackPhone;
       const firstName = nonEmpty(row[firstNameIndex]);
       const lastName = nonEmpty(row[lastNameIndex]);
       const companyName = deriveCompanyName({ invoiceTo, firstName, lastName });
@@ -337,8 +379,8 @@ function loadCustomers() {
         invoiceTo,
         invoiceToAddress,
         email: nonEmpty(row[emailIndex]),
-        phone: nonEmpty(row[phoneIndex]),
-        phoneDigits: normalizePhone(row[phoneIndex]),
+        phone: resolvedPhone,
+        phoneDigits: normalizePhone(resolvedPhone),
         phoneSearchDigits: buildPhoneSearchDigits(row[phoneIndex], invoiceToAddress),
         balance: roundMoney(parseMoney(row[balanceIndex])),
         street1: nonEmpty(row[street1Index]),
@@ -450,6 +492,7 @@ function buildCustomerResponse(customerCode) {
 
   return {
     ...customer,
+    customerName: getPreferredCustomerName(customer),
     address: customer.invoiceToAddress || buildAddress(customer),
     currentQuickBooksBalance: customer.balance,
     analysis: {
@@ -509,7 +552,7 @@ function queryCustomers({ query = '', field = 'all', limit = 20, page = 1, sortB
 
     return {
       customerCode: customer.customerCode,
-      customerName: customer.customerName,
+      customerName: getPreferredCustomerName(customer),
       email: customer.email,
       phone: customer.phone,
       address: customer.invoiceToAddress || buildAddress(customer),
