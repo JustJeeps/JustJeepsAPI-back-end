@@ -1,6 +1,7 @@
 const Express = require('express');
 const fs = require('fs');
 const path = require('path');
+const axios = require('axios');
 const { format, parseISO } = require('date-fns');
 const app = Express();
 const BodyParser = require('body-parser');
@@ -36,6 +37,7 @@ const testCronSchedule = process.env.CRON_TEST_SCHEDULE || '*/5 * * * *';
 const testCronCommand = process.env.CRON_TEST_COMMAND || 'seed-tdot';
 const testCronJobName = process.env.CRON_TEST_JOB_NAME || 'Cron Test Job';
 const testCronLogFile = process.env.CRON_TEST_LOG_FILE || `prisma/seeds/logs/${testCronCommand}.log`;
+const MAGENTO_STATUS_ALLOWED_USERS = new Set(['admin', 'jerry', 'tess', 'jacob']);
 const cronJobRegistry = new Map();
 const cronHistoryFile = path.resolve(__dirname, 'logs', 'cron-job-history.json');
 const cronHistoryLookbackDays = Number(process.env.CRON_HISTORY_LOOKBACK_DAYS || 5);
@@ -1075,6 +1077,202 @@ app.get('/api/products/:sku', async (req, res) => {
 	} catch (error) {
 		res.status(500).json({ error: 'Failed to fetch product' });
 	}
+});
+
+function resolveMagentoBaseUrl() {
+	const configured = (
+		process.env.MAGENTO_BASE_URL ||
+		process.env.M2_BASE_URL ||
+		'https://www.justjeeps.com'
+	).trim();
+
+	if (!configured) {
+		return 'https://www.justjeeps.com';
+	}
+
+	const restMarker = '/rest/';
+	const markerIndex = configured.indexOf(restMarker);
+	if (markerIndex >= 0) {
+		return configured.slice(0, markerIndex);
+	}
+
+	return configured.replace(/\/$/, '');
+}
+
+async function setMagentoProductStatusByStoreView({ baseUrl, token, sku, status, storeViewCode }) {
+	const encodedSku = encodeURIComponent(sku);
+	const endpoint = `${baseUrl}/rest/${storeViewCode}/V1/products/${encodedSku}`;
+	const payload = { product: { status } };
+	const requestConfig = {
+		headers: {
+			Authorization: `Bearer ${token}`,
+			'Content-Type': 'application/json',
+		},
+		timeout: Number(process.env.MAGENTO_TIMEOUT_MS || 15000),
+	};
+
+	try {
+		const response = await axios.put(endpoint, payload, requestConfig);
+		return {
+			storeViewCode,
+			success: true,
+			method: 'PUT',
+			statusCode: response.status,
+		};
+	} catch (putError) {
+		if (putError.response?.status === 405) {
+			try {
+				const response = await axios.post(endpoint, payload, requestConfig);
+				return {
+					storeViewCode,
+					success: true,
+					method: 'POST',
+					statusCode: response.status,
+				};
+			} catch (postError) {
+				return {
+					storeViewCode,
+					success: false,
+					statusCode: postError.response?.status || null,
+					error: postError.response?.data || postError.message,
+				};
+			}
+		}
+
+		return {
+			storeViewCode,
+			success: false,
+			statusCode: putError.response?.status || null,
+			error: putError.response?.data || putError.message,
+		};
+	}
+}
+
+async function setProductStatusAcrossAllStoreViews(req, res, forcedStatus = null) {
+	try {
+		if (process.env.ENABLE_AUTH !== 'true') {
+			return res.status(403).json({
+				error: 'Feature locked',
+				message: 'SKU status changes require authentication to be enabled',
+			});
+		}
+
+		const requesterUsername = (req.user?.username || '').toLowerCase();
+		if (!MAGENTO_STATUS_ALLOWED_USERS.has(requesterUsername)) {
+			return res.status(403).json({
+				error: 'Forbidden',
+				message: 'You are not authorized to change SKU status',
+			});
+		}
+
+		const sku = (req.params.sku || '').trim();
+		if (!sku) {
+			return res.status(400).json({ error: 'SKU is required' });
+		}
+
+		const token = process.env.MAGENTO_KEY;
+		if (!token) {
+			return res.status(500).json({ error: 'MAGENTO_KEY is not configured' });
+		}
+
+		const productExists = await prisma.product.findUnique({
+			where: { sku },
+			select: { sku: true },
+		});
+
+		if (!productExists) {
+			return res.status(404).json({ error: `Product with SKU ${sku} not found` });
+		}
+
+		const requestedStatus = forcedStatus ?? Number(req.body?.status);
+		if (![1, 2].includes(requestedStatus)) {
+			return res.status(400).json({ error: 'Invalid status. Use 1 (enabled) or 2 (disabled).' });
+		}
+
+		const statusToSet = requestedStatus;
+		const magentoBaseUrl = resolveMagentoBaseUrl();
+		const storeViewsEndpoint = `${magentoBaseUrl}/rest/V1/store/storeViews`;
+
+		let discoveredStoreViews = [];
+		try {
+			const storeViewsResponse = await axios.get(storeViewsEndpoint, {
+				headers: {
+					Authorization: `Bearer ${token}`,
+					Accept: 'application/json',
+				},
+				timeout: Number(process.env.MAGENTO_TIMEOUT_MS || 15000),
+			});
+
+			discoveredStoreViews = Array.isArray(storeViewsResponse.data)
+				? storeViewsResponse.data
+				: [];
+		} catch (storeViewError) {
+			logger.warn('Failed to discover Magento store views, falling back to all/default', {
+				sku,
+				error: storeViewError.message,
+			});
+		}
+
+		const storeViewCodes = [
+			'all',
+			...discoveredStoreViews
+				.map((view) => (view?.code || '').trim())
+				.filter((code) => code && code.toLowerCase() !== 'admin'),
+		];
+
+		const uniqueStoreViewCodes = Array.from(new Set(storeViewCodes));
+
+		const results = await Promise.all(
+			uniqueStoreViewCodes.map((storeViewCode) =>
+				setMagentoProductStatusByStoreView({
+					baseUrl: magentoBaseUrl,
+					token,
+					sku,
+					status: statusToSet,
+					storeViewCode,
+				})
+			)
+		);
+
+		const successfulUpdates = results.filter((result) => result.success);
+		const failedUpdates = results.filter((result) => !result.success);
+
+		if (successfulUpdates.length === 0) {
+			return res.status(502).json({
+				error: 'Failed to update SKU status in Magento store views',
+				sku,
+				status: statusToSet,
+				results,
+			});
+		}
+
+		await prisma.product.update({
+			where: { sku },
+			data: { status: statusToSet },
+		});
+
+		return res.json({
+			success: true,
+			sku,
+			status: statusToSet,
+			updatedStoreViews: successfulUpdates.map((entry) => entry.storeViewCode),
+			failedStoreViews: failedUpdates,
+		});
+	} catch (error) {
+		logger.error('Failed to set SKU status across all store views', {
+			error: error.message,
+			sku: req.params?.sku,
+		});
+		return res.status(500).json({ error: 'Failed to update SKU status across all store views' });
+	}
+}
+
+app.post('/api/products/:sku/disable-all-store-views', async (req, res) => {
+	return setProductStatusAcrossAllStoreViews(req, res, 2);
+});
+
+app.post('/api/products/:sku/status-all-store-views', async (req, res) => {
+	return setProductStatusAcrossAllStoreViews(req, res);
 });
 
 app.get('/brands', async (req, res) => {
