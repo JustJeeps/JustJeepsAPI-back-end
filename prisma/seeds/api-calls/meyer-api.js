@@ -100,11 +100,8 @@
 // };
 
 
-
-const { PrismaClient } = require("@prisma/client");
 const axios = require("axios");
-
-const prisma = new PrismaClient();
+const prisma = require("../../../lib/prisma");
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 

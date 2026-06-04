@@ -37,7 +37,10 @@ const testCronSchedule = process.env.CRON_TEST_SCHEDULE || '*/5 * * * *';
 const testCronCommand = process.env.CRON_TEST_COMMAND || 'seed-tdot';
 const testCronJobName = process.env.CRON_TEST_JOB_NAME || 'Cron Test Job';
 const testCronLogFile = process.env.CRON_TEST_LOG_FILE || `prisma/seeds/logs/${testCronCommand}.log`;
+const cronChildTimeoutMs = Number(process.env.CRON_CHILD_TIMEOUT_MS || 6 * 60 * 60 * 1000);
+const cronChildKillGraceMs = Number(process.env.CRON_CHILD_KILL_GRACE_MS || 10000);
 const MAGENTO_STATUS_ALLOWED_USERS = new Set(['admin', 'jerry', 'tess', 'jacob', 'david']);
+const ORDER_CANCEL_ALLOWED_USERS = new Set(['tess']);
 const cronJobRegistry = new Map();
 const cronHistoryFile = path.resolve(__dirname, 'logs', 'cron-job-history.json');
 const cronHistoryLookbackDays = Number(process.env.CRON_HISTORY_LOOKBACK_DAYS || 5);
@@ -1275,6 +1278,46 @@ app.post('/api/products/:sku/status-all-store-views', async (req, res) => {
 	return setProductStatusAcrossAllStoreViews(req, res);
 });
 
+function buildMagentoRequestConfig(token) {
+	return {
+		headers: {
+			Authorization: `Bearer ${token}`,
+			Accept: 'application/json',
+			'Content-Type': 'application/json',
+		},
+		timeout: Number(process.env.MAGENTO_TIMEOUT_MS || 15000),
+	};
+}
+
+async function fetchMagentoInvoicesByOrderId({ baseUrl, token, orderId }) {
+	const endpoint = `${baseUrl}/rest/V1/invoices`;
+	const params = {
+		'searchCriteria[filterGroups][0][filters][0][field]': 'order_id',
+		'searchCriteria[filterGroups][0][filters][0][value]': String(orderId),
+		'searchCriteria[filterGroups][0][filters][0][condition_type]': 'eq',
+		'searchCriteria[pageSize]': 20,
+		'searchCriteria[currentPage]': 1,
+	};
+
+	const response = await axios.get(endpoint, {
+		...buildMagentoRequestConfig(token),
+		params,
+	});
+
+	const items = Array.isArray(response?.data?.items) ? response.data.items : [];
+	return items.sort((a, b) => Number(b?.entity_id || 0) - Number(a?.entity_id || 0));
+}
+
+async function voidMagentoInvoice({ baseUrl, token, invoiceId }) {
+	const endpoint = `${baseUrl}/rest/V1/invoices/${encodeURIComponent(String(invoiceId))}/void`;
+	return axios.post(endpoint, {}, buildMagentoRequestConfig(token));
+}
+
+async function cancelMagentoOrder({ baseUrl, token, orderId }) {
+	const endpoint = `${baseUrl}/rest/V1/orders/${encodeURIComponent(String(orderId))}/cancel`;
+	return axios.post(endpoint, {}, buildMagentoRequestConfig(token));
+}
+
 app.get('/brands', async (req, res) => {
 	try {
 		const uniqueBrandNames = await prisma.product.findMany({
@@ -1961,6 +2004,161 @@ app.get('/api/orders/:id', async (req, res) => {
 		res.json(order);
 	} catch (error) {
 		res.status(500).json({ error: 'Failed to fetch order' });
+	}
+});
+
+app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
+	const manualActionsStillRequired = [
+		'Delete invoice',
+		'Update PO Number',
+		'Update Custom Ship Status',
+		'Create and send cancellation ticket',
+	];
+
+	const completedActions = [];
+	const failedActions = [];
+	const informationalActions = [];
+
+	try {
+		if (process.env.ENABLE_AUTH !== 'true') {
+			return res.status(403).json({
+				error: 'Feature locked',
+				message: 'Order cancellation workflow requires authentication to be enabled',
+			});
+		}
+
+		const requesterUsername = (req.user?.username || '').toLowerCase();
+		if (!ORDER_CANCEL_ALLOWED_USERS.has(requesterUsername)) {
+			return res.status(403).json({
+				error: 'Forbidden',
+				message: 'You are not authorized to use order cancellation workflow',
+			});
+		}
+
+		const dryRun = req.body?.dryRun === true || String(req.query?.dryRun || '').toLowerCase() === 'true';
+
+		const orderId = Number(req.params.id);
+		if (!Number.isFinite(orderId) || orderId <= 0) {
+			return res.status(400).json({ error: 'Invalid order id' });
+		}
+
+		const order = await prisma.order.findUnique({
+			where: { entity_id: orderId },
+			select: {
+				entity_id: true,
+				increment_id: true,
+				status: true,
+			},
+		});
+
+		if (!order) {
+			return res.status(404).json({ error: `Order ${orderId} not found` });
+		}
+
+		const token = process.env.MAGENTO_KEY;
+		if (!token) {
+			return res.status(500).json({ error: 'MAGENTO_KEY is not configured' });
+		}
+
+		const magentoBaseUrl = resolveMagentoBaseUrl();
+		let selectedInvoiceId = null;
+		let selectedInvoiceIncrementId = null;
+
+		try {
+			const invoices = await fetchMagentoInvoicesByOrderId({
+				baseUrl: magentoBaseUrl,
+				token,
+				orderId,
+			});
+
+			if (!invoices.length) {
+				informationalActions.push('No invoice found to void');
+			} else {
+				selectedInvoiceId = invoices[0]?.entity_id;
+				selectedInvoiceIncrementId = invoices[0]?.increment_id || null;
+				if (dryRun) {
+					completedActions.push(
+						selectedInvoiceIncrementId
+							? `Dry run: invoice #${selectedInvoiceIncrementId} found (entity id ${selectedInvoiceId}, would be voided)`
+							: `Dry run: invoice entity id ${selectedInvoiceId} found (would be voided)`
+					);
+				} else {
+					await voidMagentoInvoice({
+						baseUrl: magentoBaseUrl,
+						token,
+						invoiceId: selectedInvoiceId,
+					});
+					completedActions.push(
+						selectedInvoiceIncrementId
+							? `Invoice #${selectedInvoiceIncrementId} voided`
+							: `Invoice entity id ${selectedInvoiceId} voided`
+					);
+				}
+			}
+		} catch (voidError) {
+			failedActions.push({
+				action: 'Void invoice',
+				message: voidError?.response?.data?.message || voidError?.response?.data || voidError.message,
+				statusCode: voidError?.response?.status || null,
+				invoiceId: selectedInvoiceId,
+			});
+		}
+
+		try {
+			if (dryRun) {
+				completedActions.push('Dry run: order would be cancelled');
+			} else {
+				await cancelMagentoOrder({
+					baseUrl: magentoBaseUrl,
+					token,
+					orderId,
+				});
+				completedActions.push('Order cancelled');
+			}
+
+			if (!dryRun) {
+				try {
+					await prisma.order.update({
+						where: { entity_id: orderId },
+						data: { status: 'canceled' },
+					});
+				} catch (dbUpdateError) {
+					logger.warn('Order canceled in Magento but failed to update local status', {
+						orderId,
+						error: dbUpdateError.message,
+					});
+				}
+			}
+		} catch (cancelError) {
+			failedActions.push({
+				action: 'Cancel order',
+				message: cancelError?.response?.data?.message || cancelError?.response?.data || cancelError.message,
+				statusCode: cancelError?.response?.status || null,
+			});
+		}
+
+		return res.json({
+			success: failedActions.length === 0 && completedActions.length > 0,
+			dryRun,
+			orderId,
+			incrementId: order.increment_id,
+			invoice: selectedInvoiceId
+				? {
+					entityId: selectedInvoiceId,
+					incrementId: selectedInvoiceIncrementId,
+				}
+				: null,
+			completedActions,
+			failedActions,
+			informationalActions,
+			manualActionsStillRequired,
+		});
+	} catch (error) {
+		logger.error('Failed to execute order cancel workflow', {
+			orderId: req.params?.id,
+			error: error.message,
+		});
+		return res.status(500).json({ error: 'Failed to execute cancel workflow' });
 	}
 });
 
@@ -2868,6 +3066,27 @@ function registerCommandCronJob({
 			shell: true,
 		});
 
+		let timedOut = false;
+		const timeoutHandle = Number.isFinite(cronChildTimeoutMs) && cronChildTimeoutMs > 0
+			? setTimeout(() => {
+				timedOut = true;
+				const timeoutMessage = `Process timed out after ${cronChildTimeoutMs}ms`;
+				logger.error('⏰ Cron job timed out; terminating process', {
+					jobName,
+					command,
+					timeoutMs: cronChildTimeoutMs,
+					graceMs: cronChildKillGraceMs,
+				});
+				if (logStream) {
+					logStream.write(`[${new Date().toISOString()}] ${timeoutMessage}\n`);
+				}
+				seedProcess.kill('SIGTERM');
+				setTimeout(() => {
+					seedProcess.kill('SIGKILL');
+				}, cronChildKillGraceMs);
+			}, cronChildTimeoutMs)
+			: null;
+
 		if (seedProcess.stdout) {
 			seedProcess.stdout.on('data', (chunk) => {
 				process.stdout.write(chunk);
@@ -2883,6 +3102,7 @@ function registerCommandCronJob({
 		}
 
 		seedProcess.on('close', async (code) => {
+			if (timeoutHandle) clearTimeout(timeoutHandle);
 			const duration = formatDuration(startTime);
 			const durationMs = Date.now() - startTime;
 			const startedAt = new Date(startTime).toISOString();
@@ -2963,7 +3183,9 @@ function registerCommandCronJob({
 						summary: summarizeCronResults(summary?.results),
 					});
 				} else {
-					const error = `Process exited with code ${code}`;
+					const error = timedOut
+						? `Process timed out after ${cronChildTimeoutMs}ms`
+						: `Process exited with code ${code}`;
 					logger.error('❌ Cron job failed', { jobName, exitCode: code, duration, command });
 					console.error(`❌ [CRON] ${logPrefix} failed with exit code ${code}`);
 
@@ -3026,6 +3248,7 @@ function registerCommandCronJob({
 		});
 
 		seedProcess.on('error', async (error) => {
+			if (timeoutHandle) clearTimeout(timeoutHandle);
 			const duration = formatDuration(startTime);
 			const durationMs = Date.now() - startTime;
 			const startedAt = new Date(startTime).toISOString();
