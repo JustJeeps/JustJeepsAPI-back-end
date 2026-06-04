@@ -27,6 +27,7 @@ const otherSeeds = [
   // "seed-aev",
   "seed-ctp",
   "seed-keyparts",
+  "update-warn-cad-map-prices",
   // "seed-alpine",
 
   // "seed-lowriders",
