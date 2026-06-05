@@ -89,7 +89,11 @@ async function main() {
       return;
     } catch (error) {
       const status = error.response && error.response.status;
+      const responseBody = error.response && error.response.data;
       console.error(`HTTP ERROR: ${status || error.code || error.message}`);
+      if (responseBody) {
+        console.error('API ERROR BODY:', typeof responseBody === 'string' ? responseBody : JSON.stringify(responseBody));
+      }
       process.exitCode = 1;
       return;
     }
