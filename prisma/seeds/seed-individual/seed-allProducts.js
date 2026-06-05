@@ -3,6 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const csv = require("csv-parser");
+const axios = require("axios");
 
 const magentoAllProducts = require("../api-calls/magento-allProducts.js");
 const quadratecCost = require("../api-calls/quadratec-excel.js");
@@ -190,6 +191,74 @@ const getCustomAttr = (custom_attributes, code) => {
   );
 };
 
+const getMagentoBaseUrl = () => {
+  const configured = process.env.MAGENTO_BASE_URL || process.env.M2_BASE_URL;
+  if (!configured) return "https://www.justjeeps.com";
+  return String(configured).trim().replace(/\/+$/, "") || "https://www.justjeeps.com";
+};
+
+const buildMagentoAttributeOptionLookup = async (attributeCode) => {
+  const apiKey = process.env.MAGENTO_KEY;
+  if (!apiKey) {
+    console.warn(`⚠️ MAGENTO_KEY missing, cannot resolve labels for attribute "${attributeCode}".`);
+    return new Map();
+  }
+
+  const baseUrl = getMagentoBaseUrl();
+  const url = `${baseUrl}/rest/V1/products/attributes/${encodeURIComponent(attributeCode)}`;
+
+  try {
+    const response = await axios.get(url, {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        Accept: "application/json",
+      },
+      timeout: 30000,
+    });
+
+    const options = Array.isArray(response?.data?.options) ? response.data.options : [];
+    const lookup = new Map();
+
+    for (const option of options) {
+      const value = toStringOrNull(option?.value);
+      const label = toStringOrNull(option?.label);
+      if (!value || !label) continue;
+      lookup.set(value.trim(), label.trim());
+    }
+
+    console.log(
+      `✅ Magento attribute "${attributeCode}" options loaded: ${lookup.size.toLocaleString()}`
+    );
+    return lookup;
+  } catch (error) {
+    console.warn(
+      `⚠️ Failed to load Magento attribute options for "${attributeCode}": ${
+        error?.response?.status || error?.code || error?.message || "unknown error"
+      }`
+    );
+    return new Map();
+  }
+};
+
+const mapMagentoOptionValueToLabel = (rawValue, optionLookup) => {
+  const value = toStringOrNull(rawValue);
+  if (!value) return null;
+
+  if (!(optionLookup instanceof Map) || optionLookup.size === 0) {
+    return value;
+  }
+
+  const parts = value
+    .split(",")
+    .map((token) => token.trim())
+    .filter(Boolean);
+
+  if (!parts.length) return value;
+
+  const mapped = parts.map((token) => optionLookup.get(token) || token);
+  return mapped.join(", ");
+};
+
 const buildQuadratecPnLookup = async () => {
   const rows = await quadratecCost();
   const lookup = new Map();
@@ -227,7 +296,8 @@ const buildQuadratecPnLookup = async () => {
 const buildRowFromMagento = (
   item,
   quadratecPnLookup = new Map(),
-  keystoneBrandCodeLookup = new Map()
+  keystoneBrandCodeLookup = new Map(),
+  partOptionLookup = new Map()
 ) => {
   const { sku, status, name, price, weight, media_gallery_entries, custom_attributes } = item;
 
@@ -337,7 +407,8 @@ const buildRowFromMagento = (
   const width = getCustomAttr(custom_attributes, "width");
   const height = getCustomAttr(custom_attributes, "height");
   const shippingFreight = getCustomAttr(custom_attributes, "shipping_freight");
-  const part = getCustomAttr(custom_attributes, "part");
+  const partRaw = getCustomAttr(custom_attributes, "part");
+  const part = mapMagentoOptionValueToLabel(partRaw, partOptionLookup);
   const thumbnail = getCustomAttr(custom_attributes, "thumbnail");
 
   // Black Friday Sale mapping
@@ -644,6 +715,10 @@ const seedAllProducts = async () => {
     const keystoneBrandCodeLookup = await buildKeystoneBrandCodeLookup();
     console.timeEnd("fetch keystone brand-code lookup");
 
+    console.time('fetch magento part option lookup');
+    const partOptionLookup = await buildMagentoAttributeOptionLookup("part");
+    console.timeEnd('fetch magento part option lookup');
+
     console.log(`✅ Magento rows received: ${allProducts.length.toLocaleString()}`);
     const usable = allProducts.filter((p) => p && p.sku);
     console.log(`✅ Rows usable (have sku): ${usable.length.toLocaleString()}`);
@@ -667,7 +742,7 @@ const seedAllProducts = async () => {
 
       // Build transformed rows (same logic as original)
       const rows = slice.map((item) =>
-        buildRowFromMagento(item, quadratecPnLookup, keystoneBrandCodeLookup)
+        buildRowFromMagento(item, quadratecPnLookup, keystoneBrandCodeLookup, partOptionLookup)
       );
 
       // If resume enabled, drop rows before resumeIndex inside this batch
@@ -760,7 +835,12 @@ const seedAllProducts = async () => {
       const sampleSkus = sampleItems.map((item) => String(item.sku));
       const expectedBySku = new Map(
         sampleItems.map((item) => {
-          const row = buildRowFromMagento(item, quadratecPnLookup, keystoneBrandCodeLookup);
+          const row = buildRowFromMagento(
+            item,
+            quadratecPnLookup,
+            keystoneBrandCodeLookup,
+            partOptionLookup
+          );
           return [row.sku, row];
         })
       );

@@ -828,8 +828,11 @@ app.get('/api/products', async (req, res) => {
 			prisma.product.count({ where })
 		]);
 
+		const partLookup = await getMagentoPartLabelLookup();
+		const mappedProducts = mapProductsPartLabels(products, partLookup);
+
 		res.json({
-			products,
+			products: mappedProducts,
 			pagination: {
 				page,
 				limit,
@@ -913,9 +916,12 @@ app.get('/api/products/export', async (req, res) => {
 			select: selectFields,
 		});
 
+		const partLookup = await getMagentoPartLabelLookup();
+		const mappedProducts = mapProductsPartLabels(products, partLookup);
+
 		res.json({
-			products,
-			total: products.length,
+			products: mappedProducts,
+			total: mappedProducts.length,
 			brand: brand || 'all'
 		});
 	} catch (error) {
@@ -1030,7 +1036,10 @@ app.get('/api/products/brand/:brandName', async (req, res) => {
 			},
 		});
 
-		res.json(products);
+		const partLookup = await getMagentoPartLabelLookup();
+		const mappedProducts = mapProductsPartLabels(products, partLookup);
+
+		res.json(mappedProducts);
 	} catch (error) {
 		console.log(error);
 		res.status(500).json({ error: 'Failed to fetch products by brand' });
@@ -1103,7 +1112,11 @@ app.get('/api/products/:sku', async (req, res) => {
 				},
 			},
 		});
-		res.json(product);
+
+		const partLookup = await getMagentoPartLabelLookup();
+		const mappedProduct = mapProductPartLabel(product, partLookup);
+
+		res.json(mappedProduct);
 	} catch (error) {
 		res.status(500).json({ error: 'Failed to fetch product' });
 	}
@@ -1314,6 +1327,86 @@ function buildMagentoRequestConfig(token) {
 		},
 		timeout: Number(process.env.MAGENTO_TIMEOUT_MS || 15000),
 	};
+}
+
+const partLabelCacheTtlMs = Number(process.env.MAGENTO_PART_LABEL_CACHE_TTL_MS || 6 * 60 * 60 * 1000);
+let partLabelCache = {
+	loadedAt: 0,
+	lookup: new Map(),
+	inFlightPromise: null,
+};
+
+function mapPartValueToLabel(rawValue, lookup) {
+	if (rawValue === null || rawValue === undefined || rawValue === '') return rawValue;
+	if (!(lookup instanceof Map) || lookup.size === 0) return rawValue;
+
+	const tokens = String(rawValue)
+		.split(',')
+		.map((token) => token.trim())
+		.filter(Boolean);
+
+	if (!tokens.length) return rawValue;
+
+	const mapped = tokens.map((token) => lookup.get(token) || token);
+	return mapped.join(', ');
+}
+
+function mapProductPartLabel(product, lookup) {
+	if (!product) return product;
+	const mappedPart = mapPartValueToLabel(product.part, lookup);
+	if (mappedPart === product.part) return product;
+	return { ...product, part: mappedPart };
+}
+
+function mapProductsPartLabels(products, lookup) {
+	if (!Array.isArray(products) || products.length === 0) return products;
+	return products.map((product) => mapProductPartLabel(product, lookup));
+}
+
+async function getMagentoPartLabelLookup() {
+	const now = Date.now();
+	if (partLabelCache.lookup.size && now - partLabelCache.loadedAt < partLabelCacheTtlMs) {
+		return partLabelCache.lookup;
+	}
+
+	if (partLabelCache.inFlightPromise) {
+		return partLabelCache.inFlightPromise;
+	}
+
+	partLabelCache.inFlightPromise = (async () => {
+		const token = process.env.MAGENTO_KEY;
+		if (!token) {
+			logger.warn('MAGENTO_KEY is not configured; part labels will remain raw option values');
+			return new Map();
+		}
+
+		const endpoint = `${resolveMagentoBaseUrl()}/rest/V1/products/attributes/part`;
+		const response = await axios.get(endpoint, buildMagentoRequestConfig(token));
+		const options = Array.isArray(response?.data?.options) ? response.data.options : [];
+		const lookup = new Map();
+
+		for (const option of options) {
+			const value = option?.value == null ? '' : String(option.value).trim();
+			const label = option?.label == null ? '' : String(option.label).trim();
+			if (!value || !label) continue;
+			lookup.set(value, label);
+		}
+
+		partLabelCache = {
+			loadedAt: Date.now(),
+			lookup,
+			inFlightPromise: null,
+		};
+
+		return lookup;
+	})()
+		.catch((error) => {
+			logger.warn('Failed to refresh Magento part label lookup', { error: error.message });
+			partLabelCache.inFlightPromise = null;
+			return partLabelCache.lookup.size ? partLabelCache.lookup : new Map();
+		});
+
+	return partLabelCache.inFlightPromise;
 }
 
 async function fetchMagentoInvoicesByOrderId({ baseUrl, token, orderId }) {
