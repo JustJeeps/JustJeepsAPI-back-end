@@ -74,7 +74,18 @@ env:
     # Database & Auth
     - DATABASE_URL
     - JWT_SECRET
-    # Email (Brevo HTTP API)
+    # Email providers & notifications
+    - EMAIL_PROVIDER
+    - EMAIL_FROM
+    - EMAIL_USER
+    - EMAIL_PASSWORD
+    - SMTP_HOST
+    - SMTP_PORT
+    - SMTP_SECURE
+    - SMTP_SERVICE
+    - SMTP_USER
+    - SMTP_PASSWORD
+    - SENDGRID_API_KEY
     - BREVO_API_KEY
     - BREVO_FROM
     - CRON_NOTIFICATION_EMAIL
