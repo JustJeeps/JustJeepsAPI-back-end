@@ -31,9 +31,10 @@ proxy:
   host: pricingtoolapi.justjeeps.com
   app_port: 8080
   response_timeout: 120
+  deploy_timeout: 120
   healthcheck:
     path: /api/health
-    interval: 3
+    interval: 10
     timeout: 30
 
 # =============================================================================

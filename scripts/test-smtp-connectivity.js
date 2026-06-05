@@ -38,6 +38,63 @@ async function main() {
   const port = config.port || null;
   const timeoutMs = config.connectionTimeout || 10000;
 
+  if (provider === 'brevo-api') {
+    const apiHost = 'api.brevo.com';
+    const apiPort = 443;
+    const apiKey = process.env.BREVO_API_KEY;
+
+    console.log('Email API config summary:');
+    console.log(JSON.stringify({
+      provider,
+      host: apiHost,
+      port: apiPort,
+      hasApiKey: Boolean(apiKey),
+      timeoutMs,
+    }, null, 2));
+
+    if (!apiKey) {
+      console.error('No BREVO_API_KEY configured for brevo-api mode.');
+      process.exitCode = 1;
+      return;
+    }
+
+    try {
+      const result = await dns.lookup(apiHost);
+      console.log(`DNS OK: ${apiHost} -> ${result.address}`);
+    } catch (error) {
+      console.error(`DNS ERROR: ${apiHost} -> ${error.message}`);
+      process.exitCode = 1;
+      return;
+    }
+
+    const tcp = await testTcpConnection(apiHost, apiPort, timeoutMs);
+    if (!tcp.ok) {
+      if (tcp.timeout) {
+        console.error(`TCP TIMEOUT: ${apiHost}:${apiPort} after ${tcp.durationMs}ms`);
+      } else {
+        console.error(`TCP ERROR: ${apiHost}:${apiPort} -> ${tcp.error}`);
+      }
+      process.exitCode = 1;
+      return;
+    }
+
+    console.log(`TCP OK: ${apiHost}:${apiPort} in ${tcp.durationMs}ms`);
+
+    try {
+      const response = await axios.get('https://api.brevo.com/v3/account', {
+        headers: { 'api-key': apiKey },
+        timeout: Number(process.env.EMAIL_API_TIMEOUT_MS || 15000),
+      });
+      console.log(`HTTP OK: GET /v3/account -> ${response.status}`);
+      return;
+    } catch (error) {
+      const status = error.response && error.response.status;
+      console.error(`HTTP ERROR: ${status || error.code || error.message}`);
+      process.exitCode = 1;
+      return;
+    }
+  }
+
   if (provider === 'sendgrid-api') {
     const apiHost = 'api.sendgrid.com';
     const apiPort = 443;

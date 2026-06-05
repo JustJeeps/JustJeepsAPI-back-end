@@ -42,9 +42,12 @@ const cronChildKillGraceMs = Number(process.env.CRON_CHILD_KILL_GRACE_MS || 1000
 const MAGENTO_STATUS_ALLOWED_USERS = new Set(['admin', 'jerry', 'tess', 'jacob', 'david']);
 const ORDER_CANCEL_ALLOWED_USERS = new Set(['tess']);
 const cronJobRegistry = new Map();
+let cronJobsRegistered = false;
 const cronHistoryFile = path.resolve(__dirname, 'logs', 'cron-job-history.json');
 const cronHistoryLookbackDays = Number(process.env.CRON_HISTORY_LOOKBACK_DAYS || 5);
 const cronHistoryRetentionDays = Number(process.env.CRON_HISTORY_RETENTION_DAYS || 30);
+const quickBooksPreloadEnabled = process.env.QB_LOOKUP_PRELOAD_ON_BOOT !== 'false';
+const quickBooksPreloadDelayMs = Number(process.env.QB_LOOKUP_PRELOAD_DELAY_MS || 60000);
 
 function getCronJobDefinitions() {
 	const jobs = [
@@ -424,13 +427,22 @@ const authRoutes = require('./routes/auth');
 const { authenticateToken, optionalAuth } = require('./middleware/auth');
 require('dotenv').config();
 
-try {
-	loadQuickBooksLookupData();
-	logger.info('QuickBooks customer lookup data loaded', getQuickBooksLookupMeta());
-} catch (error) {
-	logger.warn('QuickBooks customer lookup data failed to preload', {
-		error: error.message,
-	});
+function scheduleQuickBooksLookupPreload() {
+	if (!quickBooksPreloadEnabled) {
+		logger.info('QuickBooks lookup preload disabled via QB_LOOKUP_PRELOAD_ON_BOOT=false');
+		return;
+	}
+
+	setTimeout(() => {
+		try {
+			loadQuickBooksLookupData();
+			logger.info('QuickBooks customer lookup data loaded', getQuickBooksLookupMeta());
+		} catch (error) {
+			logger.warn('QuickBooks customer lookup data failed to preload', {
+				error: error.message,
+			});
+		}
+	}, quickBooksPreloadDelayMs);
 }
 
 // Use cors middleware
@@ -472,17 +484,32 @@ app.use('/api/auth', authRoutes);
 
 // Health check endpoint para Kamal/Load Balancer
 app.get('/api/health', async (req, res) => {
+	// Liveness endpoint: stays healthy while process is running.
+	res.status(200).json({
+		status: 'healthy',
+		timestamp: new Date().toISOString(),
+		uptime: process.uptime(),
+	});
+});
+
+// Readiness endpoint with DB check for diagnostics/monitoring.
+app.get('/api/health/db', async (req, res) => {
 	try {
-		// Verifica conexao com o banco
 		await prisma.$queryRaw`SELECT 1`;
 		res.status(200).json({
 			status: 'healthy',
+			dependencies: {
+				database: 'up',
+			},
 			timestamp: new Date().toISOString(),
 			uptime: process.uptime(),
 		});
 	} catch (error) {
 		res.status(503).json({
-			status: 'unhealthy',
+			status: 'degraded',
+			dependencies: {
+				database: 'down',
+			},
 			error: 'Database connection failed',
 			timestamp: new Date().toISOString(),
 		});
@@ -3313,14 +3340,22 @@ function registerCommandCronJob({
 }
 
 function registerCronJobs() {
+	if (cronJobsRegistered) {
+		logger.warn('Cron jobs already registered; skipping duplicate initialization');
+		return;
+	}
+
 	if (!cronEnabled) {
 		logger.info('Cron jobs disabled via CRON_ENABLED=false');
+		cronJobsRegistered = true;
 		return;
 	}
 
 	for (const definition of getCronJobDefinitions()) {
 		registerCommandCronJob(definition);
 	}
+
+	cronJobsRegistered = true;
 
 	if (!testCronEnabled) {
 		logger.info('Test cron job disabled via CRON_TEST_ENABLED=false');
@@ -3344,4 +3379,5 @@ app.listen(PORT, () => {
 		console.log('🕐 [CRON] Cron jobs disabled via CRON_ENABLED=false');
 	}
 	console.log('📧 [EMAIL] Notifications will be sent to:', process.env.CRON_NOTIFICATION_EMAIL || 'tsantos@justjeeps.com');
+	scheduleQuickBooksLookupPreload();
 });
