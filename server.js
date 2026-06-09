@@ -2187,6 +2187,8 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 		const magentoBaseUrl = resolveMagentoBaseUrl();
 		let selectedInvoiceId = null;
 		let selectedInvoiceIncrementId = null;
+		let orderCancelledInMagento = false;
+		let cancellationTicketSent = false;
 
 		try {
 			const invoices = await fetchMagentoInvoicesByOrderId({
@@ -2237,21 +2239,8 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 					token,
 					orderId,
 				});
+				orderCancelledInMagento = true;
 				completedActions.push('Order cancelled');
-			}
-
-			if (!dryRun) {
-				try {
-					await prisma.order.update({
-						where: { entity_id: orderId },
-						data: { status: 'canceled' },
-					});
-				} catch (dbUpdateError) {
-					logger.warn('Order canceled in Magento but failed to update local status', {
-						orderId,
-						error: dbUpdateError.message,
-					});
-				}
 			}
 		} catch (cancelError) {
 			failedActions.push({
@@ -2270,6 +2259,7 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 					token,
 					orderId,
 				});
+				cancellationTicketSent = true;
 				completedActions.push('Cancellation ticket created and sent');
 			}
 		} catch (ticketError) {
@@ -2282,6 +2272,27 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 				statusCode: ticketError?.response?.status || null,
 			});
 			manualActionsStillRequired.push('Create and send cancellation ticket');
+		}
+
+		if (!dryRun && (orderCancelledInMagento || cancellationTicketSent)) {
+			try {
+				await prisma.order.update({
+					where: { entity_id: orderId },
+					data: { status: 'canceled' },
+				});
+				if (!orderCancelledInMagento && cancellationTicketSent) {
+					informationalActions.push(
+						'Magento cancel did not complete, but local status was marked canceled because the cancellation ticket was sent'
+					);
+				}
+			} catch (dbUpdateError) {
+				logger.warn('Failed to update local order status after cancellation workflow', {
+					orderId,
+					error: dbUpdateError.message,
+					orderCancelledInMagento,
+					cancellationTicketSent,
+				});
+			}
 		}
 
 		return res.json({
