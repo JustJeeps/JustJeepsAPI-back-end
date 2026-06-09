@@ -2137,7 +2137,6 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 		'Delete invoice',
 		'Update PO Number',
 		'Update Custom Ship Status',
-		'Create and send cancellation ticket',
 	];
 
 	const completedActions = [];
@@ -2282,6 +2281,7 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 					ticketError.message,
 				statusCode: ticketError?.response?.status || null,
 			});
+			manualActionsStillRequired.push('Create and send cancellation ticket');
 		}
 
 		return res.json({
