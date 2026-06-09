@@ -2161,22 +2161,44 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 
 		const dryRun = req.body?.dryRun === true || String(req.query?.dryRun || '').toLowerCase() === 'true';
 
-		const orderId = Number(req.params.id);
-		if (!Number.isFinite(orderId) || orderId <= 0) {
-			return res.status(400).json({ error: 'Invalid order id' });
+		const routeOrderIdentifier = String(req.params.id || '').trim();
+		if (!routeOrderIdentifier) {
+			return res.status(400).json({ error: 'Invalid order identifier' });
 		}
 
-		const order = await prisma.order.findUnique({
-			where: { entity_id: orderId },
-			select: {
-				entity_id: true,
-				increment_id: true,
-				status: true,
-			},
-		});
+		const numericOrderIdentifier = Number(routeOrderIdentifier);
+		const isNumericIdentifier = Number.isFinite(numericOrderIdentifier) && numericOrderIdentifier > 0;
+
+		let order = null;
+		if (isNumericIdentifier) {
+			order = await prisma.order.findUnique({
+				where: { entity_id: numericOrderIdentifier },
+				select: {
+					entity_id: true,
+					increment_id: true,
+					status: true,
+				},
+			});
+		}
 
 		if (!order) {
-			return res.status(404).json({ error: `Order ${orderId} not found` });
+			order = await prisma.order.findFirst({
+				where: { increment_id: routeOrderIdentifier },
+				select: {
+					entity_id: true,
+					increment_id: true,
+					status: true,
+				},
+			});
+		}
+
+		if (!order) {
+			return res.status(404).json({ error: `Order ${routeOrderIdentifier} not found` });
+		}
+
+		const magentoOrderEntityId = Number(order.entity_id);
+		if (!Number.isFinite(magentoOrderEntityId) || magentoOrderEntityId <= 0) {
+			return res.status(500).json({ error: 'Resolved order is missing a valid Magento entity id' });
 		}
 
 		const token = process.env.MAGENTO_KEY;
@@ -2194,7 +2216,7 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 			const invoices = await fetchMagentoInvoicesByOrderId({
 				baseUrl: magentoBaseUrl,
 				token,
-				orderId,
+				orderId: magentoOrderEntityId,
 			});
 
 			if (!invoices.length) {
@@ -2237,7 +2259,7 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 				await cancelMagentoOrder({
 					baseUrl: magentoBaseUrl,
 					token,
-					orderId,
+					orderId: magentoOrderEntityId,
 				});
 				orderCancelledInMagento = true;
 				completedActions.push('Order cancelled');
@@ -2257,7 +2279,7 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 				await createMagentoCancellationTicket({
 					baseUrl: magentoBaseUrl,
 					token,
-					orderId,
+					orderId: magentoOrderEntityId,
 				});
 				cancellationTicketSent = true;
 				completedActions.push('Cancellation ticket created and sent');
@@ -2277,7 +2299,7 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 		if (!dryRun && (orderCancelledInMagento || cancellationTicketSent)) {
 			try {
 				await prisma.order.update({
-					where: { entity_id: orderId },
+					where: { entity_id: magentoOrderEntityId },
 					data: { status: 'canceled' },
 				});
 				if (!orderCancelledInMagento && cancellationTicketSent) {
@@ -2287,7 +2309,7 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 				}
 			} catch (dbUpdateError) {
 				logger.warn('Failed to update local order status after cancellation workflow', {
-					orderId,
+					orderId: magentoOrderEntityId,
 					error: dbUpdateError.message,
 					orderCancelledInMagento,
 					cancellationTicketSent,
@@ -2298,7 +2320,8 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 		return res.json({
 			success: failedActions.length === 0 && completedActions.length > 0,
 			dryRun,
-			orderId,
+			orderId: magentoOrderEntityId,
+			requestedOrderIdentifier: routeOrderIdentifier,
 			incrementId: order.increment_id,
 			invoice: selectedInvoiceId
 				? {
