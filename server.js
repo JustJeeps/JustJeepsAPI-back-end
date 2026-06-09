@@ -1438,6 +1438,11 @@ async function cancelMagentoOrder({ baseUrl, token, orderId }) {
 	return axios.post(endpoint, {}, buildMagentoRequestConfig(token));
 }
 
+async function createMagentoCancellationTicket({ baseUrl, token, orderId }) {
+	const endpoint = `${baseUrl}/rest/V1/jwa-order-cancel/orders/${encodeURIComponent(String(orderId))}/ticket`;
+	return axios.post(endpoint, {}, buildMagentoRequestConfig(token));
+}
+
 app.get('/brands', async (req, res) => {
 	try {
 		const uniqueBrandNames = await prisma.product.findMany({
@@ -2254,6 +2259,28 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 				action: 'Cancel order',
 				message: cancelError?.response?.data?.message || cancelError?.response?.data || cancelError.message,
 				statusCode: cancelError?.response?.status || null,
+			});
+		}
+
+		try {
+			if (dryRun) {
+				completedActions.push('Dry run: cancellation ticket would be created and sent');
+			} else {
+				await createMagentoCancellationTicket({
+					baseUrl: magentoBaseUrl,
+					token,
+					orderId,
+				});
+				completedActions.push('Cancellation ticket created and sent');
+			}
+		} catch (ticketError) {
+			failedActions.push({
+				action: 'Create and send cancellation ticket',
+				message:
+					ticketError?.response?.data?.message ||
+					ticketError?.response?.data ||
+					ticketError.message,
+				statusCode: ticketError?.response?.status || null,
 			});
 		}
 
