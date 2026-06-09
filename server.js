@@ -1438,6 +1438,12 @@ async function cancelMagentoOrder({ baseUrl, token, orderId }) {
 	return axios.post(endpoint, {}, buildMagentoRequestConfig(token));
 }
 
+async function fetchMagentoOrderById({ baseUrl, token, orderId }) {
+	const endpoint = `${baseUrl}/rest/V1/orders/${encodeURIComponent(String(orderId))}`;
+	const response = await axios.get(endpoint, buildMagentoRequestConfig(token));
+	return response?.data || null;
+}
+
 async function createMagentoCancellationTicket({ baseUrl, token, orderId }) {
 	const endpoint = `${baseUrl}/rest/V1/jwa-order-cancel/orders/${encodeURIComponent(String(orderId))}/ticket`;
 	return axios.post(endpoint, {}, buildMagentoRequestConfig(token));
@@ -2211,6 +2217,8 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 		let selectedInvoiceIncrementId = null;
 		let orderCancelledInMagento = false;
 		let cancellationTicketSent = false;
+		let localStatusUpdated = false;
+		let localStatusUpdateError = null;
 
 		try {
 			const invoices = await fetchMagentoInvoicesByOrderId({
@@ -2261,8 +2269,25 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 					token,
 					orderId: magentoOrderEntityId,
 				});
-				orderCancelledInMagento = true;
-				completedActions.push('Order cancelled');
+
+				const magentoOrderAfterCancel = await fetchMagentoOrderById({
+					baseUrl: magentoBaseUrl,
+					token,
+					orderId: magentoOrderEntityId,
+				});
+				const magentoStatusAfterCancel = String(magentoOrderAfterCancel?.status || '').toLowerCase();
+				const isMagentoCanceled = magentoStatusAfterCancel.includes('cancel');
+
+				if (isMagentoCanceled) {
+					orderCancelledInMagento = true;
+					completedActions.push('Order cancelled');
+				} else {
+					failedActions.push({
+						action: 'Cancel order',
+						message: `Magento cancel endpoint returned but order status remains ${magentoOrderAfterCancel?.status || 'unknown'}`,
+						statusCode: null,
+					});
+				}
 			}
 		} catch (cancelError) {
 			failedActions.push({
@@ -2302,12 +2327,19 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 					where: { entity_id: magentoOrderEntityId },
 					data: { status: 'canceled' },
 				});
+				localStatusUpdated = true;
 				if (!orderCancelledInMagento && cancellationTicketSent) {
 					informationalActions.push(
 						'Magento cancel did not complete, but local status was marked canceled because the cancellation ticket was sent'
 					);
 				}
 			} catch (dbUpdateError) {
+				localStatusUpdateError = dbUpdateError.message;
+				failedActions.push({
+					action: 'Update local order status',
+					message: dbUpdateError.message,
+					statusCode: null,
+				});
 				logger.warn('Failed to update local order status after cancellation workflow', {
 					orderId: magentoOrderEntityId,
 					error: dbUpdateError.message,
@@ -2332,6 +2364,8 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 			completedActions,
 			failedActions,
 			informationalActions,
+			localStatusUpdated,
+			localStatusUpdateError,
 			manualActionsStillRequired,
 		});
 	} catch (error) {
