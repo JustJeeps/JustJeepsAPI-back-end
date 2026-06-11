@@ -487,6 +487,12 @@ function safeFloat(value) {
   return Number.isFinite(num) ? num : null;
 }
 
+function shouldRemoveMeyerVendor(item) {
+  const partStatus = String(item?.PartStatus || "").trim().toLowerCase();
+  const qtyAvailable = safeFloat(item?.QtyAvailable);
+  return partStatus === "discontinued" && qtyAvailable === 0;
+}
+
 function escapeSqlString(value) {
   return String(value).replace(/\\/g, "\\\\").replace(/'/g, "''");
 }
@@ -523,6 +529,7 @@ const seedMeyerVendorProducts = async () => {
     console.time("seed-meyer total");
     let vendorProductCreatedCount = 0;
     let vendorProductUpdatedCount = 0;
+    let vendorProductRemovedCount = 0;
     const batchSize = Number(process.env.SEED_MEYER_DB_BATCH_SIZE || 500);
 
 
@@ -618,7 +625,21 @@ SELECT
       };
     };
 
+    const flushDeleteBatch = async (productSkus) => {
+      if (!productSkus.length) return 0;
+
+      const res = await prisma.vendorProduct.deleteMany({
+        where: {
+          vendor_id: 2,
+          product_sku: { in: productSkus },
+        },
+      });
+
+      return Number(res?.count || 0);
+    };
+
     let dbBuffer = [];
+    const deleteSkuSet = new Set();
 
     // Loop through the vendorProductsData array and create/update vendor seproducts
     for (const data of vendorProductsData) {
@@ -635,6 +656,12 @@ SELECT
         const productSku = meyerToProductSku.get(item.ItemNumber);
         if (!productSku) {
           console.error(`Product not found for meyer_code: ${item.ItemNumber}`);
+          continue;
+        }
+
+        if (shouldRemoveMeyerVendor(item)) {
+          deleteSkuSet.add(productSku);
+          dbBuffer = dbBuffer.filter((row) => row.product_sku !== productSku);
           continue;
         }
 
@@ -679,9 +706,19 @@ SELECT
       dbBuffer = [];
     }
 
+    if (deleteSkuSet.size) {
+      const deleteSkus = Array.from(deleteSkuSet);
+      for (let i = 0; i < deleteSkus.length; i += batchSize) {
+        const skuBatch = deleteSkus.slice(i, i + batchSize);
+        const deleted = await flushDeleteBatch(skuBatch);
+        vendorProductRemovedCount += deleted;
+      }
+    }
+
     console.log(`Meyer vendor products seeded successfully! 
       Total vendor products created: ${vendorProductCreatedCount}
-      Total vendor products updated: ${vendorProductUpdatedCount}`);
+      Total vendor products updated: ${vendorProductUpdatedCount}
+      Total vendor products removed (discontinued + zero qty): ${vendorProductRemovedCount}`);
 
   } catch (error) {
     console.error("Error seeding vendor products from Meyer:", error);
