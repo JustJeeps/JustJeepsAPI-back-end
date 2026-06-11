@@ -74,6 +74,8 @@
     "update-alpine-cad-map-prices": "node pricing_update/cad_store/update-alpine-map-cad-store.js",
     "update-warn-cad-map-prices": "node pricing_update/cad_store/update-warn-map-cad-store.js",
     "update-teraflex-cad-map-prices": "node pricing_update/cad_store/update-teraflex-map-cad-store.js",
+    "update-cad-store-prices-from-csv": "node pricing_update/cad_store/update-prices-from-csv-cad-store.js",
+    "update-cad-store-prices-from-csv-live": "node pricing_update/cad_store/update-prices-from-csv-cad-store.js --live",
     "magento-bf-no-sale": "node magento_update/update-black-friday-no-sale.js",
 
     "seed-attribute-magento": "node prisma/seeds/seed-individual/seed-attribute-magento.js",
