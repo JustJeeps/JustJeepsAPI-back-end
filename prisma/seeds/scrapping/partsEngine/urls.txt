@@ -21700,7 +21700,6 @@ https://www.partsengine.ca/WB12K-SR-vp-dv8-offroad-911.aspx
 https://www.partsengine.ca/WB12SC-vp-dv8-offroad-911.aspx
 https://www.partsengine.ca/WB12SR-vp-dv8-offroad-911.aspx
 https://www.partsengine.ca/WBPF-01-vp-dv8-offroad-911.aspx
-https://www.partsengine.ca/WHS12-vp-dv8-offroad-911.aspx
 https://www.partsengine.ca/WIRE-HARNESS-vp-dv8-offroad-911.aspx
 https://www.partsengine.ca/14234-1-vp-eaton-584.aspx
 https://www.partsengine.ca/14244-1-vp-eaton-584.aspx
@@ -43078,7 +43077,6 @@ https://www.partsengine.ca/76610-vp-rampage-118.aspx
 https://www.partsengine.ca/7686-vp-rampage-118.aspx
 https://www.partsengine.ca/768701-vp-rampage-118.aspx
 https://www.partsengine.ca/768715-vp-rampage-118.aspx
-https://www.partsengine.ca/768915-vp-rampage-118.aspx
 https://www.partsengine.ca/769015-vp-rampage-118.aspx
 https://www.partsengine.ca/769301-vp-rampage-118.aspx
 https://www.partsengine.ca/7699-vp-rampage-118.aspx
@@ -45780,7 +45778,6 @@ https://www.partsengine.ca/X47527-vp-rtx-150.aspx
 https://www.partsengine.ca/JL7141-vp-rubicon-express-429.aspx
 https://www.partsengine.ca/RE1156-vp-rubicon-express-429.aspx
 https://www.partsengine.ca/RE1157-vp-rubicon-express-429.aspx
-https://www.partsengine.ca/RE1171-vp-rubicon-express-429.aspx
 https://www.partsengine.ca/RE1175-vp-rubicon-express-429.aspx
 https://www.partsengine.ca/RE1184-vp-rubicon-express-429.aspx
 https://www.partsengine.ca/RE1195-vp-rubicon-express-429.aspx
@@ -47812,10 +47809,6 @@ https://www.partsengine.ca/4627400-vp-teraflex-283.aspx
 https://www.partsengine.ca/4637310-vp-teraflex-283.aspx
 https://www.partsengine.ca/4638420-vp-teraflex-283.aspx
 https://www.partsengine.ca/4648403-vp-teraflex-283.aspx
-https://www.partsengine.ca/4653100-vp-teraflex-283.aspx
-https://www.partsengine.ca/4653120-vp-teraflex-283.aspx
-https://www.partsengine.ca/4653200-vp-teraflex-283.aspx
-https://www.partsengine.ca/4654100-vp-teraflex-283.aspx
 https://www.partsengine.ca/4654500-vp-teraflex-283.aspx
 https://www.partsengine.ca/4655100-vp-teraflex-283.aspx
 https://www.partsengine.ca/4655200-vp-teraflex-283.aspx

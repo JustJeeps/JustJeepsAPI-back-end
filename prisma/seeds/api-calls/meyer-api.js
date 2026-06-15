@@ -116,9 +116,20 @@ function isBestopMeyerCode(value) {
   return (value ?? "").toString().toUpperCase().startsWith("BES");
 }
 
+function isAirbedzMeyerCode(value) {
+  return (value ?? "").toString().toUpperCase().startsWith("ABZPPI-");
+}
+
 function bestopDashlessFallback(value) {
   const raw = (value ?? "").toString().toUpperCase().trim();
   if (!raw || !isBestopMeyerCode(raw)) return null;
+  const dashless = raw.replace(/-/g, "");
+  return dashless !== raw ? dashless : null;
+}
+
+function airbedzDashlessFallback(value) {
+  const raw = (value ?? "").toString().toUpperCase().trim();
+  if (!raw || !isAirbedzMeyerCode(raw)) return null;
   const dashless = raw.replace(/-/g, "");
   return dashless !== raw ? dashless : null;
 }
@@ -256,15 +267,18 @@ const MeyerCost = async () => {
           mergedByItemNumber.set(key, item);
         }
 
-        const missingBestopFallbacks = itemNumbers
+        const missingFallbackCandidates = itemNumbers
           .filter((itemNumber) => !mergedByItemNumber.has(normalizeItemNumber(itemNumber)))
-          .map(bestopDashlessFallback)
+          .flatMap((itemNumber) => [
+            bestopDashlessFallback(itemNumber),
+            airbedzDashlessFallback(itemNumber),
+          ])
           .filter((fallbackCode) => fallbackCode && !mergedByItemNumber.has(normalizeItemNumber(fallbackCode)));
 
-        if (missingBestopFallbacks.length > 0) {
-          const uniqueFallbacks = Array.from(new Set(missingBestopFallbacks));
+        if (missingFallbackCandidates.length > 0) {
+          const uniqueFallbacks = Array.from(new Set(missingFallbackCandidates));
           console.log(
-            `Batch ${i + 1}: retrying ${uniqueFallbacks.length} missing BST/BES item(s) without dashes...`
+            `Batch ${i + 1}: retrying ${uniqueFallbacks.length} missing item(s) with dashless fallback (BES/ABZPPI)...`
           );
 
           const fallbackChunks = chunkArray(uniqueFallbacks, 100);

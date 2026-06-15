@@ -40,7 +40,8 @@ const testCronLogFile = process.env.CRON_TEST_LOG_FILE || `prisma/seeds/logs/${t
 const cronChildTimeoutMs = Number(process.env.CRON_CHILD_TIMEOUT_MS || 6 * 60 * 60 * 1000);
 const cronChildKillGraceMs = Number(process.env.CRON_CHILD_KILL_GRACE_MS || 10000);
 const MAGENTO_STATUS_ALLOWED_USERS = new Set(['admin', 'jerry', 'tess', 'jacob', 'david']);
-const ORDER_CANCEL_ALLOWED_USERS = new Set(['tess']);
+const ORDER_CANCEL_EXECUTE_ALLOWED_USERS = new Set(['tess', 'jerry', 'jacob']);
+const ORDER_CANCEL_DRY_RUN_ALLOWED_USERS = new Set(['tess']);
 const cronJobRegistry = new Map();
 let cronJobsRegistered = false;
 const cronHistoryFile = path.resolve(__dirname, 'logs', 'cron-job-history.json');
@@ -1428,8 +1429,8 @@ async function fetchMagentoInvoicesByOrderId({ baseUrl, token, orderId }) {
 	return items.sort((a, b) => Number(b?.entity_id || 0) - Number(a?.entity_id || 0));
 }
 
-async function voidMagentoInvoice({ baseUrl, token, invoiceId }) {
-	const endpoint = `${baseUrl}/rest/V1/invoices/${encodeURIComponent(String(invoiceId))}/void`;
+async function voidDeleteMagentoInvoiceByOrderId({ baseUrl, token, orderId }) {
+	const endpoint = `${baseUrl}/rest/V1/jwa-order-cancel/orders/${encodeURIComponent(String(orderId))}/void-delete-invoice`;
 	return axios.post(endpoint, {}, buildMagentoRequestConfig(token));
 }
 
@@ -2140,7 +2141,6 @@ app.get('/api/orders/:id', async (req, res) => {
 
 app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 	const manualActionsStillRequired = [
-		'Delete invoice',
 		'Update PO Number',
 		'Update Custom Ship Status',
 	];
@@ -2158,7 +2158,7 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 		}
 
 		const requesterUsername = (req.user?.username || '').toLowerCase();
-		if (!ORDER_CANCEL_ALLOWED_USERS.has(requesterUsername)) {
+		if (!ORDER_CANCEL_EXECUTE_ALLOWED_USERS.has(requesterUsername)) {
 			return res.status(403).json({
 				error: 'Forbidden',
 				message: 'You are not authorized to use order cancellation workflow',
@@ -2166,6 +2166,12 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 		}
 
 		const dryRun = req.body?.dryRun === true || String(req.query?.dryRun || '').toLowerCase() === 'true';
+		if (dryRun && !ORDER_CANCEL_DRY_RUN_ALLOWED_USERS.has(requesterUsername)) {
+			return res.status(403).json({
+				error: 'Forbidden',
+				message: 'You are not authorized to use dry run for order cancellation workflow',
+			});
+		}
 
 		const routeOrderIdentifier = String(req.params.id || '').trim();
 		if (!routeOrderIdentifier) {
@@ -2215,6 +2221,7 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 		const magentoBaseUrl = resolveMagentoBaseUrl();
 		let selectedInvoiceId = null;
 		let selectedInvoiceIncrementId = null;
+		let invoiceVoidDeleteCompleted = false;
 		let orderCancelledInMagento = false;
 		let cancellationTicketSent = false;
 		let localStatusUpdated = false;
@@ -2228,36 +2235,41 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 			});
 
 			if (!invoices.length) {
-				informationalActions.push('No invoice found to void');
+				informationalActions.push('No existing invoice found before void-delete attempt');
 			} else {
 				selectedInvoiceId = invoices[0]?.entity_id;
 				selectedInvoiceIncrementId = invoices[0]?.increment_id || null;
-				if (dryRun) {
-					completedActions.push(
-						selectedInvoiceIncrementId
-							? `Dry run: invoice #${selectedInvoiceIncrementId} found (entity id ${selectedInvoiceId}, would be voided)`
-							: `Dry run: invoice entity id ${selectedInvoiceId} found (would be voided)`
-					);
-				} else {
-					await voidMagentoInvoice({
-						baseUrl: magentoBaseUrl,
-						token,
-						invoiceId: selectedInvoiceId,
-					});
-					completedActions.push(
-						selectedInvoiceIncrementId
-							? `Invoice #${selectedInvoiceIncrementId} voided`
-							: `Invoice entity id ${selectedInvoiceId} voided`
-					);
-				}
 			}
-		} catch (voidError) {
+		} catch (invoiceLookupError) {
+			informationalActions.push(
+				`Unable to pre-fetch invoice metadata before void-delete attempt: ${invoiceLookupError?.response?.data?.message || invoiceLookupError?.response?.data || invoiceLookupError.message}`
+			);
+		}
+
+		try {
+			if (dryRun) {
+				completedActions.push('Dry run: invoice would be voided/deleted via order-level endpoint');
+			} else {
+				await voidDeleteMagentoInvoiceByOrderId({
+					baseUrl: magentoBaseUrl,
+					token,
+					orderId: magentoOrderEntityId,
+				});
+				invoiceVoidDeleteCompleted = true;
+				completedActions.push(
+					selectedInvoiceIncrementId
+						? `Invoice #${selectedInvoiceIncrementId} voided/deleted`
+						: 'Invoice void/delete request completed'
+				);
+			}
+		} catch (voidDeleteError) {
 			failedActions.push({
-				action: 'Void invoice',
-				message: voidError?.response?.data?.message || voidError?.response?.data || voidError.message,
-				statusCode: voidError?.response?.status || null,
+				action: 'Void and delete invoice',
+				message: voidDeleteError?.response?.data?.message || voidDeleteError?.response?.data || voidDeleteError.message,
+				statusCode: voidDeleteError?.response?.status || null,
 				invoiceId: selectedInvoiceId,
 			});
+			manualActionsStillRequired.push('Void and delete invoice');
 		}
 
 		try {
@@ -2321,7 +2333,7 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 			manualActionsStillRequired.push('Create and send cancellation ticket');
 		}
 
-		if (!dryRun && (orderCancelledInMagento || cancellationTicketSent)) {
+		if (!dryRun && (invoiceVoidDeleteCompleted || orderCancelledInMagento || cancellationTicketSent)) {
 			try {
 				await prisma.order.update({
 					where: { entity_id: magentoOrderEntityId },

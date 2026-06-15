@@ -83,7 +83,8 @@
     "seed-metalcloak": "node prisma/seeds/metalcloak-integration.js",
     "db:check-connections": "node scripts/check-db-connections.js",
     "db:kill-seeds": "pkill -f 'prisma/seeds' || true",
-    "backfill-sales-rep": "node scripts/backfill-sales-rep-labels.js"
+    "backfill-sales-rep": "node scripts/backfill-sales-rep-labels.js",
+    "orders:find-cancel-test": "node scripts/find-cancel-workflow-test-orders.js"
   },
   "repository": {
     "type": "git",
