@@ -852,6 +852,12 @@ app.get('/api/products', async (req, res) => {
 app.get('/api/products/export', async (req, res) => {
 	try {
 		const brand = req.query.brand ? decodeURIComponent(req.query.brand) : null;
+		const useLivePrice = !['0', 'false', 'no'].includes(
+			String(req.query.livePrice ?? '0').toLowerCase()
+		);
+		const livePriceStoreId = Number.isInteger(Number(req.query.livePriceStoreId))
+			? Number(req.query.livePriceStoreId)
+			: 1;
 
 		// Build where clause for brand filter
 		const where = brand ? { brand_name: brand } : {};
@@ -920,10 +926,51 @@ app.get('/api/products/export', async (req, res) => {
 		const partLookup = await getMagentoPartLabelLookup();
 		const mappedProducts = mapProductsPartLabels(products, partLookup);
 
+		let exportProducts = mappedProducts;
+		let livePriceStats = {
+			requested: 0,
+			resolved: 0,
+			failedBatches: 0,
+			storeId: livePriceStoreId,
+			enabled: false,
+		};
+
+		if (useLivePrice && process.env.MAGENTO_KEY) {
+			const {
+				bySku,
+				requestedSkuCount,
+				resolvedSkuCount,
+				failedBatches,
+			} = await fetchMagentoBasePricesBySkus({
+				skus: mappedProducts.map((product) => product.sku),
+				storeId: livePriceStoreId,
+			});
+
+			exportProducts = mappedProducts.map((product) => {
+				const livePrice = bySku.get(product.sku);
+				const hasLivePrice = Number.isFinite(livePrice);
+				return {
+					...product,
+					price_db: product.price,
+					price: hasLivePrice ? livePrice : product.price,
+					price_source: hasLivePrice ? `magento_store_${livePriceStoreId}` : 'db',
+				};
+			});
+
+			livePriceStats = {
+				requested: requestedSkuCount,
+				resolved: resolvedSkuCount,
+				failedBatches,
+				storeId: livePriceStoreId,
+				enabled: true,
+			};
+		}
+
 		res.json({
-			products: mappedProducts,
-			total: mappedProducts.length,
-			brand: brand || 'all'
+			products: exportProducts,
+			total: exportProducts.length,
+			brand: brand || 'all',
+			livePrice: livePriceStats,
 		});
 	} catch (error) {
 		console.log(error);
@@ -1141,6 +1188,77 @@ function resolveMagentoBaseUrl() {
 	}
 
 	return configured.replace(/\/$/, '');
+}
+
+function chunkArray(items, size) {
+	const safeSize = Number(size) > 0 ? Number(size) : 500;
+	const out = [];
+	for (let i = 0; i < items.length; i += safeSize) {
+		out.push(items.slice(i, i + safeSize));
+	}
+	return out;
+}
+
+async function fetchMagentoBasePricesBySkus({ skus, storeId = 1 }) {
+	const token = process.env.MAGENTO_KEY;
+	const normalizedStoreId = Number.isInteger(Number(storeId)) ? Number(storeId) : 1;
+	const uniqueSkus = Array.from(
+		new Set((skus || []).map((v) => String(v || '').trim()).filter(Boolean))
+	);
+
+	if (!token || uniqueSkus.length === 0) {
+		return {
+			bySku: new Map(),
+			requestedSkuCount: uniqueSkus.length,
+			resolvedSkuCount: 0,
+			failedBatches: 0,
+		};
+	}
+
+	const bySku = new Map();
+	let failedBatches = 0;
+	const magentoBaseUrl = resolveMagentoBaseUrl();
+	const endpoint = `${magentoBaseUrl}/rest/default/V1/products/base-prices-information`;
+	const batches = chunkArray(uniqueSkus, Number(process.env.MAGENTO_PRICE_LOOKUP_BATCH || 500));
+
+	for (const batch of batches) {
+		try {
+			const response = await axios.post(
+				endpoint,
+				{ skus: batch },
+				{
+					headers: {
+						Authorization: `Bearer ${token}`,
+						'Content-Type': 'application/json',
+					},
+					timeout: Number(process.env.MAGENTO_TIMEOUT_MS || 20000),
+				}
+			);
+
+			const rows = Array.isArray(response.data) ? response.data : [];
+			for (const row of rows) {
+				const sku = String(row?.sku || '').trim();
+				const rowStoreId = Number(row?.store_id);
+				const price = Number(row?.price);
+				if (!sku || rowStoreId !== normalizedStoreId || !Number.isFinite(price)) continue;
+				bySku.set(sku, price);
+			}
+		} catch (error) {
+			failedBatches += 1;
+			logger.warn('Magento base-prices-information lookup batch failed during export', {
+				status: error.response?.status || null,
+				message: error.response?.data?.message || error.message,
+				batchSize: batch.length,
+			});
+		}
+	}
+
+	return {
+		bySku,
+		requestedSkuCount: uniqueSkus.length,
+		resolvedSkuCount: bySku.size,
+		failedBatches,
+	};
 }
 
 async function setMagentoProductStatusByStoreView({ baseUrl, token, sku, status, storeViewCode }) {
