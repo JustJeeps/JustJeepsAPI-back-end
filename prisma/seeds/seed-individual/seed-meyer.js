@@ -530,6 +530,9 @@ const seedMeyerVendorProducts = async () => {
     let vendorProductCreatedCount = 0;
     let vendorProductUpdatedCount = 0;
     let vendorProductRemovedCount = 0;
+    let vendorProductDeleteCandidateSkuCount = 0;
+    let vendorProductDeleteRowsBeforeCount = 0;
+    let vendorProductRemovedSkus = [];
     const batchSize = Number(process.env.SEED_MEYER_DB_BATCH_SIZE || 500);
 
 
@@ -708,6 +711,27 @@ SELECT
 
     if (deleteSkuSet.size) {
       const deleteSkus = Array.from(deleteSkuSet);
+      vendorProductDeleteCandidateSkuCount = deleteSkus.length;
+
+      // Capture exactly which product_sku rows currently exist and are eligible to be deleted now.
+      const rowsToDelete = await prisma.vendorProduct.findMany({
+        where: {
+          vendor_id: 2,
+          product_sku: { in: deleteSkus },
+        },
+        select: {
+          product_sku: true,
+        },
+      });
+      vendorProductRemovedSkus = rowsToDelete.map((row) => row.product_sku);
+
+      vendorProductDeleteRowsBeforeCount = await prisma.vendorProduct.count({
+        where: {
+          vendor_id: 2,
+          product_sku: { in: deleteSkus },
+        },
+      });
+
       for (let i = 0; i < deleteSkus.length; i += batchSize) {
         const skuBatch = deleteSkus.slice(i, i + batchSize);
         const deleted = await flushDeleteBatch(skuBatch);
@@ -718,7 +742,18 @@ SELECT
     console.log(`Meyer vendor products seeded successfully! 
       Total vendor products created: ${vendorProductCreatedCount}
       Total vendor products updated: ${vendorProductUpdatedCount}
-      Total vendor products removed (discontinued + zero qty): ${vendorProductRemovedCount}`);
+      Total discontinued+zero candidate SKUs: ${vendorProductDeleteCandidateSkuCount}
+      Total rows matched before delete: ${vendorProductDeleteRowsBeforeCount}
+      Total vendor products removed this run (discontinued + zero qty): ${vendorProductRemovedCount}`);
+
+    console.log(`Removed product_sku list this run (${vendorProductRemovedSkus.length}):`);
+    if (vendorProductRemovedSkus.length) {
+      for (const sku of vendorProductRemovedSkus) {
+        console.log(` - ${sku}`);
+      }
+    } else {
+      console.log(" - none");
+    }
 
   } catch (error) {
     console.error("Error seeding vendor products from Meyer:", error);

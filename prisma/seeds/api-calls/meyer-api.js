@@ -310,7 +310,9 @@ const MeyerCost = async () => {
 
     console.timeEnd("Overall execution time");
 
-    console.log(flattenedResponses);
+    if (process.env.MEYER_DEBUG_DUMP === "1" || process.env.MEYER_DEBUG_DUMP === "true") {
+      console.log(flattenedResponses);
+    }
     return flattenedResponses;
   } catch (error) {
     console.log(error);
