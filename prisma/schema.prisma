@@ -144,6 +144,7 @@ model VendorProduct {
   manufacturer_sku        String?
   vendor_retail_price_usd Float?
   vendor_cost_usd         Float?
+  quadratec_shipping_surcharge_usd Float?
   orderProducts           OrderProduct[]
   product                 Product        @relation(fields: [product_sku], references: [sku], onDelete: Cascade)
   vendor                  Vendor         @relation(fields: [vendor_id], references: [id])

@@ -607,7 +607,7 @@ module.exports = [
   },
   {
     jj_prefix: "BIL",
-    brand_name: "Bilstein",
+    brand_name: "Bilstein"
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "B52",
     meyer_code: "BIL",

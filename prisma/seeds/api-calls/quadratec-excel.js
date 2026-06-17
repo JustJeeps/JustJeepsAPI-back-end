@@ -5,6 +5,24 @@ function normalizeText(value) {
   return (value ?? "").toString().trim();
 }
 
+function parseMoney(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+
+  const text = normalizeText(value);
+  if (!text || text.toLowerCase() === "- none -") return null;
+
+  const normalized = text.replace(/[$,]/g, "");
+  const direct = Number(normalized);
+  if (Number.isFinite(direct)) return direct;
+
+  const match = normalized.match(/-?\d+(?:\.\d+)?/);
+  if (!match) return null;
+
+  const num = Number(match[0]);
+  return Number.isFinite(num) ? num : null;
+}
+
 function startsWithQtc(value) {
   return normalizeText(value).toUpperCase().startsWith("QTC-");
 }
@@ -95,6 +113,7 @@ const quadratecCost = () => {
     "Brand",
     "Retail Price",
     "Wholesale Price",
+    "Shipping Surcharge",
   ];
   const jsonData = XLSX.utils.sheet_to_json(sheet, { header: customHeader });
 
@@ -230,13 +249,18 @@ const quadratecCost = () => {
       quadratecCodeAlt12 = rawFallbacks[2] || null;
     }
 
+    const wholesalePrice = parseMoney(obj["Wholesale Price"]);
+    const shippingSurcharge = parseMoney(obj["Shipping Surcharge"]);
+    const retailPrice = parseMoney(obj["Retail Price"]);
+
     return {
       MPN: mpn,
       brand,
       original_brand: originalBrand,
       forced_quadratec_brand: forcedQuadratecBrand,
-      wholesalePrice: obj["Wholesale Price"],
-      retailPrice: obj["Retail Price"],
+      wholesalePrice,
+      shippingSurcharge,
+      retailPrice,
       quadratec_code: quadratecCode,
       quadratec_code_alt: quadratecCodeAlt || null,
       quadratec_code_alt2: quadratecCodeAlt2,

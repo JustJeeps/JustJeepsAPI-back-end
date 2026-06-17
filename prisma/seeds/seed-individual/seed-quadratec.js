@@ -14,6 +14,24 @@ function round2(n) {
   return Math.round(n * 100) / 100;
 }
 
+function toNumberOrNull(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+
+  const text = String(value).trim();
+  if (!text || text.toLowerCase() === "- none -") return null;
+
+  const normalized = text.replace(/[$,]/g, "");
+  const direct = Number(normalized);
+  if (Number.isFinite(direct)) return direct;
+
+  const match = normalized.match(/-?\d+(?:\.\d+)?/);
+  if (!match) return null;
+
+  const num = Number(match[0]);
+  return Number.isFinite(num) ? num : null;
+}
+
 async function seedQuadratec() {
   console.time("seed-quadratec total");
 
@@ -31,9 +49,16 @@ async function seedQuadratec() {
     // Keep the LAST occurrence if duplicates exist
     const mapByCode = new Map();
     for (const r of raw) {
-      const wholesale = Number(r?.wholesalePrice);
-      const retail = Number(r?.retailPrice);
+      const wholesale = toNumberOrNull(r?.wholesalePrice);
+      const retail = toNumberOrNull(r?.retailPrice);
+      const shippingSurchargeRaw = toNumberOrNull(r?.shippingSurcharge);
       if (!Number.isFinite(wholesale)) continue;
+
+      const baseCostUsd = round2(wholesale);
+      const shippingSurchargeUsd = Number.isFinite(shippingSurchargeRaw)
+        ? round2(shippingSurchargeRaw)
+        : 0;
+      const totalCostUsd = round2(baseCostUsd + shippingSurchargeUsd);
 
       const codes = [
         { value: r?.quadratec_code, quadratecBrandOnly: false },
@@ -63,8 +88,9 @@ async function seedQuadratec() {
           quadratec_code: code,
           quadratec_brand_only_match: quadratecBrandOnly,
           quadratec_sku: r?.quadratec_sku ?? null,
-          vendor_cost_usd: round2(wholesale),
-          vendor_cost: round2(wholesale * 1.5),
+          vendor_cost_usd: baseCostUsd,
+          quadratec_shipping_surcharge_usd: shippingSurchargeUsd,
+          vendor_cost: round2(totalCostUsd * 1.5),
           vendor_retail_price_usd: Number.isFinite(retail) ? round2(retail) : null,
         });
       }
@@ -114,6 +140,7 @@ async function seedQuadratec() {
         vendor_id: VENDOR_ID,
         vendor_sku: r.quadratec_code,
         vendor_cost_usd: r.vendor_cost_usd,
+        quadratec_shipping_surcharge_usd: r.quadratec_shipping_surcharge_usd,
         vendor_cost: r.vendor_cost,
         vendor_retail_price_usd: r.vendor_retail_price_usd,
         quadratec_sku: r.quadratec_sku,
