@@ -242,7 +242,7 @@ const seedWheelProsProducts = async () => {
       "ReadyLIFT", "Morimoto", "TeraFlex", "Gorilla Automotive",
       "G2 Axle & Gear", "Poison Spyder Customs", "PRO COMP Alloy Wheels",
       "PRO COMP Steel Wheels", "PRO COMP Suspension", "Pro Comp Tires",
-      "Rubicon Express", "Smittybilt", "Nitto Tire", "Bilstein", "Fox Racing"
+      "Rubicon Express", "Smittybilt", "Nitto Tire", "Fox Racing"
     ];
 
     for (let i = 0; i < formattedSkus.length; i += chunkSize) {
