@@ -525,6 +525,7 @@ function buildValuesSql(rows) {
 // seed Meyer products
 const seedMeyerVendorProducts = async () => {
   const seedStartedAt = Date.now();
+  const meyerVendorId = 2;
   try {
     console.time("seed-meyer total");
     let vendorProductCreatedCount = 0;
@@ -633,7 +634,7 @@ SELECT
 
       const res = await prisma.vendorProduct.deleteMany({
         where: {
-          vendor_id: 2,
+          vendor_id: meyerVendorId,
           product_sku: { in: productSkus },
         },
       });
@@ -643,6 +644,28 @@ SELECT
 
     let dbBuffer = [];
     const deleteSkuSet = new Set();
+
+    // Safety cleanup: remove stale Meyer rows that are already discontinued + zero qty in DB,
+    // even when the current Meyer payload omits those ItemNumbers.
+    const staleDiscontinuedRows = await prisma.$queryRawUnsafe(`
+      SELECT product_sku
+      FROM "VendorProduct"
+      WHERE vendor_id = ${meyerVendorId}
+        AND COALESCE(vendor_inventory, 0) = 0
+        AND LOWER(TRIM(COALESCE("partStatus_meyer", ''))) = 'discontinued'
+    `);
+
+    for (const row of staleDiscontinuedRows) {
+      if (row?.product_sku) {
+        deleteSkuSet.add(row.product_sku);
+      }
+    }
+
+    if (staleDiscontinuedRows.length) {
+      console.log(
+        `Pre-cleanup candidates from existing DB state (discontinued + zero qty): ${staleDiscontinuedRows.length}`
+      );
+    }
 
     // Loop through the vendorProductsData array and create/update vendor seproducts
     for (const data of vendorProductsData) {
@@ -670,7 +693,7 @@ SELECT
 
         const vendorProductData = {
           product_sku: productSku,
-          vendor_id: 2,
+          vendor_id: meyerVendorId,
           vendor_sku: item.ItemNumber,
           vendor_cost: safeFloat(item.CustomerPrice),
           vendor_inventory: safeFloat(item.QtyAvailable),
@@ -716,7 +739,7 @@ SELECT
       // Capture exactly which product_sku rows currently exist and are eligible to be deleted now.
       const rowsToDelete = await prisma.vendorProduct.findMany({
         where: {
-          vendor_id: 2,
+          vendor_id: meyerVendorId,
           product_sku: { in: deleteSkus },
         },
         select: {
@@ -727,7 +750,7 @@ SELECT
 
       vendorProductDeleteRowsBeforeCount = await prisma.vendorProduct.count({
         where: {
-          vendor_id: 2,
+          vendor_id: meyerVendorId,
           product_sku: { in: deleteSkus },
         },
       });
