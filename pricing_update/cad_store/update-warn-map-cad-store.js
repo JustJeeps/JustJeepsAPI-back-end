@@ -77,6 +77,29 @@ function normalizeWarnPart(value) {
     .replace(/[^A-Z0-9]/g, '');
 }
 
+function extractWarnPartTokens(rawPart) {
+  const raw = String(rawPart || '').trim();
+  if (!raw) return [];
+
+  const splitTokens = raw
+    .split(/[\r\n,;/|\t ]+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+
+  const unique = new Set();
+  for (const token of splitTokens) {
+    const normalized = normalizeWarnPart(token);
+    if (normalized) unique.add(normalized);
+  }
+
+  if (unique.size === 0) {
+    const fallback = normalizeWarnPart(raw);
+    if (fallback) unique.add(fallback);
+  }
+
+  return Array.from(unique);
+}
+
 function roundToPoint95(value) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) return null;
@@ -146,22 +169,67 @@ function extractWarnMapByPart(filePath) {
   const mapByPart = new Map();
   let ignoredRows = 0;
 
+  const consumedContinuationRows = new Set();
+
   for (let i = headerIndex + 1; i < rows.length; i++) {
+    if (consumedContinuationRows.has(i)) {
+      continue;
+    }
+
     const row = rows[i] || [];
     const rawPart = row[partColumn];
     const mapValue = parseMoney(row[mapColumn]);
     const partNumber = String(rawPart || '').trim();
-    const normalizedPart = normalizeWarnPart(partNumber);
+    const normalizedParts = extractWarnPartTokens(partNumber);
 
-    if (!normalizedPart || !Number.isFinite(mapValue) || mapValue <= 0) {
+    if (normalizedParts.length === 0) {
       ignoredRows++;
       continue;
     }
 
-    mapByPart.set(normalizedPart, {
-      partNumber,
-      mapPrice: mapValue,
-    });
+    const mapPrices = [];
+    if (Number.isFinite(mapValue) && mapValue > 0) {
+      mapPrices.push(mapValue);
+    }
+
+    if (normalizedParts.length > 1) {
+      let lookahead = i + 1;
+      while (mapPrices.length < normalizedParts.length && lookahead < rows.length) {
+        const nextRow = rows[lookahead] || [];
+        const nextPartTokens = extractWarnPartTokens(nextRow[partColumn]);
+        if (nextPartTokens.length > 0) {
+          break;
+        }
+
+        const nextMapValue = parseMoney(nextRow[mapColumn]);
+        if (!Number.isFinite(nextMapValue) || nextMapValue <= 0) {
+          break;
+        }
+
+        mapPrices.push(nextMapValue);
+        consumedContinuationRows.add(lookahead);
+        lookahead++;
+      }
+    }
+
+    if (mapPrices.length === 0) {
+      ignoredRows++;
+      continue;
+    }
+
+    const hasPerPartMapValues = mapPrices.length === normalizedParts.length;
+    for (let partIndex = 0; partIndex < normalizedParts.length; partIndex++) {
+      const normalizedPart = normalizedParts[partIndex];
+      const mapPrice = hasPerPartMapValues ? mapPrices[partIndex] : mapPrices[0];
+      const sourcePartNumber = hasPerPartMapValues
+        ? normalizedPart
+        : partNumber;
+
+      mapByPart.set(normalizedPart, {
+        partNumber: sourcePartNumber,
+        mapPrice,
+      });
+    }
   }
 
   return {
