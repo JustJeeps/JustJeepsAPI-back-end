@@ -31,12 +31,12 @@ const { getWheelProsSkus, makeApiRequestsInChunks } = require('./prisma/seeds/ap
 
 const cronEnabled = process.env.CRON_ENABLED !== 'false';
 const cronTimezone = process.env.CRON_TIMEZONE || 'America/Toronto';
-const dailySeedSchedule = process.env.CRON_SEED_ALL_SCHEDULE || '0 19 * * *';
-const allProductsSeedSchedule = process.env.CRON_SEED_ALL_PRODUCTS_SCHEDULE || '0 */2 * * *';
+const dailySeedSchedule = process.env.CRON_SEED_ALL_SCHEDULE || '30 19 * * *';
+const allProductsSeedSchedule = process.env.CRON_SEED_ALL_PRODUCTS_SCHEDULE || '45 */6 * * *';
 const meyerSeedSchedule = process.env.CRON_SEED_MEYER_SCHEDULE || '7 */4 * * *';
 const roughCountrySeedSchedule = process.env.CRON_SEED_ROUGH_COUNTRY_SCHEDULE || '37 */4 * * *';
-const magentoAttributesPrioritySchedule = process.env.CRON_MAGENTO_ATTRIBUTES_PRIORITY_SCHEDULE || '0 2 * * *';
-const magentoAttributesRoughSchedule = process.env.CRON_MAGENTO_ATTRIBUTES_ROUGH_SCHEDULE || '0 15 * * *';
+const magentoAttributesPrioritySchedule = process.env.CRON_MAGENTO_ATTRIBUTES_PRIORITY_SCHEDULE || '20 2 * * *';
+const magentoAttributesRoughSchedule = process.env.CRON_MAGENTO_ATTRIBUTES_ROUGH_SCHEDULE || '20 15 * * *';
 const testCronEnabled = process.env.CRON_TEST_ENABLED === 'true';
 const testCronSchedule = process.env.CRON_TEST_SCHEDULE || '*/5 * * * *';
 const testCronCommand = process.env.CRON_TEST_COMMAND || 'seed-tdot';
