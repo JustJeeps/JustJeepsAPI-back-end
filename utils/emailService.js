@@ -489,6 +489,149 @@ async function sendPurchaserReportEmail({ report, dateStr, initials }) {
   return await sendEmail({ to: recipients, subject, text, html });
 }
 
+const formatMoney = (value) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '';
+  return `$${num.toFixed(2)}`;
+};
+
+const formatDateTimeInTimezone = (value, timeZone = 'America/Toronto') => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+};
+
+const buildCancellationTable = (rows, timeZone) => {
+  const columns = [
+    { key: 'cancelledAt', label: 'Cancelled At', width: 160, format: (row) => escapeHtml(formatDateTimeInTimezone(row.cancelledAt, timeZone)) },
+    { key: 'cancelledBy', label: 'Cancelled By', width: 120, format: (row) => escapeHtml((row.cancelledBy || '').toUpperCase()) },
+    {
+      key: 'incrementId',
+      label: 'Order #',
+      width: 120,
+      format: (row) => {
+        const incrementId = row.incrementId || '';
+        if (!incrementId) return '';
+        if (row.entityId) {
+          const href = `https://www.justjeeps.com/admin_19q7yi/sales/order/view/order_id/${row.entityId}`;
+          return `<a href="${escapeHtml(href)}" style="color:#235789;text-decoration:none;font-weight:600;">${escapeHtml(incrementId)}</a>`;
+        }
+        return escapeHtml(incrementId);
+      },
+    },
+    { key: 'grandTotal', label: 'Grand Total', width: 110, format: (row) => escapeHtml(formatMoney(row.grandTotal)) },
+    { key: 'qty', label: 'Qty', width: 70, format: (row) => escapeHtml(row.totalQtyOrdered ?? '') },
+    { key: 'status', label: 'Status', width: 120, format: (row) => escapeHtml(row.status || '') },
+    { key: 'customPoNumber', label: 'PO#', width: 120, format: (row) => escapeHtml(row.customPoNumber || '') },
+    { key: 'customShipStatus', label: 'Ship Status', width: 110, format: (row) => escapeHtml(row.customShipStatus || '') },
+    { key: 'shippingCost', label: 'Shipping Cost', width: 110, format: (row) => escapeHtml(row.shippingCost || '') },
+    { key: 'customerName', label: 'Customer', width: 160, format: (row) => escapeHtml(row.customerName || '') },
+    { key: 'customerEmail', label: 'Customer Email', width: 220, format: (row) => escapeHtml(row.customerEmail || '') },
+    { key: 'region', label: 'Region', width: 110, format: (row) => escapeHtml(row.region || '') },
+    { key: 'paymentMethod', label: 'Payment', width: 180, format: (row) => escapeHtml(row.paymentMethod || '') },
+    { key: 'customOrderNote', label: 'Order Note', width: 260, format: (row) => escapeHtml(row.customOrderNote || '') },
+  ];
+
+  const colWidthStyle = (col) => (col.width ? `min-width:${col.width}px;` : '');
+  const header = `
+    <tr>
+      ${columns
+        .map(
+          (col) =>
+            `<th style="text-align:left;padding:10px 12px;background:#f8f4ef;border:1px solid #d9d9d9;font-size:13px;color:#5b6676;${colWidthStyle(col)}">${escapeHtml(col.label)}</th>`
+        )
+        .join('')}
+    </tr>
+  `;
+
+  const body = rows
+    .map((row, index) => {
+      const bg = index % 2 === 0 ? '#ffffff' : '#fcfbf9';
+      const cells = columns
+        .map((col) => {
+          const raw = col.format ? col.format(row) : escapeHtml(row[col.key] ?? '');
+          const align = ['grandTotal', 'qty'].includes(col.key) ? 'right' : 'left';
+          return `<td style="padding:10px 12px;border:1px solid #d9d9d9;text-align:${align};color:#1c2430;${colWidthStyle(col)}">${raw}</td>`;
+        })
+        .join('');
+      return `<tr style="background:${bg};">${cells}</tr>`;
+    })
+    .join('');
+
+  return `
+    <table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;font-size:13px;table-layout:auto;">
+      <thead>${header}</thead>
+      <tbody>${body}</tbody>
+    </table>
+  `;
+};
+
+async function sendOrderCancellationDailyReportEmail({ reportDate, summary, rows, timeZone = 'America/Toronto' }) {
+  const recipient = process.env.ORDER_CANCELLATION_REPORT_EMAILS || process.env.CRON_NOTIFICATION_EMAIL || '';
+  const recipients = recipient
+    .split(/[\s,]+/)
+    .map((email) => email.trim())
+    .filter(Boolean)
+    .join(',');
+
+  if (!recipients) {
+    return { success: false, error: 'No recipients configured for cancellation report' };
+  }
+
+  const safeSummary = summary || {};
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const byUser = safeSummary.byUser || {};
+  const byUserList = Object.entries(byUser)
+    .sort((a, b) => b[1] - a[1])
+    .map(([user, count]) => `${String(user).toUpperCase()}: ${count}`)
+    .join(' | ') || 'No cancellations';
+
+  const subject = `Daily Cancelled Orders Report - ${reportDate}`;
+  const text = [
+    `Daily Cancelled Orders Report (${reportDate})`,
+    `Timezone: ${timeZone}`,
+    `Total cancelled orders: ${safeSummary.totalCancelled || 0}`,
+    `Cancelled by Paula: ${safeSummary.paulaCancelled || 0}`,
+    `Cancelled by user: ${byUserList}`,
+  ].join('\n');
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:1200px;margin:0 auto;color:#1c2430;">
+      <h2 style="margin:0 0 6px;">Daily Cancelled Orders Report</h2>
+      <p style="margin:0 0 14px;color:#5b6676;">Date: ${escapeHtml(reportDate)} (${escapeHtml(timeZone)})</p>
+
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+        <div style="background:#f5f8ff;border:1px solid #cbd5e1;border-radius:6px;padding:10px 12px;min-width:180px;">
+          <div style="font-size:12px;color:#5b6676;">Total Cancelled</div>
+          <div style="font-size:22px;font-weight:700;">${Number(safeSummary.totalCancelled || 0)}</div>
+        </div>
+        <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;padding:10px 12px;min-width:180px;">
+          <div style="font-size:12px;color:#7c2d12;">Cancelled by Paula</div>
+          <div style="font-size:22px;font-weight:700;color:#9a3412;">${Number(safeSummary.paulaCancelled || 0)}</div>
+        </div>
+      </div>
+
+      <p style="margin:0 0 14px;"><strong>By user:</strong> ${escapeHtml(byUserList)}</p>
+
+      ${safeRows.length
+        ? buildCancellationTable(safeRows, timeZone)
+        : '<p style="color:#5b6676;">No cancelled orders were recorded for this date.</p>'}
+    </div>
+  `;
+
+  return await sendEmail({ to: recipients, subject, text, html });
+}
+
 module.exports = {
   createTransporter,
   getEmailProvider,
@@ -496,5 +639,6 @@ module.exports = {
   sendEmail,
   sendCronNotification,
   sendCronReport,
-  sendPurchaserReportEmail
+  sendPurchaserReportEmail,
+  sendOrderCancellationDailyReportEmail
 };

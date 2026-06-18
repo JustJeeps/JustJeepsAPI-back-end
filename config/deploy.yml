@@ -67,6 +67,9 @@ env:
     CRON_TEST_COMMAND: seed-tdot
     CRON_TEST_JOB_NAME: TDot Cron Test
     CRON_TEST_LOG_FILE: prisma/seeds/logs/seed-tdot.log
+    CRON_CANCELLATION_REPORT_ENABLED: "true"
+    CRON_CANCELLATION_REPORT_SCHEDULE: "59 23 * * *"
+    CRON_CANCELLATION_REPORT_TIMEZONE: America/Toronto
     JWT_EXPIRES_IN: 24h
     PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: "true"
     PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium
@@ -89,6 +92,7 @@ env:
     - BREVO_API_KEY
     - BREVO_FROM
     - CRON_NOTIFICATION_EMAIL
+    - ORDER_CANCELLATION_REPORT_EMAILS
     # Magento
     - MAGENTO_KEY
     # Keystone

@@ -10,7 +10,12 @@ const cors = require('cors');
 const cron = require('node-cron');
 const { spawn } = require('child_process');
 const logger = require('./utils/logger');
-const { sendCronNotification, sendCronReport, sendPurchaserReportEmail } = require('./utils/emailService');
+const {
+	sendCronNotification,
+	sendCronReport,
+	sendPurchaserReportEmail,
+	sendOrderCancellationDailyReportEmail,
+} = require('./utils/emailService');
 const prisma = require('./lib/prisma');
 const {
 	loadDataIfNeeded: loadQuickBooksLookupData,
@@ -37,16 +42,29 @@ const testCronSchedule = process.env.CRON_TEST_SCHEDULE || '*/5 * * * *';
 const testCronCommand = process.env.CRON_TEST_COMMAND || 'seed-tdot';
 const testCronJobName = process.env.CRON_TEST_JOB_NAME || 'Cron Test Job';
 const testCronLogFile = process.env.CRON_TEST_LOG_FILE || `prisma/seeds/logs/${testCronCommand}.log`;
+const cancellationReportEnabled = process.env.CRON_CANCELLATION_REPORT_ENABLED !== 'false';
+const cancellationReportSchedule = process.env.CRON_CANCELLATION_REPORT_SCHEDULE || '59 23 * * *';
+const cancellationReportTimezone = process.env.CRON_CANCELLATION_REPORT_TIMEZONE || cronTimezone;
 const cronChildTimeoutMs = Number(process.env.CRON_CHILD_TIMEOUT_MS || 6 * 60 * 60 * 1000);
 const cronChildKillGraceMs = Number(process.env.CRON_CHILD_KILL_GRACE_MS || 10000);
 const MAGENTO_STATUS_ALLOWED_USERS = new Set(['admin', 'jerry', 'tess', 'jacob', 'david']);
-const ORDER_CANCEL_EXECUTE_ALLOWED_USERS = new Set(['tess', 'jerry', 'jacob']);
+const ORDER_CANCEL_EXECUTE_ALLOWED_USERS = new Set(['tess', 'jerry', 'jacob', 'paula', 'karoline']);
 const ORDER_CANCEL_DRY_RUN_ALLOWED_USERS = new Set(['tess']);
+const ORDER_PO_INIT_ALLOWED_USERS = new Set(['admin', 'tess', 'jerry', 'jacob', 'paula', 'karoline']);
+const ORDER_CANCEL_PO_INITIALS_BY_USER = Object.freeze({
+	jacob: 'JK',
+	jerry: 'JD',
+	paula: 'PM',
+	karoline: 'KD',
+	tess: 'TS',
+});
 const cronJobRegistry = new Map();
 let cronJobsRegistered = false;
 const cronHistoryFile = path.resolve(__dirname, 'logs', 'cron-job-history.json');
 const cronHistoryLookbackDays = Number(process.env.CRON_HISTORY_LOOKBACK_DAYS || 5);
 const cronHistoryRetentionDays = Number(process.env.CRON_HISTORY_RETENTION_DAYS || 30);
+const cancelWorkflowHistoryFile = path.resolve(__dirname, 'logs', 'order-cancel-workflow-history.json');
+const cancelWorkflowHistoryRetentionDays = Number(process.env.CANCEL_WORKFLOW_HISTORY_RETENTION_DAYS || 180);
 const quickBooksPreloadEnabled = process.env.QB_LOOKUP_PRELOAD_ON_BOOT !== 'false';
 const quickBooksPreloadDelayMs = Number(process.env.QB_LOOKUP_PRELOAD_DELAY_MS || 60000);
 
@@ -156,6 +174,203 @@ function readCronHistoryEntries() {
 	return Array.isArray(history) ? history : [];
 }
 
+function getDateStringInTimezone(value = new Date(), timeZone = 'America/Toronto') {
+	const date = value instanceof Date ? value : new Date(value);
+	if (Number.isNaN(date.getTime())) return '';
+	return new Intl.DateTimeFormat('en-CA', {
+		timeZone,
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit',
+	}).format(date);
+}
+
+function readCancelWorkflowHistoryEntries() {
+	const history = readJsonAbsoluteFileSafe(cancelWorkflowHistoryFile);
+	return Array.isArray(history) ? history : [];
+}
+
+function pruneCancelWorkflowHistoryEntries(entries) {
+	const cutoff = Date.now() - (cancelWorkflowHistoryRetentionDays * 24 * 60 * 60 * 1000);
+	return entries
+		.filter((entry) => {
+			const timestamp = new Date(entry.recordedAt || entry.cancelledAt || 0).getTime();
+			return Number.isFinite(timestamp) && timestamp >= cutoff;
+		})
+		.sort((left, right) => {
+			const leftTime = new Date(left.recordedAt || left.cancelledAt || 0).getTime();
+			const rightTime = new Date(right.recordedAt || right.cancelledAt || 0).getTime();
+			return rightTime - leftTime;
+		});
+}
+
+function appendCancelWorkflowHistoryEntry(entry) {
+	try {
+		const current = readCancelWorkflowHistoryEntries();
+		const next = pruneCancelWorkflowHistoryEntries([entry, ...current]);
+		fs.mkdirSync(path.dirname(cancelWorkflowHistoryFile), { recursive: true });
+		fs.writeFileSync(cancelWorkflowHistoryFile, JSON.stringify(next, null, 2));
+	} catch (error) {
+		logger.error('Failed to persist cancel workflow history entry', {
+			orderId: entry?.orderId,
+			error: error.message,
+		});
+	}
+}
+
+async function buildDailyCancellationReport(dateStr, timeZone = 'America/Toronto') {
+	const entries = readCancelWorkflowHistoryEntries();
+	const successfulEntries = entries.filter((entry) => {
+		if (!entry || entry.dryRun) return false;
+		if (entry.outcome !== 'cancelled') return false;
+		return entry.reportDate === dateStr;
+	});
+
+	const latestByOrderId = new Map();
+	for (const entry of successfulEntries) {
+		const orderIdKey = String(entry.orderId || entry.incrementId || entry.requestedOrderIdentifier || '');
+		if (!orderIdKey) continue;
+
+		const current = latestByOrderId.get(orderIdKey);
+		const currentTime = current ? new Date(current.cancelledAt || current.recordedAt || 0).getTime() : 0;
+		const nextTime = new Date(entry.cancelledAt || entry.recordedAt || 0).getTime();
+
+		if (!current || nextTime >= currentTime) {
+			latestByOrderId.set(orderIdKey, entry);
+		}
+	}
+
+	const rows = Array.from(latestByOrderId.values())
+		.sort((left, right) => {
+			const leftTime = new Date(left.cancelledAt || left.recordedAt || 0).getTime();
+			const rightTime = new Date(right.cancelledAt || right.recordedAt || 0).getTime();
+			return rightTime - leftTime;
+		})
+		.map((entry) => {
+			const snapshot = entry.orderSnapshot || {};
+			const customerName = [snapshot.customer_firstname, snapshot.customer_lastname].filter(Boolean).join(' ');
+			return {
+				cancelledAt: entry.cancelledAt || entry.recordedAt,
+				cancelledBy: entry.cancelledBy || 'unknown',
+				source: 'cancel_workflow_audit',
+				entityId: entry.orderId,
+				incrementId: entry.incrementId || snapshot.increment_id || '',
+				grandTotal: snapshot.grand_total,
+				totalQtyOrdered: snapshot.total_qty_ordered,
+				status: snapshot.status,
+				customPoNumber: snapshot.custom_po_number,
+				customShipStatus: snapshot.custom_ship_status,
+				customOrderNote: snapshot.custom_order_note,
+				shippingCost: snapshot.shipping_cost_jj,
+				customerName,
+				customerEmail: snapshot.customer_email,
+				region: snapshot.region,
+				paymentMethod: snapshot.method_title,
+			};
+		});
+
+	// Fallback: include cancelled orders by Magento/local updated_at for the day
+	// when there is no explicit cancel workflow audit entry.
+	const rowsByEntityId = new Set(rows.map((row) => String(row.entityId || row.incrementId || '')));
+	const updatedAtFallbackOrders = await prisma.order.findMany({
+		where: {
+			AND: [
+				{ status: { contains: 'cancel', mode: 'insensitive' } },
+				{ updated_at: { startsWith: dateStr } },
+			],
+		},
+		select: {
+			entity_id: true,
+			increment_id: true,
+			updated_at: true,
+			status: true,
+			grand_total: true,
+			total_qty_ordered: true,
+			custom_po_number: true,
+			custom_ship_status: true,
+			custom_order_note: true,
+			shipping_cost_jj: true,
+			customer_firstname: true,
+			customer_lastname: true,
+			customer_email: true,
+			region: true,
+			method_title: true,
+		},
+	});
+
+	for (const order of updatedAtFallbackOrders) {
+		const key = String(order.entity_id || order.increment_id || '');
+		if (!key || rowsByEntityId.has(key)) continue;
+
+		const customerName = [order.customer_firstname, order.customer_lastname].filter(Boolean).join(' ');
+		rows.push({
+			cancelledAt: order.updated_at,
+			cancelledBy: 'unknown',
+			source: 'magento_updated_at_fallback',
+			entityId: order.entity_id,
+			incrementId: order.increment_id,
+			grandTotal: order.grand_total,
+			totalQtyOrdered: order.total_qty_ordered,
+			status: order.status,
+			customPoNumber: order.custom_po_number,
+			customShipStatus: order.custom_ship_status,
+			customOrderNote: order.custom_order_note,
+			shippingCost: order.shipping_cost_jj,
+			customerName,
+			customerEmail: order.customer_email,
+			region: order.region,
+			paymentMethod: order.method_title,
+		});
+		rowsByEntityId.add(key);
+	}
+
+	rows.sort((left, right) => {
+		const leftTime = new Date(left.cancelledAt || 0).getTime();
+		const rightTime = new Date(right.cancelledAt || 0).getTime();
+		return rightTime - leftTime;
+	});
+
+	const byUser = rows.reduce((acc, row) => {
+		const user = String(row.cancelledBy || 'unknown').toLowerCase();
+		acc[user] = (acc[user] || 0) + 1;
+		return acc;
+	}, {});
+
+	return {
+		date: dateStr,
+		timeZone,
+		totalCancelled: rows.length,
+		paulaCancelled: byUser.paula || 0,
+		byUser,
+		rows,
+	};
+}
+
+async function sendDailyCancellationReportEmailForDate(dateStr, options = {}) {
+	const reportTimezone = options.timeZone || cancellationReportTimezone || 'America/Toronto';
+	const report = await buildDailyCancellationReport(dateStr, reportTimezone);
+
+	const delivery = await sendOrderCancellationDailyReportEmail({
+		reportDate: report.date,
+		timeZone: report.timeZone,
+		summary: {
+			totalCancelled: report.totalCancelled,
+			paulaCancelled: report.paulaCancelled,
+			byUser: report.byUser,
+		},
+		rows: report.rows,
+	});
+
+	if (!delivery?.success) {
+		throw new Error(delivery?.error || delivery?.message || 'Failed to send daily cancellation report email');
+	}
+
+	return {
+		report,
+		delivery,
+	};
+}
+
 function pruneCronHistoryEntries(entries) {
 	const cutoff = Date.now() - (cronHistoryRetentionDays * 24 * 60 * 60 * 1000);
 	return entries
@@ -260,6 +475,40 @@ function formatDurationMs(durationMs) {
 	}
 
 	return `${(durationMs / (60 * 60 * 1000)).toFixed(2)} hr`;
+}
+
+function resolveUserInitials(username) {
+	const normalizedUsername = String(username || '').trim().toLowerCase();
+	const mappedInitials = ORDER_CANCEL_PO_INITIALS_BY_USER[normalizedUsername];
+
+	if (mappedInitials) {
+		return {
+			initials: mappedInitials,
+			usedFallback: false,
+		};
+	}
+
+	const alphaOnlyUsername = normalizedUsername.replace(/[^a-z]/g, '');
+	const fallbackInitials = (alphaOnlyUsername.slice(0, 2) || 'NA').toUpperCase();
+
+	return {
+		initials: fallbackInitials,
+		usedFallback: true,
+	};
+}
+
+function buildCancellationPoNumber(username) {
+	const { initials, usedFallback } = resolveUserInitials(username);
+	const dateLabel = new Date().toLocaleDateString('en-US', {
+		timeZone: cancellationReportTimezone || 'America/Toronto',
+		month: 'short',
+		day: 'numeric',
+	});
+	return {
+		value: `C&V ${initials} ${dateLabel}`,
+		initials,
+		usedFallback,
+	};
 }
 
 function parseCronProgress(lines) {
@@ -648,6 +897,41 @@ app.post('/api/reports/purchaser/email', async (req, res) => {
 	} catch (error) {
 		console.error('Failed to send purchaser report email:', error);
 		return res.status(500).json({ error: 'Failed to send email' });
+	}
+});
+
+app.post('/api/reports/order-cancellations/daily/email', async (req, res) => {
+	try {
+		const { date } = req.body || {};
+		const requestedDate = String(date || '').trim();
+		const reportDate = requestedDate || getDateStringInTimezone(new Date(), cancellationReportTimezone || 'America/Toronto');
+
+		if (process.env.ENABLE_AUTH === 'true' && req.user) {
+			const allowed = ['admin', 'tess', 'jerry', 'jacob', 'paula', 'karoline'];
+			const username = (req.user.username || req.user.firstname || '').toLowerCase();
+			if (!allowed.includes(username)) {
+				return res.status(403).json({ error: 'Not authorized to send cancellation report' });
+			}
+		}
+
+		const result = await sendDailyCancellationReportEmailForDate(reportDate, {
+			timeZone: cancellationReportTimezone,
+		});
+
+		return res.json({
+			success: true,
+			reportDate,
+			totalCancelled: result.report.totalCancelled,
+			paulaCancelled: result.report.paulaCancelled,
+			byUser: result.report.byUser,
+			recipients: process.env.ORDER_CANCELLATION_REPORT_EMAILS || process.env.CRON_NOTIFICATION_EMAIL || '',
+		});
+	} catch (error) {
+		logger.error('Failed to send daily cancellation report email', {
+			error: error.message,
+			requestedDate: req.body?.date || null,
+		});
+		return res.status(500).json({ error: 'Failed to send daily cancellation report email' });
 	}
 });
 
@@ -1576,6 +1860,24 @@ async function createMagentoCancellationTicket({ baseUrl, token, orderId }) {
 	return axios.post(endpoint, {}, buildMagentoRequestConfig(token));
 }
 
+async function updateMagentoOrderCustomAttributes({ baseUrl, token, orderId, attributes }) {
+	const endpoint = `${baseUrl}/rest/V1/jwa-order-cancel/orders/${encodeURIComponent(String(orderId))}/custom-attributes`;
+	const normalizedAttributes = Array.isArray(attributes)
+		? attributes
+			.filter((entry) => entry && entry.attributeCode)
+			.map((entry) => ({
+				attributeCode: String(entry.attributeCode),
+				value: entry.value == null ? '' : String(entry.value),
+			}))
+		: [];
+
+	return axios.post(
+		endpoint,
+		{ attributes: normalizedAttributes },
+		buildMagentoRequestConfig(token)
+	);
+}
+
 app.get('/brands', async (req, res) => {
 	try {
 		const uniqueBrandNames = await prisma.product.findMany({
@@ -2268,10 +2570,12 @@ app.get('/api/orders/:id', async (req, res) => {
 });
 
 app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
-	const manualActionsStillRequired = [
-		'Update PO Number',
-		'Update Custom Ship Status',
-	];
+	const manualActionsStillRequired = [];
+	const addManualAction = (action) => {
+		if (!manualActionsStillRequired.includes(action)) {
+			manualActionsStillRequired.push(action);
+		}
+	};
 
 	const completedActions = [];
 	const failedActions = [];
@@ -2294,6 +2598,7 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 		}
 
 		const dryRun = req.body?.dryRun === true || String(req.query?.dryRun || '').toLowerCase() === 'true';
+		const cancellationPoNumber = buildCancellationPoNumber(requesterUsername);
 		if (dryRun && !ORDER_CANCEL_DRY_RUN_ALLOWED_USERS.has(requesterUsername)) {
 			return res.status(403).json({
 				error: 'Forbidden',
@@ -2308,27 +2613,35 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 
 		const numericOrderIdentifier = Number(routeOrderIdentifier);
 		const isNumericIdentifier = Number.isFinite(numericOrderIdentifier) && numericOrderIdentifier > 0;
+		const orderSelect = {
+			entity_id: true,
+			increment_id: true,
+			status: true,
+			grand_total: true,
+			total_qty_ordered: true,
+			custom_po_number: true,
+			custom_ship_status: true,
+			custom_order_note: true,
+			shipping_cost_jj: true,
+			customer_firstname: true,
+			customer_lastname: true,
+			customer_email: true,
+			region: true,
+			method_title: true,
+		};
 
 		let order = null;
 		if (isNumericIdentifier) {
 			order = await prisma.order.findUnique({
 				where: { entity_id: numericOrderIdentifier },
-				select: {
-					entity_id: true,
-					increment_id: true,
-					status: true,
-				},
+				select: orderSelect,
 			});
 		}
 
 		if (!order) {
 			order = await prisma.order.findFirst({
 				where: { increment_id: routeOrderIdentifier },
-				select: {
-					entity_id: true,
-					increment_id: true,
-					status: true,
-				},
+				select: orderSelect,
 			});
 		}
 
@@ -2352,8 +2665,15 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 		let invoiceVoidDeleteCompleted = false;
 		let orderCancelledInMagento = false;
 		let cancellationTicketSent = false;
+		let cancellationAttributesUpdated = false;
 		let localStatusUpdated = false;
 		let localStatusUpdateError = null;
+
+		if (cancellationPoNumber.usedFallback) {
+			informationalActions.push(
+				`No initials mapping configured for ${requesterUsername || 'unknown user'}; used fallback initials ${cancellationPoNumber.initials}`
+			);
+		}
 
 		try {
 			const invoices = await fetchMagentoInvoicesByOrderId({
@@ -2397,7 +2717,7 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 				statusCode: voidDeleteError?.response?.status || null,
 				invoiceId: selectedInvoiceId,
 			});
-			manualActionsStillRequired.push('Void and delete invoice');
+			addManualAction('Void and delete invoice');
 		}
 
 		try {
@@ -2458,7 +2778,48 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 					ticketError.message,
 				statusCode: ticketError?.response?.status || null,
 			});
-			manualActionsStillRequired.push('Create and send cancellation ticket');
+			addManualAction('Create and send cancellation ticket');
+		}
+
+		try {
+			if (dryRun) {
+				completedActions.push(
+					`Dry run: order attributes would be updated (custom_po_number=${cancellationPoNumber.value}, custom_ship_status=2480)`
+				);
+			} else if (orderCancelledInMagento) {
+				await updateMagentoOrderCustomAttributes({
+					baseUrl: magentoBaseUrl,
+					token,
+					orderId: magentoOrderEntityId,
+					attributes: [
+						{
+							attributeCode: 'custom_po_number',
+							value: cancellationPoNumber.value,
+						},
+						{
+							attributeCode: 'custom_ship_status',
+							value: '2480',
+						},
+					],
+				});
+				cancellationAttributesUpdated = true;
+				completedActions.push(
+					`Cancellation custom attributes updated (custom_po_number=${cancellationPoNumber.value}, custom_ship_status=2480)`
+				);
+			} else {
+				informationalActions.push('Skipped custom attribute update because order is not confirmed canceled in Magento');
+				addManualAction('Update cancellation custom attributes (PO and ship status)');
+			}
+		} catch (attributeUpdateError) {
+			failedActions.push({
+				action: 'Update cancellation custom attributes',
+				message:
+					attributeUpdateError?.response?.data?.message ||
+					attributeUpdateError?.response?.data ||
+					attributeUpdateError.message,
+				statusCode: attributeUpdateError?.response?.status || null,
+			});
+			addManualAction('Update cancellation custom attributes (PO and ship status)');
 		}
 
 		if (!dryRun && (invoiceVoidDeleteCompleted || orderCancelledInMagento || cancellationTicketSent)) {
@@ -2489,6 +2850,38 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 			}
 		}
 
+		const cancellationRecordedAt = new Date();
+		const cancellationSucceeded = !dryRun && (orderCancelledInMagento || localStatusUpdated);
+		if (!dryRun) {
+			appendCancelWorkflowHistoryEntry({
+				id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+				recordedAt: cancellationRecordedAt.toISOString(),
+				reportDate: getDateStringInTimezone(cancellationRecordedAt, cancellationReportTimezone || 'America/Toronto'),
+				timeZone: cancellationReportTimezone || 'America/Toronto',
+				cancelledAt: cancellationSucceeded ? cancellationRecordedAt.toISOString() : null,
+				cancelledBy: requesterUsername || 'unknown',
+				dryRun,
+				outcome: cancellationSucceeded ? 'cancelled' : 'not_cancelled',
+				orderId: magentoOrderEntityId,
+				incrementId: order.increment_id,
+				requestedOrderIdentifier: routeOrderIdentifier,
+				orderCancelledInMagento,
+				invoiceVoidDeleteCompleted,
+				cancellationTicketSent,
+				cancellationAttributesUpdated,
+				localStatusUpdated,
+				failedActions,
+				completedActions,
+				manualActionsStillRequired,
+				orderSnapshot: {
+					...order,
+					status: localStatusUpdated ? 'canceled' : order.status,
+					custom_po_number: cancellationAttributesUpdated ? cancellationPoNumber.value : order.custom_po_number,
+					custom_ship_status: cancellationAttributesUpdated ? '2480' : order.custom_ship_status,
+				},
+			});
+		}
+
 		return res.json({
 			success: failedActions.length === 0 && completedActions.length > 0,
 			dryRun,
@@ -2504,6 +2897,11 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 			completedActions,
 			failedActions,
 			informationalActions,
+			cancellationAttributesUpdated,
+			cancellationAttributes: {
+				custom_po_number: cancellationPoNumber.value,
+				custom_ship_status: '2480',
+			},
 			localStatusUpdated,
 			localStatusUpdateError,
 			manualActionsStillRequired,
@@ -2514,6 +2912,113 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 			error: error.message,
 		});
 		return res.status(500).json({ error: 'Failed to execute cancel workflow' });
+	}
+});
+
+app.post('/api/orders/:id/initialize-po-number', async (req, res) => {
+	try {
+		if (process.env.ENABLE_AUTH !== 'true') {
+			return res.status(403).json({
+				error: 'Feature locked',
+				message: 'PO initializer requires authentication to be enabled',
+			});
+		}
+
+		const requesterUsername = (req.user?.username || '').toLowerCase();
+		if (!ORDER_PO_INIT_ALLOWED_USERS.has(requesterUsername)) {
+			return res.status(403).json({
+				error: 'Forbidden',
+				message: 'You are not authorized to initialize PO numbers',
+			});
+		}
+
+		const routeOrderIdentifier = String(req.params.id || '').trim();
+		if (!routeOrderIdentifier) {
+			return res.status(400).json({ error: 'Invalid order identifier' });
+		}
+
+		const numericOrderIdentifier = Number(routeOrderIdentifier);
+		const isNumericIdentifier = Number.isFinite(numericOrderIdentifier) && numericOrderIdentifier > 0;
+
+		let order = null;
+		if (isNumericIdentifier) {
+			order = await prisma.order.findUnique({
+				where: { entity_id: numericOrderIdentifier },
+				select: {
+					entity_id: true,
+					increment_id: true,
+					custom_po_number: true,
+				},
+			});
+		}
+
+		if (!order) {
+			order = await prisma.order.findFirst({
+				where: { increment_id: routeOrderIdentifier },
+				select: {
+					entity_id: true,
+					increment_id: true,
+					custom_po_number: true,
+				},
+			});
+		}
+
+		if (!order) {
+			return res.status(404).json({ error: `Order ${routeOrderIdentifier} not found` });
+		}
+
+		const orderId = Number(order.entity_id);
+		if (!Number.isFinite(orderId) || orderId <= 0) {
+			return res.status(500).json({ error: 'Resolved order is missing a valid Magento entity id' });
+		}
+
+		const token = process.env.MAGENTO_KEY;
+		if (!token) {
+			return res.status(500).json({ error: 'MAGENTO_KEY is not configured' });
+		}
+
+		const { initials, usedFallback } = resolveUserInitials(requesterUsername);
+		const dateLabel = new Date().toLocaleDateString('en-CA', {
+			timeZone: cancellationReportTimezone || 'America/Toronto',
+			month: 'short',
+			day: 'numeric',
+		});
+		const customPoNumber = `Not Set - Initialized ${initials} ${dateLabel}`;
+
+		await updateMagentoOrderCustomAttributes({
+			baseUrl: resolveMagentoBaseUrl(),
+			token,
+			orderId,
+			attributes: [
+				{
+					attributeCode: 'custom_po_number',
+					value: customPoNumber,
+				},
+			],
+		});
+
+		await prisma.order.update({
+			where: { entity_id: orderId },
+			data: {
+				custom_po_number: customPoNumber,
+			},
+		});
+
+		return res.json({
+			success: true,
+			orderId,
+			incrementId: order.increment_id,
+			customPoNumber,
+			initials,
+			dateLabel,
+			usedFallbackInitials: usedFallback,
+		});
+	} catch (error) {
+		logger.error('Failed to initialize custom PO number', {
+			orderId: req.params?.id,
+			error: error.message,
+		});
+		return res.status(500).json({ error: 'Failed to initialize custom PO number' });
 	}
 });
 
@@ -3688,6 +4193,50 @@ function registerCronJobs() {
 	if (!testCronEnabled) {
 		logger.info('Test cron job disabled via CRON_TEST_ENABLED=false');
 	}
+
+	if (cancellationReportEnabled) {
+		let cancellationReportRunning = false;
+		logger.info('Registering cancellation daily report cron job', {
+			schedule: cancellationReportSchedule,
+			timezone: cancellationReportTimezone,
+		});
+
+		cron.schedule(cancellationReportSchedule, async () => {
+			if (cancellationReportRunning) {
+				logger.warn('Cancellation daily report skipped because previous run is still in progress');
+				return;
+			}
+
+			cancellationReportRunning = true;
+			const startedAt = Date.now();
+			const reportDate = getDateStringInTimezone(new Date(), cancellationReportTimezone || 'America/Toronto');
+
+			try {
+				const result = await sendDailyCancellationReportEmailForDate(reportDate, {
+					timeZone: cancellationReportTimezone,
+				});
+				logger.info('Daily cancellation report email sent', {
+					reportDate,
+					totalCancelled: result.report.totalCancelled,
+					paulaCancelled: result.report.paulaCancelled,
+					duration: formatDuration(startedAt),
+				});
+			} catch (error) {
+				logger.error('Failed to send daily cancellation report email', {
+					reportDate,
+					error: error.message,
+					duration: formatDuration(startedAt),
+				});
+			} finally {
+				cancellationReportRunning = false;
+			}
+		}, {
+			scheduled: true,
+			timezone: cancellationReportTimezone,
+		});
+	} else {
+		logger.info('Cancellation daily report cron job disabled via CRON_CANCELLATION_REPORT_ENABLED=false');
+	}
 }
 
 registerCronJobs();
@@ -3701,6 +4250,11 @@ app.listen(PORT, () => {
 		for (const definition of getCronJobDefinitions()) {
 			console.log(
 				`🕐 [CRON] ${definition.jobName} scheduled for ${definition.schedule} (${cronTimezone}) using npm run ${definition.command}`
+			);
+		}
+		if (cancellationReportEnabled) {
+			console.log(
+				`🕐 [CRON] Daily cancellation report scheduled for ${cancellationReportSchedule} (${cancellationReportTimezone})`
 			);
 		}
 	} else {
