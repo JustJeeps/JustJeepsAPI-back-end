@@ -30,11 +30,15 @@ function parseListArg(value) {
 function parseArgs(argv) {
   const options = {
     excludeBrands: ['rough country', 'metalcloak','KeyParts','American Expedition Vehicles (MAP)','Mopar' ],
+    onlyBrands: [],
     excludeVendors: ['quadratec'],
     excludeVendorsContains: ['omix', 'keyparts'],
     limit: null,
     batchSize: 1000,
     delayMs: 400,
+    batchConcurrency: 1,
+    skipWebsiteAssignment: false,
+    websiteAssignmentConcurrency: 20,
     dryRun: false,
   };
 
@@ -43,6 +47,8 @@ function parseArgs(argv) {
 
     if (arg === '--exclude-brands' && argv[i + 1]) {
       options.excludeBrands = parseListArg(argv[++i]);
+    } else if (arg === '--only-brands' && argv[i + 1]) {
+      options.onlyBrands = parseListArg(argv[++i]);
     } else if (arg === '--exclude-vendors' && argv[i + 1]) {
       options.excludeVendors = parseListArg(argv[++i]);
     } else if (arg === '--exclude-vendors-contains' && argv[i + 1]) {
@@ -53,6 +59,12 @@ function parseArgs(argv) {
       options.batchSize = Number(argv[++i]);
     } else if (arg === '--delay-ms' && argv[i + 1]) {
       options.delayMs = Number(argv[++i]);
+    } else if (arg === '--batch-concurrency' && argv[i + 1]) {
+      options.batchConcurrency = Number(argv[++i]);
+    } else if (arg === '--website-assignment-concurrency' && argv[i + 1]) {
+      options.websiteAssignmentConcurrency = Number(argv[++i]);
+    } else if (arg === '--skip-website-assignment') {
+      options.skipWebsiteAssignment = true;
     } else if (arg === '--dry-run') {
       options.dryRun = true;
     }
@@ -110,9 +122,22 @@ function toSortedCountRows(map) {
 }
 
 async function getRemainingBrandsPriceRows(options) {
+  const onlyBrands = options.onlyBrands.map((value) => normalize(value)).filter(Boolean);
+  const onlyBrandWhere = onlyBrands.length > 0
+    ? {
+      OR: onlyBrands.map((brand) => ({
+        brand_name: {
+          equals: brand,
+          mode: 'insensitive',
+        },
+      })),
+    }
+    : {};
+
   const products = await prisma.product.findMany({
     where: {
       status: 1,
+      ...onlyBrandWhere,
       sku: {
         not: {
           endsWith: '-',
@@ -182,6 +207,7 @@ async function getRemainingBrandsPriceRows(options) {
     scanned: products.length,
     skippedExcluded,
     skippedInvalidCadPrice,
+    onlyBrands,
     excludeBrands: Array.from(excludeBrandsSet),
     excludeVendors: Array.from(excludeVendorsSet),
     excludeVendorsContains,
@@ -230,6 +256,7 @@ function printUsage() {
   console.log('Options:');
   console.log('  --exclude-brands <csv>   Comma-separated Product.brand_name exclusions');
   console.log('                           (default: "Rough Country, MetalCloak")');
+  console.log('  --only-brands <csv>      Process only these Product.brand_name values');
   console.log('  --exclude-vendors <csv>  Comma-separated Product.vendors exclusions');
   console.log('                           Exact full-field match (default: "quadratec")');
   console.log('  --exclude-vendors-contains <csv>  Exclude if Product.vendors contains any value');
@@ -237,6 +264,9 @@ function printUsage() {
   console.log('  --limit <number>         Limit products fetched from DB');
   console.log('  --batch-size <number>    Prices per Magento request (default: 1000)');
   console.log('  --delay-ms <number>      Delay between batches in milliseconds (default: 400)');
+  console.log('  --batch-concurrency <n>  Number of price batches to send in parallel (default: 1)');
+  console.log('  --skip-website-assignment  Skip website assignment sync step');
+  console.log('  --website-assignment-concurrency <n>  Workers for website sync (default: 20)');
   console.log('  --dry-run                Print sample payload only, do not send updates');
 }
 
@@ -257,6 +287,14 @@ async function main() {
     throw new Error('Invalid --delay-ms. Expected integer >= 0.');
   }
 
+  if (!Number.isInteger(options.batchConcurrency) || options.batchConcurrency < 1) {
+    throw new Error('Invalid --batch-concurrency. Expected integer >= 1.');
+  }
+
+  if (!Number.isInteger(options.websiteAssignmentConcurrency) || options.websiteAssignmentConcurrency < 1) {
+    throw new Error('Invalid --website-assignment-concurrency. Expected integer >= 1.');
+  }
+
   if (!options.dryRun && !MAGENTO_CONFIG.token) {
     throw new Error('MAGENTO_KEY is required unless --dry-run is used');
   }
@@ -271,6 +309,7 @@ async function main() {
     scanned,
     skippedExcluded,
     skippedInvalidCadPrice,
+    onlyBrands,
     excludeBrands,
     excludeVendors,
     excludeVendorsContains,
@@ -283,6 +322,9 @@ async function main() {
   console.log(`✅ Price rows prepared: ${rows.length}`);
   console.log(`⚠️ Skipped (excluded by brand/vendor): ${skippedExcluded}`);
   console.log(`⚠️ Skipped (invalid CAD price): ${skippedInvalidCadPrice}`);
+  if (onlyBrands.length > 0) {
+    console.log(`🎯 Only brands filter: ${onlyBrands.join(', ')}`);
+  }
   console.log(`⛔ Excluded brands: ${excludeBrands.length ? excludeBrands.join(', ') : '(none)'}`);
   console.log(`⛔ Excluded vendors: ${excludeVendors.length ? excludeVendors.join(', ') : '(none)'}`);
   console.log(`⛔ Excluded vendors (contains): ${excludeVendorsContains.length ? excludeVendorsContains.join(', ') : '(none)'}`);
@@ -307,30 +349,47 @@ async function main() {
     return;
   }
 
-  const websiteSync = await ensureUsWebsiteAssignmentForSkus({
-    skus: rows.map((row) => row.sku),
-    websiteId: STORE_ID_US,
-    magentoConfig: MAGENTO_CONFIG,
-  });
+  if (options.skipWebsiteAssignment) {
+    console.log('⏩ Skipping US website assignment sync (--skip-website-assignment).');
+  } else {
+    console.log(
+      `🌐 Starting US website assignment sync for ${rows.length} SKUs (concurrency: ${options.websiteAssignmentConcurrency})...`
+    );
+    const websiteSyncStartedAt = Date.now();
 
-  console.log('🌐 US website assignment sync:', {
-    total: websiteSync.total,
-    assigned: websiteSync.assigned,
-    alreadyAssigned: websiteSync.alreadyAssigned,
-    missingInMagento: websiteSync.missingInMagento,
-    failed: websiteSync.failed,
-  });
-  if (websiteSync.failedSamples.length > 0) {
-    console.log('⚠️ Website assignment failure samples:', websiteSync.failedSamples);
+    const websiteSync = await ensureUsWebsiteAssignmentForSkus({
+      skus: rows.map((row) => row.sku),
+      websiteId: STORE_ID_US,
+      magentoConfig: MAGENTO_CONFIG,
+      concurrency: options.websiteAssignmentConcurrency,
+    });
+
+    const websiteSyncElapsedSeconds = ((Date.now() - websiteSyncStartedAt) / 1000).toFixed(1);
+
+    console.log('🌐 US website assignment sync:', {
+      total: websiteSync.total,
+      assigned: websiteSync.assigned,
+      alreadyAssigned: websiteSync.alreadyAssigned,
+      missingInMagento: websiteSync.missingInMagento,
+      failed: websiteSync.failed,
+      elapsedSeconds: websiteSyncElapsedSeconds,
+    });
+    if (websiteSync.failedSamples.length > 0) {
+      console.log('⚠️ Website assignment failure samples:', websiteSync.failedSamples);
+    }
   }
 
   const batches = chunk(rows, options.batchSize);
+  console.log(
+    `📤 Starting price push in ${batches.length} batch(es) (batchSize: ${options.batchSize}, batchConcurrency: ${options.batchConcurrency}, delayMs: ${options.delayMs}).`
+  );
+
   let sent = 0;
   let failedBatches = 0;
   const liveUpdatedSamples = [];
 
-  for (let i = 0; i < batches.length; i++) {
-    const prices = batches[i].map((row) => ({
+  async function sendBatch(batchIndex) {
+    const prices = batches[batchIndex].map((row) => ({
       sku: row.sku,
       store_id: row.store_id,
       price: row.price,
@@ -346,18 +405,45 @@ async function main() {
       }
 
       console.log(
-        `✅ Batch ${i + 1}/${batches.length} sent (${prices.length} SKUs) | HTTP ${response.status}`
+        `✅ Batch ${batchIndex + 1}/${batches.length} sent (${prices.length} SKUs) | HTTP ${response.status}`
       );
     } catch (error) {
       failedBatches++;
       const status = error.response?.status || 'ERR';
       const details = JSON.stringify(error.response?.data || error.message).slice(0, 400);
-      console.log(`❌ Batch ${i + 1}/${batches.length} failed | ${status} ${details}`);
+      console.log(`❌ Batch ${batchIndex + 1}/${batches.length} failed | ${status} ${details}`);
+    }
+  }
+
+  if (options.batchConcurrency <= 1) {
+    for (let i = 0; i < batches.length; i++) {
+      await sendBatch(i);
+
+      if (i + 1 < batches.length && options.delayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, options.delayMs));
+      }
+    }
+  } else {
+    if (options.delayMs > 0) {
+      console.log('ℹ️ --delay-ms is ignored when --batch-concurrency > 1.');
     }
 
-    if (i + 1 < batches.length && options.delayMs > 0) {
-      await new Promise((resolve) => setTimeout(resolve, options.delayMs));
+    let cursor = 0;
+    const workers = [];
+    const workerCount = Math.min(options.batchConcurrency, batches.length);
+
+    async function worker() {
+      while (cursor < batches.length) {
+        const batchIndex = cursor++;
+        await sendBatch(batchIndex);
+      }
     }
+
+    for (let i = 0; i < workerCount; i++) {
+      workers.push(worker());
+    }
+
+    await Promise.all(workers);
   }
 
   const elapsedSeconds = ((Date.now() - startedAt) / 1000).toFixed(1);
