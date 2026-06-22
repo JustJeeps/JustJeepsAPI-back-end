@@ -28,6 +28,21 @@ const getProductCreateFieldSet = () => {
 
 const productCreateFieldSet = getProductCreateFieldSet();
 
+const parseUnknownArgFieldsFromPrismaError = (error) => {
+  const message = String(error?.message || "");
+  const fields = new Set();
+  const regex = /Unknown arg `([^`]+)`/g;
+  let match;
+
+  while ((match = regex.exec(message)) !== null) {
+    if (match[1]) {
+      fields.add(match[1]);
+    }
+  }
+
+  return [...fields];
+};
+
 const sanitizeCreateRowsForClient = (rows) => {
   if (!productCreateFieldSet) return rows;
 
@@ -50,6 +65,48 @@ const sanitizeCreateRowsForClient = (rows) => {
     }
     return sanitized;
   });
+};
+
+const sanitizeCreateRowsByBlockedFields = (rows, blockedFields) => {
+  if (!blockedFields || blockedFields.size === 0) return rows;
+
+  return rows.map((row) => {
+    const sanitized = {};
+    for (const [key, value] of Object.entries(row)) {
+      if (!blockedFields.has(key)) {
+        sanitized[key] = value;
+      }
+    }
+    return sanitized;
+  });
+};
+
+const createManyWithUnknownArgFallback = async (rows, batchLabel) => {
+  let payload = sanitizeCreateRowsForClient(rows);
+  const blockedFields = new Set();
+  const maxUnknownArgRetries = 3;
+
+  for (let attempt = 1; attempt <= maxUnknownArgRetries; attempt++) {
+    try {
+      await prisma.product.createMany({
+        data: payload,
+        skipDuplicates: true,
+      });
+      return;
+    } catch (error) {
+      const unknownFields = parseUnknownArgFieldsFromPrismaError(error);
+      if (!unknownFields.length || attempt === maxUnknownArgRetries) {
+        throw error;
+      }
+
+      for (const field of unknownFields) blockedFields.add(field);
+      console.warn(
+        `⚠️ ${batchLabel}: Prisma createMany rejected field(s): ${unknownFields.join(", ")}. ` +
+          "Retrying batch without unsupported field(s)."
+      );
+      payload = sanitizeCreateRowsByBlockedFields(payload, blockedFields);
+    }
+  }
 };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -775,14 +832,8 @@ const seedAllProducts = async () => {
 
       // Bulk create
       if (toCreate.length) {
-        const createPayload = sanitizeCreateRowsForClient(toCreate);
         await runWithRetry(
-          () =>
-            prisma.product.createMany({
-              data: createPayload,
-              // Should not happen because we split by existing, but safe:
-              skipDuplicates: true,
-            }),
+          () => createManyWithUnknownArgFallback(toCreate, `createMany batch ${b + 1}/${totalBatches}`),
           `createMany batch ${b + 1}/${totalBatches}`
         );
         createdCount += toCreate.length;

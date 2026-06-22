@@ -20,7 +20,7 @@ RUN apt-get update && apt-get install -y openssl tzdata --no-install-recommends 
 
 COPY --from=deps-dev /app/node_modules ./node_modules
 COPY . .
-RUN npx prisma generate
+RUN npx prisma generate --schema=prisma/schema.prisma
 
 # Stage 4: Production Builder (with production deps only)
 FROM node:20-slim AS builder-prod
@@ -34,7 +34,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # Install Prisma CLI temporarily for generate
 RUN npm install prisma@4.12.0 --no-save
-RUN npx prisma generate
+RUN npx prisma generate --schema=prisma/schema.prisma
 
 # Stage 5: Production
 FROM node:20-slim

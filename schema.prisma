@@ -94,6 +94,8 @@ model Product {
   t14_id             String?
   meyer_code         String?
   keystone_code      String?
+  keystone_brand_code String?
+  keystone_qb_code   String?
   omix_code          String?
   replace_oe         String?
   vendors            String?
