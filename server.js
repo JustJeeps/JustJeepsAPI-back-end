@@ -37,6 +37,9 @@ const meyerSeedSchedule = process.env.CRON_SEED_MEYER_SCHEDULE || '7 */4 * * *';
 const roughCountrySeedSchedule = process.env.CRON_SEED_ROUGH_COUNTRY_SCHEDULE || '37 */4 * * *';
 const magentoAttributesPrioritySchedule = process.env.CRON_MAGENTO_ATTRIBUTES_PRIORITY_SCHEDULE || '20 2 * * *';
 const magentoAttributesRoughSchedule = process.env.CRON_MAGENTO_ATTRIBUTES_ROUGH_SCHEDULE || '20 15 * * *';
+const skuCostAlertEnabled = process.env.CRON_SKU_COST_ALERT_ENABLED !== 'false';
+const skuCostAlertSchedule = process.env.CRON_SKU_COST_ALERT_SCHEDULE || '*/30 * * * *';
+const skuCostAlertSku = process.env.SKU_COST_ALERT_SKU || 'TH-635801';
 const testCronEnabled = process.env.CRON_TEST_ENABLED === 'true';
 const testCronSchedule = process.env.CRON_TEST_SCHEDULE || '*/5 * * * *';
 const testCronCommand = process.env.CRON_TEST_COMMAND || 'seed-tdot';
@@ -113,6 +116,16 @@ function getCronJobDefinitions() {
 			reportLogFile: 'logs/magento-attributes-rough.log',
 		},
 	];
+
+	if (skuCostAlertEnabled) {
+		jobs.push({
+			schedule: skuCostAlertSchedule,
+			command: 'alert-sku-cost',
+			jobName: `SKU Cost Alert Watch (${skuCostAlertSku})`,
+			logPrefix: `SKU cost alert watch (${skuCostAlertSku})`,
+			reportLogFile: 'logs/alert-sku-cost.log',
+		});
+	}
 
 	if (testCronEnabled) {
 		jobs.push({

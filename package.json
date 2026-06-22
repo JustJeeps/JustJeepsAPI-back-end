@@ -81,6 +81,7 @@
     "seed-attribute-magento": "node prisma/seeds/seed-individual/seed-attribute-magento.js",
     "magento-attributes-keyparts": "node prisma/seeds/seed-individual/seed-attribute-magento.js vendor \"KeyParts\"",
     "seed-metalcloak": "node prisma/seeds/metalcloak-integration.js",
+    "alert-sku-cost": "node scripts/monitor-sku-cost-alert.js",
     "db:check-connections": "node scripts/check-db-connections.js",
     "db:kill-seeds": "pkill -f 'prisma/seeds' || true",
     "backfill-sales-rep": "node scripts/backfill-sales-rep-labels.js",
