@@ -1,4 +1,5 @@
 const Turn14Service = require('../../../services/turn14');
+const { USD_TO_CAD_RATE } = require('../../../utils/exchangeRate');
 
 const prisma = require('../../../lib/prisma');
 
@@ -246,7 +247,7 @@ async function processPageAndSeed(turn14Items, productLookupMap, pageNumber, tur
           await prisma.vendorProduct.update({
             where: { id: existingVendorProduct.id },
             data: {
-              vendor_cost: vendorCost*1.5, // FIXED: Turn14 already provides correct currency
+              vendor_cost: vendorCost * USD_TO_CAD_RATE, // FIXED: Turn14 already provides correct currency
               vendor_inventory: vendorInventory,
               vendor_sku: turn14Item.attributes.part_number
             }
@@ -260,7 +261,7 @@ async function processPageAndSeed(turn14Items, productLookupMap, pageNumber, tur
             data: {
               product_sku: product.sku,
               vendor_id: 15,
-              vendor_cost: vendorCost*1.5, // FIXED: Turn14 already provides correct currency
+              vendor_cost: vendorCost * USD_TO_CAD_RATE, // FIXED: Turn14 already provides correct currency
               vendor_inventory: vendorInventory,
               vendor_sku: turn14Item.attributes.part_number
             }

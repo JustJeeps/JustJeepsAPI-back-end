@@ -1,5 +1,6 @@
 const prisma = require("../../../lib/prisma");
 const quadratecCost = require("../api-calls/quadratec-excel.js");
+const { USD_TO_CAD_RATE } = require("../../../utils/exchangeRate");
 
 const VENDOR_ID = 4;
 const BATCH_SIZE = 5000;
@@ -30,6 +31,49 @@ function toNumberOrNull(value) {
 
   const num = Number(match[0]);
   return Number.isFinite(num) ? num : null;
+}
+
+function isBajaBrand(brandName) {
+  return String(brandName || "").trim().toLowerCase() === "baja designs";
+}
+
+function normalizeBajaVendorCode(value) {
+  const raw = String(value || "").trim().toUpperCase();
+  if (!raw) return null;
+
+  const prefixedDashed = raw.match(/^(?:BAJ|BAJA\s*DESIGNS)[-\s]?(\d{2})-(\d+)$/);
+  if (prefixedDashed) {
+    return `${prefixedDashed[1]}-${prefixedDashed[2]}`;
+  }
+
+  const prefixed = raw.match(/^(?:BAJ|BAJA\s*DESIGNS)[-\s]?(\d+)$/);
+  if (prefixed) {
+    const digits = prefixed[1];
+    if (digits.length < 5) return null;
+    return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+  }
+
+  const dashed = raw.match(/^(\d{2})-(\d+)$/);
+  if (dashed) return `${dashed[1]}-${dashed[2]}`;
+
+  const compact = raw.match(/^(\d+)$/);
+  if (compact) {
+    const digits = compact[1];
+    if (digits.length < 5) return null;
+    return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+  }
+
+  return null;
+}
+
+function toBajaSkuFromVendorCode(value) {
+  const normalized = normalizeBajaVendorCode(value);
+  if (!normalized) return null;
+  return `BAJ-${normalized.replace(/-/g, "")}`;
+}
+
+function toBajaVendorCodeFromSku(value) {
+  return normalizeBajaVendorCode(value);
 }
 
 async function seedQuadratec() {
@@ -90,7 +134,7 @@ async function seedQuadratec() {
           quadratec_sku: r?.quadratec_sku ?? null,
           vendor_cost_usd: baseCostUsd,
           quadratec_shipping_surcharge_usd: shippingSurchargeUsd,
-          vendor_cost: round2(totalCostUsd * 1.5),
+          vendor_cost: round2(totalCostUsd * USD_TO_CAD_RATE),
           vendor_retail_price_usd: Number.isFinite(retail) ? round2(retail) : null,
         });
       }
@@ -106,16 +150,32 @@ async function seedQuadratec() {
     const codeToSkuQuadratecBrandOnly = new Map();
     const codes = cleaned.map((x) => x.quadratec_code);
 
-    for (const codeChunk of chunk(codes, 5000)) {
+    for (let i = 0; i < codes.length; i += 5000) {
+      const codeChunk = codes.slice(i, i + 5000);
+      const bajaSkuChunk = Array.from(
+        new Set(codeChunk.map((code) => toBajaSkuFromVendorCode(code)).filter(Boolean))
+      );
       const products = await prisma.product.findMany({
-        where: { quadratec_code: { in: codeChunk } },
-        select: { sku: true, quadratec_code: true },
+        where: {
+          OR: [
+            { quadratec_code: { in: codeChunk } },
+            { sku: { in: bajaSkuChunk } },
+          ],
+        },
+        select: { sku: true, quadratec_code: true, brand_name: true },
       });
       for (const p of products) {
         if (p.quadratec_code) {
           codeToSku.set(p.quadratec_code, p.sku);
           if ((p.sku || "").toUpperCase().startsWith("QTC-")) {
             codeToSkuQuadratecBrandOnly.set(p.quadratec_code, p.sku);
+          }
+        }
+
+        if (isBajaBrand(p.brand_name)) {
+          const bajaFallbackCode = toBajaVendorCodeFromSku(p.sku) || toBajaVendorCodeFromSku(p.quadratec_code);
+          if (bajaFallbackCode && !codeToSku.has(bajaFallbackCode)) {
+            codeToSku.set(bajaFallbackCode, p.sku);
           }
         }
       }
@@ -127,9 +187,12 @@ async function seedQuadratec() {
     let missingProduct = 0;
 
     for (const r of cleaned) {
+      const normalizedCode = normalizeBajaVendorCode(r.quadratec_code);
       const sku = r.quadratec_brand_only_match
-        ? codeToSkuQuadratecBrandOnly.get(r.quadratec_code)
-        : codeToSku.get(r.quadratec_code);
+        ? (codeToSkuQuadratecBrandOnly.get(r.quadratec_code)
+            || (normalizedCode ? codeToSkuQuadratecBrandOnly.get(normalizedCode) : null))
+        : (codeToSku.get(r.quadratec_code)
+            || (normalizedCode ? codeToSku.get(normalizedCode) : null));
       if (!sku) {
         missingProduct++;
         continue;

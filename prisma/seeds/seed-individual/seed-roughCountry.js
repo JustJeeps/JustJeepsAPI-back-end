@@ -1,6 +1,7 @@
 const RoughCountryCost = require("../api-calls/roughCountry-excel.js");
 
 const prisma = require("../../../lib/prisma");
+const { USD_TO_CAD_RATE } = require("../../../utils/exchangeRate");
 
 const WRITE_BATCH_SIZE = 2000;
 const LOG_EVERY = 500;
@@ -192,7 +193,7 @@ const seedRoughCountry = async () => {
         if (!hasRetailPrice && ((data["PRICE"] != null && data["PRICE"] !== "") || (data["SALE_PRICE"] != null && data["SALE_PRICE"] !== ""))) {
           invalidRetailPriceCount += 1;
         }
-        const vendorCost = rawCost * 1.5;
+        const vendorCost = rawCost * USD_TO_CAD_RATE;
         const vendorInventoryString = data["AVAILABILITY"];
         const rawInventory = Number(data["TN_STOCK"]);
         const vendorInventory = Number.isFinite(rawInventory)

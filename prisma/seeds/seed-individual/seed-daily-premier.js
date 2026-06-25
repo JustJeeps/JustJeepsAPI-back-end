@@ -5,10 +5,11 @@
 
 require('dotenv').config();
 const PremierService = require("../../../services/premier");
+const { USD_TO_CAD_RATE } = require("../../../utils/exchangeRate");
 
 const prisma = require("../../../lib/prisma");
 
-const EXCHANGE_RATE = 1.5;
+const EXCHANGE_RATE = USD_TO_CAD_RATE;
 const DEFAULT_BATCH_SIZE = 20;
 const DEFAULT_DB_WRITE_CONCURRENCY = 3;
 const DEFAULT_FAILURE_BACKOFF_MS = 2000;

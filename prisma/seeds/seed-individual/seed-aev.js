@@ -1,4 +1,5 @@
 const aevCost = require("../api-calls/aev.js");
+const { USD_TO_CAD_RATE } = require("../../../utils/exchangeRate");
 
 const prisma = require("../../../lib/prisma");
 
@@ -84,7 +85,7 @@ const seedAEVProducts = async () => {
         product_sku: productSku,
         vendor_id: 8,
         vendor_sku: row.vendorSku,
-        vendor_cost: row.cost * 1.5,
+        vendor_cost: row.cost * USD_TO_CAD_RATE,
       });
     }
 

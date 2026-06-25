@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const prisma = require('../../lib/prisma');
+const { USD_TO_CAD_RATE } = require('../../utils/exchangeRate');
 
 /**
  * MetalCloak Database Integration Service
@@ -9,7 +10,7 @@ const prisma = require('../../lib/prisma');
  * Since MetalCloak requires manual login (CAPTCHA), this is designed for batch processing
  * of scraped data files rather than real-time API integration.
  *
- * Note: MetalCloak prices are in USD and are automatically converted to CAD by multiplying by 1.50
+ * Note: MetalCloak prices are in USD and are automatically converted to CAD with USD_TO_CAD_RATE
  */
 class MetalCloakService {
   constructor() {
@@ -150,9 +151,9 @@ class MetalCloakService {
    */
   async updateProductPricing(productId, pricingData) {
     // pricingData.vendor_cost is expected to be a string or number (in USD)
-    // Convert USD to CAD by multiplying by 1.50
+    // Convert USD to CAD using the configured exchange rate
     const usdCost = pricingData.vendor_cost == null ? null : parseFloat(pricingData.vendor_cost);
-    const cadCost = usdCost ? usdCost * 1.50 : null;
+    const cadCost = usdCost ? usdCost * USD_TO_CAD_RATE : null;
 
     // Find existing VendorProduct by product_sku + vendor_id
     const existingVendorProduct = await this.prisma.vendorProduct.findFirst({

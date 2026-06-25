@@ -1,5 +1,6 @@
 require('dotenv').config();
 const Turn14Service = require('../../../services/turn14');
+const { USD_TO_CAD_RATE } = require('../../../utils/exchangeRate');
 
 const prisma = require('../../../lib/prisma');
 
@@ -304,7 +305,7 @@ async function processPageAndSeed(turn14Items, productLookupMap, pageNumber, tur
         const vendorProductData = {
           product_sku: product.sku,
           vendor_id: 15, // Turn14 Distribution
-          vendor_cost: vendorCost*1.5, // USD to CAD conversion
+          vendor_cost: vendorCost * USD_TO_CAD_RATE, // USD to CAD conversion
           vendor_inventory: vendorInventory
           // Removed vendor_inventory_string to keep database cleaner
         };

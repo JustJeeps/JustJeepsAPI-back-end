@@ -15,6 +15,7 @@
 const axios = require('axios');
 const https = require('https');
 const prisma = require('../../../lib/prisma');
+const { USD_TO_CAD_RATE } = require('../../../utils/exchangeRate');
 
 // Magento API Configuration
 const MAGENTO_CONFIG = {
@@ -106,7 +107,7 @@ const VENDOR_CONFIGS = {
  */
 async function updateMagentoProduct(sku, vendorCost, vendorInventory) {
   try {
-    const costUSD = (parseFloat(vendorCost) / 1.50).toFixed(2);
+    const costUSD = (parseFloat(vendorCost) / USD_TO_CAD_RATE).toFixed(2);
     
     const payload = {
       product: {

@@ -1,9 +1,10 @@
 const keypartsCost = require("../api-calls/keyparts");
+const { USD_TO_CAD_RATE } = require("../../../utils/exchangeRate");
 
 const prisma = require("../../../lib/prisma");
 
 const VENDOR_ID = 11;
-const COST_MULTIPLIER = 1.5;
+const COST_MULTIPLIER = USD_TO_CAD_RATE;
 const CLEAR_EXISTING = false;
 const UPSERT_BATCH_SIZE = 2000;
 const MISSING_PRODUCT_SAMPLE_SIZE = 20;
