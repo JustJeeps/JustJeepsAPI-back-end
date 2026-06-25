@@ -487,10 +487,73 @@ function safeFloat(value) {
   return Number.isFinite(num) ? num : null;
 }
 
+function isBajaBrand(brandName) {
+  return String(brandName || "").trim().toLowerCase() === "baja designs";
+}
+
+function normalizeBajaVendorPart(value) {
+  const raw = String(value || "").trim().toUpperCase();
+  if (!raw) return null;
+
+  const prefixedDashed = raw.match(/^(?:BAJ|BAJA\s*DESIGNS)[-\s]?(\d{2})-(\d+)$/);
+  if (prefixedDashed) {
+    return `${prefixedDashed[1]}-${prefixedDashed[2]}`;
+  }
+
+  const prefixed = raw.match(/^BAJ[-\s]?(\d+)$/);
+  if (prefixed) {
+    const digits = prefixed[1];
+    if (digits.length < 5) return null;
+    return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+  }
+
+  const dashed = raw.match(/^(\d{2})-(\d+)$/);
+  if (dashed) return `${dashed[1]}-${dashed[2]}`;
+
+  const compact = raw.match(/^(\d+)$/);
+  if (compact) {
+    const digits = compact[1];
+    if (digits.length < 5) return null;
+    return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+  }
+
+  return null;
+}
+
+function toBajaVendorPart(value) {
+  const normalized = normalizeBajaVendorPart(value);
+  if (!normalized) return null;
+  return normalized;
+}
+
+function resolveMeyerProductSku(map, itemNumber) {
+  const raw = String(itemNumber || "").trim();
+  if (!raw) return null;
+  if (map.has(raw)) return map.get(raw);
+
+  const normalized = normalizeBajaVendorPart(raw);
+  if (normalized && map.has(normalized)) return map.get(normalized);
+
+  return null;
+}
+
 function shouldRemoveMeyerVendor(item) {
   const partStatus = String(item?.PartStatus || "").trim().toLowerCase();
   const qtyAvailable = safeFloat(item?.QtyAvailable);
   return partStatus === "discontinued" && qtyAvailable === 0;
+}
+
+function parseKeepDiscontinuedZeroSkus() {
+  // Keep this intentionally narrow; env var allows explicit additions when needed.
+  const defaultSkus = ["BAJ-447723"];
+  const fromEnv = String(process.env.SEED_MEYER_KEEP_DISCONTINUED_ZERO_SKUS || "")
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+
+  return new Set(
+    [...defaultSkus, ...fromEnv].map((sku) => String(sku || "").trim().toUpperCase())
+  );
 }
 
 function escapeSqlString(value) {
@@ -526,6 +589,7 @@ function buildValuesSql(rows) {
 const seedMeyerVendorProducts = async () => {
   const seedStartedAt = Date.now();
   const meyerVendorId = 2;
+  const keepDiscontinuedZeroSkuSet = parseKeepDiscontinuedZeroSkus();
   try {
     console.time("seed-meyer total");
     let vendorProductCreatedCount = 0;
@@ -550,12 +614,20 @@ const seedMeyerVendorProducts = async () => {
       select: {
         sku: true,
         meyer_code: true,
+        brand_name: true,
       },
     });
 
     const meyerToProductSku = new Map();
     for (const product of products) {
       if (product.meyer_code) meyerToProductSku.set(product.meyer_code, product.sku);
+
+      if (isBajaBrand(product.brand_name)) {
+        const bajaFallbackCode = toBajaVendorPart(product.sku) || toBajaVendorPart(product.meyer_code);
+        if (bajaFallbackCode && !meyerToProductSku.has(bajaFallbackCode)) {
+          meyerToProductSku.set(bajaFallbackCode, product.sku);
+        }
+      }
     }
 
     const flushDbBatch = async (rows) => {
@@ -657,7 +729,10 @@ SELECT
 
     for (const row of staleDiscontinuedRows) {
       if (row?.product_sku) {
-        deleteSkuSet.add(row.product_sku);
+        const normalizedSku = String(row.product_sku).trim().toUpperCase();
+        if (!keepDiscontinuedZeroSkuSet.has(normalizedSku)) {
+          deleteSkuSet.add(row.product_sku);
+        }
       }
     }
 
@@ -679,16 +754,19 @@ SELECT
         }
 
         const item = data[0];
-        const productSku = meyerToProductSku.get(item.ItemNumber);
+        const productSku = resolveMeyerProductSku(meyerToProductSku, item.ItemNumber);
         if (!productSku) {
           console.error(`Product not found for meyer_code: ${item.ItemNumber}`);
           continue;
         }
 
         if (shouldRemoveMeyerVendor(item)) {
-          deleteSkuSet.add(productSku);
-          dbBuffer = dbBuffer.filter((row) => row.product_sku !== productSku);
-          continue;
+          const normalizedProductSku = String(productSku).trim().toUpperCase();
+          if (!keepDiscontinuedZeroSkuSet.has(normalizedProductSku)) {
+            deleteSkuSet.add(productSku);
+            dbBuffer = dbBuffer.filter((row) => row.product_sku !== productSku);
+            continue;
+          }
         }
 
         const vendorProductData = {
@@ -768,6 +846,14 @@ SELECT
       Total discontinued+zero candidate SKUs: ${vendorProductDeleteCandidateSkuCount}
       Total rows matched before delete: ${vendorProductDeleteRowsBeforeCount}
       Total vendor products removed this run (discontinued + zero qty): ${vendorProductRemovedCount}`);
+
+    if (keepDiscontinuedZeroSkuSet.size) {
+      console.log(
+        `Discontinued+zero keep override active for ${keepDiscontinuedZeroSkuSet.size} SKU(s): ${Array.from(
+          keepDiscontinuedZeroSkuSet
+        ).join(", ")}`
+      );
+    }
 
     console.log(`Removed product_sku list this run (${vendorProductRemovedSkus.length}):`);
     if (vendorProductRemovedSkus.length) {

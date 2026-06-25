@@ -1,0 +1,851 @@
+{
+  "generatedAt": "2026-06-25T16:55:11.802Z",
+  "totals": {
+    "quadratecOnlyActiveSkus": 4142,
+    "notAssignedToUS": 148,
+    "missingInMagento": 26,
+    "forbidden": 0,
+    "apiErrors": 0,
+    "affectedBrands": 24
+  },
+  "brandSummary": [
+    {
+      "brand": "Quadratec",
+      "count": 40
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "count": 21
+    },
+    {
+      "brand": "D&C Designs",
+      "count": 16
+    },
+    {
+      "brand": "Boomerang Enterprises",
+      "count": 12
+    },
+    {
+      "brand": "AccuPart",
+      "count": 9
+    },
+    {
+      "brand": "Prothane Motion Control",
+      "count": 9
+    },
+    {
+      "brand": "Reaper Off-Road",
+      "count": 7
+    },
+    {
+      "brand": "Lynx",
+      "count": 5
+    },
+    {
+      "brand": "MasterTop",
+      "count": 5
+    },
+    {
+      "brand": "Carnivore",
+      "count": 3
+    },
+    {
+      "brand": "QuadraTop",
+      "count": 3
+    },
+    {
+      "brand": "AJT Design",
+      "count": 2
+    },
+    {
+      "brand": "Diver Down",
+      "count": 2
+    },
+    {
+      "brand": "Performance Distributors",
+      "count": 2
+    },
+    {
+      "brand": "Tru-Fit",
+      "count": 2
+    },
+    {
+      "brand": "Under The Sun",
+      "count": 2
+    },
+    {
+      "brand": "American Outlaw",
+      "count": 1
+    },
+    {
+      "brand": "Auto Custom Carpets",
+      "count": 1
+    },
+    {
+      "brand": "Fairchild Industries",
+      "count": 1
+    },
+    {
+      "brand": "Luno",
+      "count": 1
+    },
+    {
+      "brand": "PPR Industries",
+      "count": 1
+    },
+    {
+      "brand": "RES-Q",
+      "count": 1
+    },
+    {
+      "brand": "Safety Seal",
+      "count": 1
+    },
+    {
+      "brand": "TACTIK",
+      "count": 1
+    }
+  ],
+  "notAssigned": [
+    {
+      "brand": "AccuPart",
+      "sku": "ACP-308-1104",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "AccuPart",
+      "sku": "ACP-308-1104-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "AccuPart",
+      "sku": "ACP-308-1105",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "AccuPart",
+      "sku": "ACP-AAJ01-55810",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "AccuPart",
+      "sku": "ACP-AP-211001",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "AccuPart",
+      "sku": "ACP-AP-231001",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "AccuPart",
+      "sku": "ACP-AP-231001-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "AccuPart",
+      "sku": "ACP-AP-231002",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "AccuPart",
+      "sku": "ACP-AP-231003",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "AJT Design",
+      "sku": "AJT-00049-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "AJT Design",
+      "sku": "AJT-00157-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "American Outlaw",
+      "sku": "AO-DP-1",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Auto Custom Carpets",
+      "sku": "ACC-12200-801-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Boomerang Enterprises",
+      "sku": "BMR-MC-JK-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Boomerang Enterprises",
+      "sku": "BMR-RG-OM30AMP-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Boomerang Enterprises",
+      "sku": "BMR-RG-OM32-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Boomerang Enterprises",
+      "sku": "BMR-RG-ZEB30-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Boomerang Enterprises",
+      "sku": "BMR-RG-ZEB32-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Boomerang Enterprises",
+      "sku": "BMR-RGJK30-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Boomerang Enterprises",
+      "sku": "BMR-RJTC-32-DWB-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Boomerang Enterprises",
+      "sku": "BMR-TC-AFSTAR-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Boomerang Enterprises",
+      "sku": "BMR-TC-DFLG-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Boomerang Enterprises",
+      "sku": "BMR-TC-KCHO-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Boomerang Enterprises",
+      "sku": "BMR-TC-OM-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Boomerang Enterprises",
+      "sku": "BMR-TC-PS-Y-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Carnivore",
+      "sku": "CVR-12015-1006",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Carnivore",
+      "sku": "CVR-12015-1007-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Carnivore",
+      "sku": "CVR-PW04319501",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-1-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-1003",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-1004",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-1005",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-1006",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-189",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-189-1",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-190",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-191",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-192",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-193",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-197",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-900",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-901",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-903",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-904",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Diver Down",
+      "sku": "DID-14167-4090-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Diver Down",
+      "sku": "DID-14167-4410-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Fairchild Industries",
+      "sku": "FCI-D4158-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Luno",
+      "sku": "LUN-SHT-002-R2-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Lynx",
+      "sku": "LYN-52159-0015",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Lynx",
+      "sku": "LYN-92615-3863-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Lynx",
+      "sku": "LYN-92615-3869-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Lynx",
+      "sku": "LYN-92615-3874-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Lynx",
+      "sku": "LYN-KIT00540L",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "MasterTop",
+      "sku": "MST-14305535-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "MasterTop",
+      "sku": "MST-14305624-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "MasterTop",
+      "sku": "MST-14456635-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "MasterTop",
+      "sku": "MST-14856624-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "MasterTop",
+      "sku": "MST-84501124-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Performance Distributors",
+      "sku": "PDI-DUI-40620BK-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Performance Distributors",
+      "sku": "PDI-DUI-C9077BL-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "PPR Industries",
+      "sku": "PPR-30 9907 07-10G",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Prothane Motion Control",
+      "sku": "PMC-1-1017",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Prothane Motion Control",
+      "sku": "PMC-1-1017-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Prothane Motion Control",
+      "sku": "PMC-1-1017-BL",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Prothane Motion Control",
+      "sku": "PMC-1-815",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Prothane Motion Control",
+      "sku": "PMC-1-815-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Prothane Motion Control",
+      "sku": "PMC-1-815-BL",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Prothane Motion Control",
+      "sku": "PMC-1-816",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Prothane Motion Control",
+      "sku": "PMC-1-816-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Prothane Motion Control",
+      "sku": "PMC-1-816-BL",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-12004-3024",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-12110-2031",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-12590-1187",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-24210-2006-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-55014-600-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2350",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2351",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2351-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2352",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2353",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2354",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2355",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2356",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2357",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2362",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2363",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2366",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2367",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2370",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2371",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2372",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2373",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2374",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2376",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2377",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2378",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2379",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-880000-2375",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-92615-3550",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-92615-3560",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-92615-3560-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-92615-3840",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-92615-3850",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-92615-3850-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-92615-3851",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-92615-3852",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-92615-3855",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-92615-3855-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-92615-3856",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-92615-3860-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "QuadraTop",
+      "sku": "QTP-11113-2535-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "QuadraTop",
+      "sku": "QTP-12020-5100-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "QuadraTop",
+      "sku": "QTP-12021-1303-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Reaper Off-Road",
+      "sku": "ROR-JFL0-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Reaper Off-Road",
+      "sku": "ROR-JFL02-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Reaper Off-Road",
+      "sku": "ROR-JFL05-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Reaper Off-Road",
+      "sku": "ROR-JFL06-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Reaper Off-Road",
+      "sku": "ROR-JSR05",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Reaper Off-Road",
+      "sku": "ROR-JSR06",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Reaper Off-Road",
+      "sku": "ROR-JTFNDRX1-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "RES-Q",
+      "sku": "RES-92128-9000",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-5019",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-80104-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH-5000-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH-5040",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH-90210-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH-90300-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH3001-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH3001-C-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH3001-S-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH3001-U-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH5005-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH5006-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH6000LA-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH6002-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH6003-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH6004-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH6005-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH6006-T-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH6009",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH8000BO",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH9000-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Safety Seal",
+      "sku": "OSS-SSKAP30",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "TACTIK",
+      "sku": "TCK-15006-3002-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Tru-Fit",
+      "sku": "TRF-14256-0001-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Tru-Fit",
+      "sku": "TRF-14256-1020-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Under The Sun",
+      "sku": "UTS-ANIMAL-",
+      "websiteIds": "1"
+    },
+    {
+      "brand": "Under The Sun",
+      "sku": "UTS-VNTDCL-SLDBLK-JL/JT",
+      "websiteIds": "1"
+    }
+  ]
+}

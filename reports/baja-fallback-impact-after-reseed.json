@@ -1,0 +1,29 @@
+{
+  "generatedAt": "2026-06-25T15:21:45.638Z",
+  "counts": {
+    "fallbackEligible": 687,
+    "meyerRecoveredByRun": 0,
+    "quadratecRecoveredByRun": 1,
+    "uniqueRecoveredByRun": 1,
+    "meyerMissingBefore": 70,
+    "meyerMissingAfter": 70,
+    "quadratecMissingBefore": 652,
+    "quadratecMissingAfter": 651
+  },
+  "impacted": {
+    "meyerRecoveredSkus": [],
+    "quadratecRecoveredSkus": [
+      "BAJ-447721"
+    ],
+    "uniqueRecoveredSkus": [
+      "BAJ-447721"
+    ]
+  },
+  "targetBAJ447723": {
+    "meyerRecovered": false,
+    "quadratecRecovered": false,
+    "recoveredAny": false,
+    "stillMissingMeyer": true,
+    "stillMissingQuadratec": true
+  }
+}

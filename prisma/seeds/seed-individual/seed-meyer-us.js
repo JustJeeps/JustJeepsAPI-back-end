@@ -8,6 +8,56 @@ function safeFloat(value) {
   return Number.isFinite(num) ? num : null;
 }
 
+function isBajaBrand(brandName) {
+  return String(brandName || "").trim().toLowerCase() === "baja designs";
+}
+
+function normalizeBajaVendorPart(value) {
+  const raw = String(value || "").trim().toUpperCase();
+  if (!raw) return null;
+
+  const prefixedDashed = raw.match(/^(?:BAJ|BAJA\s*DESIGNS)[-\s]?(\d{2})-(\d+)$/);
+  if (prefixedDashed) {
+    return `${prefixedDashed[1]}-${prefixedDashed[2]}`;
+  }
+
+  const prefixed = raw.match(/^BAJ[-\s]?(\d+)$/);
+  if (prefixed) {
+    const digits = prefixed[1];
+    if (digits.length < 5) return null;
+    return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+  }
+
+  const dashed = raw.match(/^(\d{2})-(\d+)$/);
+  if (dashed) return `${dashed[1]}-${dashed[2]}`;
+
+  const compact = raw.match(/^(\d+)$/);
+  if (compact) {
+    const digits = compact[1];
+    if (digits.length < 5) return null;
+    return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+  }
+
+  return null;
+}
+
+function toBajaVendorPart(value) {
+  const normalized = normalizeBajaVendorPart(value);
+  if (!normalized) return null;
+  return normalized;
+}
+
+function resolveMeyerProductSku(map, itemNumber) {
+  const raw = String(itemNumber || "").trim();
+  if (!raw) return null;
+  if (map.has(raw)) return map.get(raw);
+
+  const normalized = normalizeBajaVendorPart(raw);
+  if (normalized && map.has(normalized)) return map.get(normalized);
+
+  return null;
+}
+
 function shouldRemoveMeyerVendor(item) {
   const partStatus = String(item?.PartStatus || "").trim().toLowerCase();
   const qtyAvailable = safeFloat(item?.QtyAvailable);
@@ -64,12 +114,20 @@ const seedMeyerUsVendorProducts = async () => {
       select: {
         sku: true,
         meyer_code: true,
+        brand_name: true,
       },
     });
 
     const meyerToProductSku = new Map();
     for (const product of products) {
       if (product.meyer_code) meyerToProductSku.set(product.meyer_code, product.sku);
+
+      if (isBajaBrand(product.brand_name)) {
+        const bajaFallbackCode = toBajaVendorPart(product.sku) || toBajaVendorPart(product.meyer_code);
+        if (bajaFallbackCode && !meyerToProductSku.has(bajaFallbackCode)) {
+          meyerToProductSku.set(bajaFallbackCode, product.sku);
+        }
+      }
     }
 
     const flushDbBatch = async (rows) => {
@@ -168,7 +226,7 @@ SELECT
         }
 
         const item = data[0];
-        const productSku = meyerToProductSku.get(item.ItemNumber);
+        const productSku = resolveMeyerProductSku(meyerToProductSku, item.ItemNumber);
         if (!productSku) {
           console.error(`Product not found for meyer_code: ${item.ItemNumber}`);
           continue;

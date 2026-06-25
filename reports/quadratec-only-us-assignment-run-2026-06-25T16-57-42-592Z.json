@@ -1,0 +1,1789 @@
+{
+  "generatedAt": "2026-06-25T16:57:42.592Z",
+  "reportPath": "/Users/tessfbs/justJeepsAPI/JustJeepsAPI-back-end/reports/quadratec-only-us-not-assigned-2026-06-25T16-55-11-802Z.json",
+  "summary": {
+    "attempted": 148,
+    "assigned": 148,
+    "alreadyAssigned": 0,
+    "verifyFailed": 0,
+    "failed": 0
+  },
+  "results": [
+    {
+      "brand": "AccuPart",
+      "sku": "ACP-308-1104",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "AccuPart",
+      "sku": "ACP-308-1104-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "AccuPart",
+      "sku": "ACP-308-1105",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "AccuPart",
+      "sku": "ACP-AAJ01-55810",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "AccuPart",
+      "sku": "ACP-AP-211001",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "AccuPart",
+      "sku": "ACP-AP-231001",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "AccuPart",
+      "sku": "ACP-AP-231001-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "AccuPart",
+      "sku": "ACP-AP-231002",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "AccuPart",
+      "sku": "ACP-AP-231003",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "AJT Design",
+      "sku": "AJT-00049-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "AJT Design",
+      "sku": "AJT-00157-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "American Outlaw",
+      "sku": "AO-DP-1",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Auto Custom Carpets",
+      "sku": "ACC-12200-801-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Boomerang Enterprises",
+      "sku": "BMR-MC-JK-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Boomerang Enterprises",
+      "sku": "BMR-RG-OM30AMP-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Boomerang Enterprises",
+      "sku": "BMR-RG-OM32-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Boomerang Enterprises",
+      "sku": "BMR-RG-ZEB30-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Boomerang Enterprises",
+      "sku": "BMR-RG-ZEB32-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Boomerang Enterprises",
+      "sku": "BMR-RGJK30-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Boomerang Enterprises",
+      "sku": "BMR-RJTC-32-DWB-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Boomerang Enterprises",
+      "sku": "BMR-TC-AFSTAR-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Boomerang Enterprises",
+      "sku": "BMR-TC-DFLG-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Boomerang Enterprises",
+      "sku": "BMR-TC-KCHO-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Boomerang Enterprises",
+      "sku": "BMR-TC-OM-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Boomerang Enterprises",
+      "sku": "BMR-TC-PS-Y-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Carnivore",
+      "sku": "CVR-12015-1006",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Carnivore",
+      "sku": "CVR-12015-1007-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Carnivore",
+      "sku": "CVR-PW04319501",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-1-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-1003",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-1004",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-1005",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-1006",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-189",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-189-1",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-190",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-191",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-192",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-193",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-197",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-900",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-901",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-903",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "D&C Designs",
+      "sku": "DC-904",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Diver Down",
+      "sku": "DID-14167-4090-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Diver Down",
+      "sku": "DID-14167-4410-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Fairchild Industries",
+      "sku": "FCI-D4158-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Luno",
+      "sku": "LUN-SHT-002-R2-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Lynx",
+      "sku": "LYN-52159-0015",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Lynx",
+      "sku": "LYN-92615-3863-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Lynx",
+      "sku": "LYN-92615-3869-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Lynx",
+      "sku": "LYN-92615-3874-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Lynx",
+      "sku": "LYN-KIT00540L",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "MasterTop",
+      "sku": "MST-14305535-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "MasterTop",
+      "sku": "MST-14305624-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "MasterTop",
+      "sku": "MST-14456635-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "MasterTop",
+      "sku": "MST-14856624-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "MasterTop",
+      "sku": "MST-84501124-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Performance Distributors",
+      "sku": "PDI-DUI-40620BK-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Performance Distributors",
+      "sku": "PDI-DUI-C9077BL-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "PPR Industries",
+      "sku": "PPR-30 9907 07-10G",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Prothane Motion Control",
+      "sku": "PMC-1-1017",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Prothane Motion Control",
+      "sku": "PMC-1-1017-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Prothane Motion Control",
+      "sku": "PMC-1-1017-BL",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Prothane Motion Control",
+      "sku": "PMC-1-815",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Prothane Motion Control",
+      "sku": "PMC-1-815-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Prothane Motion Control",
+      "sku": "PMC-1-815-BL",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Prothane Motion Control",
+      "sku": "PMC-1-816",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Prothane Motion Control",
+      "sku": "PMC-1-816-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Prothane Motion Control",
+      "sku": "PMC-1-816-BL",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-12004-3024",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-12110-2031",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-12590-1187",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-24210-2006-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-55014-600-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2350",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2351",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2351-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2352",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2353",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2354",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2355",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2356",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2357",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2362",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2363",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2366",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2367",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2370",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2371",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2372",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2373",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2374",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2376",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2377",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2378",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-80000-2379",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-880000-2375",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-92615-3550",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-92615-3560",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-92615-3560-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-92615-3840",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-92615-3850",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-92615-3850-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-92615-3851",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-92615-3852",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-92615-3855",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-92615-3855-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-92615-3856",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Quadratec",
+      "sku": "QTC-92615-3860-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "QuadraTop",
+      "sku": "QTP-11113-2535-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "QuadraTop",
+      "sku": "QTP-12020-5100-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "QuadraTop",
+      "sku": "QTP-12021-1303-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Reaper Off-Road",
+      "sku": "ROR-JFL0-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Reaper Off-Road",
+      "sku": "ROR-JFL02-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Reaper Off-Road",
+      "sku": "ROR-JFL05-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Reaper Off-Road",
+      "sku": "ROR-JFL06-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Reaper Off-Road",
+      "sku": "ROR-JSR05",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Reaper Off-Road",
+      "sku": "ROR-JSR06",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Reaper Off-Road",
+      "sku": "ROR-JTFNDRX1-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "RES-Q",
+      "sku": "RES-92128-9000",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-5019",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-80104-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH-5000-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH-5040",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH-90210-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH-90300-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH3001-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH3001-C-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH3001-S-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH3001-U-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH5005-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH5006-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH6000LA-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH6002-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH6003-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH6004-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH6005-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH6006-T-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH6009",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH8000BO",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Rock Hard 4X4",
+      "sku": "RH-RH9000-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Safety Seal",
+      "sku": "OSS-SSKAP30",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "TACTIK",
+      "sku": "TCK-15006-3002-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Tru-Fit",
+      "sku": "TRF-14256-0001-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Tru-Fit",
+      "sku": "TRF-14256-1020-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Under The Sun",
+      "sku": "UTS-ANIMAL-",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    },
+    {
+      "brand": "Under The Sun",
+      "sku": "UTS-VNTDCL-SLDBLK-JL/JT",
+      "status": "assigned",
+      "before": [
+        1
+      ],
+      "after": [
+        1,
+        2
+      ]
+    }
+  ]
+}

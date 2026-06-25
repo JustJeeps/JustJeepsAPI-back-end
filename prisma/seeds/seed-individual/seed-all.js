@@ -19,7 +19,7 @@ const vendorSeeds = [
 // parallel tails
 const otherSeeds = [
   
-  "seed-orders-all",
+  // "seed-orders-all",
   "seed-meyer",
   "seed-tdot",
   "seed-roughCountry",

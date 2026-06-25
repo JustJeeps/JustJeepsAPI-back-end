@@ -134,6 +134,20 @@ function airbedzDashlessFallback(value) {
   return dashless !== raw ? dashless : null;
 }
 
+function isBajaMeyerCode(value) {
+  return (value ?? "").toString().toUpperCase().startsWith("BAJ");
+}
+
+function bajaDashedFallback(value) {
+  const raw = (value ?? "").toString().toUpperCase().trim();
+  if (!raw || !isBajaMeyerCode(raw)) return null;
+
+  const compact = raw.match(/^BAJ(\d{2})(\d+)$/);
+  if (!compact) return null;
+
+  return `BAJ${compact[1]}-${compact[2]}`;
+}
+
 function chunkArray(items, size) {
   const chunks = [];
   for (let i = 0; i < items.length; i += size) {
@@ -146,6 +160,45 @@ function isRetryableHttp(err) {
   const status = err?.response?.status;
   if (!status) return true; // network / timeout
   return [408, 425, 429, 500, 502, 503, 504].includes(status);
+}
+
+function isDiscontinuedZero(item) {
+  const partStatus = String(item?.PartStatus || "").trim().toLowerCase();
+  const qty = Number(item?.QtyAvailable);
+  return partStatus === "discontinued" && qty === 0;
+}
+
+function choosePreferredMeyerItem(existingItem, incomingItem) {
+  if (!existingItem) return incomingItem;
+
+  const existingIsDiscontinuedZero = isDiscontinuedZero(existingItem);
+  const incomingIsDiscontinuedZero = isDiscontinuedZero(incomingItem);
+
+  if (existingIsDiscontinuedZero && !incomingIsDiscontinuedZero) return incomingItem;
+  if (!existingIsDiscontinuedZero && incomingIsDiscontinuedZero) return existingItem;
+
+  return incomingItem;
+}
+
+function fallbackCandidatesForItem(itemNumber, mergedByItemNumber) {
+  const normalizedItemNumber = normalizeItemNumber(itemNumber);
+  const existing = mergedByItemNumber.get(normalizedItemNumber);
+  const shouldProbeFallback = !existing || isDiscontinuedZero(existing);
+  if (!shouldProbeFallback) return [];
+
+  return Array.from(new Set([
+    bestopDashlessFallback(itemNumber),
+    airbedzDashlessFallback(itemNumber),
+    bajaDashedFallback(itemNumber),
+  ].filter(Boolean))).filter((fallbackCode) => {
+    const fallbackNormalized = normalizeItemNumber(fallbackCode);
+
+    // Keep probing if the fallback code maps to the same normalized key and
+    // current best item is discontinued+zero; this allows active variants to win.
+    if (fallbackNormalized === normalizedItemNumber) return true;
+
+    return !mergedByItemNumber.has(fallbackNormalized);
+  });
 }
 
 async function fetchMeyerBatch(itemNumbers, opts = {}) {
@@ -237,6 +290,54 @@ const MeyerCost = async () => {
     const flattenedResponses = [];
     console.time("Overall execution time");
 
+    const fetchOneItemWithFallback = async (itemNumber) => {
+      const mergedByItemNumber = new Map();
+
+      const primaryData = await fetchMeyerBatch([itemNumber], {
+        timeoutMs: Number(process.env.MEYER_TIMEOUT_MS || 30000),
+        maxRetries: Number(process.env.MEYER_RETRY_MAX || 5),
+        baseDelayMs: Number(process.env.MEYER_RETRY_DELAY_MS || 400),
+        minDelayBetweenCallsMs: Number(process.env.MEYER_MIN_DELAY_MS || 0),
+      });
+
+      if (Array.isArray(primaryData)) {
+        for (const item of primaryData) {
+          const key = normalizeItemNumber(item?.ItemNumber);
+          if (!key) continue;
+          const existing = mergedByItemNumber.get(key);
+          mergedByItemNumber.set(key, choosePreferredMeyerItem(existing, item));
+        }
+      }
+
+      const fallbacks = fallbackCandidatesForItem(itemNumber, mergedByItemNumber);
+      if (fallbacks.length) {
+        const fallbackData = await fetchMeyerBatch(fallbacks, {
+          timeoutMs: Number(process.env.MEYER_TIMEOUT_MS || 30000),
+          maxRetries: Number(process.env.MEYER_RETRY_MAX || 5),
+          baseDelayMs: Number(process.env.MEYER_RETRY_DELAY_MS || 400),
+          minDelayBetweenCallsMs: Number(process.env.MEYER_MIN_DELAY_MS || 0),
+        });
+
+        if (Array.isArray(fallbackData)) {
+          for (const item of fallbackData) {
+            const key = normalizeItemNumber(item?.ItemNumber);
+            if (!key) continue;
+            const existing = mergedByItemNumber.get(key);
+            mergedByItemNumber.set(key, choosePreferredMeyerItem(existing, item));
+          }
+        }
+      }
+
+      const resolved = mergedByItemNumber.get(normalizeItemNumber(itemNumber));
+      if (resolved) return [resolved];
+
+      return {
+        statusCode: 404,
+        errorMessage: "No results found after per-item fallback",
+        itemNumber,
+      };
+    };
+
     for (let i = 0; i < chunkedSkus.length; i++) {
       const chunk = chunkedSkus[i];
       const itemNumbers = chunk.map((c) => c.meyer_code).filter(Boolean);
@@ -252,33 +353,28 @@ const MeyerCost = async () => {
 
       if (data && data.statusCode) {
         console.log(`Batch ${i + 1} failed: ${data.errorMessage || "Unknown error"}`);
+        console.log(`Batch ${i + 1}: retrying failed batch item-by-item...`);
+
         for (const itemNumber of itemNumbers) {
-          flattenedResponses.push({
-            statusCode: data.statusCode,
-            errorMessage: data.errorMessage,
-            itemNumber,
-          });
+          const recovered = await fetchOneItemWithFallback(itemNumber);
+          flattenedResponses.push(recovered);
         }
       } else if (Array.isArray(data)) {
         const mergedByItemNumber = new Map();
         for (const item of data) {
           const key = normalizeItemNumber(item?.ItemNumber);
           if (!key) continue;
-          mergedByItemNumber.set(key, item);
+          const existing = mergedByItemNumber.get(key);
+          mergedByItemNumber.set(key, choosePreferredMeyerItem(existing, item));
         }
 
         const missingFallbackCandidates = itemNumbers
-          .filter((itemNumber) => !mergedByItemNumber.has(normalizeItemNumber(itemNumber)))
-          .flatMap((itemNumber) => [
-            bestopDashlessFallback(itemNumber),
-            airbedzDashlessFallback(itemNumber),
-          ])
-          .filter((fallbackCode) => fallbackCode && !mergedByItemNumber.has(normalizeItemNumber(fallbackCode)));
+          .flatMap((itemNumber) => fallbackCandidatesForItem(itemNumber, mergedByItemNumber));
 
         if (missingFallbackCandidates.length > 0) {
           const uniqueFallbacks = Array.from(new Set(missingFallbackCandidates));
           console.log(
-            `Batch ${i + 1}: retrying ${uniqueFallbacks.length} missing item(s) with dashless fallback (BES/ABZPPI)...`
+            `Batch ${i + 1}: retrying ${uniqueFallbacks.length} missing item(s) with fallback remap (BES/ABZPPI/BAJ)...`
           );
 
           const fallbackChunks = chunkArray(uniqueFallbacks, 100);
@@ -294,7 +390,8 @@ const MeyerCost = async () => {
               for (const item of fallbackData) {
                 const key = normalizeItemNumber(item?.ItemNumber);
                 if (!key) continue;
-                mergedByItemNumber.set(key, item);
+                const existing = mergedByItemNumber.get(key);
+                mergedByItemNumber.set(key, choosePreferredMeyerItem(existing, item));
               }
             }
           }
