@@ -14,6 +14,12 @@ const prisma = require("../../../lib/prisma");
 const KEYSTONE_FILES_DIR = path.resolve(__dirname, "../api-calls/keystone_files");
 const KEYSTONE_FILES = ["Inventory.csv", "SpecialOrder.csv"];
 
+const MEYER_CODE_OVERRIDES_BY_SKU = {
+  "BAJ-447723": "BAJ44-7723",
+  "BST-5493035": "BES5493035",
+  "BST-5493017": "BES5493017",
+};
+
 const getProductCreateFieldSet = () => {
   try {
     const dmmfModel = prisma?._dmmf?.datamodel?.models?.find((m) => m.name === "Product");
@@ -385,6 +391,12 @@ const buildRowFromMagento = (
   // YUKON: remove spaces + uppercase
   if (jjPrefix === "YUK") {
     meyerCode = ((vendorData?.meyer_code || "") + searchable_sku).replace(/\s+/g, "").toUpperCase();
+  }
+
+  // Canonical Meyer-code overrides for known vendor edge cases.
+  const meyerCodeOverride = MEYER_CODE_OVERRIDES_BY_SKU[String(sku).toUpperCase()];
+  if (meyerCodeOverride) {
+    meyerCode = meyerCodeOverride;
   }
 
   // Keystone code
