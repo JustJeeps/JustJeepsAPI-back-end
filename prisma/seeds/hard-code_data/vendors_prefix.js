@@ -218,6 +218,16 @@ module.exports = [
     gentecdirect_code: "SKU: ",
   },
   {
+    jj_prefix: "ALR",
+    brand_name: "AlphaRex",
+    vendors: "Meyer, Keystone",
+    keystone_code: "ALP",
+    meyer_code: "ALR",
+    quadratec_code: "",
+    tdot_code: "AlphaRex",
+    partsEngine_code: "-vp-alpharex-920.aspx",
+  },
+  {
     jj_prefix: "AEV",
     brand_name: "American Expedition Vehicles (MAP)",
     vendors: "AEV",//Qudratec (MAP)
@@ -405,6 +415,21 @@ module.exports = [
     meyer_code: "",
   },
   {
+    jj_prefix: "AUX",
+    brand_name: "Auxbeam",
+    vendors: "Auxbeam",
+    keystone_code: "",
+    meyer_code: "",
+    quadratec_code: "",
+    tdot_code: "",
+    truck_parts_code: "",
+    partsEngine_code: "-",
+    keystone_code_site: "",
+    keystone_ftp_brand: "",
+    premier_code: "",
+    t14_code: "",
+  },
+  {
     jj_prefix: "ACC",
     brand_name: "Auto Custom Carpets",
     vendors: "Quadratec",
@@ -523,6 +548,12 @@ module.exports = [
 
     t14_code: "gbe",
     premier_code: "BAN", // Banks Power
+  },
+  {
+    jj_prefix: "BAR",
+    brand_name: "Barricade",
+    vendors: "Extreme Terrain",
+
   },
     {
     jj_prefix: "BXT",
@@ -1072,6 +1103,21 @@ module.exports = [
     quadratec_code: "D&C Designs",
   },
   {
+    jj_prefix: "DS",
+    brand_name: "DS18",
+    vendors: "Meyer, Quadratec",
+    keystone_code: "",
+    meyer_code: "DSL",
+    quadratec_code: "DS18",
+    tdot_code: "",
+    truck_parts_code: "",
+    partsEngine_code: "-vp-ds18-sound-2871.aspx",
+    keystone_code_site: "",
+    keystone_ftp_brand: "",
+    premier_code: "",
+    t14_code: "",
+  },
+  {
     jj_prefix: "DSP",
     brand_name: "Dana Spicer",
     vendors: "Meyer, Keystone, Quadratec",
@@ -1368,7 +1414,7 @@ module.exports = [
   {
     jj_prefix: "ENT",
     brand_name: "Enthuze Truck Accessories",
-    // vendors: "Meyer, Keystone, Quadratec",
+    vendors: "CTP",
     // keystone_code: "EFE",
     // meyer_code: "ELE",
     // quadratec_code: "Element",
@@ -3317,6 +3363,16 @@ module.exports = [
     keystone_code_site: "RAN",
     premier_code: "ROS", // Rancho
   },
+  {
+    jj_prefix: "RSL",
+    brand_name: "Race Sport Lighting",
+    vendors: "Meyer, Keystone",
+    keystone_code: "RSL",
+    meyer_code: "RSP",
+    partsEngine_code: "-vp-race-sport-781.aspx",
+
+
+  },
     {
     jj_prefix: "RNH",
     brand_name: "Ranch Hand",
@@ -3364,6 +3420,15 @@ module.exports = [
     ctp_code: "AMG INC. / RECON",
     keystone_code_site: "REC",
 
+
+  },
+  {
+    jj_prefix: "RDC",
+    brand_name: "Redarc",
+    vendors: "Meyer, Keystone",
+    keystone_code: "RDC",
+    meyer_code: "RDC",
+    partsEngine_code: "-vp-redarc-2132.aspx",
 
   },
   {
@@ -3748,6 +3813,13 @@ module.exports = [
     quadratec_code: "Seatbelt Solutions",
   },
   {
+    jj_prefix: "STZ",
+    brand_name: "Seatz Manufacturing",
+    vendors: "Quadratec",
+    quadratec_code: "Seatz Manufacturing",
+
+  },
+  {
     jj_prefix: "SCH",
     brand_name: "Scosche",
     vendors: "Meyer, Keystone, Quadratec",
@@ -3767,6 +3839,15 @@ module.exports = [
     partsEngine_code: "-vp-schumacher-2207.aspx",
     keystone_code_site: "SCH",
 
+  },
+  {
+    jj_prefix: "SHE",
+    brand_name: "Sherman",
+    vendors: "Meyer",
+    keystone_code: "",
+    meyer_code: "SHE",
+    quadratec_code: "",
+    partsEngine_code: "-vp-sherman-parts-2239.aspx",
   },
   {
     jj_prefix: "SKY",
@@ -3971,6 +4052,13 @@ module.exports = [
     quadratec_code: "Surco",
     partsEngine_code: "-vp-surco-2343.aspx",
     keystone_code_site: "SRC",
+
+  },
+  {
+    jj_prefix: "SWI",
+    brand_name: "Scotwood Industries",
+    vendors: "Meyer",
+    meyer_code: "SWI",
 
   },
   {
