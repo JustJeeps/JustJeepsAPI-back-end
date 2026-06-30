@@ -4062,8 +4062,8 @@ module.exports = [
   {
     jj_prefix: "TH",
     brand_name: "Thule Racks",
-    vendors: "Meyer, Keystone, Quadratec",
-    keystone_code: "T22",
+    vendors: "Meyer, Quadratec", // no longer keystone
+    // keystone_code: "T22",
     meyer_code: "TCA",
     quadratec_code: "Thule",
     tdot_code: "Thule",
