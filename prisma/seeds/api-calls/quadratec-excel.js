@@ -23,6 +23,28 @@ function parseMoney(value) {
   return Number.isFinite(num) ? num : null;
 }
 
+function normalizeQuadratecPrices(wholesalePrice, retailPrice) {
+  const hasWholesale = Number.isFinite(wholesalePrice);
+  const hasRetail = Number.isFinite(retailPrice);
+
+  // Feed anomaly guard: some rows have wholesale/retail swapped.
+  // When both are present and wholesale is greater than retail,
+  // treat them as swapped and correct in-memory before seeding.
+  if (hasWholesale && hasRetail && wholesalePrice > retailPrice) {
+    return {
+      wholesalePrice: retailPrice,
+      retailPrice: wholesalePrice,
+      prices_swapped: true,
+    };
+  }
+
+  return {
+    wholesalePrice,
+    retailPrice,
+    prices_swapped: false,
+  };
+}
+
 function startsWithQtc(value) {
   return normalizeText(value).toUpperCase().startsWith("QTC-");
 }
@@ -249,18 +271,23 @@ const quadratecCost = () => {
       quadratecCodeAlt12 = rawFallbacks[2] || null;
     }
 
-    const wholesalePrice = parseMoney(obj["Wholesale Price"]);
+    const wholesalePriceRaw = parseMoney(obj["Wholesale Price"]);
     const shippingSurcharge = parseMoney(obj["Shipping Surcharge"]);
-    const retailPrice = parseMoney(obj["Retail Price"]);
+    const retailPriceRaw = parseMoney(obj["Retail Price"]);
+    const normalizedPrices = normalizeQuadratecPrices(
+      wholesalePriceRaw,
+      retailPriceRaw
+    );
 
     return {
       MPN: mpn,
       brand,
       original_brand: originalBrand,
       forced_quadratec_brand: forcedQuadratecBrand,
-      wholesalePrice,
+      wholesalePrice: normalizedPrices.wholesalePrice,
       shippingSurcharge,
-      retailPrice,
+      retailPrice: normalizedPrices.retailPrice,
+      prices_swapped: normalizedPrices.prices_swapped,
       quadratec_code: quadratecCode,
       quadratec_code_alt: quadratecCodeAlt || null,
       quadratec_code_alt2: quadratecCodeAlt2,
