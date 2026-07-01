@@ -932,16 +932,16 @@ const seedAllProducts = async () => {
         };
       });
 
-      console.log("🔎 Sample SKU field check (DB vs Magento expected):");
-      for (const row of comparison) {
-        console.log(
-          `SKU ${row.sku}\n` +
-            `  price:  db=${row.price_db} | magento=${row.price_expected}\n` +
-            `  url:    db=${row.url_path_db} | magento=${row.url_path_expected}\n` +
-            `  name:   db=${row.name_db} | magento=${row.name_expected}\n` +
-            `  status: db=${row.status_db} | magento=${row.status_expected}\n`
-        );
-      }
+      // console.log("🔎 Sample SKU field check (DB vs Magento expected):");
+      // for (const row of comparison) {
+      //   console.log(
+      //     `SKU ${row.sku}\n` +
+      //       `  price:  db=${row.price_db} | magento=${row.price_expected}\n` +
+      //       `  url:    db=${row.url_path_db} | magento=${row.url_path_expected}\n` +
+      //       `  name:   db=${row.name_db} | magento=${row.name_expected}\n` +
+      //       `  status: db=${row.status_db} | magento=${row.status_expected}\n`
+      //   );
+      // }
     }
   } catch (error) {
     console.error("❌ seed-allProducts failed:", error);
