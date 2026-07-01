@@ -82,6 +82,7 @@ env:
     # Database & Auth
     - DATABASE_URL
     - JWT_SECRET
+    - USD_TO_CAD_RATE
     # Email providers & notifications
     - EMAIL_PROVIDER
     - EMAIL_FROM

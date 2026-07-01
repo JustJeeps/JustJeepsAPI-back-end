@@ -148,6 +148,7 @@ async function seedQuadratec() {
     console.time("fetch products mapping");
     const codeToSku = new Map();
     const codeToSkuQuadratecBrandOnly = new Map();
+    const skuToProductMeta = new Map();
     const codes = cleaned.map((x) => x.quadratec_code);
 
     for (let i = 0; i < codes.length; i += 5000) {
@@ -165,6 +166,13 @@ async function seedQuadratec() {
         select: { sku: true, quadratec_code: true, brand_name: true },
       });
       for (const p of products) {
+        if (!skuToProductMeta.has(p.sku)) {
+          skuToProductMeta.set(p.sku, {
+            quadratec_code: p.quadratec_code || null,
+            brand_name: p.brand_name || null,
+          });
+        }
+
         if (p.quadratec_code) {
           codeToSku.set(p.quadratec_code, p.sku);
           if ((p.sku || "").toUpperCase().startsWith("QTC-")) {
@@ -183,7 +191,7 @@ async function seedQuadratec() {
     console.timeEnd("fetch products mapping");
 
     // 3) Build VendorProduct rows (only when we have a matching Product)
-    const rowsToInsert = [];
+    const rowByProductSku = new Map();
     let missingProduct = 0;
 
     for (const r of cleaned) {
@@ -198,7 +206,14 @@ async function seedQuadratec() {
         continue;
       }
 
-      rowsToInsert.push({
+      const productMeta = skuToProductMeta.get(sku) || {};
+      const normalizedProductCode = normalizeBajaVendorCode(productMeta.quadratec_code);
+
+      // Prefer rows where feed code matches Product.quadratec_code exactly.
+      // This prevents alternate-code collisions from creating duplicate vendor rows per SKU.
+      const score = normalizedProductCode && normalizedCode === normalizedProductCode ? 2 : 1;
+
+      const candidate = {
         product_sku: sku,
         vendor_id: VENDOR_ID,
         vendor_sku: r.quadratec_code,
@@ -207,8 +222,19 @@ async function seedQuadratec() {
         vendor_cost: r.vendor_cost,
         vendor_retail_price_usd: r.vendor_retail_price_usd,
         quadratec_sku: r.quadratec_sku,
-      });
+        _score: score,
+      };
+
+      const existing = rowByProductSku.get(sku);
+      if (!existing || candidate._score > existing._score) {
+        rowByProductSku.set(sku, candidate);
+      }
     }
+
+    const rowsToInsert = [...rowByProductSku.values()].map((row) => {
+      const { _score, ...persisted } = row;
+      return persisted;
+    });
 
     console.log(`✅ Rows with matching Product: ${rowsToInsert.length}`);
     console.log(`⚠️ Rows skipped (no Product match): ${missingProduct}`);

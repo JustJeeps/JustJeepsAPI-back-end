@@ -2234,7 +2234,7 @@ module.exports = [
     brand_name: "Kenda",
     vendors: "Keystone, Quadratec",
     keystone_code: "KDA",
-    // meyer_code: "",
+    meyer_code: "KND",
     quadratec_code: "Kenda",
     tdot_code: "K&N",
     partsEngine_code: "-vp-kenda-493.aspx",
