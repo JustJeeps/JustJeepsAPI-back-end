@@ -57,6 +57,8 @@ docker-compose*.yml
 
 # Large data files
 *.csv
+!QuickBooks Project/customers/customers_qb_desktop.csv
+!QuickBooks Project/customers/transactions_per_customer.csv
 *.xlsx
 *.xls
 *.sql.gz
