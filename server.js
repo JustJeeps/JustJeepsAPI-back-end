@@ -31,11 +31,17 @@ const { getWheelProsSkus, makeApiRequestsInChunks } = require('./prisma/seeds/ap
 
 const cronEnabled = process.env.CRON_ENABLED !== 'false';
 const cronTimezone = process.env.CRON_TIMEZONE || 'America/Toronto';
-const dailySeedSchedule = process.env.CRON_SEED_ALL_SCHEDULE || '30 19 * * *';
+const dailySeedEnabled = process.env.CRON_SEED_ALL_ENABLED !== 'false';
+const dailySeedSchedule = process.env.CRON_SEED_ALL_SCHEDULE || '0 6,19 * * *';
+const allProductsSeedEnabled = process.env.CRON_SEED_ALL_PRODUCTS_ENABLED !== 'false';
 const allProductsSeedSchedule = process.env.CRON_SEED_ALL_PRODUCTS_SCHEDULE || '45 */6 * * *';
+const meyerSeedEnabled = process.env.CRON_SEED_MEYER_ENABLED !== 'false';
 const meyerSeedSchedule = process.env.CRON_SEED_MEYER_SCHEDULE || '7 */4 * * *';
+const roughCountrySeedEnabled = process.env.CRON_SEED_ROUGH_COUNTRY_ENABLED !== 'false';
 const roughCountrySeedSchedule = process.env.CRON_SEED_ROUGH_COUNTRY_SCHEDULE || '37 */4 * * *';
+const magentoAttributesPriorityEnabled = process.env.CRON_MAGENTO_ATTRIBUTES_PRIORITY_ENABLED !== 'false';
 const magentoAttributesPrioritySchedule = process.env.CRON_MAGENTO_ATTRIBUTES_PRIORITY_SCHEDULE || '20 2 * * *';
+const magentoAttributesRoughEnabled = process.env.CRON_MAGENTO_ATTRIBUTES_ROUGH_ENABLED !== 'false';
 const magentoAttributesRoughSchedule = process.env.CRON_MAGENTO_ATTRIBUTES_ROUGH_SCHEDULE || '20 15 * * *';
 const skuCostAlertEnabled = process.env.CRON_SKU_COST_ALERT_ENABLED !== 'false';
 const skuCostAlertSchedule = process.env.CRON_SKU_COST_ALERT_SCHEDULE || '*/30 * * * *';
@@ -70,10 +76,12 @@ const cancelWorkflowHistoryFile = path.resolve(__dirname, 'logs', 'order-cancel-
 const cancelWorkflowHistoryRetentionDays = Number(process.env.CANCEL_WORKFLOW_HISTORY_RETENTION_DAYS || 180);
 const quickBooksPreloadEnabled = process.env.QB_LOOKUP_PRELOAD_ON_BOOT !== 'false';
 const quickBooksPreloadDelayMs = Number(process.env.QB_LOOKUP_PRELOAD_DELAY_MS || 60000);
+let activeCommandCronJob = null;
 
 function getCronJobDefinitions() {
 	const jobs = [
 		{
+			enabled: dailySeedEnabled,
 			schedule: dailySeedSchedule,
 			command: 'seed-all',
 			jobName: 'Daily Vendor Sync (seed-all)',
@@ -81,6 +89,7 @@ function getCronJobDefinitions() {
 			readSummaryFile: 'prisma/seeds/logs/seed-all-summary.json',
 		},
 		{
+			enabled: allProductsSeedEnabled,
 			schedule: allProductsSeedSchedule,
 			command: 'seed-allProducts',
 			jobName: 'Magento Products Sync',
@@ -88,6 +97,7 @@ function getCronJobDefinitions() {
 			reportLogFile: 'prisma/seeds/logs/seed-allProducts.log',
 		},
 		{
+			enabled: meyerSeedEnabled,
 			schedule: meyerSeedSchedule,
 			command: 'seed-meyer',
 			jobName: 'Meyer Sync',
@@ -95,6 +105,7 @@ function getCronJobDefinitions() {
 			reportLogFile: 'prisma/seeds/logs/seed-meyer.log',
 		},
 		{
+			enabled: roughCountrySeedEnabled,
 			schedule: roughCountrySeedSchedule,
 			command: 'seed-roughCountry',
 			jobName: 'Rough Country Sync',
@@ -102,6 +113,7 @@ function getCronJobDefinitions() {
 			reportLogFile: 'prisma/seeds/logs/seed-roughCountry.log',
 		},
 		{
+			enabled: magentoAttributesPriorityEnabled,
 			schedule: magentoAttributesPrioritySchedule,
 			command: 'magento-attributes-priority',
 			jobName: 'Magento Attributes Priority Sync',
@@ -109,6 +121,7 @@ function getCronJobDefinitions() {
 			reportLogFile: 'logs/magento-attributes-priority.log',
 		},
 		{
+			enabled: magentoAttributesRoughEnabled,
 			schedule: magentoAttributesRoughSchedule,
 			command: 'magento-attributes-rough',
 			jobName: 'Magento Attributes Rough Country Sync',
@@ -119,6 +132,7 @@ function getCronJobDefinitions() {
 
 	if (skuCostAlertEnabled) {
 		jobs.push({
+			enabled: true,
 			schedule: skuCostAlertSchedule,
 			command: 'alert-sku-cost',
 			jobName: `SKU Cost Alert Watch (${skuCostAlertSku})`,
@@ -129,6 +143,7 @@ function getCronJobDefinitions() {
 
 	if (testCronEnabled) {
 		jobs.push({
+			enabled: true,
 			schedule: testCronSchedule,
 			command: testCronCommand,
 			jobName: testCronJobName,
@@ -137,7 +152,7 @@ function getCronJobDefinitions() {
 		});
 	}
 
-	return jobs;
+	return jobs.filter((job) => job.enabled !== false);
 }
 
 function upsertCronJobRecord(command, patch) {
@@ -3908,8 +3923,29 @@ function registerCommandCronJob({
 			return;
 		}
 
+		if (activeCommandCronJob) {
+			const activeJobLabel = activeCommandCronJob.jobName || activeCommandCronJob.command;
+			upsertCronJobRecord(command, {
+				lastStatus: 'skipped',
+				lastError: `Skipped because ${activeJobLabel} is already running`,
+			});
+			logger.warn('Cron job skipped because another command cron job is already active', {
+				jobName,
+				schedule,
+				command,
+				activeJob: activeCommandCronJob,
+			});
+			console.log(`⏭️ [CRON] Skipping ${jobName}; ${activeJobLabel} is already running`);
+			return;
+		}
+
 		isRunning = true;
 		const startTime = Date.now();
+		activeCommandCronJob = {
+			command,
+			jobName,
+			startedAt: new Date(startTime).toISOString(),
+		};
 		upsertCronJobRecord(command, {
 			isRunning: true,
 			lastStatus: 'running',
@@ -4117,6 +4153,9 @@ function registerCommandCronJob({
 				}
 			} finally {
 				isRunning = false;
+				if (activeCommandCronJob?.command === command) {
+					activeCommandCronJob = null;
+				}
 			}
 		});
 
@@ -4177,6 +4216,9 @@ function registerCommandCronJob({
 				});
 			} finally {
 				isRunning = false;
+				if (activeCommandCronJob?.command === command) {
+					activeCommandCronJob = null;
+				}
 			}
 		});
 	}, {
