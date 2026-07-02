@@ -16,6 +16,8 @@ const KEYSTONE_FILES = ["Inventory.csv", "SpecialOrder.csv"];
 
 const MEYER_CODE_OVERRIDES_BY_SKU = {
   "BAJ-447723": "BAJ44-7723",
+  "BST-5093001": "BES50930-01",
+  "BST-5093017": "BES50930-17",
   "BST-5493035": "BES5493035",
   "BST-5493017": "BES5493017",
 };
