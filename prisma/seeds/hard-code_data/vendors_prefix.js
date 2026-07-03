@@ -465,7 +465,6 @@ module.exports = [
     truck_parts_code: "Auto Ventshade (AVS)",
     partsEngine_code: "-vp-avs-11.aspx",
     ctp_code: "AUTO VENTSHADE COMPANY",
-    keystone_code: "AVS",
     keystone_ftp_brand: "VENTSHADE CO",
     keystone_code_site: "AVS",
     t14_code: "avs",
