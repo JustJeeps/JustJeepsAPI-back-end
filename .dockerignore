@@ -59,7 +59,15 @@ docker-compose*.yml
 *.csv
 !QuickBooks Project/customers/customers_qb_desktop.csv
 !QuickBooks Project/customers/transactions_per_customer.csv
+!prisma/seeds/api-calls/accessoriesInvPriceData.csv
+!prisma/seeds/api-calls/tireInvPriceData.csv
+!prisma/seeds/api-calls/wheelInvPriceData.csv
 *.xlsx
+!prisma/seeds/api-calls/CTPENT_Inventory.xlsx
+!prisma/seeds/api-calls/KeyParts-price-file.xlsx
+!prisma/seeds/api-calls/WARN-MAP.xlsx
+!prisma/seeds/api-calls/pricingSheet_quad.xlsx
+!prisma/seeds/api-calls/quadratec_wholesale.xlsx
 *.xls
 *.sql.gz
 mydb.dump

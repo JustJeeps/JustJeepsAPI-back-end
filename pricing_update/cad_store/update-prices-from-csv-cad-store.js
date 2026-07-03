@@ -8,7 +8,7 @@ const { parse } = require('csv-parse/sync');
 
 dotenv.config();
 
-const DEFAULT_CSV_PATH = 'pricing_update/cad_store/weekly check june30.csv';
+const DEFAULT_CSV_PATH = 'pricing_update/cad_store/weekly check jul 2.csv';
 const DEFAULT_BATCH_SIZE = 500;
 const CAD_STORE_ID = Number(process.env.CAD_STORE_ID || 0);
 const CAD_STORE_ID_MIRROR = Number(process.env.CAD_STORE_ID_MIRROR || 1);
