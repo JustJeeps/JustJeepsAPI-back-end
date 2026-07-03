@@ -5,6 +5,36 @@ require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 const ExcelJS = require('exceljs');
 const prisma = require('../lib/prisma');
 
+const EXCLUDED_VENDORS = [
+  'Curt',
+  'AEV',
+  'Alpine,Gentecdirect, Quadratec',
+  'Extreme Terrain',
+  'Quadratec',
+  'Quadratec, Stinger website',
+  'KeyParts, Quadratec',
+  'Downsview, Quadratec, Meyer',
+  'Auto Rust Technicians',
+  'Tire Country, Quadratec',
+  'Quadratec, Meyer, Stinger website',
+  'Tuxmat',
+  'Switch-Pros',
+  'Grand West',
+  'Downsview, Quadratec',
+  'Autowatch',
+  'GenRight',
+  'Quadratec (do not need to update)',
+  'Ask Jacob',
+  'Tire Country',
+  'CTP',
+  '-',
+  'Quadratec (TARIFF RUS)',
+  'Auxbeam',
+  'Amazon',
+  'KING-O-MATIC',
+  'MetalCloak',
+];
+
 function getVendorValue(product, vendorName, key) {
   return product.vendorProducts?.find((vp) => vp.vendor?.name === vendorName)?.[key];
 }
@@ -15,6 +45,20 @@ function getCompetitorValue(product, competitorName) {
 
 async function run() {
   const products = await prisma.product.findMany({
+    where: {
+      status: 1,
+      price: {
+        gt: 0,
+      },
+      NOT: {
+        searchable_sku: {
+          endsWith: '-',
+        },
+      },
+      vendors: {
+        notIn: EXCLUDED_VENDORS,
+      },
+    },
     select: {
       sku: true,
       name: true,
@@ -121,6 +165,9 @@ async function run() {
   ];
 
   for (const product of products) {
+    const wheelProsCost = getVendorValue(product, 'WheelPros', 'vendor_cost');
+    const wheelProsInventory = getVendorValue(product, 'WheelPros', 'vendor_inventory');
+
     sheet.addRow({
       black_friday_sale: product.black_friday_sale,
       partsEngine_code: product.partsEngine_code,
@@ -152,14 +199,14 @@ async function run() {
       meyer_cost: getVendorValue(product, 'Meyer', 'vendor_cost'),
       meyer_inventory: getVendorValue(product, 'Meyer', 'vendor_inventory'),
       keystone_cost: getVendorValue(product, 'Keystone', 'vendor_cost'),
-      wheelPros_cost: getVendorValue(product, 'WheelPros', 'vendor_cost'),
+      wheelPros_cost: wheelProsCost,
       tireDiscounter_cost: getVendorValue(product, 'Tire Discounter', 'vendor_cost'),
       dirtyDog_cost: getVendorValue(product, 'Dirty Dog 4x4', 'vendor_cost'),
       keystone_inventory: getVendorValue(product, 'Keystone', 'vendor_inventory'),
       partsEngine_price: getCompetitorValue(product, 'Parts Engine'),
       lowriders_price: getCompetitorValue(product, 'Lowriders'),
       tdot_price: getCompetitorValue(product, 'TDOT'),
-      omix_cost: getVendorValue(product, 'Omix', 'vendor_cost'),
+      omix_cost: "",
       quadratec_cost: getVendorValue(product, 'Quadratec', 'vendor_cost'),
       rough_country_cost: getVendorValue(product, 'Rough Country', 'vendor_cost'),
       quadratec_sku: getVendorValue(product, 'Quadratec', 'quadratec_sku'),
@@ -168,7 +215,7 @@ async function run() {
       omix_inventory: getVendorValue(product, 'Omix', 'vendor_inventory'),
       aev_cost: getVendorValue(product, 'AEV', 'vendor_cost'),
       keyparts_cost: getVendorValue(product, 'KeyParts', 'vendor_cost'),
-      WP_inventory: getVendorValue(product, 'WheelPros', 'vendor_inventory'),
+      WP_inventory: Number(wheelProsCost) > 0 && (wheelProsInventory === null || wheelProsInventory === undefined || wheelProsInventory === '') ? 0 : wheelProsInventory,
     });
   }
 
