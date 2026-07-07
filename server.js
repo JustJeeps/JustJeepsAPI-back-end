@@ -1630,6 +1630,30 @@ async function setMagentoProductStatusByStoreView({ baseUrl, token, sku, status,
 	}
 }
 
+async function getMagentoConfigurableChildSkus({ baseUrl, token, sku }) {
+	const encodedSku = encodeURIComponent(sku);
+	const endpoint = `${baseUrl}/rest/V1/configurable-products/${encodedSku}/children`;
+
+	try {
+		const response = await axios.get(endpoint, buildMagentoRequestConfig(token));
+		const children = Array.isArray(response.data) ? response.data : [];
+		return children
+			.map((child) => (child?.sku || '').trim())
+			.filter(Boolean);
+	} catch (error) {
+		const statusCode = error.response?.status || null;
+		if (statusCode !== 404) {
+			logger.warn('Failed to fetch Magento configurable children', {
+				sku,
+				statusCode,
+				error: error.response?.data || error.message,
+			});
+		}
+
+		return [];
+	}
+}
+
 async function setProductStatusAcrossAllStoreViews(req, res, forcedStatus = null) {
 	try {
 		if (process.env.ENABLE_AUTH !== 'true') {
@@ -1652,18 +1676,60 @@ async function setProductStatusAcrossAllStoreViews(req, res, forcedStatus = null
 			return res.status(400).json({ error: 'SKU is required' });
 		}
 
+		const normalizedSku = sku.replace(/-+$/, '');
+		const shouldApplyToChildren = Boolean(req.body?.applyToChildren) || sku.endsWith('-');
+		const shouldUseLocalFamilyFallback = sku.endsWith('-');
+
 		const token = process.env.MAGENTO_KEY;
 		if (!token) {
 			return res.status(500).json({ error: 'MAGENTO_KEY is not configured' });
 		}
 
-		const productExists = await prisma.product.findUnique({
-			where: { sku },
-			select: { sku: true },
-		});
+		const magentoBaseUrl = resolveMagentoBaseUrl();
+		let targetSkus = [];
+		let targetProducts = [];
+		if (shouldApplyToChildren) {
+			const magentoChildSkus = await getMagentoConfigurableChildSkus({
+				baseUrl: magentoBaseUrl,
+				token,
+				sku,
+			});
 
-		if (!productExists) {
-			return res.status(404).json({ error: `Product with SKU ${sku} not found` });
+			if (magentoChildSkus.length > 0) {
+				targetSkus = Array.from(new Set([sku, ...magentoChildSkus]));
+			}
+		}
+
+		if (shouldApplyToChildren && shouldUseLocalFamilyFallback && targetSkus.length === 0) {
+			targetProducts = await prisma.product.findMany({
+				where: {
+					sku: {
+						startsWith: normalizedSku,
+						mode: 'insensitive',
+					},
+				},
+				select: { sku: true },
+			});
+		} else if (!shouldApplyToChildren || targetSkus.length === 0) {
+			const productExists = await prisma.product.findUnique({
+				where: { sku },
+				select: { sku: true },
+			});
+
+			if (productExists) {
+				targetProducts = [productExists];
+			}
+		}
+
+		if (targetSkus.length === 0) {
+			targetSkus = Array.from(new Set(targetProducts.map((product) => product.sku)));
+		}
+
+		if (!targetSkus.length) {
+			const targetLabel = shouldApplyToChildren
+				? `Product family with prefix ${normalizedSku}`
+				: `Product with SKU ${sku}`;
+			return res.status(404).json({ error: `${targetLabel} not found` });
 		}
 
 		const requestedStatus = forcedStatus ?? Number(req.body?.status);
@@ -1672,7 +1738,6 @@ async function setProductStatusAcrossAllStoreViews(req, res, forcedStatus = null
 		}
 
 		const statusToSet = requestedStatus;
-		const magentoBaseUrl = resolveMagentoBaseUrl();
 		const storeViewsEndpoint = `${magentoBaseUrl}/rest/V1/store/storeViews`;
 
 		let discoveredStoreViews = [];
@@ -1704,41 +1769,66 @@ async function setProductStatusAcrossAllStoreViews(req, res, forcedStatus = null
 
 		const uniqueStoreViewCodes = Array.from(new Set(storeViewCodes));
 
-		const results = await Promise.all(
-			uniqueStoreViewCodes.map((storeViewCode) =>
-				setMagentoProductStatusByStoreView({
-					baseUrl: magentoBaseUrl,
-					token,
-					sku,
-					status: statusToSet,
-					storeViewCode,
-				})
-			)
+		const perSkuResults = await Promise.all(
+			targetSkus.map(async (targetSku) => {
+				const results = await Promise.all(
+					uniqueStoreViewCodes.map((storeViewCode) =>
+						setMagentoProductStatusByStoreView({
+							baseUrl: magentoBaseUrl,
+							token,
+							sku: targetSku,
+							status: statusToSet,
+							storeViewCode,
+						})
+					)
+				);
+
+				const successfulUpdates = results.filter((result) => result.success);
+				const failedUpdates = results.filter((result) => !result.success);
+
+				if (successfulUpdates.length > 0) {
+					await prisma.product.updateMany({
+						where: { sku: targetSku },
+						data: { status: statusToSet },
+					});
+				}
+
+				return {
+					sku: targetSku,
+					success: successfulUpdates.length > 0,
+					updatedStoreViews: successfulUpdates.map((entry) => entry.storeViewCode),
+					failedStoreViews: failedUpdates,
+					results,
+				};
+			})
 		);
 
-		const successfulUpdates = results.filter((result) => result.success);
-		const failedUpdates = results.filter((result) => !result.success);
+		const successfulSkuUpdates = perSkuResults.filter((entry) => entry.success);
+		const failedSkuUpdates = perSkuResults.filter((entry) => !entry.success);
+		const updatedStoreViews = Array.from(
+			new Set(successfulSkuUpdates.flatMap((entry) => entry.updatedStoreViews || []))
+		);
+		const failedStoreViews = failedSkuUpdates.flatMap((entry) => entry.failedStoreViews || []);
 
-		if (successfulUpdates.length === 0) {
+		if (successfulSkuUpdates.length === 0) {
 			return res.status(502).json({
-				error: 'Failed to update SKU status in Magento store views',
+				error: 'Failed to update SKU status in Magento store views for all target SKUs',
 				sku,
 				status: statusToSet,
-				results,
+				targetSkus,
+				perSkuResults,
 			});
 		}
-
-		await prisma.product.update({
-			where: { sku },
-			data: { status: statusToSet },
-		});
 
 		return res.json({
 			success: true,
 			sku,
 			status: statusToSet,
-			updatedStoreViews: successfulUpdates.map((entry) => entry.storeViewCode),
-			failedStoreViews: failedUpdates,
+			applyToChildren: shouldApplyToChildren,
+			targetSkus,
+			updatedStoreViews,
+			failedStoreViews,
+			perSkuResults,
 		});
 	} catch (error) {
 		logger.error('Failed to set SKU status across all store views', {
