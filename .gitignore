@@ -135,6 +135,7 @@ ca-certificate.crt
 *-cookies.json
 
 # Scraper output files
+prisma/seeds/scrapping/metalCloak/output/
 prisma/seeds/scrapping/**/results.csv
 prisma/seeds/scrapping/**/*_products.csv
 prisma/seeds/scrapping/**/*_checkpoint.json
