@@ -6,6 +6,7 @@ const { spawn } = require('child_process');
 
 const BASE_URL = 'https://jobber.metalcloak.com';
 const LOGIN_URL = `${BASE_URL}/customer/account/login`;
+const PROJECT_ROOT = path.join(__dirname, '../../../../');
 
 // Organized categories for better tracking
 const CATEGORY_CONFIG = {
@@ -311,6 +312,35 @@ async function runIntegration(jsonPath) {
 }
 
 /**
+ * Update Magento CAD store pricing after database costs are refreshed
+ */
+async function runMagentoPricingUpdate() {
+  return new Promise((resolve, reject) => {
+    console.log('\n🔄 Starting Magento CAD store MetalCloak price update...');
+
+    const childProcess = spawn('npm', ['run', 'update-metalcloak-cad-store-prices'], {
+      stdio: 'inherit',
+      cwd: PROJECT_ROOT
+    });
+
+    childProcess.on('close', (code) => {
+      if (code === 0) {
+        console.log('\n✅ Magento CAD store price update completed successfully!');
+        resolve();
+      } else {
+        console.error(`\n❌ Magento CAD store price update failed with exit code ${code}`);
+        reject(new Error(`Magento price update process exited with code ${code}`));
+      }
+    });
+
+    childProcess.on('error', (error) => {
+      console.error('\n❌ Error running Magento price update:', error.message);
+      reject(error);
+    });
+  });
+}
+
+/**
  * Main function that combines scraping and integration
  */
 async function scrapeAndSeed() {
@@ -333,7 +363,10 @@ async function scrapeAndSeed() {
     // Step 3: Run integration
     await runIntegration(jsonPath);
 
-    console.log('\n🎉 Complete! MetalCloak data has been scraped and seeded to database.');
+    // Step 4: Update Magento CAD store prices from refreshed database costs
+    await runMagentoPricingUpdate();
+
+    console.log('\n🎉 Complete! MetalCloak data has been scraped, seeded to database, and updated in Magento.');
     console.log('💡 You can now run: npm run magento-attributes-metalcloak');
 
   } catch (error) {

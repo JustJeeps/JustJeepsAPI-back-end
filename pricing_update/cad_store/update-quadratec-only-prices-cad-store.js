@@ -3,10 +3,14 @@
 const axios = require('axios');
 const dotenv = require('dotenv');
 const prisma = require('../../lib/prisma');
+const { USD_TO_CAD_RATE } = require('../../utils/exchangeRate');
 
 dotenv.config();
 
-const VENDOR_ID_QUADRATEC = 4;
+const VENDOR_ID = Number(process.env.PRICE_UPDATE_VENDOR_ID || 4);
+const DEFAULT_VENDOR_NAME = process.env.PRICE_UPDATE_VENDOR_NAME || 'quadratec';
+const JOB_LABEL = process.env.PRICE_UPDATE_JOB_LABEL || 'Quadratec-Only';
+const DERIVE_USD_COST_FROM_CAD = process.env.PRICE_UPDATE_DERIVE_USD_COST_FROM_CAD === '1';
 const STORE_ID_CAD = Number(process.env.CAD_STORE_ID || 0);
 const STORE_ID_CAD_MIRROR = Number(process.env.CAD_STORE_ID_MIRROR || 1);
 const MIN_FINAL_MARGIN = 0.2;
@@ -335,7 +339,7 @@ async function classifyRowsByMagentoPrice(rows, options = {}) {
 
 function parseArgs(argv) {
   const options = {
-    vendorName: 'quadratec',
+    vendorName: DEFAULT_VENDOR_NAME,
     sku: null,
     limit: null,
     batchSize: 1000,
@@ -366,7 +370,11 @@ function parseArgs(argv) {
 
 function toCadStorePrice(vendorCostCad, vendorCostUsd) {
   const costCad = Number(vendorCostCad);
-  const costUsd = Number(vendorCostUsd);
+  const costUsd = Number.isFinite(Number(vendorCostUsd)) && Number(vendorCostUsd) > 0
+    ? Number(vendorCostUsd)
+    : DERIVE_USD_COST_FROM_CAD
+      ? costCad / USD_TO_CAD_RATE
+      : null;
   if (!Number.isFinite(costCad) || costCad <= 0) return null;
   if (!Number.isFinite(costUsd) || costUsd <= 0) return null;
 
@@ -476,7 +484,7 @@ async function getQuadratecOnlyPriceRows(vendorName, limit = null, sku = null) {
       price: true,
       vendors: true,
       vendorProducts: {
-        where: { vendor_id: VENDOR_ID_QUADRATEC },
+        where: { vendor_id: VENDOR_ID },
         select: {
           vendor_cost: true,
           vendor_cost_usd: true,
@@ -509,7 +517,7 @@ async function getQuadratecOnlyPriceRows(vendorName, limit = null, sku = null) {
     }
 
     const vp = product.vendorProducts?.[0];
-    if (!vp || vp.vendor_cost == null || vp.vendor_cost_usd == null) {
+    if (!vp || vp.vendor_cost == null || (!DERIVE_USD_COST_FROM_CAD && vp.vendor_cost_usd == null)) {
       skippedMissingCost++;
       continue;
     }
@@ -550,7 +558,7 @@ async function getQuadratecOnlyPriceRows(vendorName, limit = null, sku = null) {
       existing_price_db: product.price,
       price: minPriceAdjusted.price,
       vendor_cost: vp.vendor_cost,
-      vendor_cost_usd: vp.vendor_cost_usd,
+      vendor_cost_usd: vp.vendor_cost_usd || (DERIVE_USD_COST_FROM_CAD ? Number((Number(vp.vendor_cost) / USD_TO_CAD_RATE).toFixed(4)) : vp.vendor_cost_usd),
       vendor_retail_price_usd: vp.vendor_retail_price_usd,
       final_margin: finalMargin,
       min_margin_floor_applied: floorAdjusted.marginFloorApplied,
@@ -600,9 +608,12 @@ function chunk(array, size) {
 }
 
 function printUsage() {
-  console.log('Update Magento CAD store base prices for products where vendors is Quadratec only.');
+  console.log(`Update Magento CAD store base prices for products where vendors is ${DEFAULT_VENDOR_NAME} only.`);
   console.log('Formula:');
   console.log('  - Tier decision uses vendor_cost_usd (<100 => 65%, >=100 => 50%)');
+  if (DERIVE_USD_COST_FROM_CAD) {
+    console.log(`  - If vendor_cost_usd is missing, derive USD cost from CAD cost / ${USD_TO_CAD_RATE}`);
+  }
   console.log('  - Markup is applied to vendor_cost (CAD): round((vendor_cost * tier) / 0.85, 0) - 0.05');
   console.log(`  - Margin floor: if final margin < ${(MIN_FINAL_MARGIN * 100).toFixed(0)}%, lift to minimum and keep .95 ending`);
   console.log(`  - Min price floor: ${MIN_PRICE.toFixed(2)}`);
@@ -613,7 +624,7 @@ function printUsage() {
   console.log('  node pricing_update/cad_store/update-quadratec-only-prices-cad-store.js [options]');
   console.log('');
   console.log('Options:');
-  console.log('  --vendor <name>        Vendor value in Product.vendors (default: quadratec)');
+  console.log(`  --vendor <name>        Vendor value in Product.vendors (default: ${DEFAULT_VENDOR_NAME})`);
   console.log('  --sku <sku>            Restrict run to one SKU');
   console.log('  --limit <number>       Limit products fetched from DB');
   console.log('  --batch-size <number>  Prices per Magento request (default: 1000)');
@@ -644,12 +655,15 @@ async function main() {
 
   const startedAt = Date.now();
 
-  console.log('🚀 CAD Store Quadratec-Only Price Update');
+  console.log(`🚀 CAD Store ${JOB_LABEL} Price Update`);
   console.log(`🏷️  Vendor filter: ${options.vendorName}`);
   if (options.sku) {
     console.log(`🔎 SKU filter: ${options.sku}`);
   }
   console.log('🧮 Formula: USD cost decides tier (65% or 50%), markup is applied to CAD cost, then /0.85, round, -0.05');
+  if (DERIVE_USD_COST_FROM_CAD) {
+    console.log(`🧮 Missing USD cost fallback: vendor_cost / ${USD_TO_CAD_RATE}`);
+  }
   console.log(`🧭 Price compare/update primary store_id: ${STORE_ID_CAD}`);
   console.log(`🧭 Price mirror store_id: ${STORE_ID_CAD_MIRROR}`);
 
