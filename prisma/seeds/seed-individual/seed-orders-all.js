@@ -17,7 +17,7 @@ const MAX_RETRIES = 3;
 const BASE_URL_PREFIX =
   "https://www.justjeeps.com/rest/V1/orders/?searchCriteria[sortOrders][0][field]=created_at";
 const FIELDS =
-  "items[created_at,updated_at,status,customer_email,customer_firstname,customer_lastname,entity_id,grand_total,subtotal,base_subtotal,tax_amount,discount_amount,increment_id,order_currency_code,total_qty_ordered,base_total_due,coupon_code,shipping_description,shipping_amount,freight_shipping,items[base_total_due,name,sku,order_id,base_price,base_price_incl_tax,discount_amount,discount_invoiced,discount_percent,original_price,price,price_incl_tax,product_id,qty_ordered],extension_attributes[amasty_order_attributes,weltpixel_fraud_score,shipping_assignments,payment_additional_info,mageworx_giftcards_amount,base_mageworx_giftcards_amount]]";
+  "items[created_at,updated_at,status,customer_email,customer_firstname,customer_lastname,billing_address,entity_id,grand_total,subtotal,base_subtotal,tax_amount,discount_amount,increment_id,order_currency_code,total_qty_ordered,base_total_due,coupon_code,shipping_description,shipping_amount,freight_shipping,maxmind_data,items[base_total_due,name,sku,order_id,base_price,base_price_incl_tax,discount_amount,discount_invoiced,discount_percent,original_price,price,price_incl_tax,product_id,qty_ordered],extension_attributes[amasty_order_attributes,weltpixel_fraud_score,maxmind_data,shipping_assignments,payment_additional_info,mageworx_giftcards_amount,base_mageworx_giftcards_amount]]";
 
 function authHeaders() {
   const token = `Bearer ${process.env.MAGENTO_KEY}`;
@@ -72,6 +72,8 @@ function extractOrderAttributes(orderData) {
     base_subtotal: magentoBaseSubtotal,
     tax_amount: magentoTaxAmount,
     discount_amount: magentoDiscountAmount,
+    maxmind_data: rootMaxmindData,
+    billing_address: billingAddress,
     ...order
   } = orderData;
 
@@ -136,6 +138,7 @@ function extractOrderAttributes(orderData) {
   let custom_ship_status = null;
   let custom_order_note = null;
   let shipping_cost_jj = null;
+  let email_first_seen = null;
 
   // Shipping fields
   let shipping_firstname = null;
@@ -149,6 +152,21 @@ function extractOrderAttributes(orderData) {
   let shipping_region = null;
   let shipping_country_id = null;
   let shipping_company = null;
+  let billing_city = null;
+  let billing_country_id = null;
+  let billing_postcode = null;
+  let billing_region = null;
+  let billing_street = null;
+
+  if (billingAddress) {
+    billing_city = billingAddress.city ?? null;
+    billing_country_id = billingAddress.country_id ?? null;
+    billing_postcode = billingAddress.postcode ?? null;
+    billing_region = billingAddress.region ?? null;
+    billing_street = Array.isArray(billingAddress.street)
+      ? billingAddress.street.filter(Boolean).join("\n")
+      : billingAddress.street ?? null;
+  }
 
   if (extension_attributes) {
     if (Array.isArray(extension_attributes.amasty_order_attributes)) {
@@ -170,6 +188,11 @@ function extractOrderAttributes(orderData) {
     if (extension_attributes.weltpixel_fraud_score !== undefined) {
       weltpixel_fraud_score = extension_attributes.weltpixel_fraud_score;
     }
+
+    email_first_seen =
+      extension_attributes.maxmind_data?.email?.first_seen ??
+      extension_attributes.maxmind_data?.email_first_seen ??
+      null;
 
     if (
       extension_attributes.shipping_assignments &&
@@ -203,6 +226,11 @@ function extractOrderAttributes(orderData) {
     }
   }
 
+  email_first_seen =
+    rootMaxmindData?.email?.first_seen ??
+    rootMaxmindData?.email_first_seen ??
+    email_first_seen;
+
   const orderItems = Array.isArray(items) ? items : [];
 
   return {
@@ -223,6 +251,7 @@ function extractOrderAttributes(orderData) {
       custom_ship_status,
       custom_order_note,
       shipping_cost_jj,
+      email_first_seen,
       shipping_firstname,
       shipping_lastname,
       shipping_postcode,
@@ -234,6 +263,11 @@ function extractOrderAttributes(orderData) {
       shipping_region,
       shipping_country_id,
       shipping_company,
+      billing_city,
+      billing_country_id,
+      billing_postcode,
+      billing_region,
+      billing_street,
     },
   };
 }
@@ -256,6 +290,7 @@ const ORDER_FIELDS = new Set([
   "shipping_description",
   "custom_po_number",
   "weltpixel_fraud_score",
+  "email_first_seen",
   "city",
   "region",
   "method_title",
@@ -270,6 +305,11 @@ const ORDER_FIELDS = new Set([
   "shipping_street3",
   "shipping_telephone",
   "shipping_company",
+  "billing_city",
+  "billing_country_id",
+  "billing_postcode",
+  "billing_region",
+  "billing_street",
   "sales_rep",
   "subtotal",
   "freight_shipping",

@@ -87,6 +87,8 @@ const processOrder = async (orderData) => {
     base_subtotal: magentoBaseSubtotal,
     tax_amount: magentoTaxAmount,
     discount_amount: magentoDiscountAmount,
+    maxmind_data: rootMaxmindData,
+    billing_address: billingAddress,
     ...order
   } = orderData;
 
@@ -154,6 +156,7 @@ const processOrder = async (orderData) => {
   let custom_ship_status = null;
   let custom_order_note = null;
   let shipping_cost_jj = null;
+  let email_first_seen = null;
 
   // new shipping fields
   let shipping_firstname = null;
@@ -167,6 +170,21 @@ const processOrder = async (orderData) => {
   let shipping_region = null;
   let shipping_country_id = null;
   let shipping_company = null;
+  let billing_city = null;
+  let billing_country_id = null;
+  let billing_postcode = null;
+  let billing_region = null;
+  let billing_street = null;
+
+  if (billingAddress) {
+    billing_city = billingAddress.city ?? null;
+    billing_country_id = billingAddress.country_id ?? null;
+    billing_postcode = billingAddress.postcode ?? null;
+    billing_region = billingAddress.region ?? null;
+    billing_street = Array.isArray(billingAddress.street)
+      ? billingAddress.street.filter(Boolean).join("\n")
+      : billingAddress.street ?? null;
+  }
 
   if (extension_attributes) {
     if (extension_attributes.amasty_order_attributes) {
@@ -210,6 +228,10 @@ const processOrder = async (orderData) => {
     if (extension_attributes.weltpixel_fraud_score !== undefined) {
       weltpixel_fraud_score = extension_attributes.weltpixel_fraud_score;
     }
+    email_first_seen =
+      extension_attributes.maxmind_data?.email?.first_seen ??
+      extension_attributes.maxmind_data?.email_first_seen ??
+      null;
     if (
       extension_attributes.shipping_assignments &&
       extension_attributes.shipping_assignments.length > 0
@@ -245,6 +267,11 @@ const processOrder = async (orderData) => {
     }
   }
 
+  email_first_seen =
+    rootMaxmindData?.email?.first_seen ??
+    rootMaxmindData?.email_first_seen ??
+    email_first_seen;
+
   const orderDataWithCustomAttributes = {
     ...order,
     freight_shipping,
@@ -260,6 +287,7 @@ const processOrder = async (orderData) => {
     custom_ship_status,
     custom_order_note,
     shipping_cost_jj,
+    email_first_seen,
     shipping_firstname,
     shipping_lastname,
     shipping_postcode,
@@ -271,6 +299,11 @@ const processOrder = async (orderData) => {
     shipping_region,
     shipping_country_id,
     shipping_company,
+    billing_city,
+    billing_country_id,
+    billing_postcode,
+    billing_region,
+    billing_street,
   };
 
   await prisma.order.upsert({
