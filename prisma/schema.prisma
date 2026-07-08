@@ -28,6 +28,7 @@ model Order {
   shipping_description  String?
   custom_po_number      String?
   weltpixel_fraud_score Float?
+  email_first_seen      String?
   city                  String?
   region                String?
   method_title          String?
@@ -42,6 +43,11 @@ model Order {
   shipping_street3      String?
   shipping_telephone    String?
   shipping_company      String?
+  billing_city          String?
+  billing_country_id    String?
+  billing_postcode      String?  
+  billing_region        String?
+  billing_street       String?
   sales_rep             String?
   subtotal              Float?
   freight_shipping      Float?
