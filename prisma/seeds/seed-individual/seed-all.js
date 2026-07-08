@@ -219,6 +219,17 @@ async function runCommandSafely(cmd) {
       console.log("\n🔹 Final sync: seed-keystone-ftp-codes...");
       results.push(await runCommandSafely("seed-keystone-ftp-codes"));
     }
+
+    console.log("\n🔹 Auditing CAD-disabled / US-enabled SKUs...");
+    const cadDisabledUsEnabledAudit = await runCommandSafely("audit-cad-disabled-us-enabled-daily");
+    results.push(cadDisabledUsEnabledAudit);
+
+    if (cadDisabledUsEnabledAudit.success) {
+      console.log("\n🔹 Disabling confirmed CAD-disabled / US-enabled SKUs across Magento store views...");
+      results.push(await runCommandSafely("disable-cad-disabled-us-enabled-daily"));
+    } else {
+      console.log("⚠️ Skipping CAD-disabled / US-enabled disable step because the audit failed.");
+    }
   } catch (err) {
     console.error("❌ Unexpected error during seeding pipeline:", err.message);
   } finally {
