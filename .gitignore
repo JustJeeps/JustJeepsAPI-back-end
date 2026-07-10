@@ -138,10 +138,14 @@ ca-certificate.crt
 prisma/seeds/scrapping/metalCloak/output/
 services/metalcloak/unmatched/
 prisma/seeds/scrapping/**/results.csv
+prisma/seeds/scrapping/**/results-*.csv
 prisma/seeds/scrapping/**/*_products.csv
 prisma/seeds/scrapping/**/*_checkpoint.json
 prisma/seeds/scrapping/**/failed-urls.txt
+prisma/seeds/scrapping/**/failed-urls-*.txt
 prisma/seeds/scrapping/**/resume-progress.json
+prisma/seeds/scrapping/**/resume-progress-*.json
+prisma/seeds/scrapping/**/urls-*.txt
 *.dump
 .env2
 .env2
