@@ -29,6 +29,7 @@ const otherSeeds = [
   "seed-keyparts",
   "update-warn-cad-map-prices",
   "update-teraflex-cad-map-prices",
+  "seed-orders-all",  
   // "seed-alpine",
 
   // "seed-lowriders",
