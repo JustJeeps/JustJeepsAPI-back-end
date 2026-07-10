@@ -2,18 +2,47 @@
 
 
 const fs = require("fs");
+const path = require("path");
 const puppeteer = require("puppeteer-extra");
 const StealthPlugin = require("puppeteer-extra-plugin-stealth");
 const prisma = require("../../../../lib/prisma");
 const scrapePart = require("./partsengine-scraper");
+const vendorsPrefix = require("../../hard-code_data/vendors_prefix");
 
 puppeteer.use(StealthPlugin());
 
 const BACKUP_EVERY = 50;
-const URLS_FILE = "urls.txt";
-const FAILED_FILE = "failed-urls.txt";
-const RESUME_FILE = "resume-progress.json";
-const OUTPUT_FILE = "results.csv";
+
+function getArgValue(name) {
+  const prefix = `${name}=`;
+  const inline = process.argv.find((arg) => arg.startsWith(prefix));
+  if (inline) return inline.slice(prefix.length);
+
+  const index = process.argv.indexOf(name);
+  if (index !== -1 && process.argv[index + 1]) return process.argv[index + 1];
+
+  return "";
+}
+
+function slugify(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+const BRAND_FILTER = getArgValue("--brand") || process.env.PARTSENGINE_BRAND || "";
+const RUN_SUFFIX = BRAND_FILTER ? `-${slugify(BRAND_FILTER)}` : "";
+const URLS_FILE = path.join(__dirname, `urls${RUN_SUFFIX}.txt`);
+const FAILED_FILE = path.join(__dirname, `failed-urls${RUN_SUFFIX}.txt`);
+const RESUME_FILE = path.join(__dirname, `resume-progress${RUN_SUFFIX}.json`);
+const OUTPUT_FILE = path.join(__dirname, `results${RUN_SUFFIX}.csv`);
+
+function getVendorPartsEngineSuffix() {
+  if (!BRAND_FILTER) return "";
+  const vendor = vendorsPrefix.find((entry) => entry.brand_name === BRAND_FILTER);
+  return vendor?.partsEngine_code || vendor?.partEngine_code || "";
+}
 
 let allResults = [];
 let failed = [];
@@ -37,31 +66,32 @@ function saveProgress(index) {
 }
 
 async function loadUrlsFromDatabase() {
+  const fallbackPartsEngineSuffix = getVendorPartsEngineSuffix();
+
   const products = await prisma.product.findMany({
     where: {
       status: 1,
+      ...(BRAND_FILTER ? { brand_name: BRAND_FILTER } : {}),
       price: {
         gt: 0,
       },
       searchable_sku: {
         not: null,
       },
-      partsEngine_code: {
-        not: null,
-      },
+      ...(fallbackPartsEngineSuffix ? {} : { partsEngine_code: { not: null } }),
       NOT: [
         {
           searchable_sku: {
             endsWith: "-",
           },
         },
-        {
-          partsEngine_code: "",
-        },
+        ...(fallbackPartsEngineSuffix ? [] : [{ partsEngine_code: "" }]),
       ],
     },
     select: {
       partsEngine_code: true,
+      searchableSku: true,
+      searchable_sku: true,
     },
     orderBy: {
       sku: "asc",
@@ -69,11 +99,20 @@ async function loadUrlsFromDatabase() {
   });
 
   const urls = products
-    .map((product) => product.partsEngine_code?.trim())
+    .map((product) => {
+      const existingUrl = product.partsEngine_code?.trim();
+      if (existingUrl) return existingUrl;
+
+      const searchableSku = product.searchable_sku || product.searchableSku;
+      if (!BRAND_FILTER || !fallbackPartsEngineSuffix || !searchableSku) return "";
+
+      return `https://www.partsengine.ca/${searchableSku}${fallbackPartsEngineSuffix}`;
+    })
     .filter(Boolean);
 
   fs.writeFileSync(URLS_FILE, `${urls.join("\n")}${urls.length ? "\n" : ""}`);
   console.log(`🗂️ Loaded ${urls.length} PartsEngine URLs from Product and refreshed ${URLS_FILE}`);
+  if (BRAND_FILTER) console.log(`🏷️ Brand filter: ${BRAND_FILTER}`);
 
   return urls;
 }

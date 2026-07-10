@@ -19,7 +19,8 @@ const prisma = new PrismaClient();
 const KEYSTONE_DIR = path.resolve(__dirname, "keystone_files");
 const WRITE_LOGS = true;
 const DRY_RUN = false;
-const BATCH_SIZE = 500;
+const BATCH_SIZE = 100;
+const MAX_WRITE_RETRIES = 5;
 
 // Optional per-brand split report (example: Mickey)
 const REPORT_CANON_BRANDS = [
@@ -31,6 +32,7 @@ const REPORT_CANON_BRANDS = [
  * ========================== */
 const ts = () => new Date().toISOString().replace(/[:.]/g, "-");
 function ensureDir(p) { if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true }); }
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Normalize for join keys (strip ="...", uppercase, remove non [A-Z0-9]) */
 function normalize(str) {
@@ -48,6 +50,29 @@ function pickPreferredProduct(a, b) {
 }
 
 const equal = (a, b) => (a ?? "").trim().toUpperCase() === (b ?? "").trim().toUpperCase();
+
+function isRetryableWriteError(error) {
+  const message = String(error?.message || error || "");
+  return /deadlock detected|E40P01|could not serialize access|40001|P2034/i.test(message);
+}
+
+async function withWriteRetry(fn, label) {
+  let lastError;
+  for (let attempt = 1; attempt <= MAX_WRITE_RETRIES; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableWriteError(error) || attempt === MAX_WRITE_RETRIES) {
+        throw error;
+      }
+      const waitMs = 500 * attempt * attempt;
+      console.warn(`⚠️ ${label} hit a retryable DB write conflict (attempt ${attempt}/${MAX_WRITE_RETRIES}); retrying in ${waitMs}ms`);
+      await sleep(waitMs);
+    }
+  }
+  throw lastError;
+}
 
 /** =========================
  *   ALIAS & SITE PREFIX MAPS
@@ -117,6 +142,12 @@ async function loadFtpMap(aliasToCanonical) {
   const map = new Map();
   let aliasHits = 0;
 
+  const addFtpKey = (keyPart, data) => {
+    const key = normalize(data.vendorNameCanon) + normalize(keyPart);
+    if (!key || map.has(key)) return;
+    map.set(key, data);
+  };
+
   for (const r of rows) {
     const vendorNameRaw = r.vendorName ?? r.VendorName ?? "";
     const vendorNameCanon = canonicalizeBrand(vendorNameRaw, aliasToCanonical);
@@ -126,17 +157,15 @@ async function loadFtpMap(aliasToCanonical) {
     const vcPn = r.vcPn ?? r.VCPN;
     if (!vcPn) continue;
 
-    const key = normalize(vendorNameCanon) + normalize(manufacturerPartNo);
-    if (!key) continue;
+    const data = {
+      vcPn: String(vcPn).trim(),
+      vendorNameRaw,
+      vendorNameCanon,
+      manufacturerPartNo,
+    };
 
-    if (!map.has(key)) {
-      map.set(key, {
-        vcPn: String(vcPn).trim(),
-        vendorNameRaw,
-        vendorNameCanon,
-        manufacturerPartNo,
-      });
-    }
+    addFtpKey(manufacturerPartNo, data);
+    addFtpKey(vcPn, data);
   }
   console.log(`🗺️  FTP keys (post-alias): ${map.size.toLocaleString()} (aliases used: ${aliasHits.toLocaleString()})`);
   return map;
@@ -149,7 +178,7 @@ async function loadProductIndex(aliasToCanonical) {
   const build = (products, searchableField) => {
     const index = new Map();
     for (const p of products) {
-      const canonBrand = canonicalizeBrand(p.keystone_ftp_brand, aliasToCanonical);
+      const canonBrand = canonicalizeBrand(p.keystone_ftp_brand || p.brand_name, aliasToCanonical);
       const searchVal = p[searchableField];
       const key = normalize(canonBrand) + normalize(searchVal);
       const existing = index.get(key);
@@ -163,10 +192,14 @@ async function loadProductIndex(aliasToCanonical) {
   // Try camelCase searchableSku first; fallback to snake_case
   try {
     const products = await prisma.product.findMany({
-      where: { keystone_ftp_brand: { not: null }, searchableSku: { not: null } },
+      where: {
+        searchableSku: { not: null },
+        OR: [{ keystone_ftp_brand: { not: null } }, { brand_name: { not: null } }],
+      },
       select: {
         sku: true,
         searchableSku: true,
+        brand_name: true,
         keystone_ftp_brand: true,
         keystone_code: true,
         keystone_code_site: true,
@@ -175,10 +208,14 @@ async function loadProductIndex(aliasToCanonical) {
     return build(products, "searchableSku");
   } catch (err) {
     const products = await prisma.product.findMany({
-      where: { keystone_ftp_brand: { not: null }, searchable_sku: { not: null } },
+      where: {
+        searchable_sku: { not: null },
+        OR: [{ keystone_ftp_brand: { not: null } }, { brand_name: { not: null } }],
+      },
       select: {
         sku: true,
         searchable_sku: true,
+        brand_name: true,
         keystone_ftp_brand: true,
         keystone_code: true,
         keystone_code_site: true,
@@ -269,6 +306,14 @@ async function main() {
 
   console.log(`🔎 Matches: ${matched.toLocaleString()} | No-match: ${missing.toLocaleString()}`);
   console.log(`✅ Already correct (no update needed): ${alreadyCorrect.toLocaleString()}`);
+
+  const updateBySku = new Map();
+  for (const update of updates) {
+    if (!updateBySku.has(update.sku)) updateBySku.set(update.sku, update);
+  }
+  updates.length = 0;
+  updates.push(...[...updateBySku.values()].sort((a, b) => a.sku.localeCompare(b.sku)));
+
   console.log(`✏️  Will update ${updates.length.toLocaleString()} products`);
 
   // 3) CSV audit
@@ -333,16 +378,19 @@ async function main() {
     let applied = 0;
     for (let i = 0; i < updates.length; i += BATCH_SIZE) {
       const slice = updates.slice(i, i + BATCH_SIZE);
-      await prisma.$transaction(
-        slice.map((u) => {
-          const data = {};
-          if (u.new_code) data.keystone_code = u.new_code;
-          if (u.new_site) data.keystone_code_site = u.new_site;
-          return prisma.product.update({
-            where: { sku: u.sku },
-            data,
-          });
-        })
+      await withWriteRetry(
+        () => prisma.$transaction(
+          slice.map((u) => {
+            const data = {};
+            if (u.new_code) data.keystone_code = u.new_code;
+            if (u.new_site) data.keystone_code_site = u.new_site;
+            return prisma.product.update({
+              where: { sku: u.sku },
+              data,
+            });
+          })
+        ),
+        `product update batch ${Math.floor(i / BATCH_SIZE) + 1}`
       );
       applied += slice.length;
       console.log(`   → Applied ${applied.toLocaleString()}/${updates.length.toLocaleString()}`);

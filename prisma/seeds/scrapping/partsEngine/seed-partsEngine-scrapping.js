@@ -6,7 +6,25 @@ const csv = require("csv-parser");
 const prisma = new PrismaClient();
 
 const COMPETITOR_ID = 3; // PartsEngine
-const FILE_PATH = path.join(__dirname, "results.csv");
+
+function getArgValue(name) {
+  const prefix = `${name}=`;
+  const inline = process.argv.find((arg) => arg.startsWith(prefix));
+  if (inline) return inline.slice(prefix.length);
+
+  const index = process.argv.indexOf(name);
+  if (index !== -1 && process.argv[index + 1]) return process.argv[index + 1];
+
+  return "";
+}
+
+function resolveInputFile(fileArg) {
+  if (!fileArg) return path.join(__dirname, "results.csv");
+  return path.isAbsolute(fileArg) ? fileArg : path.join(__dirname, fileArg);
+}
+
+const BRAND_FILTER = getArgValue("--brand") || process.env.PARTSENGINE_BRAND || "";
+const FILE_PATH = resolveInputFile(getArgValue("--file") || process.env.PARTSENGINE_RESULTS_FILE || "");
 
 const LOOKUP_BATCH_SIZE = 1000;
 const UPSERT_BATCH_SIZE = 2000;
@@ -22,6 +40,10 @@ function chunkArray(items, size) {
 
 function logWithTimestamp(message) {
   console.log(`[${new Date().toISOString()}] ${message}`);
+}
+
+function normalizeSku(value) {
+  return String(value || "").trim().toUpperCase();
 }
 
 async function upsertCompetitorProductsBatch(batch) {
@@ -90,6 +112,13 @@ async function upsertCompetitorProductsBatch(batch) {
 async function seedPartsEngineCompetitorProducts() {
   const results = [];
 
+  if (!fs.existsSync(FILE_PATH)) {
+    throw new Error(`PartsEngine results file not found: ${FILE_PATH}`);
+  }
+
+  logWithTimestamp(`Reading PartsEngine results from ${FILE_PATH}`);
+  if (BRAND_FILTER) logWithTimestamp(`Brand fallback filter: ${BRAND_FILTER}`);
+
   fs.createReadStream(FILE_PATH)
     .pipe(csv())
     .on("data", (row) => results.push(row))
@@ -131,7 +160,7 @@ async function seedPartsEngineCompetitorProducts() {
       for (const urlChunk of chunkArray(uniqueUrls, LOOKUP_BATCH_SIZE)) {
         const products = await prisma.product.findMany({
           where: { partsEngine_code: { in: urlChunk } },
-          select: { sku: true, partsEngine_code: true },
+          select: { sku: true, partsEngine_code: true, searchableSku: true, searchable_sku: true },
         });
 
         for (const product of products) {
@@ -139,7 +168,37 @@ async function seedPartsEngineCompetitorProducts() {
         }
       }
 
-      const productSkus = Array.from(productByUrl.values());
+      const productByCompetitorSku = new Map();
+
+      if (BRAND_FILTER) {
+        const uniqueCompetitorSkus = Array.from(
+          new Set(validRows.map((row) => normalizeSku(row.competitorSku)).filter(Boolean))
+        );
+
+        logWithTimestamp(`Loading brand fallback products for ${uniqueCompetitorSkus.length} competitor SKUs...`);
+
+        for (const skuChunk of chunkArray(uniqueCompetitorSkus, LOOKUP_BATCH_SIZE)) {
+          const products = await prisma.product.findMany({
+            where: {
+              brand_name: BRAND_FILTER,
+              OR: [
+                { searchableSku: { in: skuChunk } },
+                { searchable_sku: { in: skuChunk } },
+              ],
+            },
+            select: { sku: true, searchableSku: true, searchable_sku: true },
+          });
+
+          for (const product of products) {
+            const searchableSku = normalizeSku(product.searchable_sku || product.searchableSku);
+            if (searchableSku && !productByCompetitorSku.has(searchableSku)) {
+              productByCompetitorSku.set(searchableSku, product.sku);
+            }
+          }
+        }
+      }
+
+      const productSkus = Array.from(new Set([...productByUrl.values(), ...productByCompetitorSku.values()]));
       logWithTimestamp(`Loading existing competitor products for ${productSkus.length} SKUs...`);
       const existingBySku = new Set();
 
@@ -162,7 +221,7 @@ async function seedPartsEngineCompetitorProducts() {
 
       logWithTimestamp(`Preparing ${validRows.length} rows for writes...`);
       for (const row of validRows) {
-        const productSku = productByUrl.get(row.url);
+        const productSku = productByUrl.get(row.url) || productByCompetitorSku.get(normalizeSku(row.competitorSku));
 
         if (!productSku) {
           continue;

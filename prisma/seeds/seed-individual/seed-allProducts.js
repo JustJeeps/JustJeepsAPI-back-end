@@ -455,7 +455,9 @@ const buildRowFromMagento = (
   }
 
   const keystoneFtpBrand =
-    vendorData && vendorData.keystone_ftp_brand ? vendorData.keystone_ftp_brand : null;
+    vendorData && (vendorData.keystone_ftp_brand || vendorData.keystone_ftp_brand_canonical)
+      ? vendorData.keystone_ftp_brand || vendorData.keystone_ftp_brand_canonical
+      : null;
 
   // Turn14 / Premier
   const t14Code = vendorData && vendorData.t14_code ? vendorData.t14_code + searchable_sku : "";

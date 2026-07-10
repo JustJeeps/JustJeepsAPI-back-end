@@ -2666,6 +2666,7 @@ module.exports = [
       "M.T. DRAG":   "MTT"
     },
     t14_code: "mtt",
+    partsEngine_code: "-vp-mickey-thompson-236.aspx",
 
   },
 
