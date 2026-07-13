@@ -1,6 +1,7 @@
 const Express = require('express');
 const fs = require('fs');
 const path = require('path');
+require('dotenv').config();
 const axios = require('axios');
 const { format, parseISO } = require('date-fns');
 const app = Express();
@@ -86,6 +87,7 @@ function getCronJobDefinitions() {
 			command: 'seed-all',
 			jobName: 'Daily Vendor Sync (seed-all)',
 			logPrefix: 'Daily seed-all',
+			reportLogFile: 'prisma/seeds/logs/seed-all.log',
 			readSummaryFile: 'prisma/seeds/logs/seed-all-summary.json',
 		},
 		{
@@ -583,6 +585,32 @@ function summarizeCronResults(results = []) {
 	};
 }
 
+function extractFailedCronResults(results = []) {
+	if (!Array.isArray(results) || results.length === 0) return [];
+
+	return results
+		.filter((result) => !result?.success)
+		.map((result) => ({
+			cmd: result.cmd || null,
+			code: result.code ?? null,
+			error: result.error || null,
+			logFile: result.logFile || null,
+			durationMs: result.durationMs ?? null,
+		}));
+}
+
+function formatFailedCronResults(failedResults = []) {
+	if (!Array.isArray(failedResults) || failedResults.length === 0) return null;
+
+	return failedResults
+		.map((item) => {
+			const codeText = item.code ?? 'unknown';
+			const errorText = item.error ? ` (${item.error})` : '';
+			return `${item.cmd || 'unknown-step'} [code ${codeText}]${errorText}`;
+		})
+		.join('; ');
+}
+
 function buildNotificationSnapshot(notificationResult) {
 	if (!notificationResult) return null;
 	return {
@@ -606,6 +634,7 @@ function recordCronRunHistory({
 	error,
 	notification,
 	summary,
+	failedResults,
 }) {
 	appendCronHistoryEntry({
 		id: `${command}-${finishedAt || startedAt || new Date().toISOString()}`,
@@ -620,6 +649,7 @@ function recordCronRunHistory({
 		error: error || null,
 		notification: notification || null,
 		summary: summary || null,
+		failedResults: Array.isArray(failedResults) ? failedResults : [],
 		createdAt: new Date().toISOString(),
 	});
 }
@@ -639,6 +669,7 @@ function deriveCronArtifacts({ reportLogFile, readSummaryFile }) {
 	const progress = parseCronProgress(lines);
 	const summary = readJsonFileSafe(readSummaryFile);
 	const resultSummary = summarizeCronResults(summary?.results);
+	const failedResults = extractFailedCronResults(summary?.results);
 
 	let status = null;
 	if (lastFinishMatch) {
@@ -660,6 +691,7 @@ function deriveCronArtifacts({ reportLogFile, readSummaryFile }) {
 		progress,
 		recentLogLines,
 		summary: resultSummary,
+		failedResults,
 	};
 }
 
@@ -694,6 +726,7 @@ function buildCronJobStatus(definition, historyEntries = null) {
 		lastNotification: live.lastNotification || latestHistory?.notification || null,
 		progress: isRunning ? (artifacts.progress || live.progress || null) : (live.progress || artifacts.progress || null),
 		summary: live.summary || artifacts.summary || latestHistory?.summary || null,
+		failedResults: live.failedResults || artifacts.failedResults || latestHistory?.failedResults || [],
 		recentLogLines: artifacts.recentLogLines,
 		history,
 		updatedAt: live.updatedAt || null,
@@ -703,7 +736,6 @@ function buildCronJobStatus(definition, historyEntries = null) {
 // 🔐 Import authentication components (safe - disabled by default)
 const authRoutes = require('./routes/auth');
 const { authenticateToken, optionalAuth } = require('./middleware/auth');
-require('dotenv').config();
 
 function scheduleQuickBooksLookupPreload() {
 	if (!quickBooksPreloadEnabled) {
@@ -4174,6 +4206,7 @@ function registerCommandCronJob({
 						lastError: null,
 						lastNotification: buildNotificationSnapshot(notificationResult),
 						summary: summarizeCronResults(summary?.results),
+						failedResults: [],
 					});
 					recordCronRunHistory({
 						command,
@@ -4186,11 +4219,15 @@ function registerCommandCronJob({
 						exitCode: code,
 						notification: buildNotificationSnapshot(notificationResult),
 						summary: summarizeCronResults(summary?.results),
+						failedResults: [],
 					});
 				} else {
 					const error = timedOut
 						? `Process timed out after ${cronChildTimeoutMs}ms`
 						: `Process exited with code ${code}`;
+					const failedResults = extractFailedCronResults(summary?.results);
+					const failedDetails = formatFailedCronResults(failedResults);
+					const detailedError = failedDetails ? `${error} | Failed steps: ${failedDetails}` : error;
 					logger.error('❌ Cron job failed', { jobName, exitCode: code, duration, command });
 					console.error(`❌ [CRON] ${logPrefix} failed with exit code ${code}`);
 
@@ -4200,7 +4237,7 @@ function registerCommandCronJob({
 							jobName,
 							success: false,
 							exitCode: code,
-							error,
+							error: detailedError,
 							duration,
 							results: summary.results,
 						});
@@ -4210,14 +4247,14 @@ function registerCommandCronJob({
 							jobName,
 							success: false,
 							exitCode: code,
-							error,
+							error: detailedError,
 							duration,
 							results: buildSingleResult({
 								command,
 								success: false,
 								durationMs,
 								logFile: reportLogFile,
-								error,
+								error: detailedError,
 							}),
 						});
 					}
@@ -4229,9 +4266,10 @@ function registerCommandCronJob({
 						lastDurationMs: durationMs,
 						lastDurationLabel: duration,
 						lastExitCode: code,
-						lastError: error,
+						lastError: detailedError,
 						lastNotification: buildNotificationSnapshot(notificationResult),
 						summary: summarizeCronResults(summary?.results),
+						failedResults,
 					});
 					recordCronRunHistory({
 						command,
@@ -4242,9 +4280,10 @@ function registerCommandCronJob({
 						durationMs,
 						durationLabel: duration,
 						exitCode: code,
-						error,
+						error: detailedError,
 						notification: buildNotificationSnapshot(notificationResult),
 						summary: summarizeCronResults(summary?.results),
+						failedResults,
 					});
 				}
 			} finally {
@@ -4298,6 +4337,7 @@ function registerCommandCronJob({
 					lastExitCode: null,
 					lastError: error.message,
 					lastNotification: buildNotificationSnapshot(notificationResult),
+					failedResults: [],
 				});
 				recordCronRunHistory({
 					command,
@@ -4309,6 +4349,7 @@ function registerCommandCronJob({
 					durationLabel: duration,
 					error: error.message,
 					notification: buildNotificationSnapshot(notificationResult),
+					failedResults: [],
 				});
 			} finally {
 				isRunning = false;
