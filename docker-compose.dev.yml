@@ -20,4 +20,13 @@ services:
     environment:
       NODE_ENV: development
       ENABLE_AUTH: ${ENABLE_AUTH:-false}
+      CRON_ENABLED: "false"
+      CRON_MAGENTO_ATTRIBUTES_PRIORITY_ENABLED: "false"
+      CRON_MAGENTO_ATTRIBUTES_ROUGH_ENABLED: "false"
+      AUDIT_CAD_US_CONCURRENCY: "2"
+      AUDIT_CAD_US_MAX_RPM: "60"
+      MAGENTO_MAX_SAFE_CONCURRENCY: "1"
+      MAGENTO_CHUNK_DELAY_MS: "1000"
+      MAGENTO_BATCH_DELAY_MS: "1000"
+      MAGENTO_MAX_RETRIES: "1"
     command: npm run dev
