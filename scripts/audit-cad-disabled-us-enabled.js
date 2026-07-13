@@ -26,6 +26,33 @@ const MAGENTO_CONFIG = {
   timeout: Number(process.env.MAGENTO_TIMEOUT_MS || 15000),
 };
 
+function toPositiveInt(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function createRequestGate(maxRequestsPerMinute) {
+  const rpm = toPositiveInt(maxRequestsPerMinute, 60);
+  const intervalMs = Math.ceil(60000 / rpm);
+  let nextAllowedAt = 0;
+
+  return {
+    rpm,
+    intervalMs,
+    async waitTurn() {
+      const now = Date.now();
+      const target = Math.max(now, nextAllowedAt);
+      nextAllowedAt = target + intervalMs;
+      const waitMs = target - now;
+      if (waitMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
+      }
+    },
+  };
+}
+
+let requestGate = null;
+
 function parseArgs(argv) {
   const options = {
     skus: [],
@@ -33,7 +60,8 @@ function parseArgs(argv) {
     jjPrefix: null,
     brandName: null,
     limit: null,
-    concurrency: 10,
+    concurrency: toPositiveInt(process.env.AUDIT_CAD_US_CONCURRENCY, 2),
+    maxRequestsPerMinute: toPositiveInt(process.env.AUDIT_CAD_US_MAX_RPM, 60),
     cadStoreCode: process.env.MAGENTO_CAD_STORE_CODE || 'default',
     usStoreCode: process.env.MAGENTO_US_STORE_CODE || 'us_sv',
     cadStatus: 2,
@@ -58,6 +86,8 @@ function parseArgs(argv) {
       options.limit = Number(argv[++i]);
     } else if (arg === '--concurrency' && argv[i + 1]) {
       options.concurrency = Number(argv[++i]);
+    } else if ((arg === '--max-requests-per-minute' || arg === '--max-rpm') && argv[i + 1]) {
+      options.maxRequestsPerMinute = Number(argv[++i]);
     } else if (arg === '--cad-store-code' && argv[i + 1]) {
       options.cadStoreCode = argv[++i];
     } else if (arg === '--us-store-code' && argv[i + 1]) {
@@ -162,6 +192,10 @@ async function fetchMagentoStatus(sku, storeCode) {
   const endpoint = `${MAGENTO_CONFIG.baseUrl.replace(/\/$/, '')}/rest/${storeCode}/V1/products/${encodeURIComponent(sku)}?fields=sku,status`;
 
   try {
+    if (requestGate) {
+      await requestGate.waitTurn();
+    }
+
     const response = await axios.get(endpoint, buildMagentoRequestConfig());
     return {
       success: true,
@@ -266,7 +300,8 @@ function printUsage() {
   console.log('  --jj-prefix <code>        Load candidate SKUs from Product.jj_prefix.');
   console.log('  --brand <name>            Load candidate SKUs from Product.brand_name.');
   console.log('  --limit <number>          Limit candidate SKUs.');
-  console.log('  --concurrency <number>    Concurrent SKU checks (default: 10).');
+  console.log('  --concurrency <number>    Concurrent SKU checks (default: 2).');
+  console.log('  --max-requests-per-minute <number>  Global Magento GET cap across all workers (default: 60).');
   console.log('  --cad-store-code <code>   Magento CAD store code (default: default).');
   console.log('  --us-store-code <code>    Magento US store code (default: us_sv).');
   console.log('  --cad-status <number>     CAD status to flag (default: 2).');
@@ -293,9 +328,15 @@ async function main() {
     throw new Error('Invalid --concurrency. Expected integer >= 1.');
   }
 
+  if (!Number.isInteger(options.maxRequestsPerMinute) || options.maxRequestsPerMinute < 1) {
+    throw new Error('Invalid --max-requests-per-minute. Expected integer >= 1.');
+  }
+
   if (!Number.isInteger(options.cadStatus) || !Number.isInteger(options.usStatus)) {
     throw new Error('Invalid status value. Expected integer Magento status codes.');
   }
+
+  requestGate = createRequestGate(options.maxRequestsPerMinute);
 
   const skus = await getCandidateSkus(options);
   console.log(`Candidate SKUs: ${skus.length}`);
@@ -307,6 +348,9 @@ async function main() {
 
   console.log(`CAD store code: ${options.cadStoreCode}; flag status: ${options.cadStatus}`);
   console.log(`US store code: ${options.usStoreCode}; flag status: ${options.usStatus}`);
+  console.log(
+    `Rate limit: max ${requestGate.rpm} GET/min (${requestGate.intervalMs}ms spacing), concurrency=${options.concurrency}`
+  );
 
   const rows = await processInChunks(skus, options);
   const mismatches = rows.filter((row) => row.is_cad_disabled_us_enabled);

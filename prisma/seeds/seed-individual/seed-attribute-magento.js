@@ -17,19 +17,42 @@ const https = require('https');
 const prisma = require('../../../lib/prisma');
 const { USD_TO_CAD_RATE } = require('../../../utils/exchangeRate');
 
+function toPositiveInt(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function computeThrottleTelemetry(concurrency, chunkDelayMs) {
+  const minimumSecondsPerChunk = Math.max(chunkDelayMs, 1) / 1000;
+  const theoreticalMaxPerSecond = concurrency / minimumSecondsPerChunk;
+  const theoreticalMaxPerMinute = theoreticalMaxPerSecond * 60;
+
+  return {
+    minimumSecondsPerChunk,
+    theoreticalMaxPerSecond,
+    theoreticalMaxPerMinute,
+  };
+}
+
 // Magento API Configuration
 const MAGENTO_CONFIG = {
   baseURL: 'https://www.justjeeps.com/rest/default/V1',
   token: process.env.MAGENTO_KEY || process.env.MAGENTO_TOKEN || '',
-  storeId: 1,
-  timeout: 10000,
-  maxRetries: 3,
-  retryDelayMs: 500,
-  chunkDelayMs: 1000,
-  batchDelayMs: 2000
+  storeId: toPositiveInt(process.env.MAGENTO_STORE_ID, 1),
+  timeout: toPositiveInt(process.env.MAGENTO_TIMEOUT_MS, 10000),
+  maxRetries: toPositiveInt(process.env.MAGENTO_MAX_RETRIES, 3),
+  retryDelayMs: toPositiveInt(process.env.MAGENTO_RETRY_DELAY_MS, 500),
+  chunkDelayMs: toPositiveInt(process.env.MAGENTO_CHUNK_DELAY_MS, 1000),
+  batchDelayMs: toPositiveInt(process.env.MAGENTO_BATCH_DELAY_MS, 2000),
+  maxSafeConcurrency: toPositiveInt(process.env.MAGENTO_MAX_SAFE_CONCURRENCY, 12),
+  maxSafeBatchSize: toPositiveInt(process.env.MAGENTO_MAX_SAFE_BATCH_SIZE, 150),
+  httpsMaxSockets: toPositiveInt(process.env.MAGENTO_HTTPS_MAX_SOCKETS, 25)
 };
 
-const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 100 });
+const httpsAgent = new https.Agent({
+  keepAlive: true,
+  maxSockets: MAGENTO_CONFIG.httpsMaxSockets,
+});
 const magentoClient = axios.create({
   baseURL: MAGENTO_CONFIG.baseURL,
   timeout: MAGENTO_CONFIG.timeout,
@@ -79,7 +102,7 @@ const VENDOR_CONFIGS = {
   'priority': [
     { name: 'Omix', batch: 100, concurrency: 10 },
     { name: 'AEV', batch: 75, concurrency: 8 },
-    { name: 'Rough Country', batch: 100, concurrency: 250 },
+    { name: 'Rough Country', batch: 100, concurrency: 10 },
     { name: 'MetalCloak', batch: 75, concurrency: 8 },
     { name: 'KeyParts', batch: 50, concurrency: 8 }
   ],
@@ -256,8 +279,21 @@ async function getVendorProducts(vendor, limit = null, lastSeenId = 0) {
  */
 async function seedVendor(vendorName, batchSize = 100, concurrency = 10, maxProducts = null) {
   const startTime = Date.now();
+  const safeBatchSize = Math.max(1, Math.min(batchSize, MAGENTO_CONFIG.maxSafeBatchSize));
+  const safeConcurrency = Math.max(1, Math.min(concurrency, MAGENTO_CONFIG.maxSafeConcurrency));
+  const throttleTelemetry = computeThrottleTelemetry(safeConcurrency, MAGENTO_CONFIG.chunkDelayMs);
+
+  if (safeBatchSize !== batchSize) {
+    console.log(`⚠️  Batch size ${batchSize} reduced to safe limit ${safeBatchSize}.`);
+  }
+  if (safeConcurrency !== concurrency) {
+    console.log(`⚠️  Concurrency ${concurrency} reduced to safe limit ${safeConcurrency}.`);
+  }
+
   console.log(`\n🚀 Starting Magento attribute seeding for ${vendorName}`);
-  console.log(`📊 Batch size: ${batchSize}, Concurrency: ${concurrency}, Max products: ${maxProducts || 'all'}`);
+  console.log(`📊 Batch size: ${safeBatchSize}, Concurrency: ${safeConcurrency}, Max products: ${maxProducts || 'all'}`);
+  console.log(`⚙️  Effective throttle: chunkDelay=${MAGENTO_CONFIG.chunkDelayMs}ms, batchDelay=${MAGENTO_CONFIG.batchDelayMs}ms, retries=${MAGENTO_CONFIG.maxRetries}, httpsMaxSockets=${MAGENTO_CONFIG.httpsMaxSockets}`);
+  console.log(`🎯 Estimated max rate (delay-only): ${throttleTelemetry.theoreticalMaxPerSecond.toFixed(2)} products/sec (${throttleTelemetry.theoreticalMaxPerMinute.toFixed(0)} products/min)`);
 
   try {
     // Get vendor info and total count
@@ -289,9 +325,9 @@ async function seedVendor(vendorName, batchSize = 100, concurrency = 10, maxProd
 
     while (totalProcessed < processingLimit) {
       const remainingProducts = processingLimit - totalProcessed;
-      const currentBatchSize = Math.min(batchSize, remainingProducts);
+      const currentBatchSize = Math.min(safeBatchSize, remainingProducts);
 
-      console.log(`\n📦 Fetching batch ${Math.floor(totalProcessed / batchSize) + 1} (${currentBatchSize} products, last id: ${lastSeenId})`);
+      console.log(`\n📦 Fetching batch ${Math.floor(totalProcessed / safeBatchSize) + 1} (${currentBatchSize} products, last id: ${lastSeenId})`);
       
       const products = await getVendorProducts(vendor, currentBatchSize, lastSeenId);
       
@@ -306,7 +342,7 @@ async function seedVendor(vendorName, batchSize = 100, concurrency = 10, maxProd
 
       // Process the batch
       const batchStartTime = Date.now();
-      const batchResult = await parallelUpdateMagentoProducts(products, concurrency);
+      const batchResult = await parallelUpdateMagentoProducts(products, safeConcurrency);
       const batchEndTime = Date.now();
       const batchDuration = (batchEndTime - batchStartTime) / 1000;
 
