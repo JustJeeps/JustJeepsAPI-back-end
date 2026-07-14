@@ -163,6 +163,34 @@ function getCronJobDefinitions() {
 	return jobs.filter((job) => job.enabled !== false);
 }
 
+function getReportCronJobDefinitions() {
+	return [
+		{
+			enabled: cancellationReportEnabled,
+			schedule: cancellationReportSchedule,
+			command: 'report-order-cancellations-daily',
+			jobName: 'Daily Cancelled Orders Report',
+			logPrefix: 'Daily cancelled orders report',
+			timezone: cancellationReportTimezone,
+		},
+		{
+			enabled: skuStatusReportEnabled,
+			schedule: skuStatusReportSchedule,
+			command: 'report-sku-status-daily',
+			jobName: 'Daily SKU Status Change Report',
+			logPrefix: 'Daily SKU status change report',
+			timezone: skuStatusReportTimezone,
+		},
+	].filter((job) => job.enabled !== false);
+}
+
+function getCronDashboardDefinitions() {
+	return [
+		...getCronJobDefinitions(),
+		...getReportCronJobDefinitions(),
+	];
+}
+
 function upsertCronJobRecord(command, patch) {
 	const current = cronJobRegistry.get(command) || { command };
 	const next = {
@@ -836,7 +864,7 @@ function buildCronJobStatus(definition, historyEntries = null) {
 		command: definition.command,
 		jobName: definition.jobName,
 		schedule: definition.schedule,
-		timezone: cronTimezone,
+		timezone: definition.timezone || cronTimezone,
 		logFile: definition.reportLogFile ? path.resolve(__dirname, definition.reportLogFile) : null,
 		status,
 		isRunning,
@@ -1035,7 +1063,7 @@ app.get('/api/quickbooks/customers/meta', (req, res) => {
 app.get('/api/cron-jobs', (req, res) => {
 	try {
 		const historyEntries = readCronHistoryEntries();
-		const jobs = getCronJobDefinitions().map((definition) => buildCronJobStatus(definition, historyEntries));
+		const jobs = getCronDashboardDefinitions().map((definition) => buildCronJobStatus(definition, historyEntries));
 		res.json({
 			jobs,
 			generatedAt: new Date().toISOString(),
@@ -4559,6 +4587,68 @@ function registerCommandCronJob({
 	});
 }
 
+function markReportCronScheduled({ command, jobName, schedule, timezone }) {
+	upsertCronJobRecord(command, {
+		jobName,
+		schedule,
+		isRunning: false,
+		lastStatus: cronEnabled ? 'scheduled' : 'disabled',
+		timezone,
+	});
+}
+
+function markReportCronSkipped({ command, message }) {
+	upsertCronJobRecord(command, {
+		isRunning: false,
+		lastStatus: 'skipped',
+		lastError: message,
+	});
+}
+
+function markReportCronStarted({ command, startedAt }) {
+	upsertCronJobRecord(command, {
+		isRunning: true,
+		lastStatus: 'running',
+		lastStartedAt: startedAt,
+		lastError: null,
+		progress: null,
+	});
+}
+
+function markReportCronFinished({ command, jobName, startedAt, finishedAt, durationMs, durationLabel, status, error, summary }) {
+	const isSuccess = status === 'success';
+	const failedResults = isSuccess ? [] : [{ cmd: command, code: null, error }];
+	const notification = { success: isSuccess, mode: 'report-email', fallbackUsed: false, message: error || null, updatedAt: finishedAt };
+
+	upsertCronJobRecord(command, {
+		isRunning: false,
+		lastStatus: status,
+		lastFinishedAt: finishedAt,
+		lastDurationMs: durationMs,
+		lastDurationLabel: durationLabel,
+		lastExitCode: isSuccess ? 0 : 1,
+		lastError: error || null,
+		lastNotification: notification,
+		summary: summary || null,
+		failedResults,
+	});
+
+	recordCronRunHistory({
+		command,
+		jobName,
+		status,
+		startedAt,
+		finishedAt,
+		durationMs,
+		durationLabel,
+		exitCode: isSuccess ? 0 : 1,
+		error: error || null,
+		notification,
+		summary: summary || null,
+		failedResults,
+	});
+}
+
 function registerCronJobs() {
 	if (cronJobsRegistered) {
 		logger.warn('Cron jobs already registered; skipping duplicate initialization');
@@ -4577,11 +4667,17 @@ function registerCronJobs() {
 
 	cronJobsRegistered = true;
 
+	for (const definition of getReportCronJobDefinitions()) {
+		markReportCronScheduled(definition);
+	}
+
 	if (!testCronEnabled) {
 		logger.info('Test cron job disabled via CRON_TEST_ENABLED=false');
 	}
 
 	if (cancellationReportEnabled) {
+		const cancellationReportCommand = 'report-order-cancellations-daily';
+		const cancellationReportJobName = 'Daily Cancelled Orders Report';
 		let cancellationReportRunning = false;
 		logger.info('Registering cancellation daily report cron job', {
 			schedule: cancellationReportSchedule,
@@ -4590,29 +4686,64 @@ function registerCronJobs() {
 
 		cron.schedule(cancellationReportSchedule, async () => {
 			if (cancellationReportRunning) {
+				markReportCronSkipped({
+					command: cancellationReportCommand,
+					message: 'Previous run still in progress',
+				});
 				logger.warn('Cancellation daily report skipped because previous run is still in progress');
 				return;
 			}
 
 			cancellationReportRunning = true;
 			const startedAt = Date.now();
+			const startedAtIso = new Date(startedAt).toISOString();
 			const reportDate = getDateStringInTimezone(new Date(), cancellationReportTimezone || 'America/Toronto');
+			markReportCronStarted({ command: cancellationReportCommand, startedAt: startedAtIso });
 
 			try {
 				const result = await sendDailyCancellationReportEmailForDate(reportDate, {
 					timeZone: cancellationReportTimezone,
 				});
+				const finishedAt = new Date().toISOString();
+				const durationMs = Date.now() - startedAt;
+				const durationLabel = formatDuration(startedAt);
+				markReportCronFinished({
+					command: cancellationReportCommand,
+					jobName: cancellationReportJobName,
+					startedAt: startedAtIso,
+					finishedAt,
+					durationMs,
+					durationLabel,
+					status: 'success',
+					summary: {
+						totalCancelled: result.report.totalCancelled,
+						paulaCancelled: result.report.paulaCancelled,
+					},
+				});
 				logger.info('Daily cancellation report email sent', {
 					reportDate,
 					totalCancelled: result.report.totalCancelled,
 					paulaCancelled: result.report.paulaCancelled,
-					duration: formatDuration(startedAt),
+					duration: durationLabel,
 				});
 			} catch (error) {
+				const finishedAt = new Date().toISOString();
+				const durationMs = Date.now() - startedAt;
+				const durationLabel = formatDuration(startedAt);
+				markReportCronFinished({
+					command: cancellationReportCommand,
+					jobName: cancellationReportJobName,
+					startedAt: startedAtIso,
+					finishedAt,
+					durationMs,
+					durationLabel,
+					status: 'failed',
+					error: error.message,
+				});
 				logger.error('Failed to send daily cancellation report email', {
 					reportDate,
 					error: error.message,
-					duration: formatDuration(startedAt),
+					duration: durationLabel,
 				});
 			} finally {
 				cancellationReportRunning = false;
@@ -4626,6 +4757,8 @@ function registerCronJobs() {
 	}
 
 	if (skuStatusReportEnabled) {
+		const skuStatusReportCommand = 'report-sku-status-daily';
+		const skuStatusReportJobName = 'Daily SKU Status Change Report';
 		let skuStatusReportRunning = false;
 		logger.info('Registering SKU status daily report cron job', {
 			schedule: skuStatusReportSchedule,
@@ -4634,30 +4767,66 @@ function registerCronJobs() {
 
 		cron.schedule(skuStatusReportSchedule, async () => {
 			if (skuStatusReportRunning) {
+				markReportCronSkipped({
+					command: skuStatusReportCommand,
+					message: 'Previous run still in progress',
+				});
 				logger.warn('SKU status daily report skipped because previous run is still in progress');
 				return;
 			}
 
 			skuStatusReportRunning = true;
 			const startedAt = Date.now();
+			const startedAtIso = new Date(startedAt).toISOString();
 			const reportDate = getDateStringInTimezone(new Date(), skuStatusReportTimezone || 'America/Toronto');
+			markReportCronStarted({ command: skuStatusReportCommand, startedAt: startedAtIso });
 
 			try {
 				const result = await sendDailySkuStatusReportEmailForDate(reportDate, {
 					timeZone: skuStatusReportTimezone,
+				});
+				const finishedAt = new Date().toISOString();
+				const durationMs = Date.now() - startedAt;
+				const durationLabel = formatDuration(startedAt);
+				markReportCronFinished({
+					command: skuStatusReportCommand,
+					jobName: skuStatusReportJobName,
+					startedAt: startedAtIso,
+					finishedAt,
+					durationMs,
+					durationLabel,
+					status: 'success',
+					summary: {
+						totalChanged: result.report.totalChanged,
+						totalDisabled: result.report.totalDisabled,
+						totalEnabled: result.report.totalEnabled,
+					},
 				});
 				logger.info('Daily SKU status report email sent', {
 					reportDate,
 					totalChanged: result.report.totalChanged,
 					totalDisabled: result.report.totalDisabled,
 					totalEnabled: result.report.totalEnabled,
-					duration: formatDuration(startedAt),
+					duration: durationLabel,
 				});
 			} catch (error) {
+				const finishedAt = new Date().toISOString();
+				const durationMs = Date.now() - startedAt;
+				const durationLabel = formatDuration(startedAt);
+				markReportCronFinished({
+					command: skuStatusReportCommand,
+					jobName: skuStatusReportJobName,
+					startedAt: startedAtIso,
+					finishedAt,
+					durationMs,
+					durationLabel,
+					status: 'failed',
+					error: error.message,
+				});
 				logger.error('Failed to send daily SKU status report email', {
 					reportDate,
 					error: error.message,
-					duration: formatDuration(startedAt),
+					duration: durationLabel,
 				});
 			} finally {
 				skuStatusReportRunning = false;
