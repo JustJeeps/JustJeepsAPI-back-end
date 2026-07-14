@@ -5,6 +5,7 @@ async function ensureUsWebsiteAssignmentForSkus({
   websiteId,
   magentoConfig,
   concurrency = 20,
+  abortOnRedirectFailures = 5,
 }) {
   const website = Number(websiteId);
   if (!Number.isInteger(website) || website < 1) {
@@ -25,6 +26,8 @@ async function ensureUsWebsiteAssignmentForSkus({
       alreadyAssigned: 0,
       missingInMagento: 0,
       failed: 0,
+      aborted: false,
+      abortReason: null,
       failedSamples: [],
     };
   }
@@ -38,12 +41,14 @@ async function ensureUsWebsiteAssignmentForSkus({
   let alreadyAssigned = 0;
   let missingInMagento = 0;
   let failed = 0;
+  let redirectFailures = 0;
+  let abortReason = null;
   const failedSamples = [];
 
   let cursor = 0;
 
   async function worker() {
-    while (cursor < total) {
+    while (cursor < total && !abortReason) {
       const index = cursor++;
       const sku = uniqueSkus[index];
       const encodedSku = encodeURIComponent(sku);
@@ -51,7 +56,7 @@ async function ensureUsWebsiteAssignmentForSkus({
       try {
         const productResponse = await axios.get(
           `${magentoConfig.baseURL}/products/${encodedSku}?fields=sku,extension_attributes[website_ids]`,
-          { headers, timeout: magentoConfig.timeout }
+          { headers, timeout: magentoConfig.timeout, maxRedirects: 5 }
         );
 
         const websiteIds = productResponse.data?.extension_attributes?.website_ids || [];
@@ -68,7 +73,7 @@ async function ensureUsWebsiteAssignmentForSkus({
               website_id: website,
             },
           },
-          { headers, timeout: magentoConfig.timeout }
+          { headers, timeout: magentoConfig.timeout, maxRedirects: 5 }
         );
 
         assigned++;
@@ -80,12 +85,19 @@ async function ensureUsWebsiteAssignmentForSkus({
           continue;
         }
 
+        if ([301, 302, 307, 308].includes(status)) {
+          redirectFailures++;
+          if (abortOnRedirectFailures > 0 && redirectFailures >= abortOnRedirectFailures) {
+            abortReason = `Aborted website assignment after ${redirectFailures} redirect responses. Check MAGENTO_BASE_URL/M2_BASE_URL_DEFAULT/M2_DEFAULT_BASE_URL and Magento routing.`;
+          }
+        }
+
         failed++;
         if (failedSamples.length < 20) {
           failedSamples.push({
             sku,
             status: status || 'ERR',
-            details: String(error.response?.data?.message || error.message).slice(0, 160),
+            details: String(error.response?.headers?.location || error.response?.data?.message || error.message).slice(0, 160),
           });
         }
       }
@@ -106,6 +118,8 @@ async function ensureUsWebsiteAssignmentForSkus({
     alreadyAssigned,
     missingInMagento,
     failed,
+    aborted: Boolean(abortReason),
+    abortReason,
     failedSamples,
   };
 }

@@ -11,11 +11,37 @@ const VENDOR_ID_QUADRATEC = 4;
 const STORE_ID_US = 2;
 const MIN_FINAL_MARGIN = 0.15;
 const MIN_PRICE_USD = 11.95;
+const DEFAULT_MAGENTO_REST_BASE_URL = 'https://justjeeps.com/rest/default/V1';
+
+function resolveMagentoRestBaseUrl() {
+  const configured = (
+    process.env.MAGENTO_BASE_URL ||
+    process.env.M2_BASE_URL_DEFAULT ||
+    process.env.M2_DEFAULT_BASE_URL ||
+    process.env.M2_BASE_URL ||
+    DEFAULT_MAGENTO_REST_BASE_URL
+  ).trim();
+
+  const base = configured || DEFAULT_MAGENTO_REST_BASE_URL;
+  const withoutTrailingSlash = base.replace(/\/+$/, '');
+
+  if (/\/rest\/[^/]+\/V1$/i.test(withoutTrailingSlash)) {
+    return withoutTrailingSlash.replace('https://www.justjeeps.com', 'https://justjeeps.com');
+  }
+
+  if (/\/rest\/V1$/i.test(withoutTrailingSlash)) {
+    return withoutTrailingSlash
+      .replace(/\/rest\/V1$/i, '/rest/default/V1')
+      .replace('https://www.justjeeps.com', 'https://justjeeps.com');
+  }
+
+  return `${withoutTrailingSlash.replace('https://www.justjeeps.com', 'https://justjeeps.com')}/rest/default/V1`;
+}
 
 const MAGENTO_CONFIG = {
-  baseURL: process.env.M2_BASE_URL_DEFAULT || 'https://www.justjeeps.com/rest/default/V1',
+  baseURL: resolveMagentoRestBaseUrl(),
   token: process.env.MAGENTO_KEY,
-  timeout: Number(process.env.MAGENTO_TIMEOUT_MS || 15000),
+  timeout: Number(process.env.MAGENTO_TIMEOUT_MS || 30000),
 };
 
 function normalizeVendorName(value) {
@@ -26,8 +52,10 @@ function parseArgs(argv) {
   const options = {
     vendorName: 'quadratec',
     limit: null,
-    batchSize: 1000,
+    batchSize: 250,
     delayMs: 400,
+    skipWebsiteAssignment: false,
+    websiteAssignmentConcurrency: 10,
     dryRun: false,
   };
 
@@ -42,6 +70,10 @@ function parseArgs(argv) {
       options.batchSize = Number(argv[++i]);
     } else if (arg === '--delay-ms' && argv[i + 1]) {
       options.delayMs = Number(argv[++i]);
+    } else if (arg === '--website-assignment-concurrency' && argv[i + 1]) {
+      options.websiteAssignmentConcurrency = Number(argv[++i]);
+    } else if (arg === '--skip-website-assignment') {
+      options.skipWebsiteAssignment = true;
     } else if (arg === '--dry-run') {
       options.dryRun = true;
     }
@@ -282,8 +314,10 @@ function printUsage() {
   console.log('Options:');
   console.log('  --vendor <name>        Vendor value in Product.vendors (default: quadratec)');
   console.log('  --limit <number>       Limit products fetched from DB');
-  console.log('  --batch-size <number>  Prices per Magento request (default: 1000)');
+  console.log('  --batch-size <number>  Prices per Magento request (default: 250)');
   console.log('  --delay-ms <number>    Delay between batches in milliseconds (default: 400)');
+  console.log('  --skip-website-assignment  Skip website assignment sync step');
+  console.log('  --website-assignment-concurrency <n>  Workers for website sync (default: 10)');
   console.log('  --dry-run              Print sample payload only, do not send updates');
 }
 
@@ -304,6 +338,10 @@ async function main() {
     throw new Error('Invalid --delay-ms. Expected integer >= 0.');
   }
 
+  if (!Number.isInteger(options.websiteAssignmentConcurrency) || options.websiteAssignmentConcurrency < 1) {
+    throw new Error('Invalid --website-assignment-concurrency. Expected integer >= 1.');
+  }
+
   if (!options.dryRun && !MAGENTO_CONFIG.token) {
     throw new Error('MAGENTO_KEY is required unless --dry-run is used');
   }
@@ -313,6 +351,8 @@ async function main() {
   console.log('🚀 US Store Quadratec-Only Price Update');
   console.log(`🏷️  Vendor filter: ${options.vendorName}`);
   console.log('🧮 Formula: standard 0.95, edge-case (retail == cost) 1.2, then /0.85, round, -0.05');
+  console.log(`🌐 Magento REST base: ${MAGENTO_CONFIG.baseURL}`);
+  console.log(`⚙️  BatchSize=${options.batchSize}, TimeoutMs=${MAGENTO_CONFIG.timeout}`);
 
   const {
     rows,
@@ -353,21 +393,36 @@ async function main() {
     return;
   }
 
-  const websiteSync = await ensureUsWebsiteAssignmentForSkus({
-    skus: rows.map((row) => row.sku),
-    websiteId: STORE_ID_US,
-    magentoConfig: MAGENTO_CONFIG,
-  });
+  if (options.skipWebsiteAssignment) {
+    console.log('⏩ Skipping US website assignment sync (--skip-website-assignment).');
+  } else {
+    console.log(
+      `🌐 Starting US website assignment sync for ${rows.length} SKUs (concurrency: ${options.websiteAssignmentConcurrency})...`
+    );
+    const websiteSyncStartedAt = Date.now();
 
-  console.log('🌐 US website assignment sync:', {
-    total: websiteSync.total,
-    assigned: websiteSync.assigned,
-    alreadyAssigned: websiteSync.alreadyAssigned,
-    missingInMagento: websiteSync.missingInMagento,
-    failed: websiteSync.failed,
-  });
-  if (websiteSync.failedSamples.length > 0) {
-    console.log('⚠️ Website assignment failure samples:', websiteSync.failedSamples);
+    const websiteSync = await ensureUsWebsiteAssignmentForSkus({
+      skus: rows.map((row) => row.sku),
+      websiteId: STORE_ID_US,
+      magentoConfig: MAGENTO_CONFIG,
+      concurrency: options.websiteAssignmentConcurrency,
+    });
+
+    const websiteSyncElapsedSeconds = ((Date.now() - websiteSyncStartedAt) / 1000).toFixed(1);
+
+    console.log('🌐 US website assignment sync:', {
+      total: websiteSync.total,
+      assigned: websiteSync.assigned,
+      alreadyAssigned: websiteSync.alreadyAssigned,
+      missingInMagento: websiteSync.missingInMagento,
+      failed: websiteSync.failed,
+      aborted: websiteSync.aborted,
+      abortReason: websiteSync.abortReason,
+      elapsedSeconds: websiteSyncElapsedSeconds,
+    });
+    if (websiteSync.failedSamples.length > 0) {
+      console.log('⚠️ Website assignment failure samples:', websiteSync.failedSamples);
+    }
   }
 
   const batches = chunk(rows, options.batchSize);
