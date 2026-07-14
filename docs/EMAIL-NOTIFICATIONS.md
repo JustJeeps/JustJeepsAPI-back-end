@@ -22,7 +22,33 @@ EMAIL_FROM="JustJeeps API <noreply@yourdomain.com>"
 CRON_NOTIFICATION_EMAIL=tsantos@justjeeps.com
 ```
 
-If outbound SMTP is blocked in production, use SendGrid's HTTPS API instead:
+For Brevo SMTP relay:
+
+```bash
+EMAIL_PROVIDER=smtp
+SMTP_HOST=smtp-relay.brevo.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your_brevo_smtp_login
+SMTP_PASSWORD=your_brevo_smtp_key
+EMAIL_FROM="JustJeeps API <tsantos@justjeeps.com>"
+CRON_NOTIFICATION_EMAIL=tsantos@justjeeps.com
+```
+
+Use the generated Brevo SMTP key from Brevo's SMTP settings, not the normal Brevo account login password. A normal account password will authenticate to the Brevo dashboard, but Brevo rejects it for SMTP relay.
+
+Brevo must also trust the sender address in `EMAIL_FROM`. Validate that sender in Brevo, or authenticate the `justjeeps.com` sending domain, before using `tsantos@justjeeps.com` as the From address. If Brevo shows the message as `Error` with "sender is not valid", SMTP submission worked but Brevo rejected the sender after accepting the message.
+
+If outbound SMTP is blocked in production, use Brevo's HTTPS API instead:
+
+```bash
+EMAIL_PROVIDER=brevo-api
+BREVO_API_KEY=xkeysib-your_real_brevo_api_key
+BREVO_FROM="JustJeeps API <tsantos@justjeeps.com>"
+CRON_NOTIFICATION_EMAIL=tsantos@justjeeps.com
+```
+
+Legacy SendGrid HTTPS API configuration:
 
 ```bash
 EMAIL_PROVIDER=sendgrid-api
@@ -76,6 +102,18 @@ To test connectivity without waiting for the cron job:
 npm run test-smtp-connectivity
 ```
 
+To submit a real provider test email to `CRON_NOTIFICATION_EMAIL`:
+
+```bash
+npm run test-email-delivery
+```
+
+You can override the recipient for the delivery test:
+
+```bash
+node scripts/test-smtp-connectivity.js --send-test-email --to=you@example.com
+```
+
 ## Troubleshooting
 
 ### Emails Not Being Sent
@@ -89,7 +127,10 @@ npm run test-smtp-connectivity
 
 2. **Verify provider credentials:**
   - For SMTP, confirm `EMAIL_USER` / `EMAIL_PASSWORD` or `SMTP_USER` / `SMTP_PASSWORD`
-  - For SendGrid API, confirm `SENDGRID_API_KEY`
+  - For Brevo SMTP, confirm `SMTP_HOST`, `SMTP_USER`, and `SMTP_PASSWORD`
+  - For Brevo SMTP/API, confirm the `EMAIL_FROM`/`BREVO_FROM` sender is validated in Brevo or the sending domain is authenticated
+  - For Brevo API, confirm `BREVO_API_KEY`
+  - For legacy SendGrid API, confirm `SENDGRID_API_KEY`
   - Confirm `EMAIL_FROM` is set for API-based sending
 
 3. **Check console logs:**
@@ -120,7 +161,29 @@ SMTP_PASSWORD=your_password_or_api_key
 EMAIL_FROM="JustJeeps API <noreply@yourdomain.com>"
 ```
 
-If outbound SMTP is blocked in production, use SendGrid's HTTPS API instead:
+For Brevo SMTP relay:
+```bash
+EMAIL_PROVIDER=smtp
+SMTP_HOST=smtp-relay.brevo.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your_brevo_smtp_login
+SMTP_PASSWORD=your_brevo_smtp_key
+EMAIL_FROM="JustJeeps API <tsantos@justjeeps.com>"
+```
+
+Use the generated Brevo SMTP key from Brevo's SMTP settings, not the normal Brevo account login password. A normal account password will authenticate to the Brevo dashboard, but Brevo rejects it for SMTP relay.
+
+Brevo also requires the sender address in `EMAIL_FROM` to be validated, or the sender domain to be authenticated. Dashboard errors like "sender is not valid" mean the message reached Brevo but the configured From address is not approved for sending.
+
+If outbound SMTP is blocked in production, use Brevo's HTTPS API instead:
+```bash
+EMAIL_PROVIDER=brevo-api
+BREVO_API_KEY=xkeysib-your_real_brevo_api_key
+BREVO_FROM="JustJeeps API <tsantos@justjeeps.com>"
+```
+
+Legacy SendGrid HTTPS API configuration:
 ```bash
 EMAIL_PROVIDER=sendgrid-api
 SENDGRID_API_KEY=SG.your_real_sendgrid_api_key

@@ -53,6 +53,7 @@
     "seed-daily-premier": "node prisma/seeds/seed-individual/seed-daily-premier.js",
     "test-premier-api": "node test-premier-api.js",
     "test-smtp-connectivity": "node scripts/test-smtp-connectivity.js",
+    "test-email-delivery": "node scripts/test-smtp-connectivity.js --send-test-email",
     "convert-qb-open-invoices": "node \"QuickBooks Project/convert-qb-open-invoices-to-qbo.js\"",
     "scrape-metalcloak": "node prisma/seeds/scrapping/metalCloak/metalCloak-improved-scraper.js",
     "process-metalcloak": "node prisma/seeds/scrapping/metalCloak/metalcloak-integration.js",

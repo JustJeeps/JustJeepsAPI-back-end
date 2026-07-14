@@ -3,7 +3,17 @@ const net = require('net');
 const axios = require('axios');
 require('dotenv').config();
 
-const { getEmailProvider, getEmailTransportConfig } = require('../utils/emailService');
+const { getEmailProvider, getEmailTransportConfig, sendEmail } = require('../utils/emailService');
+
+function parseArgValue(name) {
+  const prefix = `${name}=`;
+  const match = process.argv.find((arg) => arg.startsWith(prefix));
+  return match ? match.slice(prefix.length) : '';
+}
+
+function hasFlag(name) {
+  return process.argv.includes(name);
+}
 
 function testTcpConnection(host, port, timeoutMs) {
   return new Promise((resolve) => {
@@ -33,6 +43,8 @@ function testTcpConnection(host, port, timeoutMs) {
 async function main() {
   const provider = getEmailProvider();
   const config = getEmailTransportConfig();
+  const sendTestEmail = hasFlag('--send-test-email');
+  const testRecipient = parseArgValue('--to') || process.env.CRON_NOTIFICATION_EMAIL;
   const service = config.service || 'custom';
   const host = config.host || null;
   const port = config.port || null;
@@ -86,6 +98,9 @@ async function main() {
         timeout: Number(process.env.EMAIL_API_TIMEOUT_MS || 15000),
       });
       console.log(`HTTP OK: GET /v3/account -> ${response.status}`);
+      if (sendTestEmail) {
+        await sendDeliveryTest(provider, testRecipient);
+      }
       return;
     } catch (error) {
       const status = error.response && error.response.status;
@@ -147,6 +162,9 @@ async function main() {
         timeout: Number(process.env.EMAIL_API_TIMEOUT_MS || 15000),
       });
       console.log(`HTTP OK: GET /v3/scopes -> ${response.status}`);
+      if (sendTestEmail) {
+        await sendDeliveryTest(provider, testRecipient);
+      }
       return;
     } catch (error) {
       const status = error.response && error.response.status;
@@ -187,6 +205,9 @@ async function main() {
   const tcp = await testTcpConnection(host, port, timeoutMs);
   if (tcp.ok) {
     console.log(`TCP OK: ${host}:${port} in ${tcp.durationMs}ms`);
+    if (sendTestEmail) {
+      await sendDeliveryTest(provider, testRecipient);
+    }
   } else if (tcp.timeout) {
     console.error(`TCP TIMEOUT: ${host}:${port} after ${tcp.durationMs}ms`);
     process.exitCode = 1;
@@ -194,6 +215,30 @@ async function main() {
     console.error(`TCP ERROR: ${host}:${port} -> ${tcp.error}`);
     process.exitCode = 1;
   }
+}
+
+async function sendDeliveryTest(provider, to) {
+  if (!to) {
+    console.error('No test recipient configured. Set CRON_NOTIFICATION_EMAIL or pass --to=email@example.com.');
+    process.exitCode = 1;
+    return;
+  }
+
+  const subject = `JustJeeps ${provider} Delivery Test ${new Date().toISOString()}`;
+  const result = await sendEmail({
+    to,
+    subject,
+    text: `JustJeeps email delivery test sent via ${provider}.`,
+  });
+
+  if (!result.success) {
+    console.error('DELIVERY TEST ERROR:', result.error || result.message || 'Unknown email delivery error');
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log(`DELIVERY TEST SUBMITTED: ${result.messageId || 'accepted'}`);
+  console.log('If Brevo shows this message as Error, validate EMAIL_FROM/BREVO_FROM as a Brevo sender or authenticate the sending domain.');
 }
 
 main().catch((error) => {
