@@ -632,6 +632,115 @@ async function sendOrderCancellationDailyReportEmail({ reportDate, summary, rows
   return await sendEmail({ to: recipients, subject, text, html });
 }
 
+const buildSkuStatusTable = (rows, timeZone) => {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const header = `
+    <tr style="background:#f1f5f9;color:#0f172a;">
+      <th style="padding:10px 12px;border:1px solid #d9d9d9;text-align:left;">Time</th>
+      <th style="padding:10px 12px;border:1px solid #d9d9d9;text-align:left;">Action</th>
+      <th style="padding:10px 12px;border:1px solid #d9d9d9;text-align:left;">SKU</th>
+      <th style="padding:10px 12px;border:1px solid #d9d9d9;text-align:left;">Title</th>
+      <th style="padding:10px 12px;border:1px solid #d9d9d9;text-align:left;">User</th>
+      <th style="padding:10px 12px;border:1px solid #d9d9d9;text-align:left;">Source</th>
+    </tr>
+  `;
+
+  const body = safeRows
+    .map((row, index) => {
+      const bg = index % 2 === 0 ? '#ffffff' : '#f8fafc';
+      const changedAt = row.changedAt
+        ? new Date(row.changedAt).toLocaleString('en-CA', { timeZone, dateStyle: 'short', timeStyle: 'short' })
+        : '';
+      const actionColor = row.action === 'disabled' ? '#991b1b' : '#166534';
+      return `
+        <tr style="background:${bg};">
+          <td style="padding:10px 12px;border:1px solid #d9d9d9;color:#1c2430;white-space:nowrap;">${escapeHtml(changedAt)}</td>
+          <td style="padding:10px 12px;border:1px solid #d9d9d9;color:${actionColor};font-weight:700;text-transform:capitalize;">${escapeHtml(row.action || '')}</td>
+          <td style="padding:10px 12px;border:1px solid #d9d9d9;color:#1c2430;font-weight:700;white-space:nowrap;">${escapeHtml(row.sku || '')}</td>
+          <td style="padding:10px 12px;border:1px solid #d9d9d9;color:#1c2430;">${escapeHtml(row.title || '')}</td>
+          <td style="padding:10px 12px;border:1px solid #d9d9d9;color:#1c2430;">${escapeHtml(row.changedByName || row.changedBy || '')}</td>
+          <td style="padding:10px 12px;border:1px solid #d9d9d9;color:#1c2430;white-space:nowrap;">${escapeHtml(row.source || '')}</td>
+        </tr>
+      `;
+    })
+    .join('');
+
+  return `
+    <table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;font-size:13px;table-layout:auto;">
+      <thead>${header}</thead>
+      <tbody>${body}</tbody>
+    </table>
+  `;
+};
+
+async function sendSkuStatusDailyReportEmail({ reportDate, summary, rows, timeZone = 'America/Toronto' }) {
+  const recipient = process.env.SKU_STATUS_REPORT_EMAILS || process.env.CRON_NOTIFICATION_EMAIL || '';
+  const recipients = recipient
+    .split(/[\s,]+/)
+    .map((email) => email.trim())
+    .filter(Boolean)
+    .join(',');
+
+  if (!recipients) {
+    return { success: false, error: 'No recipients configured for SKU status report' };
+  }
+
+  const safeSummary = summary || {};
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const byUser = safeSummary.byUser || {};
+  const byUserList = Object.entries(byUser)
+    .sort((a, b) => (b[1]?.total || 0) - (a[1]?.total || 0))
+    .map(([user, counts]) => `${String(user).toUpperCase()}: ${counts?.total || 0} (${counts?.disabled || 0} disabled, ${counts?.enabled || 0} enabled)`)
+    .join(' | ') || 'No SKU status changes';
+
+  const subject = `Daily SKU Status Change Report - ${reportDate}`;
+  const text = [
+    `Daily SKU Status Change Report (${reportDate})`,
+    `Timezone: ${timeZone}`,
+    `Total changed SKUs: ${safeSummary.totalChanged || 0}`,
+    `Disabled: ${safeSummary.totalDisabled || 0}`,
+    `Enabled: ${safeSummary.totalEnabled || 0}`,
+    `By user: ${byUserList}`,
+    '',
+    ...safeRows.map((row) => {
+      const changedAt = row.changedAt
+        ? new Date(row.changedAt).toLocaleString('en-CA', { timeZone, dateStyle: 'short', timeStyle: 'short' })
+        : '';
+      return `${changedAt} | ${row.action || ''} | ${row.sku || ''} | ${row.title || ''} | ${row.changedByName || row.changedBy || ''} | ${row.source || ''}`;
+    }),
+  ].join('\n');
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:1200px;margin:0 auto;color:#1c2430;">
+      <h2 style="margin:0 0 6px;">Daily SKU Status Change Report</h2>
+      <p style="margin:0 0 14px;color:#5b6676;">Date: ${escapeHtml(reportDate)} (${escapeHtml(timeZone)})</p>
+
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+        <div style="background:#f5f8ff;border:1px solid #cbd5e1;border-radius:6px;padding:10px 12px;min-width:160px;">
+          <div style="font-size:12px;color:#5b6676;">Total Changed</div>
+          <div style="font-size:22px;font-weight:700;">${Number(safeSummary.totalChanged || 0)}</div>
+        </div>
+        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:10px 12px;min-width:160px;">
+          <div style="font-size:12px;color:#7f1d1d;">Disabled</div>
+          <div style="font-size:22px;font-weight:700;color:#991b1b;">${Number(safeSummary.totalDisabled || 0)}</div>
+        </div>
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:10px 12px;min-width:160px;">
+          <div style="font-size:12px;color:#14532d;">Enabled</div>
+          <div style="font-size:22px;font-weight:700;color:#166534;">${Number(safeSummary.totalEnabled || 0)}</div>
+        </div>
+      </div>
+
+      <p style="margin:0 0 14px;"><strong>By user:</strong> ${escapeHtml(byUserList)}</p>
+
+      ${safeRows.length
+        ? buildSkuStatusTable(safeRows, timeZone)
+        : '<p style="color:#5b6676;">No SKU status changes were recorded for this date.</p>'}
+    </div>
+  `;
+
+  return await sendEmail({ to: recipients, subject, text, html });
+}
+
 module.exports = {
   createTransporter,
   getEmailProvider,
@@ -640,5 +749,6 @@ module.exports = {
   sendCronNotification,
   sendCronReport,
   sendPurchaserReportEmail,
-  sendOrderCancellationDailyReportEmail
+  sendOrderCancellationDailyReportEmail,
+  sendSkuStatusDailyReportEmail
 };
