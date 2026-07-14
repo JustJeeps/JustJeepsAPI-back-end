@@ -14,7 +14,7 @@ Add these variables to your `.env` file:
 EMAIL_USER=your-smtp-user@example.com
 EMAIL_PASSWORD=your_smtp_password_or_api_key
 SMTP_HOST=smtp.example.com
-SMTP_PORT=587
+SMTP_PORT=2525
 SMTP_SECURE=false
 EMAIL_FROM="JustJeeps API <noreply@yourdomain.com>"
 
@@ -36,6 +36,8 @@ CRON_NOTIFICATION_EMAIL=tsantos@justjeeps.com
 ```
 
 Use the generated Brevo SMTP key from Brevo's SMTP settings, not the normal Brevo account login password. A normal account password will authenticate to the Brevo dashboard, but Brevo rejects it for SMTP relay.
+
+Port `2525` is the current production-safe Brevo SMTP port for JustJeeps. Ports `587` and `465` may work locally but can time out from the production host.
 
 Brevo must also trust the sender address in `EMAIL_FROM`. Validate that sender in Brevo, or authenticate the `justjeeps.com` sending domain, before using `tsantos@justjeeps.com` as the From address. If Brevo shows the message as `Error` with "sender is not valid", SMTP submission worked but Brevo rejected the sender after accepting the message.
 
@@ -154,7 +156,7 @@ CRON_NOTIFICATION_EMAIL=newemail@justjeeps.com
 Recommended env vars for custom SMTP:
 ```bash
 SMTP_HOST=smtp.example.com
-SMTP_PORT=587
+SMTP_PORT=2525
 SMTP_SECURE=false
 SMTP_USER=your_username
 SMTP_PASSWORD=your_password_or_api_key
@@ -173,6 +175,8 @@ EMAIL_FROM="JustJeeps API <tsantos@justjeeps.com>"
 ```
 
 Use the generated Brevo SMTP key from Brevo's SMTP settings, not the normal Brevo account login password. A normal account password will authenticate to the Brevo dashboard, but Brevo rejects it for SMTP relay.
+
+Port `2525` is the current production-safe Brevo SMTP port for JustJeeps. Ports `587` and `465` may work locally but can time out from the production host.
 
 Brevo also requires the sender address in `EMAIL_FROM` to be validated, or the sender domain to be authenticated. Dashboard errors like "sender is not valid" mean the message reached Brevo but the configured From address is not approved for sending.
 
