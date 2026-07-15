@@ -68,6 +68,7 @@ const cronChildKillGraceMs = Number(process.env.CRON_CHILD_KILL_GRACE_MS || 1000
 const MAGENTO_STATUS_ALLOWED_USERS = new Set(['admin', 'jerry', 'tess', 'jacob', 'david', 'rafael', 'ricardo', 'paula']);
 const ORDER_CANCEL_EXECUTE_ALLOWED_USERS = new Set(['tess', 'jerry', 'jacob', 'paula', 'karoline']);
 const ORDER_CANCEL_DRY_RUN_ALLOWED_USERS = new Set(['tess']);
+const ORDER_CANCEL_MANUAL_REFUND_RESTRICTED_USERS = new Set(['paula']);
 const ORDER_PO_INIT_ALLOWED_USERS = new Set(['admin', 'tess', 'jerry', 'jacob', 'paula', 'karoline']);
 const ORDER_CANCEL_PO_INITIALS_BY_USER = Object.freeze({
 	jacob: 'JK',
@@ -901,6 +902,14 @@ function buildCancellationPoNumber(username) {
 		initials,
 		usedFallback,
 	};
+}
+
+function getManualRefundRoutingPaymentLabel(order) {
+	const paymentSource = String(order?.payment_method || order?.method_title || '').trim();
+	if (/paypal/i.test(paymentSource)) return 'PayPal';
+	if (/affirm/i.test(paymentSource)) return 'Affirm';
+	if (/email\s*money\s*transfer|e-?transfer|\bemt\b/i.test(paymentSource)) return 'Email Money Transfer';
+	return null;
 }
 
 function parseCronProgress(lines) {
@@ -3305,6 +3314,15 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 
 		if (!order) {
 			return res.status(404).json({ error: `Order ${routeOrderIdentifier} not found` });
+		}
+
+		const manualRefundPaymentLabel = getManualRefundRoutingPaymentLabel(order);
+		if (ORDER_CANCEL_MANUAL_REFUND_RESTRICTED_USERS.has(requesterUsername) && manualRefundPaymentLabel) {
+			return res.status(403).json({
+				error: 'Manual refund required',
+				message: `${manualRefundPaymentLabel} refunds must be processed manually by Jacob. Send this order to Jacob instead of cancelling it from the Pricing Tool.`,
+				paymentMethod: manualRefundPaymentLabel,
+			});
 		}
 
 		const magentoOrderEntityId = Number(order.entity_id);
