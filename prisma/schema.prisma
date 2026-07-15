@@ -162,6 +162,36 @@ model SkuStatusChangeHistory {
   @@index([sku])
 }
 
+model OrderCancellationWorkflowHistory {
+  id                             Int       @id @default(autoincrement())
+  recordKey                      String    @unique
+  recordedAt                     DateTime  @default(now())
+  reportDate                     String
+  timeZone                       String
+  cancelledAt                    DateTime?
+  cancelledBy                    String
+  dryRun                         Boolean   @default(false)
+  outcome                        String
+  orderId                        Int?
+  incrementId                    String?
+  requestedOrderIdentifier       String?
+  orderCancelledInMagento        Boolean   @default(false)
+  invoiceVoidDeleteCompleted     Boolean   @default(false)
+  cancellationTicketSent         Boolean   @default(false)
+  cancellationAttributesUpdated  Boolean   @default(false)
+  localStatusUpdated             Boolean   @default(false)
+  failedActions                  Json?
+  completedActions               Json?
+  manualActionsStillRequired     Json?
+  orderSnapshot                  Json?
+
+  @@index([reportDate])
+  @@index([recordedAt])
+  @@index([cancelledBy])
+  @@index([orderId])
+  @@index([incrementId])
+}
+
 model VendorProduct {
   id                      Int            @id @default(autoincrement())
   product_sku             String

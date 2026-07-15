@@ -294,6 +294,112 @@ function appendCancelWorkflowHistoryEntry(entry) {
 	}
 }
 
+function buildCancelWorkflowHistoryRecordKey(entry) {
+	const recordedAt = entry.recordedAt instanceof Date
+		? entry.recordedAt.toISOString()
+		: String(entry.recordedAt || entry.cancelledAt || '');
+	return [
+		recordedAt,
+		entry.cancelledBy || 'unknown',
+		entry.orderId || '',
+		entry.incrementId || '',
+		entry.requestedOrderIdentifier || '',
+		entry.outcome || '',
+	]
+		.map((part) => String(part).replace(/\|/g, '%7C'))
+		.join('|');
+}
+
+function mapCancelWorkflowHistoryEntryToDbRow(entry) {
+	const recordedAt = entry.recordedAt instanceof Date
+		? entry.recordedAt
+		: new Date(entry.recordedAt || entry.cancelledAt || Date.now());
+	const cancelledAt = entry.cancelledAt
+		? (entry.cancelledAt instanceof Date ? entry.cancelledAt : new Date(entry.cancelledAt))
+		: null;
+
+	return {
+		recordKey: buildCancelWorkflowHistoryRecordKey({ ...entry, recordedAt }),
+		recordedAt,
+		reportDate: entry.reportDate,
+		timeZone: entry.timeZone || cancellationReportTimezone || 'America/Toronto',
+		cancelledAt,
+		cancelledBy: entry.cancelledBy || 'unknown',
+		dryRun: Boolean(entry.dryRun),
+		outcome: entry.outcome || 'unknown',
+		orderId: entry.orderId ? Number(entry.orderId) : null,
+		incrementId: entry.incrementId || '',
+		requestedOrderIdentifier: entry.requestedOrderIdentifier || '',
+		orderCancelledInMagento: Boolean(entry.orderCancelledInMagento),
+		invoiceVoidDeleteCompleted: Boolean(entry.invoiceVoidDeleteCompleted),
+		cancellationTicketSent: Boolean(entry.cancellationTicketSent),
+		cancellationAttributesUpdated: Boolean(entry.cancellationAttributesUpdated),
+		localStatusUpdated: Boolean(entry.localStatusUpdated),
+		failedActions: Array.isArray(entry.failedActions) ? entry.failedActions : [],
+		completedActions: Array.isArray(entry.completedActions) ? entry.completedActions : [],
+		manualActionsStillRequired: Array.isArray(entry.manualActionsStillRequired) ? entry.manualActionsStillRequired : [],
+		orderSnapshot: entry.orderSnapshot || {},
+	};
+}
+
+function mapCancelWorkflowDbRowToHistoryEntry(entry) {
+	return {
+		...entry,
+		recordedAt: entry.recordedAt,
+		cancelledAt: entry.cancelledAt,
+		failedActions: Array.isArray(entry.failedActions) ? entry.failedActions : [],
+		completedActions: Array.isArray(entry.completedActions) ? entry.completedActions : [],
+		manualActionsStillRequired: Array.isArray(entry.manualActionsStillRequired) ? entry.manualActionsStillRequired : [],
+		orderSnapshot: entry.orderSnapshot || {},
+	};
+}
+
+async function readCancelWorkflowHistoryEntriesForReportDate(dateStr) {
+	try {
+		const entries = await prisma.orderCancellationWorkflowHistory.findMany({
+			where: {
+				reportDate: dateStr,
+				dryRun: false,
+				outcome: 'cancelled',
+			},
+			orderBy: { recordedAt: 'desc' },
+		});
+		return entries.map(mapCancelWorkflowDbRowToHistoryEntry);
+	} catch (error) {
+		logger.warn('Failed to read cancellation workflow history from database; falling back to log file', {
+			error: error.message,
+			reportDate: dateStr,
+		});
+		return readCancelWorkflowHistoryEntries().filter((entry) => {
+			if (!entry || entry.dryRun) return false;
+			if (entry.outcome !== 'cancelled') return false;
+			return entry.reportDate === dateStr;
+		});
+	}
+}
+
+async function backfillCancelWorkflowHistoryFromFileToDatabase() {
+	const fileEntries = readCancelWorkflowHistoryEntries()
+		.filter((entry) => entry?.reportDate && (entry.orderId || entry.incrementId || entry.requestedOrderIdentifier));
+
+	if (fileEntries.length === 0) return;
+
+	try {
+		const result = await prisma.orderCancellationWorkflowHistory.createMany({
+			data: fileEntries.map(mapCancelWorkflowHistoryEntryToDbRow),
+			skipDuplicates: true,
+		});
+		logger.info('Backfilled order cancellation workflow history from log file into database', {
+			fileEntries: fileEntries.length,
+			inserted: result.count,
+		});
+	} catch (error) {
+		logger.warn('Failed to backfill order cancellation workflow history from log file into database', {
+			error: error.message,
+		});
+	}
+}
+
 function readSkuStatusHistoryEntries() {
 	const history = readJsonAbsoluteFileSafe(skuStatusHistoryFile);
 	return Array.isArray(history) ? history : [];
@@ -565,12 +671,7 @@ async function sendWeeklySkuStatusReportEmailForDate(endDate, options = {}) {
 }
 
 async function buildDailyCancellationReport(dateStr, timeZone = 'America/Toronto') {
-	const entries = readCancelWorkflowHistoryEntries();
-	const successfulEntries = entries.filter((entry) => {
-		if (!entry || entry.dryRun) return false;
-		if (entry.outcome !== 'cancelled') return false;
-		return entry.reportDate === dateStr;
-	});
+	const successfulEntries = await readCancelWorkflowHistoryEntriesForReportDate(dateStr);
 
 	const latestByOrderId = new Map();
 	for (const entry of successfulEntries) {
@@ -3465,12 +3566,12 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 		const cancellationRecordedAt = new Date();
 		const cancellationSucceeded = !dryRun && (orderCancelledInMagento || localStatusUpdated);
 		if (!dryRun) {
-			appendCancelWorkflowHistoryEntry({
+			const cancelWorkflowHistoryEntry = {
 				id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-				recordedAt: cancellationRecordedAt.toISOString(),
+				recordedAt: cancellationRecordedAt,
 				reportDate: getDateStringInTimezone(cancellationRecordedAt, cancellationReportTimezone || 'America/Toronto'),
 				timeZone: cancellationReportTimezone || 'America/Toronto',
-				cancelledAt: cancellationSucceeded ? cancellationRecordedAt.toISOString() : null,
+				cancelledAt: cancellationSucceeded ? cancellationRecordedAt : null,
 				cancelledBy: requesterUsername || 'unknown',
 				dryRun,
 				outcome: cancellationSucceeded ? 'cancelled' : 'not_cancelled',
@@ -3491,6 +3592,25 @@ app.post('/api/orders/:id/cancel-workflow', async (req, res) => {
 					custom_po_number: cancellationAttributesUpdated ? cancellationPoNumber.value : order.custom_po_number,
 					custom_ship_status: cancellationAttributesUpdated ? '2480' : order.custom_ship_status,
 				},
+			};
+
+			try {
+				await prisma.orderCancellationWorkflowHistory.createMany({
+					data: [mapCancelWorkflowHistoryEntryToDbRow(cancelWorkflowHistoryEntry)],
+					skipDuplicates: true,
+				});
+			} catch (historyError) {
+				logger.error('Failed to record order cancellation workflow history in database', {
+					orderId: magentoOrderEntityId,
+					incrementId: order.increment_id,
+					error: historyError.message,
+				});
+			}
+
+			appendCancelWorkflowHistoryEntry({
+				...cancelWorkflowHistoryEntry,
+				recordedAt: cancellationRecordedAt.toISOString(),
+				cancelledAt: cancellationSucceeded ? cancellationRecordedAt.toISOString() : null,
 			});
 		}
 
@@ -5159,6 +5279,12 @@ function registerCronJobs() {
 
 backfillSkuStatusHistoryFromFileToDatabase().catch((error) => {
 	logger.warn('SKU status report history backfill failed during startup', {
+		error: error.message,
+	});
+});
+
+backfillCancelWorkflowHistoryFromFileToDatabase().catch((error) => {
+	logger.warn('Order cancellation workflow history backfill failed during startup', {
 		error: error.message,
 	});
 });
