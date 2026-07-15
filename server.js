@@ -716,61 +716,6 @@ async function buildDailyCancellationReport(dateStr, timeZone = 'America/Toronto
 			};
 		});
 
-	// Fallback: include cancelled orders by Magento/local updated_at for the day
-	// when there is no explicit cancel workflow audit entry.
-	const rowsByEntityId = new Set(rows.map((row) => String(row.entityId || row.incrementId || '')));
-	const updatedAtFallbackOrders = await prisma.order.findMany({
-		where: {
-			AND: [
-				{ status: { contains: 'cancel', mode: 'insensitive' } },
-				{ updated_at: { startsWith: dateStr } },
-			],
-		},
-		select: {
-			entity_id: true,
-			increment_id: true,
-			updated_at: true,
-			status: true,
-			grand_total: true,
-			total_qty_ordered: true,
-			custom_po_number: true,
-			custom_ship_status: true,
-			custom_order_note: true,
-			shipping_cost_jj: true,
-			customer_firstname: true,
-			customer_lastname: true,
-			customer_email: true,
-			region: true,
-			method_title: true,
-		},
-	});
-
-	for (const order of updatedAtFallbackOrders) {
-		const key = String(order.entity_id || order.increment_id || '');
-		if (!key || rowsByEntityId.has(key)) continue;
-
-		const customerName = [order.customer_firstname, order.customer_lastname].filter(Boolean).join(' ');
-		rows.push({
-			cancelledAt: order.updated_at,
-			cancelledBy: 'unknown',
-			source: 'magento_updated_at_fallback',
-			entityId: order.entity_id,
-			incrementId: order.increment_id,
-			grandTotal: order.grand_total,
-			totalQtyOrdered: order.total_qty_ordered,
-			status: order.status,
-			customPoNumber: order.custom_po_number,
-			customShipStatus: order.custom_ship_status,
-			customOrderNote: order.custom_order_note,
-			shippingCost: order.shipping_cost_jj,
-			customerName,
-			customerEmail: order.customer_email,
-			region: order.region,
-			paymentMethod: order.method_title,
-		});
-		rowsByEntityId.add(key);
-	}
-
 	rows.sort((left, right) => {
 		const leftTime = new Date(left.cancelledAt || 0).getTime();
 		const rightTime = new Date(right.cancelledAt || 0).getTime();
