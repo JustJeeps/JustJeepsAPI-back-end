@@ -673,8 +673,8 @@ const buildSkuStatusTable = (rows, timeZone) => {
   `;
 };
 
-async function sendSkuStatusDailyReportEmail({ reportDate, summary, rows, timeZone = 'America/Toronto' }) {
-  const recipient = process.env.SKU_STATUS_REPORT_EMAILS || process.env.CRON_NOTIFICATION_EMAIL || '';
+async function sendSkuStatusReportEmail({ reportDate, reportLabel, summary, rows, timeZone = 'America/Toronto', recipient }) {
+  const reportTitle = reportLabel || 'Daily SKU Status Change Report';
   const recipients = recipient
     .split(/[\s,]+/)
     .map((email) => email.trim())
@@ -693,9 +693,9 @@ async function sendSkuStatusDailyReportEmail({ reportDate, summary, rows, timeZo
     .map(([user, counts]) => `${String(user).toUpperCase()}: ${counts?.total || 0} (${counts?.disabled || 0} disabled, ${counts?.enabled || 0} enabled)`)
     .join(' | ') || 'No SKU status changes';
 
-  const subject = `Daily SKU Status Change Report - ${reportDate}`;
+  const subject = `${reportTitle} - ${reportDate}`;
   const text = [
-    `Daily SKU Status Change Report (${reportDate})`,
+    `${reportTitle} (${reportDate})`,
     `Timezone: ${timeZone}`,
     `Total changed SKUs: ${safeSummary.totalChanged || 0}`,
     `Disabled: ${safeSummary.totalDisabled || 0}`,
@@ -712,7 +712,7 @@ async function sendSkuStatusDailyReportEmail({ reportDate, summary, rows, timeZo
 
   const html = `
     <div style="font-family:Arial,sans-serif;max-width:1200px;margin:0 auto;color:#1c2430;">
-      <h2 style="margin:0 0 6px;">Daily SKU Status Change Report</h2>
+      <h2 style="margin:0 0 6px;">${escapeHtml(reportTitle)}</h2>
       <p style="margin:0 0 14px;color:#5b6676;">Date: ${escapeHtml(reportDate)} (${escapeHtml(timeZone)})</p>
 
       <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
@@ -741,6 +741,28 @@ async function sendSkuStatusDailyReportEmail({ reportDate, summary, rows, timeZo
   return await sendEmail({ to: recipients, subject, text, html });
 }
 
+async function sendSkuStatusDailyReportEmail({ reportDate, summary, rows, timeZone = 'America/Toronto' }) {
+  return await sendSkuStatusReportEmail({
+    reportDate,
+    reportLabel: 'Daily SKU Status Change Report',
+    summary,
+    rows,
+    timeZone,
+    recipient: process.env.SKU_STATUS_REPORT_EMAILS || process.env.CRON_NOTIFICATION_EMAIL || '',
+  });
+}
+
+async function sendSkuStatusWeeklyReportEmail({ reportDate, summary, rows, timeZone = 'America/Toronto' }) {
+  return await sendSkuStatusReportEmail({
+    reportDate,
+    reportLabel: 'Weekly SKU Status Change Report',
+    summary,
+    rows,
+    timeZone,
+    recipient: process.env.SKU_STATUS_WEEKLY_REPORT_EMAILS || process.env.SKU_STATUS_REPORT_EMAILS || process.env.CRON_NOTIFICATION_EMAIL || '',
+  });
+}
+
 module.exports = {
   createTransporter,
   getEmailProvider,
@@ -750,5 +772,6 @@ module.exports = {
   sendCronReport,
   sendPurchaserReportEmail,
   sendOrderCancellationDailyReportEmail,
-  sendSkuStatusDailyReportEmail
+  sendSkuStatusDailyReportEmail,
+  sendSkuStatusWeeklyReportEmail
 };

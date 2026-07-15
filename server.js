@@ -17,6 +17,7 @@ const {
 	sendPurchaserReportEmail,
 	sendOrderCancellationDailyReportEmail,
 	sendSkuStatusDailyReportEmail,
+	sendSkuStatusWeeklyReportEmail,
 } = require('./utils/emailService');
 const prisma = require('./lib/prisma');
 const {
@@ -59,6 +60,9 @@ const cancellationReportTimezone = process.env.CRON_CANCELLATION_REPORT_TIMEZONE
 const skuStatusReportEnabled = process.env.CRON_SKU_STATUS_REPORT_ENABLED !== 'false';
 const skuStatusReportSchedule = process.env.CRON_SKU_STATUS_REPORT_SCHEDULE || '0 22 * * *';
 const skuStatusReportTimezone = process.env.CRON_SKU_STATUS_REPORT_TIMEZONE || cronTimezone;
+const skuStatusWeeklyReportEnabled = process.env.CRON_SKU_STATUS_WEEKLY_REPORT_ENABLED !== 'false';
+const skuStatusWeeklyReportSchedule = process.env.CRON_SKU_STATUS_WEEKLY_REPORT_SCHEDULE || '0 18 * * 5';
+const skuStatusWeeklyReportTimezone = process.env.CRON_SKU_STATUS_WEEKLY_REPORT_TIMEZONE || skuStatusReportTimezone;
 const cronChildTimeoutMs = Number(process.env.CRON_CHILD_TIMEOUT_MS || 6 * 60 * 60 * 1000);
 const cronChildKillGraceMs = Number(process.env.CRON_CHILD_KILL_GRACE_MS || 10000);
 const MAGENTO_STATUS_ALLOWED_USERS = new Set(['admin', 'jerry', 'tess', 'jacob', 'david', 'rafael', 'ricardo', 'paula']);
@@ -180,6 +184,14 @@ function getReportCronJobDefinitions() {
 			jobName: 'Daily SKU Status Change Report',
 			logPrefix: 'Daily SKU status change report',
 			timezone: skuStatusReportTimezone,
+		},
+		{
+			enabled: skuStatusWeeklyReportEnabled,
+			schedule: skuStatusWeeklyReportSchedule,
+			command: 'report-sku-status-weekly',
+			jobName: 'Weekly SKU Status Change Report',
+			logPrefix: 'Weekly SKU status change report',
+			timezone: skuStatusWeeklyReportTimezone,
 		},
 	].filter((job) => job.enabled !== false);
 }
@@ -329,28 +341,120 @@ function normalizeSkuStatusReportSource(source) {
 	return value || 'unknown';
 }
 
-async function buildDailySkuStatusChangeReport(dateStr, timeZone = 'America/Toronto') {
+function buildSkuStatusHistoryRecordKey(entry) {
+	const recordedAt = entry.recordedAt instanceof Date
+		? entry.recordedAt.toISOString()
+		: String(entry.recordedAt || entry.changedAt || '');
+	return [
+		recordedAt,
+		entry.changedBy || 'unknown',
+		entry.source || 'unknown',
+		entry.requestedSku || entry.sku || '',
+		entry.sku || '',
+		entry.status ?? '',
+		entry.action || '',
+	]
+		.map((part) => String(part).replace(/\|/g, '%7C'))
+		.join('|');
+}
+
+function mapSkuStatusHistoryEntryToDbRow(entry) {
+	const recordedAt = entry.recordedAt instanceof Date
+		? entry.recordedAt
+		: new Date(entry.recordedAt || entry.changedAt || Date.now());
+	const status = Number(entry.status);
+	const action = entry.action || (status === 2 ? 'disabled' : 'enabled');
+
+	return {
+		recordKey: buildSkuStatusHistoryRecordKey({ ...entry, recordedAt, action }),
+		recordedAt,
+		reportDate: entry.reportDate,
+		timeZone: entry.timeZone || skuStatusReportTimezone || 'America/Toronto',
+		changedBy: entry.changedBy || 'unknown',
+		changedByName: entry.changedByName || entry.changedBy || 'unknown',
+		changedByEmail: entry.changedByEmail || '',
+		source: entry.source || 'unknown',
+		requestedSku: entry.requestedSku || entry.sku || '',
+		sku: entry.sku,
+		title: entry.title || '',
+		status: Number.isFinite(status) ? status : (action === 'disabled' ? 2 : 1),
+		action,
+		applyToChildren: Boolean(entry.applyToChildren),
+		updatedStoreViews: Array.isArray(entry.updatedStoreViews) ? entry.updatedStoreViews : [],
+		failedStoreViews: Array.isArray(entry.failedStoreViews) ? entry.failedStoreViews : [],
+	};
+}
+
+async function backfillSkuStatusHistoryFromFileToDatabase() {
+	const fileEntries = readSkuStatusHistoryEntries()
+		.filter((entry) => entry?.sku && entry?.reportDate);
+
+	if (fileEntries.length === 0) return;
+
+	try {
+		const result = await prisma.skuStatusChangeHistory.createMany({
+			data: fileEntries.map(mapSkuStatusHistoryEntryToDbRow),
+			skipDuplicates: true,
+		});
+		logger.info('Backfilled SKU status report history from log file into database', {
+			fileEntries: fileEntries.length,
+			inserted: result.count,
+		});
+	} catch (error) {
+		logger.warn('Failed to backfill SKU status report history from log file into database', {
+			error: error.message,
+		});
+	}
+}
+
+function mapSkuStatusHistoryEntryToReportRow(entry) {
+	return {
+		changedAt: entry.recordedAt || entry.changedAt,
+		changedBy: entry.changedBy || 'unknown',
+		changedByName: entry.changedByName || entry.changedBy || 'unknown',
+		sku: entry.sku,
+		title: entry.title || '',
+		action: entry.action || (Number(entry.status) === 2 ? 'disabled' : 'enabled'),
+		status: entry.status,
+		source: entry.source || 'unknown',
+		requestedSku: entry.requestedSku || entry.sku,
+		updatedStoreViews: Array.isArray(entry.updatedStoreViews) ? entry.updatedStoreViews : [],
+	};
+}
+
+function buildSkuStatusRowsFromFileForDates(dateStrings) {
+	const dateSet = new Set(Array.isArray(dateStrings) ? dateStrings.filter(Boolean) : []);
 	const entries = readSkuStatusHistoryEntries();
-	const rows = entries
-		.filter((entry) => entry && entry.reportDate === dateStr)
+	return entries
+		.filter((entry) => entry && dateSet.has(entry.reportDate))
 		.sort((left, right) => {
 			const leftTime = new Date(left.recordedAt || left.changedAt || 0).getTime();
 			const rightTime = new Date(right.recordedAt || right.changedAt || 0).getTime();
 			return rightTime - leftTime;
 		})
-		.map((entry) => ({
-			changedAt: entry.recordedAt || entry.changedAt,
-			changedBy: entry.changedBy || 'unknown',
-			changedByName: entry.changedByName || entry.changedBy || 'unknown',
-			sku: entry.sku,
-			title: entry.title || '',
-			action: entry.action || (Number(entry.status) === 2 ? 'disabled' : 'enabled'),
-			status: entry.status,
-			source: entry.source || 'unknown',
-			requestedSku: entry.requestedSku || entry.sku,
-			updatedStoreViews: Array.isArray(entry.updatedStoreViews) ? entry.updatedStoreViews : [],
-		}));
+		.map(mapSkuStatusHistoryEntryToReportRow);
+}
 
+async function buildSkuStatusRowsForDates(dateStrings) {
+	const reportDates = Array.isArray(dateStrings) ? dateStrings.filter(Boolean) : [];
+	if (reportDates.length === 0) return [];
+
+	try {
+		const entries = await prisma.skuStatusChangeHistory.findMany({
+			where: { reportDate: { in: reportDates } },
+			orderBy: { recordedAt: 'desc' },
+		});
+		return entries.map(mapSkuStatusHistoryEntryToReportRow);
+	} catch (error) {
+		logger.warn('Failed to read SKU status history from database; falling back to log file', {
+			error: error.message,
+			reportDates,
+		});
+		return buildSkuStatusRowsFromFileForDates(reportDates);
+	}
+}
+
+function summarizeSkuStatusRows(rows) {
 	const byUser = rows.reduce((acc, row) => {
 		const user = String(row.changedBy || 'unknown').toLowerCase();
 		if (!acc[user]) {
@@ -363,12 +467,46 @@ async function buildDailySkuStatusChangeReport(dateStr, timeZone = 'America/Toro
 	}, {});
 
 	return {
-		date: dateStr,
-		timeZone,
 		totalChanged: rows.length,
 		totalDisabled: rows.filter((row) => row.action === 'disabled').length,
 		totalEnabled: rows.filter((row) => row.action === 'enabled').length,
 		byUser,
+	};
+}
+
+function getTrailingDateStringsInTimezone(value = new Date(), days = 7, timeZone = 'America/Toronto') {
+	const date = value instanceof Date ? value : new Date(value);
+	const dateStrings = [];
+	for (let index = days - 1; index >= 0; index -= 1) {
+		dateStrings.push(getDateStringInTimezone(new Date(date.getTime() - (index * 24 * 60 * 60 * 1000)), timeZone));
+	}
+	return dateStrings;
+}
+
+async function buildDailySkuStatusChangeReport(dateStr, timeZone = 'America/Toronto') {
+	const rows = await buildSkuStatusRowsForDates([dateStr]);
+	const summary = summarizeSkuStatusRows(rows);
+
+	return {
+		date: dateStr,
+		timeZone,
+		...summary,
+		rows,
+	};
+}
+
+async function buildWeeklySkuStatusChangeReport(endDate = new Date(), timeZone = 'America/Toronto') {
+	const endDateValue = endDate instanceof Date ? endDate : new Date(`${endDate}T12:00:00`);
+	const dateStrings = getTrailingDateStringsInTimezone(endDateValue, 7, timeZone);
+	const rows = await buildSkuStatusRowsForDates(dateStrings);
+	const summary = summarizeSkuStatusRows(rows);
+
+	return {
+		startDate: dateStrings[0],
+		endDate: dateStrings[dateStrings.length - 1],
+		timeZone,
+		dateStrings,
+		...summary,
 		rows,
 	};
 }
@@ -391,6 +529,33 @@ async function sendDailySkuStatusReportEmailForDate(dateStr, options = {}) {
 
 	if (!delivery?.success) {
 		throw new Error(delivery?.error || delivery?.message || 'Failed to send daily SKU status report email');
+	}
+
+	return {
+		report,
+		delivery,
+	};
+}
+
+async function sendWeeklySkuStatusReportEmailForDate(endDate, options = {}) {
+	const reportTimezone = options.timeZone || skuStatusWeeklyReportTimezone || 'America/Toronto';
+	const report = await buildWeeklySkuStatusChangeReport(endDate, reportTimezone);
+	const reportDate = `${report.startDate} to ${report.endDate}`;
+
+	const delivery = await sendSkuStatusWeeklyReportEmail({
+		reportDate,
+		timeZone: report.timeZone,
+		summary: {
+			totalChanged: report.totalChanged,
+			totalDisabled: report.totalDisabled,
+			totalEnabled: report.totalEnabled,
+			byUser: report.byUser,
+		},
+		rows: report.rows,
+	});
+
+	if (!delivery?.success) {
+		throw new Error(delivery?.error || delivery?.message || 'Failed to send weekly SKU status report email');
 	}
 
 	return {
@@ -1178,6 +1343,42 @@ app.post('/api/reports/sku-status/daily/email', async (req, res) => {
 			requestedDate: req.body?.date || null,
 		});
 		return res.status(500).json({ error: 'Failed to send daily SKU status report email' });
+	}
+});
+
+app.post('/api/reports/sku-status/weekly/email', async (req, res) => {
+	try {
+		const { endDate } = req.body || {};
+		const requestedEndDate = String(endDate || '').trim();
+		const reportEndDate = requestedEndDate || getDateStringInTimezone(new Date(), skuStatusWeeklyReportTimezone || 'America/Toronto');
+
+		if (process.env.ENABLE_AUTH === 'true' && req.user) {
+			const username = (req.user.username || req.user.firstname || '').toLowerCase();
+			if (!MAGENTO_STATUS_ALLOWED_USERS.has(username)) {
+				return res.status(403).json({ error: 'Not authorized to send SKU status report' });
+			}
+		}
+
+		const result = await sendWeeklySkuStatusReportEmailForDate(reportEndDate, {
+			timeZone: skuStatusWeeklyReportTimezone,
+		});
+
+		return res.json({
+			success: true,
+			reportStartDate: result.report.startDate,
+			reportEndDate: result.report.endDate,
+			totalChanged: result.report.totalChanged,
+			totalDisabled: result.report.totalDisabled,
+			totalEnabled: result.report.totalEnabled,
+			byUser: result.report.byUser,
+			recipients: process.env.SKU_STATUS_WEEKLY_REPORT_EMAILS || process.env.SKU_STATUS_REPORT_EMAILS || process.env.CRON_NOTIFICATION_EMAIL || '',
+		});
+	} catch (error) {
+		logger.error('Failed to send weekly SKU status report email', {
+			error: error.message,
+			requestedEndDate: req.body?.endDate || null,
+		});
+		return res.status(500).json({ error: 'Failed to send weekly SKU status report email' });
 	}
 });
 
@@ -2050,7 +2251,7 @@ async function setProductStatusAcrossAllStoreViews(req, res, forcedStatus = null
 			const recordedAt = new Date();
 			const recordedAtIso = recordedAt.toISOString();
 			const historyEntries = successfulSkuUpdates.map((entry) => ({
-				recordedAt: recordedAtIso,
+				recordedAt,
 				reportDate: getDateStringInTimezone(recordedAt, skuStatusReportTimezone || 'America/Toronto'),
 				timeZone: skuStatusReportTimezone || 'America/Toronto',
 				changedBy: requesterUsername,
@@ -2066,8 +2267,40 @@ async function setProductStatusAcrossAllStoreViews(req, res, forcedStatus = null
 				updatedStoreViews: entry.updatedStoreViews || [],
 				failedStoreViews: entry.failedStoreViews || [],
 			}));
-			appendSkuStatusHistoryEntries(historyEntries);
+			await prisma.skuStatusChangeHistory.createMany({
+				data: historyEntries.map(mapSkuStatusHistoryEntryToDbRow),
+				skipDuplicates: true,
+			});
+			appendSkuStatusHistoryEntries(historyEntries.map((entry) => ({
+				...entry,
+				recordedAt: recordedAtIso,
+			})));
 		} catch (historyError) {
+			try {
+				appendSkuStatusHistoryEntries((successfulSkuUpdates || []).map((entry) => ({
+					recordedAt: new Date().toISOString(),
+					reportDate: getDateStringInTimezone(new Date(), skuStatusReportTimezone || 'America/Toronto'),
+					timeZone: skuStatusReportTimezone || 'America/Toronto',
+					changedBy: requesterUsername,
+					changedByName: getUserDisplayName(req.user),
+					changedByEmail: req.user?.email || '',
+					source: normalizeSkuStatusReportSource(req.body?.source),
+					requestedSku: sku,
+					sku: entry.sku,
+					title: '',
+					status: statusToSet,
+					action: statusToSet === 2 ? 'disabled' : 'enabled',
+					applyToChildren: shouldApplyToChildren,
+					updatedStoreViews: entry.updatedStoreViews || [],
+					failedStoreViews: entry.failedStoreViews || [],
+				})));
+			} catch (fallbackError) {
+				logger.error('Failed to record fallback SKU status report history', {
+					sku,
+					status: statusToSet,
+					error: fallbackError.message,
+				});
+			}
 			logger.error('Failed to record SKU status report history', {
 				sku,
 				status: statusToSet,
@@ -4838,7 +5071,97 @@ function registerCronJobs() {
 	} else {
 		logger.info('SKU status daily report cron job disabled via CRON_SKU_STATUS_REPORT_ENABLED=false');
 	}
+
+	if (skuStatusWeeklyReportEnabled) {
+		const skuStatusWeeklyReportCommand = 'report-sku-status-weekly';
+		const skuStatusWeeklyReportJobName = 'Weekly SKU Status Change Report';
+		let skuStatusWeeklyReportRunning = false;
+		logger.info('Registering SKU status weekly report cron job', {
+			schedule: skuStatusWeeklyReportSchedule,
+			timezone: skuStatusWeeklyReportTimezone,
+		});
+
+		cron.schedule(skuStatusWeeklyReportSchedule, async () => {
+			if (skuStatusWeeklyReportRunning) {
+				markReportCronSkipped({
+					command: skuStatusWeeklyReportCommand,
+					message: 'Previous run still in progress',
+				});
+				logger.warn('SKU status weekly report skipped because previous run is still in progress');
+				return;
+			}
+
+			skuStatusWeeklyReportRunning = true;
+			const startedAt = Date.now();
+			const startedAtIso = new Date(startedAt).toISOString();
+			const reportEndDate = getDateStringInTimezone(new Date(), skuStatusWeeklyReportTimezone || 'America/Toronto');
+			markReportCronStarted({ command: skuStatusWeeklyReportCommand, startedAt: startedAtIso });
+
+			try {
+				const result = await sendWeeklySkuStatusReportEmailForDate(reportEndDate, {
+					timeZone: skuStatusWeeklyReportTimezone,
+				});
+				const finishedAt = new Date().toISOString();
+				const durationMs = Date.now() - startedAt;
+				const durationLabel = formatDuration(startedAt);
+				markReportCronFinished({
+					command: skuStatusWeeklyReportCommand,
+					jobName: skuStatusWeeklyReportJobName,
+					startedAt: startedAtIso,
+					finishedAt,
+					durationMs,
+					durationLabel,
+					status: 'success',
+					summary: {
+						totalChanged: result.report.totalChanged,
+						totalDisabled: result.report.totalDisabled,
+						totalEnabled: result.report.totalEnabled,
+					},
+				});
+				logger.info('Weekly SKU status report email sent', {
+					reportStartDate: result.report.startDate,
+					reportEndDate: result.report.endDate,
+					totalChanged: result.report.totalChanged,
+					totalDisabled: result.report.totalDisabled,
+					totalEnabled: result.report.totalEnabled,
+					duration: durationLabel,
+				});
+			} catch (error) {
+				const finishedAt = new Date().toISOString();
+				const durationMs = Date.now() - startedAt;
+				const durationLabel = formatDuration(startedAt);
+				markReportCronFinished({
+					command: skuStatusWeeklyReportCommand,
+					jobName: skuStatusWeeklyReportJobName,
+					startedAt: startedAtIso,
+					finishedAt,
+					durationMs,
+					durationLabel,
+					status: 'failed',
+					error: error.message,
+				});
+				logger.error('Failed to send weekly SKU status report email', {
+					reportEndDate,
+					error: error.message,
+					duration: durationLabel,
+				});
+			} finally {
+				skuStatusWeeklyReportRunning = false;
+			}
+		}, {
+			scheduled: true,
+			timezone: skuStatusWeeklyReportTimezone,
+		});
+	} else {
+		logger.info('SKU status weekly report cron job disabled via CRON_SKU_STATUS_WEEKLY_REPORT_ENABLED=false');
+	}
 }
+
+backfillSkuStatusHistoryFromFileToDatabase().catch((error) => {
+	logger.warn('SKU status report history backfill failed during startup', {
+		error: error.message,
+	});
+});
 
 registerCronJobs();
 
@@ -4861,6 +5184,11 @@ app.listen(PORT, () => {
 		if (skuStatusReportEnabled) {
 			console.log(
 				`🕐 [CRON] Daily SKU status report scheduled for ${skuStatusReportSchedule} (${skuStatusReportTimezone})`
+			);
+		}
+		if (skuStatusWeeklyReportEnabled) {
+			console.log(
+				`🕐 [CRON] Weekly SKU status report scheduled for ${skuStatusWeeklyReportSchedule} (${skuStatusWeeklyReportTimezone})`
 			);
 		}
 	} else {

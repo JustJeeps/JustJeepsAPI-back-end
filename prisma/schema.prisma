@@ -137,6 +137,31 @@ model Product {
   vendorProducts     VendorProduct[]
 }
 
+model SkuStatusChangeHistory {
+  id                Int      @id @default(autoincrement())
+  recordKey         String   @unique
+  recordedAt        DateTime @default(now())
+  reportDate        String
+  timeZone          String
+  changedBy         String
+  changedByName     String
+  changedByEmail    String?
+  source            String
+  requestedSku      String
+  sku               String
+  title             String?
+  status            Int
+  action            String
+  applyToChildren   Boolean  @default(false)
+  updatedStoreViews Json?
+  failedStoreViews  Json?
+
+  @@index([reportDate])
+  @@index([recordedAt])
+  @@index([changedBy])
+  @@index([sku])
+}
+
 model VendorProduct {
   id                      Int            @id @default(autoincrement())
   product_sku             String
