@@ -65,6 +65,50 @@ const magentoClient = axios.create({
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+function createRequestMetrics() {
+  return {
+    startedAt: Date.now(),
+    totalHttpRequests: 0,
+    totalRetries: 0,
+    totalFallbackPosts: 0,
+    statusCounts: {},
+    byMethod: {
+      put: 0,
+      post: 0,
+    },
+    increment(method, statusCode) {
+      const normalizedMethod = String(method || '').toLowerCase();
+      if (normalizedMethod === 'put' || normalizedMethod === 'post') {
+        this.byMethod[normalizedMethod] += 1;
+      }
+      this.totalHttpRequests += 1;
+      const statusKey = String(statusCode ?? 'unknown');
+      this.statusCounts[statusKey] = (this.statusCounts[statusKey] || 0) + 1;
+    },
+    report(label) {
+      const elapsedSeconds = Math.max((Date.now() - this.startedAt) / 1000, 1);
+      const reqPerMinute = this.totalHttpRequests / (elapsedSeconds / 60);
+      const statusSummary = Object.entries(this.statusCounts)
+        .sort((a, b) => Number(a[0]) - Number(b[0]))
+        .map(([status, count]) => `${status}:${count}`)
+        .join(', ');
+
+      console.log(`📡 HTTP Metrics (${label}):`);
+      console.log(`   - Total Magento HTTP requests: ${this.totalHttpRequests}`);
+      console.log(`   - HTTP request rate: ${reqPerMinute.toFixed(2)} requests/min`);
+      console.log(`   - PUT requests: ${this.byMethod.put}`);
+      console.log(`   - POST fallback requests: ${this.byMethod.post}`);
+      console.log(`   - Retry attempts: ${this.totalRetries}`);
+      console.log(`   - PUT->POST fallback count: ${this.totalFallbackPosts}`);
+      if (statusSummary) {
+        console.log(`   - Status breakdown: ${statusSummary}`);
+      }
+    },
+  };
+}
+
+const requestMetrics = createRequestMetrics();
+
 function isRetryableStatus(status) {
   return status === 429 || (status >= 500 && status < 600);
 }
@@ -74,19 +118,23 @@ async function magentoRequestWithRetry(method, sku, payload) {
 
   for (let attempt = 1; attempt <= MAGENTO_CONFIG.maxRetries; attempt++) {
     try {
-      return await magentoClient.request({
+      const response = await magentoClient.request({
         method,
         url: `/products/${encodeURIComponent(sku)}`,
         params: { storeId: MAGENTO_CONFIG.storeId },
         data: payload
       });
+      requestMetrics.increment(method, response.status);
+      return response;
     } catch (error) {
       lastError = error;
       const status = error?.response?.status;
+      requestMetrics.increment(method, status);
       if (attempt === MAGENTO_CONFIG.maxRetries || !isRetryableStatus(status)) {
         throw error;
       }
 
+      requestMetrics.totalRetries += 1;
       const delay = MAGENTO_CONFIG.retryDelayMs * attempt;
       await sleep(delay);
     }
@@ -155,6 +203,7 @@ async function updateMagentoProduct(sku, vendorCost, vendorInventory) {
     } catch (putError) {
       // If PUT fails with Method Not Allowed, try POST
       if (putError.response?.status === 405) {
+        requestMetrics.totalFallbackPosts += 1;
         const postResponse = await magentoRequestWithRetry('post', sku, payload);
         return { success: true, sku, response: postResponse.status, method: 'POST' };
       }
@@ -428,6 +477,7 @@ async function seedMultipleVendors(vendorConfigs) {
   console.log(`   - Vendors processed: ${overallStats.vendors}`);
   console.log(`   - Total time: ${(overallTime / 60).toFixed(1)} minutes`);
   console.log(`   - Completed at: ${new Date().toLocaleString()}`);
+  requestMetrics.report('all vendors');
 }
 
 /**
@@ -465,6 +515,7 @@ async function testSeed(vendorName, testSize = 5) {
   console.log(`   - Successful: ${result.successful}`);
   console.log(`   - Failed: ${result.failed}`);
   console.log(`   - Success rate: ${result.successRate}%`);
+  requestMetrics.report(`test ${vendorName}`);
 }
 
 /**
@@ -580,6 +631,9 @@ async function main() {
   } catch (error) {
     console.error('❌ Fatal error:', error);
   } finally {
+    if (requestMetrics.totalHttpRequests > 0) {
+      requestMetrics.report('run summary');
+    }
     await prisma.$disconnect();
   }
 }

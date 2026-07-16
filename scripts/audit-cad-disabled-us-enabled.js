@@ -52,6 +52,43 @@ function createRequestGate(maxRequestsPerMinute) {
 }
 
 let requestGate = null;
+const requestMetrics = {
+  startedAt: Date.now(),
+  totalRequests: 0,
+  successRequests: 0,
+  failedRequests: 0,
+  statusCounts: {},
+};
+
+function trackRequest(statusCode, success) {
+  requestMetrics.totalRequests += 1;
+  if (success) {
+    requestMetrics.successRequests += 1;
+  } else {
+    requestMetrics.failedRequests += 1;
+  }
+
+  const statusKey = String(statusCode ?? 'unknown');
+  requestMetrics.statusCounts[statusKey] = (requestMetrics.statusCounts[statusKey] || 0) + 1;
+}
+
+function buildRequestMetricsSummary() {
+  const elapsedSeconds = Math.max((Date.now() - requestMetrics.startedAt) / 1000, 1);
+  const requestsPerMinute = requestMetrics.totalRequests / (elapsedSeconds / 60);
+  const statusBreakdown = Object.entries(requestMetrics.statusCounts)
+    .sort((a, b) => Number(a[0]) - Number(b[0]))
+    .map(([status, count]) => `${status}:${count}`)
+    .join(', ');
+
+  return {
+    elapsed_seconds: Number(elapsedSeconds.toFixed(2)),
+    total_http_requests: requestMetrics.totalRequests,
+    successful_http_requests: requestMetrics.successRequests,
+    failed_http_requests: requestMetrics.failedRequests,
+    http_requests_per_minute: Number(requestsPerMinute.toFixed(2)),
+    status_breakdown: statusBreakdown,
+  };
+}
 
 function parseArgs(argv) {
   const options = {
@@ -197,12 +234,14 @@ async function fetchMagentoStatus(sku, storeCode) {
     }
 
     const response = await axios.get(endpoint, buildMagentoRequestConfig());
+    trackRequest(response.status, true);
     return {
       success: true,
       status: Number(response.data?.status),
       statusCode: response.status,
     };
   } catch (error) {
+    trackRequest(error.response?.status || null, false);
     return {
       success: false,
       status: null,
@@ -355,9 +394,13 @@ async function main() {
   const rows = await processInChunks(skus, options);
   const mismatches = rows.filter((row) => row.is_cad_disabled_us_enabled);
   const failures = rows.filter((row) => !row.cad_success || !row.us_success);
+  const requestSummary = buildRequestMetricsSummary();
   const outputPath = buildOutputPath(options.output);
 
   writeCsv(rows, outputPath);
+
+  console.log(`HTTP requests: ${requestSummary.total_http_requests} total (${requestSummary.http_requests_per_minute} req/min)`);
+  console.log(`HTTP status breakdown: ${requestSummary.status_breakdown || 'none'}`);
 
   console.log(
     JSON.stringify(
@@ -366,6 +409,7 @@ async function main() {
         checked_count: rows.length,
         cad_disabled_us_enabled_count: mismatches.length,
         api_failure_count: failures.length,
+        request_summary: requestSummary,
         sample_matches: mismatches.slice(0, 20).map((row) => row.sku),
       },
       null,

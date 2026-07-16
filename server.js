@@ -49,6 +49,8 @@ const magentoAttributesRoughSchedule = process.env.CRON_MAGENTO_ATTRIBUTES_ROUGH
 const skuCostAlertEnabled = process.env.CRON_SKU_COST_ALERT_ENABLED !== 'false';
 const skuCostAlertSchedule = process.env.CRON_SKU_COST_ALERT_SCHEDULE || '*/30 * * * *';
 const skuCostAlertSku = process.env.SKU_COST_ALERT_SKU || 'TH-635801';
+const cadDisabledUsWeeklyEnabled = process.env.CRON_CAD_US_WEEKLY_ENABLED !== 'false';
+const cadDisabledUsWeeklySchedule = process.env.CRON_CAD_US_WEEKLY_SCHEDULE || '30 6 * * 1';
 const testCronEnabled = process.env.CRON_TEST_ENABLED === 'true';
 const testCronSchedule = process.env.CRON_TEST_SCHEDULE || '*/5 * * * *';
 const testCronCommand = process.env.CRON_TEST_COMMAND || 'seed-tdot';
@@ -63,8 +65,14 @@ const skuStatusReportTimezone = process.env.CRON_SKU_STATUS_REPORT_TIMEZONE || c
 const skuStatusWeeklyReportEnabled = process.env.CRON_SKU_STATUS_WEEKLY_REPORT_ENABLED !== 'false';
 const skuStatusWeeklyReportSchedule = process.env.CRON_SKU_STATUS_WEEKLY_REPORT_SCHEDULE || '0 18 * * 5';
 const skuStatusWeeklyReportTimezone = process.env.CRON_SKU_STATUS_WEEKLY_REPORT_TIMEZONE || skuStatusReportTimezone;
-const cronChildTimeoutMs = Number(process.env.CRON_CHILD_TIMEOUT_MS || 6 * 60 * 60 * 1000);
+const cronChildTimeoutMs = Number(process.env.CRON_CHILD_TIMEOUT_MS || 10 * 60 * 60 * 1000);
 const cronChildKillGraceMs = Number(process.env.CRON_CHILD_KILL_GRACE_MS || 10000);
+
+function formatCronExitLabel(code, signal) {
+	if (typeof code === 'number') return `exit code ${code}`;
+	if (signal) return `signal ${signal}`;
+	return 'unknown exit status';
+}
 const MAGENTO_STATUS_ALLOWED_USERS = new Set(['admin', 'jerry', 'tess', 'jacob', 'david', 'rafael', 'ricardo', 'paula']);
 const ORDER_CANCEL_EXECUTE_ALLOWED_USERS = new Set(['tess', 'jerry', 'jacob', 'paula', 'karoline']);
 const ORDER_CANCEL_DRY_RUN_ALLOWED_USERS = new Set(['tess']);
@@ -80,8 +88,9 @@ const ORDER_CANCEL_PO_INITIALS_BY_USER = Object.freeze({
 const cronJobRegistry = new Map();
 let cronJobsRegistered = false;
 const cronHistoryFile = path.resolve(__dirname, 'logs', 'cron-job-history.json');
-const cronHistoryLookbackDays = Number(process.env.CRON_HISTORY_LOOKBACK_DAYS || 5);
+const cronHistoryLookbackDays = Number(process.env.CRON_HISTORY_LOOKBACK_DAYS || 30);
 const cronHistoryRetentionDays = Number(process.env.CRON_HISTORY_RETENTION_DAYS || 30);
+const cronLogTailLines = Number(process.env.CRON_LOG_TAIL_LINES || 300);
 const cancelWorkflowHistoryFile = path.resolve(__dirname, 'logs', 'order-cancel-workflow-history.json');
 const cancelWorkflowHistoryRetentionDays = Number(process.env.CANCEL_WORKFLOW_HISTORY_RETENTION_DAYS || 180);
 const skuStatusHistoryFile = path.resolve(__dirname, 'logs', 'sku-status-change-history.json');
@@ -154,6 +163,17 @@ function getCronJobDefinitions() {
 		});
 	}
 
+	if (cadDisabledUsWeeklyEnabled) {
+		jobs.push({
+			enabled: true,
+			schedule: cadDisabledUsWeeklySchedule,
+			command: 'cad-disabled-us-enabled-weekly',
+			jobName: 'CAD/US Status Weekly Fix',
+			logPrefix: 'CAD/US weekly status fix',
+			reportLogFile: 'logs/cad-disabled-us-enabled-weekly.log',
+		});
+	}
+
 	if (testCronEnabled) {
 		jobs.push({
 			enabled: true,
@@ -176,6 +196,7 @@ function getReportCronJobDefinitions() {
 			command: 'report-order-cancellations-daily',
 			jobName: 'Daily Cancelled Orders Report',
 			logPrefix: 'Daily cancelled orders report',
+			reportLogFile: 'logs/report-order-cancellations-daily.log',
 			timezone: cancellationReportTimezone,
 		},
 		{
@@ -184,6 +205,7 @@ function getReportCronJobDefinitions() {
 			command: 'report-sku-status-daily',
 			jobName: 'Daily SKU Status Change Report',
 			logPrefix: 'Daily SKU status change report',
+			reportLogFile: 'logs/report-sku-status-daily.log',
 			timezone: skuStatusReportTimezone,
 		},
 		{
@@ -192,6 +214,7 @@ function getReportCronJobDefinitions() {
 			command: 'report-sku-status-weekly',
 			jobName: 'Weekly SKU Status Change Report',
 			logPrefix: 'Weekly SKU status change report',
+			reportLogFile: 'logs/report-sku-status-weekly.log',
 			timezone: skuStatusWeeklyReportTimezone,
 		},
 	].filter((job) => job.enabled !== false);
@@ -808,6 +831,76 @@ function getRecentCronHistoryForCommand(command, historyEntries = null) {
 		});
 }
 
+function deriveHistoryFromLogLines(definition, lines = []) {
+	if (!Array.isArray(lines) || lines.length === 0) return [];
+
+	const startRegex = /^\[([^\]]+)\]\s+Starting\s+.+\(npm run\s+([^\)]+)\)/i;
+	const finishRegex = /^\[([^\]]+)\]\s+Finished\s+.+\s+with\s+(exit code\s+\d+|signal\s+[A-Z0-9_]+|unknown exit status)/i;
+	const runs = [];
+	let pendingStart = null;
+
+	for (const line of lines) {
+		const startMatch = String(line).match(startRegex);
+		if (startMatch) {
+			const parsedStart = new Date(startMatch[1]);
+			const startedAt = Number.isFinite(parsedStart.getTime()) ? parsedStart.toISOString() : null;
+			const commandFromLog = String(startMatch[2] || '').trim();
+			if (startedAt && (!commandFromLog || commandFromLog === definition.command)) {
+				pendingStart = { startedAt };
+			}
+			continue;
+		}
+
+		const finishMatch = String(line).match(finishRegex);
+		if (!finishMatch) continue;
+
+		const parsedFinish = new Date(finishMatch[1]);
+		const finishedAt = Number.isFinite(parsedFinish.getTime()) ? parsedFinish.toISOString() : null;
+		if (!finishedAt) continue;
+
+		const exitLabel = finishMatch[2] || 'unknown exit status';
+		const exitCodeMatch = exitLabel.match(/exit code\s+(\d+)/i);
+		const exitCode = exitCodeMatch ? Number(exitCodeMatch[1]) : null;
+		const status = exitCode === 0 ? 'success' : 'failed';
+		const startedAt = pendingStart?.startedAt || finishedAt;
+		const derivedDuration = buildDurationFromTimestamps(startedAt, finishedAt);
+
+		runs.push({
+			id: `${definition.command}-${finishedAt}`,
+			command: definition.command,
+			jobName: definition.jobName,
+			status,
+			startedAt,
+			finishedAt,
+			durationMs: derivedDuration?.durationMs || null,
+			durationLabel: derivedDuration?.durationLabel || null,
+			exitCode,
+			error: status === 'failed' ? `Process ended with ${exitLabel}` : null,
+			notification: null,
+			summary: null,
+			failedResults: [],
+		});
+
+		pendingStart = null;
+	}
+
+	const cutoff = Date.now() - (cronHistoryLookbackDays * 24 * 60 * 60 * 1000);
+	return runs
+		.filter((entry) => {
+			const timestamp = new Date(entry.finishedAt || entry.startedAt || 0).getTime();
+			return Number.isFinite(timestamp) && timestamp >= cutoff;
+		})
+		.sort((left, right) => {
+			const leftTime = new Date(left.finishedAt || left.startedAt || 0).getTime();
+			const rightTime = new Date(right.finishedAt || right.startedAt || 0).getTime();
+			return rightTime - leftTime;
+		});
+}
+
+function getCronJobDefinitionByCommand(command) {
+	return getCronDashboardDefinitions().find((definition) => definition.command === command) || null;
+}
+
 function readLogLines(logFile) {
 	if (!logFile) return [];
 
@@ -1027,13 +1120,16 @@ function recordCronRunHistory({
 
 function deriveCronArtifacts({ reportLogFile, readSummaryFile }) {
 	const lines = readLogLines(reportLogFile);
-	const recentLogLines = lines.slice(-40);
+	const tailLineCount = Number.isFinite(cronLogTailLines) && cronLogTailLines > 0 ? cronLogTailLines : 300;
+	const recentLogLines = lines.slice(-tailLineCount);
 	const lastStartLine = findLastLine(lines, (line) => /Starting .*\(npm run/.test(line));
-	const lastFinishLine = findLastLine(lines, (line) => /Finished .* exit code \d+/.test(line));
+	const lastFinishLine = findLastLine(lines, (line) => /Finished .* (exit code \d+|signal [A-Z0-9_]+)/i.test(line));
 	const lastFailedToStartLine = findLastLine(lines, (line) => /Failed to start .+:/i.test(line));
 	const lastErrorLine = findLastLine(lines, (line) => /❌|Error:/i.test(line));
 	const lastFinishMatch = lastFinishLine?.match(/exit code\s+(\d+)/i);
+	const lastSignalMatch = lastFinishLine?.match(/signal\s+([A-Z0-9_]+)/i);
 	const exitCode = lastFinishMatch ? Number(lastFinishMatch[1]) : null;
+	const exitSignal = lastSignalMatch ? lastSignalMatch[1] : null;
 	const lastStartedAt = extractBracketTimestamp(lastStartLine);
 	const lastFinishedAt = extractBracketTimestamp(lastFinishLine);
 	const derivedDuration = buildDurationFromTimestamps(lastStartedAt, lastFinishedAt);
@@ -1043,7 +1139,7 @@ function deriveCronArtifacts({ reportLogFile, readSummaryFile }) {
 	const failedResults = extractFailedCronResults(summary?.results);
 
 	let status = null;
-	if (lastFinishMatch) {
+	if (lastFinishMatch || lastSignalMatch) {
 		status = exitCode === 0 ? 'success' : 'failed';
 	} else if (lastFailedToStartLine) {
 		status = 'failed';
@@ -1058,6 +1154,7 @@ function deriveCronArtifacts({ reportLogFile, readSummaryFile }) {
 		lastDurationMs: derivedDuration?.durationMs || null,
 		lastDurationLabel: derivedDuration?.durationLabel || null,
 		lastExitCode: exitCode,
+		exitSignal,
 		lastError: lastErrorLine || null,
 		progress,
 		recentLogLines,
@@ -1069,7 +1166,10 @@ function deriveCronArtifacts({ reportLogFile, readSummaryFile }) {
 function buildCronJobStatus(definition, historyEntries = null) {
 	const live = cronJobRegistry.get(definition.command) || {};
 	const artifacts = deriveCronArtifacts(definition);
-	const history = getRecentCronHistoryForCommand(definition.command, historyEntries);
+	const fileHistory = getRecentCronHistoryForCommand(definition.command, historyEntries);
+	const history = fileHistory.length > 0
+		? fileHistory
+		: deriveHistoryFromLogLines(definition, readLogLines(definition.reportLogFile));
 	const latestHistory = history[0] || null;
 	const isRunning = Boolean(live.isRunning);
 	const persistedStatus = live.lastStatus && !['scheduled', 'disabled'].includes(live.lastStatus)
@@ -1296,6 +1396,41 @@ app.get('/api/cron-jobs', (req, res) => {
 			error: error.message,
 		});
 		res.status(500).json({ error: 'Failed to fetch cron job status' });
+	}
+});
+
+app.get('/api/cron-jobs/:command/log-lines', (req, res) => {
+	try {
+		const command = String(req.params.command || '').trim();
+		if (!command) {
+			return res.status(400).json({ error: 'Missing command parameter' });
+		}
+
+		const definition = getCronJobDefinitionByCommand(command);
+		if (!definition?.reportLogFile) {
+			return res.status(404).json({ error: `No log file configured for command ${command}` });
+		}
+
+		const requestedLines = Number(req.query.lines);
+		const lineCount = Number.isFinite(requestedLines) && requestedLines > 0
+			? Math.min(5000, Math.floor(requestedLines))
+			: 400;
+		const lines = readLogLines(definition.reportLogFile);
+
+		return res.json({
+			command,
+			jobName: definition.jobName,
+			logFile: path.resolve(__dirname, definition.reportLogFile),
+			lineCount,
+			lines: lines.slice(-lineCount),
+			updatedAt: new Date().toISOString(),
+		});
+	} catch (error) {
+		logger.error('Failed to fetch cron log lines', {
+			command: req.params?.command,
+			error: error.message,
+		});
+		return res.status(500).json({ error: 'Failed to fetch cron log lines' });
 	}
 });
 
@@ -4632,7 +4767,8 @@ function registerCommandCronJob({
 		let logStream = null;
 		if (resolvedLogFile) {
 			fs.mkdirSync(path.dirname(resolvedLogFile), { recursive: true });
-			logStream = fs.createWriteStream(resolvedLogFile, { flags: 'w' });
+			logStream = fs.createWriteStream(resolvedLogFile, { flags: 'a' });
+			logStream.write(`\n${'='.repeat(80)}\n`);
 			logStream.write(`[${new Date().toISOString()}] Starting ${jobName} (npm run ${command})\n`);
 		}
 
@@ -4677,16 +4813,17 @@ function registerCommandCronJob({
 			});
 		}
 
-		seedProcess.on('close', async (code) => {
+		seedProcess.on('close', async (code, signal) => {
 			if (timeoutHandle) clearTimeout(timeoutHandle);
 			const duration = formatDuration(startTime);
 			const durationMs = Date.now() - startTime;
 			const startedAt = new Date(startTime).toISOString();
 			const finishedAt = new Date().toISOString();
+			const exitLabel = formatCronExitLabel(code, signal);
 			let summary = null;
 			await finalizeLogStream(
 				logStream,
-				`\n[${new Date().toISOString()}] Finished ${jobName} with exit code ${code}\n`
+				`\n[${new Date().toISOString()}] Finished ${jobName} with ${exitLabel}\n`
 			);
 
 			if (readSummaryFile) {
@@ -4763,12 +4900,12 @@ function registerCommandCronJob({
 				} else {
 					const error = timedOut
 						? `Process timed out after ${cronChildTimeoutMs}ms`
-						: `Process exited with code ${code}`;
+						: `Process ended with ${exitLabel}`;
 					const failedResults = extractFailedCronResults(summary?.results);
 					const failedDetails = formatFailedCronResults(failedResults);
 					const detailedError = failedDetails ? `${error} | Failed steps: ${failedDetails}` : error;
-					logger.error('❌ Cron job failed', { jobName, exitCode: code, duration, command });
-					console.error(`❌ [CRON] ${logPrefix} failed with exit code ${code}`);
+					logger.error('❌ Cron job failed', { jobName, exitCode: code, signal, duration, command });
+					console.error(`❌ [CRON] ${logPrefix} failed with ${exitLabel}`);
 
 					if (summary && Array.isArray(summary.results)) {
 						notificationResult = await deliverCronNotification({
@@ -4919,9 +5056,29 @@ function markReportCronSkipped({ command, message }) {
 		lastStatus: 'skipped',
 		lastError: message,
 	});
+	appendReportCronLogLine(command, `[${new Date().toISOString()}] Skipped ${command}: ${message}`);
+}
+
+function appendReportCronLogLine(command, line) {
+	const definition = getCronJobDefinitionByCommand(command);
+	if (!definition?.reportLogFile) return;
+
+	const resolvedLogFile = path.resolve(__dirname, definition.reportLogFile);
+	try {
+		fs.mkdirSync(path.dirname(resolvedLogFile), { recursive: true });
+		fs.appendFileSync(resolvedLogFile, `${line}\n`);
+	} catch (error) {
+		logger.warn('Failed to append report cron log line', {
+			command,
+			filePath: resolvedLogFile,
+			error: error.message,
+		});
+	}
 }
 
 function markReportCronStarted({ command, startedAt }) {
+	appendReportCronLogLine(command, `${'='.repeat(80)}`);
+	appendReportCronLogLine(command, `[${new Date().toISOString()}] Starting ${command}`);
 	upsertCronJobRecord(command, {
 		isRunning: true,
 		lastStatus: 'running',
@@ -4935,6 +5092,10 @@ function markReportCronFinished({ command, jobName, startedAt, finishedAt, durat
 	const isSuccess = status === 'success';
 	const failedResults = isSuccess ? [] : [{ cmd: command, code: null, error }];
 	const notification = { success: isSuccess, mode: 'report-email', fallbackUsed: false, message: error || null, updatedAt: finishedAt };
+	appendReportCronLogLine(command, `[${finishedAt}] Finished ${jobName} with exit code ${isSuccess ? 0 : 1}`);
+	if (error) {
+		appendReportCronLogLine(command, `[${finishedAt}] Error: ${error}`);
+	}
 
 	upsertCronJobRecord(command, {
 		isRunning: false,
