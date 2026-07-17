@@ -526,10 +526,22 @@ function toBajaVendorPart(value) {
   return normalized;
 }
 
-function resolveMeyerProductSku(map, itemNumber) {
+function normalizeMeyerLookupKey(value) {
+  return String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+}
+
+function resolveMeyerProductSku(map, normalizedMap, itemNumber) {
   const raw = String(itemNumber || "").trim();
   if (!raw) return null;
   if (map.has(raw)) return map.get(raw);
+
+  const normalizedKey = normalizeMeyerLookupKey(raw);
+  if (normalizedKey && normalizedMap.has(normalizedKey)) {
+    return normalizedMap.get(normalizedKey);
+  }
 
   const normalized = normalizeBajaVendorPart(raw);
   if (normalized && map.has(normalized)) return map.get(normalized);
@@ -619,8 +631,23 @@ const seedMeyerVendorProducts = async () => {
     });
 
     const meyerToProductSku = new Map();
+    const normalizedMeyerToProductSku = new Map();
+    const ambiguousNormalizedMeyerCodes = new Set();
     for (const product of products) {
-      if (product.meyer_code) meyerToProductSku.set(product.meyer_code, product.sku);
+      if (product.meyer_code) {
+        meyerToProductSku.set(product.meyer_code, product.sku);
+
+        const normalizedMeyerCode = normalizeMeyerLookupKey(product.meyer_code);
+        if (normalizedMeyerCode && !ambiguousNormalizedMeyerCodes.has(normalizedMeyerCode)) {
+          const existingSku = normalizedMeyerToProductSku.get(normalizedMeyerCode);
+          if (!existingSku || existingSku === product.sku) {
+            normalizedMeyerToProductSku.set(normalizedMeyerCode, product.sku);
+          } else {
+            normalizedMeyerToProductSku.delete(normalizedMeyerCode);
+            ambiguousNormalizedMeyerCodes.add(normalizedMeyerCode);
+          }
+        }
+      }
 
       if (isBajaBrand(product.brand_name)) {
         const bajaFallbackCode = toBajaVendorPart(product.sku) || toBajaVendorPart(product.meyer_code);
@@ -754,7 +781,7 @@ SELECT
         }
 
         const item = data[0];
-        const productSku = resolveMeyerProductSku(meyerToProductSku, item.ItemNumber);
+        const productSku = resolveMeyerProductSku(meyerToProductSku, normalizedMeyerToProductSku, item.ItemNumber);
         if (!productSku) {
           console.error(`Product not found for meyer_code: ${item.ItemNumber}`);
           continue;

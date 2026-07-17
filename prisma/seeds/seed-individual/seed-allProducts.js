@@ -20,6 +20,8 @@ const MEYER_CODE_OVERRIDES_BY_SKU = {
   "BST-5093017": "BES5093017",
   "BST-5493035": "BES5493035",
   "BST-5493017": "BES5493017",
+  "YUK-YK D30JL-FRONT": "YUKYK D30JL-FRONT",
+  "YUK-YB U513272": "YUKYB U513272",
 };
 
 const getProductCreateFieldSet = () => {
@@ -390,7 +392,7 @@ const buildRowFromMagento = (
     }
   }
 
-  // YUKON: remove spaces + uppercase
+  // YUKON: default Meyer code removes spaces; known space-sensitive SKUs use overrides below.
   if (jjPrefix === "YUK") {
     meyerCode = ((vendorData?.meyer_code || "") + searchable_sku).replace(/\s+/g, "").toUpperCase();
   }

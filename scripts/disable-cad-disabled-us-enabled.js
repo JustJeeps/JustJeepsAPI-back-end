@@ -34,6 +34,7 @@ function parseArgs(argv) {
     limit: null,
     dryRun: false,
     output: null,
+    excludeSkus: normalizeSkuList((process.env.CAD_DISABLED_US_ENABLED_EXCLUDE_SKUS || '').split(',')),
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -49,12 +50,34 @@ function parseArgs(argv) {
       options.limit = Number(argv[++i]);
     } else if (arg === '--output' && argv[i + 1]) {
       options.output = argv[++i];
+    } else if (arg === '--exclude-sku' && argv[i + 1]) {
+      options.excludeSkus.push(argv[++i]);
+    } else if (arg === '--exclude-skus' && argv[i + 1]) {
+      options.excludeSkus.push(...argv[++i].split(','));
     } else if (arg === '--dry-run') {
       options.dryRun = true;
     }
   }
 
+  options.excludeSkus = normalizeSkuList(options.excludeSkus);
   return options;
+}
+
+function normalizeSkuList(values) {
+  return Array.from(
+    new Set(
+      values
+        .flatMap((value) => String(value || '').split(/[\n,]/))
+        .map((value) => value.trim())
+        .filter(Boolean)
+    )
+  );
+}
+
+function filterExcludedSkus(skus, excludeSkus) {
+  const excluded = new Set(excludeSkus.map((sku) => sku.toUpperCase()));
+  if (excluded.size === 0) return skus;
+  return skus.filter((sku) => !excluded.has(String(sku).toUpperCase()));
 }
 
 function parseCsvLine(line) {
@@ -114,14 +137,14 @@ function findLatestAuditReport() {
     .sort((a, b) => b.mtimeMs - a.mtimeMs)[0].file;
 }
 
-function readConfirmedSkus(filePath, limit) {
+function readConfirmedSkus(filePath, limit, excludeSkus) {
   const resolvedPath = path.resolve(process.cwd(), filePath);
   const rows = parseCsv(fs.readFileSync(resolvedPath, 'utf8'));
-  const skus = rows
+  const skus = filterExcludedSkus(rows
     .filter((row) => row.is_cad_disabled_us_enabled === 'true')
     .filter((row) => row.cad_success === 'true' && row.us_success === 'true')
     .map((row) => String(row.sku || '').trim())
-    .filter(Boolean);
+    .filter(Boolean), excludeSkus);
 
   const uniqueSkus = Array.from(new Set(skus));
   return limit ? uniqueSkus.slice(0, limit) : uniqueSkus;
@@ -307,6 +330,8 @@ function printUsage() {
   console.log('  --concurrency <number>    Concurrent SKU updates (default: 15).');
   console.log('  --limit <number>          Limit matching SKUs. Useful for testing.');
   console.log('  --output <path>           Result CSV output path.');
+  console.log('  --exclude-sku <sku>       Exclude one SKU. Can be repeated.');
+  console.log('  --exclude-skus <a,b,c>    Exclude comma-separated SKUs.');
   console.log('  --dry-run                 Print/write intended changes without calling Magento.');
 }
 
@@ -332,12 +357,15 @@ async function main() {
   }
 
   const auditReportPath = options.file ? path.resolve(process.cwd(), options.file) : findLatestAuditReport();
-  const skus = readConfirmedSkus(auditReportPath, options.limit);
+  const skus = readConfirmedSkus(auditReportPath, options.limit, options.excludeSkus);
 
   console.log(`Audit report: ${auditReportPath}`);
   console.log(`Confirmed SKUs to disable: ${skus.length}`);
   console.log(`Target status: ${options.status}`);
   console.log(`Mode: ${options.dryRun ? 'dry-run' : 'live'}`);
+  if (options.excludeSkus.length > 0) {
+    console.log(`Excluded SKUs: ${options.excludeSkus.join(', ')}`);
+  }
 
   if (skus.length === 0) {
     console.log('No confirmed matching SKUs found. Nothing to disable.');
@@ -362,6 +390,7 @@ async function main() {
         attempted_count: rows.length,
         success_count: successfulRows.length,
         failed_count: failedRows.length,
+        excluded_skus: options.excludeSkus,
         sample_failures: failedRows.slice(0, 20).map((row) => ({
           sku: row.sku,
           failedStoreViews: row.failedStoreViews.map((entry) => entry.storeViewCode),

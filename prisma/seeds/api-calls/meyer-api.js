@@ -120,6 +120,10 @@ function isAirbedzMeyerCode(value) {
   return (value ?? "").toString().toUpperCase().startsWith("ABZPPI-");
 }
 
+function isYukonMeyerCode(value) {
+  return (value ?? "").toString().toUpperCase().startsWith("YUK");
+}
+
 function bestopDashlessFallback(value) {
   const raw = (value ?? "").toString().toUpperCase().trim();
   if (!raw || !isBestopMeyerCode(raw)) return null;
@@ -132,6 +136,13 @@ function airbedzDashlessFallback(value) {
   if (!raw || !isAirbedzMeyerCode(raw)) return null;
   const dashless = raw.replace(/-/g, "");
   return dashless !== raw ? dashless : null;
+}
+
+function yukonSpacedFallback(value) {
+  const raw = (value ?? "").toString().toUpperCase().trim();
+  if (!raw || !isYukonMeyerCode(raw) || /\s/.test(raw)) return null;
+  if (!/^YUK[A-Z0-9]{2}.+/.test(raw)) return null;
+  return `${raw.slice(0, 5)} ${raw.slice(5)}`;
 }
 
 function chunkArray(items, size) {
@@ -272,16 +283,18 @@ const MeyerCost = async () => {
           .flatMap((itemNumber) => [
             bestopDashlessFallback(itemNumber),
             airbedzDashlessFallback(itemNumber),
+            yukonSpacedFallback(itemNumber),
           ])
           .filter((fallbackCode) => fallbackCode && !mergedByItemNumber.has(normalizeItemNumber(fallbackCode)));
 
         if (missingFallbackCandidates.length > 0) {
           const uniqueFallbacks = Array.from(new Set(missingFallbackCandidates));
           console.log(
-            `Batch ${i + 1}: retrying ${uniqueFallbacks.length} missing item(s) with dashless fallback (BES/ABZPPI)...`
+            `Batch ${i + 1}: retrying ${uniqueFallbacks.length} missing item(s) with fallback ItemNumber variants...`
           );
 
           const fallbackChunks = chunkArray(uniqueFallbacks, 100);
+          const fallbackReturnedItemNumbers = new Set();
           for (const fallbackChunk of fallbackChunks) {
             const fallbackData = await fetchMeyerBatch(fallbackChunk, {
               timeoutMs: Number(process.env.MEYER_TIMEOUT_MS || 30000),
@@ -295,8 +308,17 @@ const MeyerCost = async () => {
                 const key = normalizeItemNumber(item?.ItemNumber);
                 if (!key) continue;
                 mergedByItemNumber.set(key, item);
+                fallbackReturnedItemNumbers.add(item.ItemNumber);
               }
             }
+          }
+
+          if (fallbackReturnedItemNumbers.size > 0) {
+            const sample = Array.from(fallbackReturnedItemNumbers).slice(0, 20);
+            const suffix = fallbackReturnedItemNumbers.size > sample.length ? " ..." : "";
+            console.log(
+              `Batch ${i + 1}: fallback returned ${fallbackReturnedItemNumbers.size} item(s): ${sample.join(", ")}${suffix}`
+            );
           }
         }
 

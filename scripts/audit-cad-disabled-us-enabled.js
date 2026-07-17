@@ -26,70 +26,6 @@ const MAGENTO_CONFIG = {
   timeout: Number(process.env.MAGENTO_TIMEOUT_MS || 15000),
 };
 
-function toPositiveInt(value, fallback) {
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function createRequestGate(maxRequestsPerMinute) {
-  const rpm = toPositiveInt(maxRequestsPerMinute, 60);
-  const intervalMs = Math.ceil(60000 / rpm);
-  let nextAllowedAt = 0;
-
-  return {
-    rpm,
-    intervalMs,
-    async waitTurn() {
-      const now = Date.now();
-      const target = Math.max(now, nextAllowedAt);
-      nextAllowedAt = target + intervalMs;
-      const waitMs = target - now;
-      if (waitMs > 0) {
-        await new Promise((resolve) => setTimeout(resolve, waitMs));
-      }
-    },
-  };
-}
-
-let requestGate = null;
-const requestMetrics = {
-  startedAt: Date.now(),
-  totalRequests: 0,
-  successRequests: 0,
-  failedRequests: 0,
-  statusCounts: {},
-};
-
-function trackRequest(statusCode, success) {
-  requestMetrics.totalRequests += 1;
-  if (success) {
-    requestMetrics.successRequests += 1;
-  } else {
-    requestMetrics.failedRequests += 1;
-  }
-
-  const statusKey = String(statusCode ?? 'unknown');
-  requestMetrics.statusCounts[statusKey] = (requestMetrics.statusCounts[statusKey] || 0) + 1;
-}
-
-function buildRequestMetricsSummary() {
-  const elapsedSeconds = Math.max((Date.now() - requestMetrics.startedAt) / 1000, 1);
-  const requestsPerMinute = requestMetrics.totalRequests / (elapsedSeconds / 60);
-  const statusBreakdown = Object.entries(requestMetrics.statusCounts)
-    .sort((a, b) => Number(a[0]) - Number(b[0]))
-    .map(([status, count]) => `${status}:${count}`)
-    .join(', ');
-
-  return {
-    elapsed_seconds: Number(elapsedSeconds.toFixed(2)),
-    total_http_requests: requestMetrics.totalRequests,
-    successful_http_requests: requestMetrics.successRequests,
-    failed_http_requests: requestMetrics.failedRequests,
-    http_requests_per_minute: Number(requestsPerMinute.toFixed(2)),
-    status_breakdown: statusBreakdown,
-  };
-}
-
 function parseArgs(argv) {
   const options = {
     skus: [],
@@ -97,13 +33,13 @@ function parseArgs(argv) {
     jjPrefix: null,
     brandName: null,
     limit: null,
-    concurrency: toPositiveInt(process.env.AUDIT_CAD_US_CONCURRENCY, 2),
-    maxRequestsPerMinute: toPositiveInt(process.env.AUDIT_CAD_US_MAX_RPM, 60),
+    concurrency: 10,
     cadStoreCode: process.env.MAGENTO_CAD_STORE_CODE || 'default',
     usStoreCode: process.env.MAGENTO_US_STORE_CODE || 'us_sv',
     cadStatus: 2,
     usStatus: 1,
     output: null,
+    excludeSkus: normalizeSkuList((process.env.CAD_DISABLED_US_ENABLED_EXCLUDE_SKUS || '').split(',')),
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -123,8 +59,6 @@ function parseArgs(argv) {
       options.limit = Number(argv[++i]);
     } else if (arg === '--concurrency' && argv[i + 1]) {
       options.concurrency = Number(argv[++i]);
-    } else if ((arg === '--max-requests-per-minute' || arg === '--max-rpm') && argv[i + 1]) {
-      options.maxRequestsPerMinute = Number(argv[++i]);
     } else if (arg === '--cad-store-code' && argv[i + 1]) {
       options.cadStoreCode = argv[++i];
     } else if (arg === '--us-store-code' && argv[i + 1]) {
@@ -135,10 +69,15 @@ function parseArgs(argv) {
       options.usStatus = Number(argv[++i]);
     } else if (arg === '--output' && argv[i + 1]) {
       options.output = argv[++i];
+    } else if (arg === '--exclude-sku' && argv[i + 1]) {
+      options.excludeSkus.push(argv[++i]);
+    } else if (arg === '--exclude-skus' && argv[i + 1]) {
+      options.excludeSkus.push(...argv[++i].split(','));
     }
   }
 
   options.skus = normalizeSkuList(options.skus);
+  options.excludeSkus = normalizeSkuList(options.excludeSkus);
   return options;
 }
 
@@ -175,11 +114,17 @@ function readSkusFromFile(filePath) {
   );
 }
 
+function filterExcludedSkus(skus, excludeSkus) {
+  const excluded = new Set(excludeSkus.map((sku) => sku.toUpperCase()));
+  if (excluded.size === 0) return skus;
+  return skus.filter((sku) => !excluded.has(String(sku).toUpperCase()));
+}
+
 async function getCandidateSkus(options) {
-  const directSkus = normalizeSkuList([
+  const directSkus = filterExcludedSkus(normalizeSkuList([
     ...options.skus,
     ...(options.file ? readSkusFromFile(options.file) : []),
-  ]);
+  ]), options.excludeSkus);
 
   if (directSkus.length > 0) {
     return directSkus.slice(0, options.limit || directSkus.length);
@@ -212,7 +157,8 @@ async function getCandidateSkus(options) {
     ...(options.limit ? { take: options.limit } : {}),
   });
 
-  return products.map((product) => product.sku);
+  const skus = filterExcludedSkus(products.map((product) => product.sku), options.excludeSkus);
+  return skus.slice(0, options.limit || skus.length);
 }
 
 function buildMagentoRequestConfig() {
@@ -229,19 +175,13 @@ async function fetchMagentoStatus(sku, storeCode) {
   const endpoint = `${MAGENTO_CONFIG.baseUrl.replace(/\/$/, '')}/rest/${storeCode}/V1/products/${encodeURIComponent(sku)}?fields=sku,status`;
 
   try {
-    if (requestGate) {
-      await requestGate.waitTurn();
-    }
-
     const response = await axios.get(endpoint, buildMagentoRequestConfig());
-    trackRequest(response.status, true);
     return {
       success: true,
       status: Number(response.data?.status),
       statusCode: response.status,
     };
   } catch (error) {
-    trackRequest(error.response?.status || null, false);
     return {
       success: false,
       status: null,
@@ -339,13 +279,14 @@ function printUsage() {
   console.log('  --jj-prefix <code>        Load candidate SKUs from Product.jj_prefix.');
   console.log('  --brand <name>            Load candidate SKUs from Product.brand_name.');
   console.log('  --limit <number>          Limit candidate SKUs.');
-  console.log('  --concurrency <number>    Concurrent SKU checks (default: 2).');
-  console.log('  --max-requests-per-minute <number>  Global Magento GET cap across all workers (default: 60).');
+  console.log('  --concurrency <number>    Concurrent SKU checks (default: 10).');
   console.log('  --cad-store-code <code>   Magento CAD store code (default: default).');
   console.log('  --us-store-code <code>    Magento US store code (default: us_sv).');
   console.log('  --cad-status <number>     CAD status to flag (default: 2).');
   console.log('  --us-status <number>      US status to flag (default: 1).');
   console.log('  --output <path>           CSV output path.');
+  console.log('  --exclude-sku <sku>       Exclude one SKU. Can be repeated.');
+  console.log('  --exclude-skus <a,b,c>    Exclude comma-separated SKUs.');
   console.log('');
   console.log('If no SKU, file, prefix, or brand is provided, candidates default to local Product.status = 2.');
 }
@@ -367,15 +308,9 @@ async function main() {
     throw new Error('Invalid --concurrency. Expected integer >= 1.');
   }
 
-  if (!Number.isInteger(options.maxRequestsPerMinute) || options.maxRequestsPerMinute < 1) {
-    throw new Error('Invalid --max-requests-per-minute. Expected integer >= 1.');
-  }
-
   if (!Number.isInteger(options.cadStatus) || !Number.isInteger(options.usStatus)) {
     throw new Error('Invalid status value. Expected integer Magento status codes.');
   }
-
-  requestGate = createRequestGate(options.maxRequestsPerMinute);
 
   const skus = await getCandidateSkus(options);
   console.log(`Candidate SKUs: ${skus.length}`);
@@ -387,20 +322,16 @@ async function main() {
 
   console.log(`CAD store code: ${options.cadStoreCode}; flag status: ${options.cadStatus}`);
   console.log(`US store code: ${options.usStoreCode}; flag status: ${options.usStatus}`);
-  console.log(
-    `Rate limit: max ${requestGate.rpm} GET/min (${requestGate.intervalMs}ms spacing), concurrency=${options.concurrency}`
-  );
+  if (options.excludeSkus.length > 0) {
+    console.log(`Excluded SKUs: ${options.excludeSkus.join(', ')}`);
+  }
 
   const rows = await processInChunks(skus, options);
   const mismatches = rows.filter((row) => row.is_cad_disabled_us_enabled);
   const failures = rows.filter((row) => !row.cad_success || !row.us_success);
-  const requestSummary = buildRequestMetricsSummary();
   const outputPath = buildOutputPath(options.output);
 
   writeCsv(rows, outputPath);
-
-  console.log(`HTTP requests: ${requestSummary.total_http_requests} total (${requestSummary.http_requests_per_minute} req/min)`);
-  console.log(`HTTP status breakdown: ${requestSummary.status_breakdown || 'none'}`);
 
   console.log(
     JSON.stringify(
@@ -409,7 +340,7 @@ async function main() {
         checked_count: rows.length,
         cad_disabled_us_enabled_count: mismatches.length,
         api_failure_count: failures.length,
-        request_summary: requestSummary,
+        excluded_skus: options.excludeSkus,
         sample_matches: mismatches.slice(0, 20).map((row) => row.sku),
       },
       null,
