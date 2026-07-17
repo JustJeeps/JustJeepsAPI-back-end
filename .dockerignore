@@ -63,11 +63,17 @@ docker-compose*.yml
 !prisma/seeds/api-calls/tireInvPriceData.csv
 !prisma/seeds/api-calls/wheelInvPriceData.csv
 *.xlsx
+**/*.xlsx
 !prisma/seeds/api-calls/CTPENT_Inventory.xlsx
 !prisma/seeds/api-calls/KeyParts-price-file.xlsx
 !prisma/seeds/api-calls/WARN-MAP.xlsx
 !prisma/seeds/api-calls/pricingSheet_quad.xlsx
 !prisma/seeds/api-calls/quadratec_wholesale.xlsx
 *.xls
+**/*.xls
 *.sql.gz
 mydb.dump
+
+# Generated output folders (runtime artifacts, not needed in image)
+reports/
+pricing_update/**/reports/
