@@ -137,18 +137,18 @@ function getCronJobDefinitions() {
 		{
 			enabled: magentoAttributesPriorityEnabled,
 			schedule: magentoAttributesPrioritySchedule,
-			command: 'magento-attributes-priority',
-			jobName: 'Magento Attributes Priority Sync',
-			logPrefix: 'Magento attributes priority sync',
-			reportLogFile: 'logs/magento-attributes-priority.log',
+			command: 'magento-attributes-daily',
+			jobName: 'Magento Attributes Daily Sync (Rough Country + KeyParts)',
+			logPrefix: 'Magento attributes daily sync',
+			reportLogFile: 'logs/magento-attributes-daily.log',
 		},
 		{
 			enabled: magentoAttributesRoughEnabled,
 			schedule: magentoAttributesRoughSchedule,
-			command: 'magento-attributes-rough',
-			jobName: 'Magento Attributes Rough Country Sync',
-			logPrefix: 'Magento attributes Rough Country sync',
-			reportLogFile: 'logs/magento-attributes-rough.log',
+			command: 'magento-attributes-weekly',
+			jobName: 'Magento Attributes Weekly Sync (Omix + AEV + MetalCloak)',
+			logPrefix: 'Magento attributes weekly sync',
+			reportLogFile: 'logs/magento-attributes-weekly.log',
 		},
 	];
 
