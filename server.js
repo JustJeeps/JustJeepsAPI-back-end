@@ -4578,19 +4578,60 @@ function buildSingleResult({ command, success, durationMs, logFile, error }) {
 	}];
 }
 
-function finalizeLogStream(logStream, trailer) {
-	if (!logStream) return Promise.resolve();
+function createCronLogWriter({ resolvedLogFile, jobName, command }) {
+	if (!resolvedLogFile) return null;
 
-	return new Promise((resolve) => {
-		const finish = () => resolve();
-		logStream.once('finish', finish);
-		logStream.once('error', finish);
-		if (trailer) {
-			logStream.end(trailer);
-		} else {
-			logStream.end();
-		}
+	let failed = false;
+	let stream = null;
+
+	try {
+		fs.mkdirSync(path.dirname(resolvedLogFile), { recursive: true });
+		stream = fs.createWriteStream(resolvedLogFile, { flags: 'a' });
+	} catch (error) {
+		logger.error('Failed to open cron log file', {
+			jobName,
+			command,
+			logFile: resolvedLogFile,
+			error: error.message,
+		});
+		return null;
+	}
+
+	stream.on('error', (error) => {
+		failed = true;
+		logger.error('Cron log stream error; continuing without file logging', {
+			jobName,
+			command,
+			logFile: resolvedLogFile,
+			error: error.message,
+		});
 	});
+
+	return {
+		write(chunk) {
+			if (failed || !stream || stream.destroyed) return;
+			stream.write(chunk);
+		},
+		end(trailer) {
+			if (failed || !stream || stream.destroyed) return Promise.resolve();
+
+			return new Promise((resolve) => {
+				const finish = () => resolve();
+				stream.once('finish', finish);
+				stream.once('error', finish);
+				if (trailer) {
+					stream.end(trailer);
+				} else {
+					stream.end();
+				}
+			});
+		},
+	};
+}
+
+function finalizeLogStream(logWriter, trailer) {
+	if (!logWriter) return Promise.resolve();
+	return logWriter.end(trailer);
 }
 
 async function deliverCronNotification({
@@ -4764,10 +4805,8 @@ function registerCommandCronJob({
 		console.log(`🕐 [CRON] Starting ${jobName} with command "npm run ${command}" on schedule ${schedule} (${cronTimezone})...`);
 
 		const resolvedLogFile = reportLogFile ? path.resolve(__dirname, reportLogFile) : null;
-		let logStream = null;
-		if (resolvedLogFile) {
-			fs.mkdirSync(path.dirname(resolvedLogFile), { recursive: true });
-			logStream = fs.createWriteStream(resolvedLogFile, { flags: 'a' });
+		const logStream = createCronLogWriter({ resolvedLogFile, jobName, command });
+		if (logStream) {
 			logStream.write(`\n${'='.repeat(80)}\n`);
 			logStream.write(`[${new Date().toISOString()}] Starting ${jobName} (npm run ${command})\n`);
 		}
