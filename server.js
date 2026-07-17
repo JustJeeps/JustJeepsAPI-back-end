@@ -34,6 +34,7 @@ const { getWheelProsSkus, makeApiRequestsInChunks } = require('./prisma/seeds/ap
 
 const cronEnabled = process.env.CRON_ENABLED !== 'false';
 const cronTimezone = process.env.CRON_TIMEZONE || 'America/Toronto';
+const commandCronNotifyOnSuccess = process.env.CRON_COMMAND_NOTIFY_ON_SUCCESS !== 'false';
 const dailySeedEnabled = process.env.CRON_SEED_ALL_ENABLED !== 'false';
 const dailySeedSchedule = process.env.CRON_SEED_ALL_SCHEDULE || '0 6,19 * * *';
 const allProductsSeedEnabled = process.env.CRON_SEED_ALL_PRODUCTS_ENABLED !== 'false';
@@ -56,6 +57,9 @@ const testCronSchedule = process.env.CRON_TEST_SCHEDULE || '*/5 * * * *';
 const testCronCommand = process.env.CRON_TEST_COMMAND || 'seed-tdot';
 const testCronJobName = process.env.CRON_TEST_JOB_NAME || 'Cron Test Job';
 const testCronLogFile = process.env.CRON_TEST_LOG_FILE || `prisma/seeds/logs/${testCronCommand}.log`;
+const testCronNotifyOnSuccess = process.env.CRON_TEST_NOTIFY_ON_SUCCESS
+	? process.env.CRON_TEST_NOTIFY_ON_SUCCESS !== 'false'
+	: commandCronNotifyOnSuccess;
 const cancellationReportEnabled = process.env.CRON_CANCELLATION_REPORT_ENABLED !== 'false';
 const cancellationReportSchedule = process.env.CRON_CANCELLATION_REPORT_SCHEDULE || '59 23 * * *';
 const cancellationReportTimezone = process.env.CRON_CANCELLATION_REPORT_TIMEZONE || cronTimezone;
@@ -65,6 +69,9 @@ const skuStatusReportTimezone = process.env.CRON_SKU_STATUS_REPORT_TIMEZONE || c
 const skuStatusWeeklyReportEnabled = process.env.CRON_SKU_STATUS_WEEKLY_REPORT_ENABLED !== 'false';
 const skuStatusWeeklyReportSchedule = process.env.CRON_SKU_STATUS_WEEKLY_REPORT_SCHEDULE || '0 18 * * 5';
 const skuStatusWeeklyReportTimezone = process.env.CRON_SKU_STATUS_WEEKLY_REPORT_TIMEZONE || skuStatusReportTimezone;
+const cronDigestEnabled = process.env.CRON_DIGEST_ENABLED === 'true';
+const cronDigestSchedule = process.env.CRON_DIGEST_SCHEDULE || '10 0 * * *';
+const cronDigestTimezone = process.env.CRON_DIGEST_TIMEZONE || cronTimezone;
 const cronChildTimeoutMs = Number(process.env.CRON_CHILD_TIMEOUT_MS || 10 * 60 * 60 * 1000);
 const cronChildKillGraceMs = Number(process.env.CRON_CHILD_KILL_GRACE_MS || 10000);
 
@@ -182,10 +189,16 @@ function getCronJobDefinitions() {
 			jobName: testCronJobName,
 			logPrefix: testCronJobName,
 			reportLogFile: testCronLogFile,
+			notifyOnSuccess: testCronNotifyOnSuccess,
 		});
 	}
 
-	return jobs.filter((job) => job.enabled !== false);
+	return jobs
+		.filter((job) => job.enabled !== false)
+		.map((job) => ({
+			notifyOnSuccess: commandCronNotifyOnSuccess,
+			...job,
+		}));
 }
 
 function getReportCronJobDefinitions() {
@@ -216,6 +229,15 @@ function getReportCronJobDefinitions() {
 			logPrefix: 'Weekly SKU status change report',
 			reportLogFile: 'logs/report-sku-status-weekly.log',
 			timezone: skuStatusWeeklyReportTimezone,
+		},
+		{
+			enabled: cronDigestEnabled,
+			schedule: cronDigestSchedule,
+			command: 'report-cron-digest-daily',
+			jobName: 'Daily Cron Activity Digest',
+			logPrefix: 'Daily cron activity digest',
+			reportLogFile: 'logs/report-cron-digest-daily.log',
+			timezone: cronDigestTimezone,
 		},
 	].filter((job) => job.enabled !== false);
 }
@@ -1116,6 +1138,83 @@ function recordCronRunHistory({
 		failedResults: Array.isArray(failedResults) ? failedResults : [],
 		createdAt: new Date().toISOString(),
 	});
+}
+
+function buildCronDigestResults({ lookbackHours = 24 } = {}) {
+	const cutoff = Date.now() - (lookbackHours * 60 * 60 * 1000);
+	const entries = readCronHistoryEntries()
+		.filter((entry) => entry.command !== 'report-cron-digest-daily')
+		.filter((entry) => {
+			const timestamp = new Date(entry.finishedAt || entry.startedAt || entry.createdAt || 0).getTime();
+			return Number.isFinite(timestamp) && timestamp >= cutoff;
+		});
+
+	if (entries.length === 0) {
+		return [{
+			cmd: 'No cron runs recorded',
+			success: true,
+			durationMs: null,
+			logFile: null,
+			error: null,
+			logExcerpt: `No cron history entries were recorded in the last ${lookbackHours} hours.`,
+		}];
+	}
+
+	const summaries = new Map();
+
+	for (const entry of entries) {
+		const key = entry.command || 'unknown';
+		const current = summaries.get(key) || {
+			command: key,
+			jobName: entry.jobName || key,
+			total: 0,
+			success: 0,
+			failed: 0,
+			skipped: 0,
+			interrupted: 0,
+			durationMs: 0,
+			errors: [],
+		};
+
+		current.total += 1;
+		if (entry.status === 'success') current.success += 1;
+		else if (entry.status === 'skipped') current.skipped += 1;
+		else if (entry.status === 'interrupted') current.interrupted += 1;
+		else current.failed += 1;
+
+		if (Number.isFinite(entry.durationMs)) {
+			current.durationMs += entry.durationMs;
+		}
+
+		if (entry.error) {
+			current.errors.push(entry.error);
+		}
+
+		summaries.set(key, current);
+	}
+
+	return Array.from(summaries.values())
+		.sort((left, right) => left.jobName.localeCompare(right.jobName))
+		.map((summary) => {
+			const hasFailures = summary.failed > 0 || summary.interrupted > 0;
+			const statusLine = [
+				`${summary.success} succeeded`,
+				`${summary.failed} failed`,
+				`${summary.skipped} skipped`,
+				`${summary.interrupted} interrupted`,
+			].join(', ');
+
+			return {
+				cmd: `${summary.jobName} (${summary.total} runs)`,
+				success: !hasFailures,
+				durationMs: summary.durationMs || null,
+				logFile: null,
+				error: hasFailures
+					? summary.errors.slice(0, 3).join(' | ') || 'One or more runs did not complete successfully'
+					: null,
+				logExcerpt: statusLine,
+			};
+		});
 }
 
 function deriveCronArtifacts({ reportLogFile, readSummaryFile }) {
@@ -4642,7 +4741,21 @@ async function deliverCronNotification({
 	error,
 	duration,
 	results,
+	notifyOnSuccess = true,
 }) {
+	if (success && notifyOnSuccess === false) {
+		logger.info('Cron success notification suppressed', {
+			jobName,
+			command,
+		});
+		return {
+			success: true,
+			mode: 'suppressed',
+			fallbackUsed: false,
+			message: 'Success notification suppressed by job configuration',
+		};
+	}
+
 	const hasDetailedResults = Array.isArray(results) && results.length > 0;
 	const primaryDelivery = hasDetailedResults
 		? await sendCronReport({
@@ -4733,6 +4846,7 @@ function registerCommandCronJob({
 	logPrefix,
 	reportLogFile,
 	readSummaryFile,
+	notifyOnSuccess = true,
 }) {
 	let isRunning = false;
 	upsertCronJobRecord(command, {
@@ -4894,6 +5008,7 @@ function registerCommandCronJob({
 							exitCode: code,
 							duration,
 							results: summary.results,
+							notifyOnSuccess,
 						});
 					} else {
 						notificationResult = await deliverCronNotification({
@@ -4908,6 +5023,7 @@ function registerCommandCronJob({
 								durationMs,
 								logFile: reportLogFile,
 							}),
+							notifyOnSuccess,
 						});
 					}
 
@@ -5438,6 +5554,91 @@ function registerCronJobs() {
 	} else {
 		logger.info('SKU status weekly report cron job disabled via CRON_SKU_STATUS_WEEKLY_REPORT_ENABLED=false');
 	}
+
+	if (cronDigestEnabled) {
+		const cronDigestCommand = 'report-cron-digest-daily';
+		const cronDigestJobName = 'Daily Cron Activity Digest';
+		let cronDigestRunning = false;
+		logger.info('Registering daily cron activity digest job', {
+			schedule: cronDigestSchedule,
+			timezone: cronDigestTimezone,
+		});
+
+		cron.schedule(cronDigestSchedule, async () => {
+			if (cronDigestRunning) {
+				markReportCronSkipped({
+					command: cronDigestCommand,
+					message: 'Previous run still in progress',
+				});
+				logger.warn('Daily cron activity digest skipped because previous run is still in progress');
+				return;
+			}
+
+			cronDigestRunning = true;
+			const startedAt = Date.now();
+			const startedAtIso = new Date(startedAt).toISOString();
+			markReportCronStarted({ command: cronDigestCommand, startedAt: startedAtIso });
+
+			try {
+				const results = buildCronDigestResults({ lookbackHours: 24 });
+				const digestSuccess = results.every((result) => result.success);
+				const durationMs = Date.now() - startedAt;
+				const durationLabel = formatDuration(startedAt);
+				const delivery = await sendCronReport({
+					jobName: cronDigestJobName,
+					success: digestSuccess,
+					exitCode: digestSuccess ? 0 : 1,
+					duration: durationLabel,
+					results,
+				});
+
+				if (!delivery?.success) {
+					throw new Error(delivery?.error || delivery?.message || 'Failed to send daily cron activity digest');
+				}
+
+				const finishedAt = new Date().toISOString();
+				markReportCronFinished({
+					command: cronDigestCommand,
+					jobName: cronDigestJobName,
+					startedAt: startedAtIso,
+					finishedAt,
+					durationMs,
+					durationLabel,
+					status: 'success',
+					summary: summarizeCronResults(results),
+				});
+				logger.info('Daily cron activity digest email sent', {
+					results: results.length,
+					duration: durationLabel,
+				});
+			} catch (error) {
+				const finishedAt = new Date().toISOString();
+				const durationMs = Date.now() - startedAt;
+				const durationLabel = formatDuration(startedAt);
+				markReportCronFinished({
+					command: cronDigestCommand,
+					jobName: cronDigestJobName,
+					startedAt: startedAtIso,
+					finishedAt,
+					durationMs,
+					durationLabel,
+					status: 'failed',
+					error: error.message,
+				});
+				logger.error('Failed to send daily cron activity digest email', {
+					error: error.message,
+					duration: durationLabel,
+				});
+			} finally {
+				cronDigestRunning = false;
+			}
+		}, {
+			scheduled: true,
+			timezone: cronDigestTimezone,
+		});
+	} else {
+		logger.info('Daily cron activity digest disabled via CRON_DIGEST_ENABLED=false');
+	}
 }
 
 backfillSkuStatusHistoryFromFileToDatabase().catch((error) => {
@@ -5478,6 +5679,11 @@ app.listen(PORT, () => {
 		if (skuStatusWeeklyReportEnabled) {
 			console.log(
 				`🕐 [CRON] Weekly SKU status report scheduled for ${skuStatusWeeklyReportSchedule} (${skuStatusWeeklyReportTimezone})`
+			);
+		}
+		if (cronDigestEnabled) {
+			console.log(
+				`🕐 [CRON] Daily cron activity digest scheduled for ${cronDigestSchedule} (${cronDigestTimezone})`
 			);
 		}
 	} else {
