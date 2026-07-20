@@ -1,40 +1,45 @@
-const fs = require('fs');
 const path = require('path');
-const { parse } = require('csv-parse/sync');
+const prisma = require('../lib/prisma');
+const {
+  nonEmpty,
+  normalizeText,
+  normalizePhone,
+  normalizePhoneVariants,
+  hasPhoneMatch,
+  isPhoneLikeQuery,
+  normalizeCode,
+  toUpperCode,
+  escapeLikePattern,
+  buildAddress,
+  getPreferredCustomerName,
+  computeYearsAsCustomer,
+  buildFraudIndicators,
+  calculateStats,
+  loadCustomers,
+  loadTransactions,
+  buildSearchResultFromRow,
+  buildDetailResponseFromRow,
+} = require('./quickbooksCustomerData');
 
-const CUSTOMER_CSV_PATH = path.resolve(
-  __dirname,
-  '..',
-  'QuickBooks Project',
-  'customers',
-  'customers_qb_desktop.csv'
-);
+// Diretorio dos CSVs: configuravel porque o path legado tem espaco no nome, o
+// que quebra o volume mount do Kamal (docker run sem quoting). Em producao,
+// QB_LOOKUP_DATA_DIR aponta para /data/quickbooks-customers (volume inbox).
+const QB_LOOKUP_DATA_DIR = process.env.QB_LOOKUP_DATA_DIR
+  || path.resolve(__dirname, '..', 'QuickBooks Project', 'customers');
 
-const TRANSACTION_CSV_PATH = path.resolve(
-  __dirname,
-  '..',
-  'QuickBooks Project',
-  'customers',
-  'transactions_per_customer.csv'
-);
+const CUSTOMER_CSV_PATH = path.join(QB_LOOKUP_DATA_DIR, 'customers_qb_desktop.csv');
+const TRANSACTION_CSV_PATH = path.join(QB_LOOKUP_DATA_DIR, 'transactions_per_customer.csv');
 
-const ACTIVE_TYPES = new Set([
-  'Invoice',
-  'Payment',
-  'Credit Memo',
-  'Sales Receipt',
-  'Cheque',
-  'Credit Card Refund',
-  'Credit Card Charge',
-  'Credit Card Credit',
-  'General Journal',
-  'Sales Order',
-  'Estimate',
-]);
+// Fonte dos dados: 'csv' (cache em memoria, legado) ou 'db' (Postgres,
+// populado pelo seed-quickbooks-customers). Lido a cada chamada para permitir
+// flip sem rebuild.
+function isDbSource() {
+  return String(process.env.QB_LOOKUP_SOURCE || 'csv').toLowerCase() === 'db';
+}
 
-const PURCHASE_TYPES = new Set(['Invoice', 'Sales Receipt']);
-const PAYMENT_TYPES = new Set(['Payment', 'Cheque', 'Credit Card Charge', 'Sales Receipt']);
-const CREDIT_TYPES = new Set(['Credit Memo', 'Credit Card Refund', 'Credit Card Credit']);
+// ---------------------------------------------------------------------------
+// Modo csv (legado): cache em memoria carregado dos CSVs.
+// ---------------------------------------------------------------------------
 
 const cache = {
   loaded: false,
@@ -46,406 +51,11 @@ const cache = {
   errors: [],
 };
 
-function nonEmpty(value) {
-  return String(value || '').trim();
-}
-
-function normalizeText(value) {
-  return nonEmpty(value)
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function normalizePhone(value) {
-  return nonEmpty(value).replace(/\D/g, '');
-}
-
-function normalizeDisplayPhone(value) {
-  const raw = nonEmpty(value);
-  if (!raw) return '';
-
-  const lowered = raw.toLowerCase();
-  if (lowered === '-' || lowered === '--' || lowered === 'n/a' || lowered === 'na') {
-    return '';
-  }
-
-  return raw;
-}
-
-function normalizePhoneVariants(digits) {
-  const raw = nonEmpty(digits).replace(/\D/g, '');
-  if (!raw) return [];
-
-  const variants = new Set([raw]);
-
-  // Normalize North American prefix variations (1 + 10-digit number).
-  if (raw.length === 11 && raw.startsWith('1')) {
-    variants.add(raw.slice(1));
-  }
-  if (raw.length === 10) {
-    variants.add(`1${raw}`);
-  }
-
-  return [...variants];
-}
-
-function extractPhoneCandidates(text) {
-  const source = nonEmpty(text);
-  if (!source) return [];
-
-  const formattedMatches = source.match(/(?:\+?1[\s.\-]?)?(?:\(?\d{3}\)?[\s.\-]?)\d{3}[\s.\-]?\d{4}/g) || [];
-  const compactMatches = source.match(/\b(?:1\d{10}|\d{10})\b/g) || [];
-  const matches = [...formattedMatches, ...compactMatches];
-  if (!matches.length) return [];
-
-  return matches
-    .map((match) => normalizePhone(match))
-    .filter((digits) => digits.length >= 10);
-}
-
-function extractDisplayPhoneFromText(text) {
-  const source = nonEmpty(text);
-  if (!source) return '';
-
-  const formattedMatches = source.match(/(?:\+?1[\s.\-]?)?(?:\(?\d{3}\)?[\s.\-]?)\d{3}[\s.\-]?\d{4}/g) || [];
-  const compactMatches = source.match(/\b(?:1\d{10}|\d{10})\b/g) || [];
-  const matches = [...formattedMatches, ...compactMatches];
-  if (!matches || !matches.length) return '';
-
-  // Prefer the last matched phone sequence because Invoice To often ends with phone.
-  return nonEmpty(matches[matches.length - 1]);
-}
-
-function buildPhoneSearchDigits(mainPhone, invoiceToAddress) {
-  const candidates = new Set();
-
-  const addWithVariants = (digits) => {
-    normalizePhoneVariants(digits).forEach((variant) => {
-      if (variant.length >= 10) {
-        candidates.add(variant);
-      }
-    });
-  };
-
-  addWithVariants(normalizePhone(mainPhone));
-  extractPhoneCandidates(invoiceToAddress).forEach(addWithVariants);
-
-  return [...candidates];
-}
-
-function hasPhoneMatch(customer, queryDigits) {
-  const variants = normalizePhoneVariants(queryDigits);
-  if (!variants.length) return false;
-
-  const searchable = Array.isArray(customer.phoneSearchDigits)
-    ? customer.phoneSearchDigits
-    : customer.phoneDigits
-      ? normalizePhoneVariants(customer.phoneDigits)
-      : [];
-
-  if (!searchable.length) return false;
-
-  return variants.some((queryVariant) => searchable.some((storedVariant) => (
-    storedVariant.includes(queryVariant) || queryVariant.includes(storedVariant)
-  )));
-}
-
-function isPhoneLikeQuery(value) {
-  const raw = nonEmpty(value);
-  if (!raw) return false;
-
-  // If query contains letters or an email marker, treat it as non-phone input.
-  if (/[a-z@]/i.test(raw)) return false;
-
-  const digits = normalizePhone(raw);
-  // Require enough signal to avoid noisy matches like "13".
-  return digits.length >= 6;
-}
-
-function normalizeCode(value) {
-  return nonEmpty(value).toUpperCase().replace(/[^A-Z0-9]/g, '');
-}
-
-function toUpperCode(value) {
-  return nonEmpty(value).toUpperCase();
-}
-
-function parseMoney(value) {
-  const raw = nonEmpty(value);
-  if (!raw) return 0;
-
-  const isNegative = /\(.+\)/.test(raw);
-  const normalized = raw.replace(/[$,\s()]/g, '');
-  const parsed = Number(normalized);
-
-  if (!Number.isFinite(parsed)) return 0;
-  return isNegative ? -parsed : parsed;
-}
-
-function roundMoney(value) {
-  return Number((value || 0).toFixed(2));
-}
-
-function parseDate(value) {
-  const raw = nonEmpty(value);
-  if (!raw) return null;
-
-  const date = new Date(raw);
-  if (Number.isNaN(date.getTime())) return null;
-
-  return raw;
-}
-
-function idx(header, columnName) {
-  return header.findIndex((column) => nonEmpty(column) === columnName);
-}
-
-function deriveCompanyName({ invoiceTo, firstName, lastName }) {
-  const cleaned = nonEmpty(invoiceTo).replace(/^\\\s*/, '').trim();
-  if (!cleaned) return '';
-
-  const fullName = normalizeText(`${firstName} ${lastName}`);
-  const tokens = cleaned.split(/\s+/).filter(Boolean);
-
-  if (tokens.length <= 1) return cleaned;
-
-  const withoutCode = tokens.slice(1);
-  const phoneIndex = withoutCode.findIndex((token) => /\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/.test(token));
-  const cutAt = phoneIndex >= 0 ? phoneIndex : withoutCode.length;
-  const candidate = withoutCode.slice(0, cutAt).join(' ').trim();
-
-  if (!candidate) return cleaned;
-  if (fullName && normalizeText(candidate) === fullName) return '';
-
-  return candidate;
-}
-
-function getCustomerDisplayName({ firstName, lastName, invoiceTo, customerCode }) {
-  const combined = `${nonEmpty(firstName)} ${nonEmpty(lastName)}`.trim();
-  if (combined) return combined;
-
-  const derivedCompany = deriveCompanyName({ invoiceTo, firstName, lastName });
-  if (derivedCompany) return derivedCompany;
-
-  return customerCode;
-}
-
-function normalizeInvoiceToAddress(value) {
-  return nonEmpty(value).replace(/^\\\s*/, '').trim();
-}
-
-function buildAddress(customer) {
-  const parts = [
-    customer.street1,
-    customer.street2,
-    customer.city,
-    customer.province,
-    customer.postalCode,
-    customer.country,
-  ].map(nonEmpty).filter(Boolean);
-
-  return parts.join(', ');
-}
-
-function getPreferredCustomerName(customer) {
-  const fullName = `${nonEmpty(customer.firstName)} ${nonEmpty(customer.lastName)}`.trim();
-  if (fullName) return fullName;
-
-  const streetAddress = nonEmpty(customer.street1);
-  if (streetAddress) return streetAddress;
-
-  return 'no first and last name on db';
-}
-
-function safeNumber(value, fallback = 0) {
-  return Number.isFinite(value) ? value : fallback;
-}
-
-function calculateStats(transactions) {
-  const activeTransactions = transactions
-    .filter((transaction) => ACTIVE_TYPES.has(transaction.type))
-    .sort((left, right) => {
-      if (left.date && right.date) {
-        if (left.date > right.date) return 1;
-        if (left.date < right.date) return -1;
-      }
-      return 0;
-    });
-
-  const invoices = activeTransactions.filter((transaction) => PURCHASE_TYPES.has(transaction.type));
-  const payments = activeTransactions.filter((transaction) => PAYMENT_TYPES.has(transaction.type));
-  const credits = activeTransactions.filter((transaction) => CREDIT_TYPES.has(transaction.type));
-  const recentTransactions = [...activeTransactions]
-    .sort((left, right) => {
-      if (left.date && right.date) {
-        if (left.date < right.date) return 1;
-        if (left.date > right.date) return -1;
-      }
-      return 0;
-    })
-    .slice(0, 25);
-
-  const firstPurchaseDate = payments[0]?.date || null;
-  const lastPurchaseDate = payments[payments.length - 1]?.date || null;
-
-  const totalAmountPurchased = payments.reduce((sum, transaction) => sum + safeNumber(transaction.amount, 0), 0);
-  const totalCreditAmount = credits.reduce((sum, transaction) => sum + safeNumber(transaction.amount, 0), 0);
-  const lifetimeValue = totalAmountPurchased - totalCreditAmount;
-
-  let yearsAsCustomer = 0;
-  if (firstPurchaseDate) {
-    const today = new Date();
-    const first = new Date(firstPurchaseDate);
-    const diffMs = today.getTime() - first.getTime();
-    if (Number.isFinite(diffMs) && diffMs >= 0) {
-      yearsAsCustomer = Number((diffMs / (365.25 * 24 * 60 * 60 * 1000)).toFixed(1));
-    }
-  }
-
-  const invoiceCount = invoices.length;
-  const paymentCount = payments.length;
-  const hasPurchasedBefore = paymentCount > 0;
-  // A first-time customer should represent a single completed purchase event,
-  // even if it is paid in multiple transactions.
-  const isFirstTimeCustomer = invoiceCount === 1 && hasPurchasedBefore;
-  const hasSignificantHistory = paymentCount >= 5;
-
-  return {
-    hasPurchasedBefore,
-    invoiceCount,
-    paymentCount,
-    totalAmountPurchased: roundMoney(totalAmountPurchased),
-    firstPurchaseDate,
-    lastPurchaseDate,
-    lifetimeValue: roundMoney(lifetimeValue),
-    yearsAsCustomer,
-    totalCreditAmount: roundMoney(totalCreditAmount),
-    fraudIndicators: {
-      noPurchaseHistory: !hasPurchasedBefore,
-      firstTimeCustomer: isFirstTimeCustomer,
-      significantPurchaseHistory: hasSignificantHistory,
-      yearsAsCustomer,
-    },
-    recentTransactions,
-    transactionCount: activeTransactions.length,
-  };
-}
-
-function loadCustomers() {
-  const raw = fs.readFileSync(CUSTOMER_CSV_PATH, 'utf8');
-  const records = parse(raw, { relax_column_count: true });
-  const header = records[0] || [];
-
-  const customerIndex = idx(header, 'Customer');
-  const invoiceToIndex = idx(header, 'Invoice to');
-  const emailIndex = idx(header, 'Main Email');
-  const firstNameIndex = idx(header, 'First Name');
-  const lastNameIndex = idx(header, 'Last Name');
-  const phoneIndex = idx(header, 'Main Phone');
-  const balanceIndex = idx(header, 'Balance Total');
-  const street1Index = idx(header, 'Street1');
-  const street2Index = idx(header, 'Street2');
-  const cityIndex = idx(header, 'City');
-  const provinceIndex = idx(header, 'Province');
-  const postalCodeIndex = idx(header, 'Postal Code');
-  const countryIndex = idx(header, 'Country');
-
-  return records.slice(1)
-    .filter((row) => row.some((value) => nonEmpty(value)))
-    .map((row) => {
-      const customerCode = toUpperCode(row[customerIndex]);
-      const invoiceTo = nonEmpty(row[invoiceToIndex]);
-      const invoiceToAddress = normalizeInvoiceToAddress(row[invoiceToIndex]);
-      const mainPhone = normalizeDisplayPhone(row[phoneIndex]);
-      const fallbackPhone = extractDisplayPhoneFromText(invoiceToAddress);
-      const resolvedPhone = mainPhone || fallbackPhone;
-      const firstName = nonEmpty(row[firstNameIndex]);
-      const lastName = nonEmpty(row[lastNameIndex]);
-      const companyName = deriveCompanyName({ invoiceTo, firstName, lastName });
-      const customerName = getCustomerDisplayName({
-        firstName,
-        lastName,
-        invoiceTo,
-        customerCode,
-      });
-
-      return {
-        customerCode,
-        customerName,
-        firstName,
-        lastName,
-        companyName,
-        invoiceTo,
-        invoiceToAddress,
-        email: nonEmpty(row[emailIndex]),
-        phone: resolvedPhone,
-        phoneDigits: normalizePhone(resolvedPhone),
-        phoneSearchDigits: buildPhoneSearchDigits(row[phoneIndex], invoiceToAddress),
-        balance: roundMoney(parseMoney(row[balanceIndex])),
-        street1: nonEmpty(row[street1Index]),
-        street2: nonEmpty(row[street2Index]),
-        city: nonEmpty(row[cityIndex]),
-        province: nonEmpty(row[provinceIndex]),
-        postalCode: nonEmpty(row[postalCodeIndex]),
-        country: nonEmpty(row[countryIndex]),
-      };
-    })
-    .filter((customer) => customer.customerCode);
-}
-
-function loadTransactions() {
-  const raw = fs.readFileSync(TRANSACTION_CSV_PATH, 'utf8');
-  const records = parse(raw, { relax_column_count: true });
-  const header = records[0] || [];
-
-  const typeIndex = idx(header, 'Type');
-  const dateIndex = idx(header, 'Date');
-  const numIndex = idx(header, 'Num');
-  const nameIndex = idx(header, 'Name');
-  const memoIndex = idx(header, 'Memo');
-  const accountIndex = idx(header, 'Account');
-  const debitIndex = idx(header, 'Debit');
-  const creditIndex = idx(header, 'Credit');
-
-  const grouped = new Map();
-
-  records.slice(1)
-    .filter((row) => row.some((value) => nonEmpty(value)))
-    .forEach((row) => {
-      const type = nonEmpty(row[typeIndex]);
-      const customerCode = toUpperCode(row[nameIndex]);
-
-      if (!type || !customerCode || !ACTIVE_TYPES.has(type)) {
-        return;
-      }
-
-      const debit = parseMoney(row[debitIndex]);
-      const credit = parseMoney(row[creditIndex]);
-      const amount = debit > 0 ? debit : credit;
-
-      const normalized = {
-        type,
-        date: parseDate(row[dateIndex]),
-        referenceNumber: nonEmpty(row[numIndex]),
-        memo: nonEmpty(row[memoIndex]),
-        account: nonEmpty(row[accountIndex]),
-        debit: roundMoney(debit),
-        credit: roundMoney(credit),
-        amount: roundMoney(amount),
-      };
-
-      if (!grouped.has(customerCode)) {
-        grouped.set(customerCode, []);
-      }
-
-      grouped.get(customerCode).push(normalized);
-    });
-
-  return grouped;
-}
-
 function loadDataIfNeeded({ forceReload = false } = {}) {
+  if (isDbSource()) {
+    return cache;
+  }
+
   if (cache.loaded && !forceReload) {
     return cache;
   }
@@ -453,8 +63,8 @@ function loadDataIfNeeded({ forceReload = false } = {}) {
   const nextErrors = [];
 
   try {
-    const customerRecords = loadCustomers();
-    const transactionByCustomer = loadTransactions();
+    const customerRecords = loadCustomers(CUSTOMER_CSV_PATH);
+    const transactionByCustomer = loadTransactions(TRANSACTION_CSV_PATH);
     const customerByCode = new Map();
     const customerStatsByCode = new Map();
 
@@ -481,7 +91,7 @@ function loadDataIfNeeded({ forceReload = false } = {}) {
   return cache;
 }
 
-function buildCustomerResponse(customerCode) {
+function buildCustomerResponseCsv(customerCode) {
   loadDataIfNeeded();
 
   const normalizedCode = toUpperCode(customerCode);
@@ -511,7 +121,7 @@ function buildCustomerResponse(customerCode) {
   };
 }
 
-function queryCustomers({ query = '', field = 'all', limit = 20, page = 1, sortBy = 'customerName', sortOrder = 'asc' }) {
+function queryCustomersCsv({ query = '', field = 'all', limit = 20, page = 1, sortBy = 'customerName', sortOrder = 'asc' }) {
   loadDataIfNeeded();
 
   const cleanQuery = nonEmpty(query);
@@ -622,11 +232,7 @@ function queryCustomers({ query = '', field = 'all', limit = 20, page = 1, sortB
   };
 }
 
-function searchCustomers({ query, field = 'all', limit = 20 }) {
-  return queryCustomers({ query, field, limit, page: 1 }).results;
-}
-
-function getQuickBooksLookupMeta() {
+function getQuickBooksLookupMetaCsv() {
   loadDataIfNeeded();
 
   return {
@@ -637,10 +243,207 @@ function getQuickBooksLookupMeta() {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Modo db: consultas ao Postgres (snapshot corrente = ultimo import complete).
+// ---------------------------------------------------------------------------
+
+const SORT_COLUMN_BY_FIELD = {
+  customerName: 'displayNameNorm',
+  email: 'emailNorm',
+  phone: 'phoneSortDigits',
+  lastPurchaseDate: 'lastPurchaseSortAt',
+  totalInvoices: 'invoiceCount',
+  totalPayments: 'paymentCount',
+  lifetimeValue: 'lifetimeValue',
+  address: 'addressNorm',
+  customerCode: 'codeSort',
+};
+
+async function getCurrentImportId() {
+  const current = await prisma.quickBooksImport.findFirst({
+    where: { status: 'complete' },
+    orderBy: { id: 'desc' },
+    select: { id: true },
+  });
+
+  return current ? current.id : null;
+}
+
+function emptyPage({ page, limit, sortField, direction }) {
+  return {
+    total: 0,
+    page,
+    limit,
+    sortBy: sortField,
+    sortOrder: direction === -1 ? 'desc' : 'asc',
+    results: [],
+  };
+}
+
+async function queryCustomersDb({ query = '', field = 'all', limit = 20, page = 1, sortBy = 'customerName', sortOrder = 'asc' }) {
+  const cleanQuery = nonEmpty(query);
+  const normalizedQuery = normalizeText(cleanQuery);
+  const normalizedCodeQuery = normalizeCode(cleanQuery.replace(/^code\s*:\s*/i, ''));
+  const normalizedPhone = normalizePhone(cleanQuery);
+  const canUsePhoneMatch = isPhoneLikeQuery(cleanQuery);
+  const normalizedField = nonEmpty(field).toLowerCase();
+  const maxResults = Math.max(1, Math.min(Number(limit) || 20, 100));
+  const currentPage = Math.max(1, Number(page) || 1);
+  const sortField = nonEmpty(sortBy) || 'customerName';
+  const direction = String(sortOrder).toLowerCase() === 'desc' ? -1 : 1;
+  const pageShape = { page: currentPage, limit: maxResults, sortField, direction };
+
+  const importId = await getCurrentImportId();
+  if (importId === null) {
+    return emptyPage(pageShape);
+  }
+
+  const where = { importId };
+
+  if (cleanQuery) {
+    // codeNorm e variantes de telefone sao alfanumericos puros; apenas o texto
+    // livre precisa de escape de metacaracteres LIKE.
+    const likeQuery = escapeLikePattern(normalizedQuery);
+    const phoneVariantFilters = normalizePhoneVariants(normalizedPhone)
+      .map((variant) => ({ phoneSearch: { contains: variant } }));
+
+    if (normalizedField === 'name') {
+      where.searchNameNorm = { contains: likeQuery };
+    } else if (normalizedField === 'address') {
+      where.addressNorm = { contains: likeQuery };
+    } else if (normalizedField === 'email') {
+      where.emailNorm = { contains: likeQuery };
+    } else if (normalizedField === 'phone') {
+      if (!normalizedPhone || !phoneVariantFilters.length) {
+        return emptyPage(pageShape);
+      }
+      where.OR = phoneVariantFilters;
+    } else if (normalizedField === 'code') {
+      if (!normalizedCodeQuery) {
+        return emptyPage(pageShape);
+      }
+      where.codeNorm = { contains: normalizedCodeQuery };
+    } else {
+      const or = [
+        { searchNameNorm: { contains: likeQuery } },
+        { addressNorm: { contains: likeQuery } },
+        { emailNorm: { contains: likeQuery } },
+      ];
+      if (canUsePhoneMatch && normalizedPhone) {
+        or.push(...phoneVariantFilters);
+      }
+      if (normalizedCodeQuery) {
+        or.push({ codeNorm: { contains: normalizedCodeQuery } });
+      }
+      where.OR = or;
+    }
+  }
+
+  const sortColumn = SORT_COLUMN_BY_FIELD[sortField] || 'displayNameNorm';
+  const orderBy = [
+    { [sortColumn]: direction === -1 ? 'desc' : 'asc' },
+    { customerCode: 'asc' },
+  ];
+
+  const [rows, total] = await Promise.all([
+    prisma.quickBooksCustomer.findMany({
+      where,
+      orderBy,
+      skip: (currentPage - 1) * maxResults,
+      take: maxResults,
+    }),
+    prisma.quickBooksCustomer.count({ where }),
+  ]);
+
+  return {
+    total,
+    page: currentPage,
+    limit: maxResults,
+    sortBy: sortField,
+    sortOrder: direction === -1 ? 'desc' : 'asc',
+    results: rows.map(buildSearchResultFromRow),
+  };
+}
+
+async function buildCustomerResponseDb(customerCode) {
+  const importId = await getCurrentImportId();
+  if (importId === null) return null;
+
+  const row = await prisma.quickBooksCustomer.findUnique({
+    where: {
+      importId_customerCode: {
+        importId,
+        customerCode: toUpperCode(customerCode),
+      },
+    },
+  });
+
+  if (!row) return null;
+
+  return buildDetailResponseFromRow(row);
+}
+
+async function getQuickBooksLookupMetaDb() {
+  const current = await prisma.quickBooksImport.findFirst({
+    where: { status: 'complete' },
+    orderBy: { id: 'desc' },
+  });
+
+  if (!current) {
+    return {
+      loadedAt: null,
+      customers: 0,
+      transactionsGroupedCustomers: 0,
+      errors: ['No QuickBooks import found'],
+      lastImportAt: null,
+      sourceExportedAt: null,
+      ageDays: null,
+    };
+  }
+
+  const freshnessReference = current.sourceExportedAt || current.importedAt;
+  const ageDays = Number(((Date.now() - freshnessReference.getTime()) / 86400000).toFixed(1));
+
+  return {
+    loadedAt: current.importedAt.toISOString(),
+    customers: current.customers,
+    transactionsGroupedCustomers: current.transactionsGroupedCustomers,
+    errors: current.errors || [],
+    lastImportAt: current.importedAt.toISOString(),
+    sourceExportedAt: current.sourceExportedAt ? current.sourceExportedAt.toISOString() : null,
+    ageDays,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// API publica (nomes preservados; handlers do server.js fazem await, que
+// funciona tanto para os retornos sincronos do csv quanto para as Promises do db).
+// ---------------------------------------------------------------------------
+
+function queryCustomers(params) {
+  return isDbSource() ? queryCustomersDb(params) : queryCustomersCsv(params);
+}
+
+async function searchCustomers({ query, field = 'all', limit = 20 }) {
+  const payload = await queryCustomers({ query, field, limit, page: 1 });
+  return payload.results;
+}
+
+function buildCustomerResponse(customerCode) {
+  return isDbSource() ? buildCustomerResponseDb(customerCode) : buildCustomerResponseCsv(customerCode);
+}
+
+function getQuickBooksLookupMeta() {
+  return isDbSource() ? getQuickBooksLookupMetaDb() : getQuickBooksLookupMetaCsv();
+}
+
 module.exports = {
   loadDataIfNeeded,
   queryCustomers,
   searchCustomers,
   buildCustomerResponse,
   getQuickBooksLookupMeta,
+  isDbSource,
+  CUSTOMER_CSV_PATH,
+  TRANSACTION_CSV_PATH,
 };

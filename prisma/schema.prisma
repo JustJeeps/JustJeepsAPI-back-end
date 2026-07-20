@@ -274,3 +274,77 @@ model CompetitorProduct {
   competitor       Competitor @relation(fields: [competitor_id], references: [id])
   product          Product    @relation(fields: [product_sku], references: [sku], onDelete: Cascade)
 }
+
+model QuickBooksImport {
+  id                           Int       @id @default(autoincrement())
+  importedAt                   DateTime  @default(now())
+  sourceExportedAt             DateTime?
+  status                       String    @default("pending")
+  customers                    Int       @default(0)
+  transactionsGroupedCustomers Int       @default(0)
+  errors                       Json?
+
+  @@index([status, id])
+}
+
+model QuickBooksCustomer {
+  id                   Int      @id @default(autoincrement())
+  importId             Int
+  customerCode         String
+
+  // Campos crus do CSV (reproduzem o spread do details verbatim)
+  searchName           String   @default("")
+  firstName            String   @default("")
+  lastName             String   @default("")
+  companyName          String   @default("")
+  invoiceTo            String   @default("")
+  invoiceToAddress     String   @default("")
+  email                String   @default("")
+  phone                String   @default("")
+  phoneDigits          String   @default("")
+  balance              Float    @default(0)
+  street1              String   @default("")
+  street2              String   @default("")
+  city                 String   @default("")
+  province             String   @default("")
+  postalCode           String   @default("")
+  country              String   @default("")
+
+  // Derivados de exibicao
+  displayName          String   @default("")
+  address              String   @default("")
+
+  // Chaves de busca/ordenacao pre-normalizadas (calculadas no import)
+  searchNameNorm       String   @default("")
+  displayNameNorm      String   @default("")
+  emailNorm            String   @default("")
+  addressNorm          String   @default("")
+  codeNorm             String   @default("")
+  codeSort             String   @default("")
+  phoneSearch          String   @default("")
+  phoneSortDigits      String   @default("")
+
+  // Stats denormalizadas (calculateStats no import)
+  hasPurchasedBefore   Boolean  @default(false)
+  invoiceCount         Int      @default(0)
+  paymentCount         Int      @default(0)
+  totalAmountPurchased Float    @default(0)
+  totalCreditAmount    Float    @default(0)
+  lifetimeValue        Float    @default(0)
+  firstPurchaseDate    String?
+  lastPurchaseDate     String?
+  lastPurchaseSortAt   DateTime
+  transactionCount     Int      @default(0)
+  recentTransactions   Json?
+
+  @@unique([importId, customerCode])
+  @@index([importId, displayNameNorm])
+  @@index([importId, emailNorm])
+  @@index([importId, addressNorm])
+  @@index([importId, lifetimeValue])
+  @@index([importId, invoiceCount])
+  @@index([importId, paymentCount])
+  @@index([importId, lastPurchaseSortAt])
+  @@index([importId, phoneSortDigits])
+  @@index([importId, codeSort])
+}

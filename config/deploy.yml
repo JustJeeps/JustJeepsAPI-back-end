@@ -104,6 +104,15 @@ env:
     CRON_DIGEST_ENABLED: "true"
     CRON_DIGEST_SCHEDULE: "10 0 * * *"
     CRON_DIGEST_TIMEZONE: America/Toronto
+    # QuickBooks customer lookup: dados servidos do Postgres (importados via
+    # seed-quickbooks-customers). "csv" = fallback legado lendo os CSVs do
+    # volume quickbooks-inbox. Ver docs/QUICKBOOKS-DATA-REFRESH.md.
+    QB_LOOKUP_SOURCE: "db"
+    QB_LOOKUP_DATA_DIR: "/data/quickbooks-customers"
+    CRON_QB_FRESHNESS_REPORT_ENABLED: "true"
+    CRON_QB_FRESHNESS_REPORT_SCHEDULE: "15 9 * * *"
+    QB_STALE_WARN_DAYS: "14"
+    QB_STALE_CRIT_DAYS: "30"
     CRON_HISTORY_LOOKBACK_DAYS: "30"
     CRON_HISTORY_RETENTION_DAYS: "90"
     CRON_LOG_TAIL_LINES: "300"
@@ -185,3 +194,11 @@ volumes:
   # dir no host com o owner do user nodejs do container (mesmo uid dos volumes
   # de logs acima): mkdir -p /var/lib/justjeeps-api/reports && chown <uid>:<gid>
   - "/var/lib/justjeeps-api/reports:/app/reports"
+  # Inbox dos exports do QuickBooks Desktop (customers_qb_desktop.csv +
+  # transactions_per_customer.csv). Montado em path SEM espaco (o docker run do
+  # Kamal nao faz quoting de volumes; "/app/QuickBooks Project/..." quebra o
+  # deploy). O service resolve via env QB_LOOKUP_DATA_DIR. Bootstrap antes do
+  # primeiro deploy: mkdir + copiar CSVs + chown no uid do nodejs. Refresh: scp
+  # dos CSVs novos para o dir no host e rodar seed-quickbooks-customers.
+  # Ver docs/QUICKBOOKS-DATA-REFRESH.md.
+  - "/var/lib/justjeeps-api/quickbooks-inbox:/data/quickbooks-customers"

@@ -26,6 +26,7 @@ const {
 	searchCustomers: searchQuickBooksCustomers,
 	buildCustomerResponse: getQuickBooksCustomerDetails,
 	getQuickBooksLookupMeta,
+	isDbSource: isQuickBooksDbSource,
 } = require('./services/quickbooksCustomerLookup');
 const seedOrders = require('./prisma/seeds/seed-individual/seed-orders.js');
 const seedOrdersAll = require('./prisma/seeds/seed-individual/seed-orders-all.js');
@@ -77,6 +78,11 @@ const {
 		cronDigestEnabled,
 		cronDigestSchedule,
 		cronDigestTimezone,
+		qbFreshnessReportEnabled,
+		qbFreshnessReportSchedule,
+		qbFreshnessReportTimezone,
+		qbStaleWarnDays,
+		qbStaleCritDays,
 		cronChildTimeoutMs,
 		cronChildKillGraceMs,
 	},
@@ -1172,17 +1178,22 @@ const authRoutes = require('./routes/auth');
 const { authenticateToken, optionalAuth } = require('./middleware/auth');
 
 function scheduleQuickBooksLookupPreload() {
+	if (isQuickBooksDbSource()) {
+		logger.info('QuickBooks lookup preload skipped: QB_LOOKUP_SOURCE=db (data served from Postgres)');
+		return;
+	}
+
 	if (!quickBooksPreloadEnabled) {
 		logger.info('QuickBooks lookup preload disabled via QB_LOOKUP_PRELOAD_ON_BOOT=false');
 		return;
 	}
 
-	setTimeout(() => {
+	setTimeout(async () => {
 		try {
 			loadQuickBooksLookupData();
-			logger.info('QuickBooks customer lookup data loaded', getQuickBooksLookupMeta());
+			logger.info('QuickBooks customer lookup data loaded', await getQuickBooksLookupMeta());
 		} catch (error) {
-			logger.warn('QuickBooks customer lookup data failed to preload', {
+			logger.error('QuickBooks customer lookup data failed to preload', {
 				error: error.message,
 			});
 		}
@@ -1279,7 +1290,7 @@ app.get('/api/data', (req, res) =>
 	})
 );
 
-app.get('/api/quickbooks/customers/search', (req, res) => {
+app.get('/api/quickbooks/customers/search', async (req, res) => {
 	try {
 		const query = req.query.q || req.query.query || '';
 		const field = req.query.field || 'all';
@@ -1288,7 +1299,7 @@ app.get('/api/quickbooks/customers/search', (req, res) => {
  		const sortBy = req.query.sortBy || 'customerName';
 		const sortOrder = req.query.sortOrder || 'asc';
 
-		const payload = queryQuickBooksCustomers({ query, field, limit, page, sortBy, sortOrder });
+		const payload = await queryQuickBooksCustomers({ query, field, limit, page, sortBy, sortOrder });
 		const results = payload.results || [];
 		return res.json({
 			query,
@@ -1309,7 +1320,7 @@ app.get('/api/quickbooks/customers/search', (req, res) => {
 	}
 });
 
-app.get('/api/quickbooks/customers/details', (req, res) => {
+app.get('/api/quickbooks/customers/details', async (req, res) => {
 	try {
 		const customerCode = String(req.query.customerCode || '').trim();
 
@@ -1317,7 +1328,7 @@ app.get('/api/quickbooks/customers/details', (req, res) => {
 			return res.status(400).json({ error: 'Missing required query parameter: customerCode' });
 		}
 
-		const customer = getQuickBooksCustomerDetails(customerCode);
+		const customer = await getQuickBooksCustomerDetails(customerCode);
 		if (!customer) {
 			return res.status(404).json({ error: 'Customer not found' });
 		}
@@ -1331,9 +1342,9 @@ app.get('/api/quickbooks/customers/details', (req, res) => {
 	}
 });
 
-app.get('/api/quickbooks/customers/meta', (req, res) => {
+app.get('/api/quickbooks/customers/meta', async (req, res) => {
 	try {
-		const meta = getQuickBooksLookupMeta();
+		const meta = await getQuickBooksLookupMeta();
 		return res.json(meta);
 	} catch (error) {
 		logger.error('QuickBooks customer meta fetch failed', {
@@ -5557,6 +5568,129 @@ function registerCronJobs() {
 		});
 	} else {
 		logger.info('Daily cron activity digest disabled via CRON_DIGEST_ENABLED=false');
+	}
+
+	if (qbFreshnessReportEnabled) {
+		const qbFreshnessCommand = 'report-quickbooks-freshness';
+		const qbFreshnessJobName = 'QuickBooks Data Freshness Check';
+		let qbFreshnessRunning = false;
+		logger.info('Registering QuickBooks data freshness check cron job', {
+			schedule: qbFreshnessReportSchedule,
+			timezone: qbFreshnessReportTimezone,
+			warnDays: qbStaleWarnDays,
+			critDays: qbStaleCritDays,
+		});
+
+		cron.schedule(qbFreshnessReportSchedule, async () => {
+			if (qbFreshnessRunning) {
+				markReportCronSkipped({
+					command: qbFreshnessCommand,
+					message: 'Previous run still in progress',
+				});
+				return;
+			}
+
+			qbFreshnessRunning = true;
+			const startedAt = Date.now();
+			const startedAtIso = new Date(startedAt).toISOString();
+			markReportCronStarted({ command: qbFreshnessCommand, startedAt: startedAtIso });
+
+			try {
+				// Idade real do snapshot: no modo db vem do import (sourceExportedAt =
+				// mtime do export); no modo csv, do mtime dos proprios arquivos.
+				let referenceIso = null;
+				if (isQuickBooksDbSource()) {
+					const meta = await getQuickBooksLookupMeta();
+					referenceIso = meta.sourceExportedAt || meta.lastImportAt || null;
+				} else {
+					const { CUSTOMER_CSV_PATH, TRANSACTION_CSV_PATH } = require('./services/quickbooksCustomerLookup');
+					const mtimes = [CUSTOMER_CSV_PATH, TRANSACTION_CSV_PATH]
+						.filter((filePath) => fs.existsSync(filePath))
+						.map((filePath) => fs.statSync(filePath).mtime.getTime());
+					referenceIso = mtimes.length ? new Date(Math.min(...mtimes)).toISOString() : null;
+				}
+
+				const ageDays = referenceIso
+					? Number(((Date.now() - Date.parse(referenceIso)) / 86400000).toFixed(1))
+					: null;
+				const level = ageDays === null
+					? 'missing'
+					: ageDays > qbStaleCritDays
+						? 'critical'
+						: ageDays > qbStaleWarnDays
+							? 'warning'
+							: 'ok';
+
+				const summary = {
+					ageDays,
+					dataAsOf: referenceIso,
+					warnDays: qbStaleWarnDays,
+					critDays: qbStaleCritDays,
+					level,
+					source: isQuickBooksDbSource() ? 'db' : 'csv',
+				};
+
+				if (level === 'ok') {
+					logger.info('QuickBooks lookup data freshness ok', summary);
+				} else {
+					const message = level === 'missing'
+						? 'QuickBooks lookup data missing: no import/CSV found'
+						: `QuickBooks lookup data is ${ageDays} days old (as of ${referenceIso})`;
+
+					if (level === 'warning') {
+						logger.warn(message, summary);
+					} else {
+						logger.error(message, summary);
+					}
+
+					await sendCronReport({
+						jobName: qbFreshnessJobName,
+						success: false,
+						exitCode: 1,
+						error: message,
+						duration: formatDuration(startedAt),
+						results: [{
+							cmd: qbFreshnessCommand,
+							success: false,
+							durationMs: Date.now() - startedAt,
+							error: `${message}. Rode a atualizacao: docs/QUICKBOOKS-DATA-REFRESH.md`,
+						}],
+					});
+				}
+
+				markReportCronFinished({
+					command: qbFreshnessCommand,
+					jobName: qbFreshnessJobName,
+					startedAt: startedAtIso,
+					finishedAt: new Date().toISOString(),
+					durationMs: Date.now() - startedAt,
+					durationLabel: formatDuration(startedAt),
+					status: level === 'ok' || level === 'warning' ? 'success' : 'failed',
+					summary,
+				});
+			} catch (error) {
+				markReportCronFinished({
+					command: qbFreshnessCommand,
+					jobName: qbFreshnessJobName,
+					startedAt: startedAtIso,
+					finishedAt: new Date().toISOString(),
+					durationMs: Date.now() - startedAt,
+					durationLabel: formatDuration(startedAt),
+					status: 'failed',
+					error: error.message,
+				});
+				logger.error('QuickBooks data freshness check failed', {
+					error: error.message,
+				});
+			} finally {
+				qbFreshnessRunning = false;
+			}
+		}, {
+			scheduled: true,
+			timezone: qbFreshnessReportTimezone,
+		});
+	} else {
+		logger.info('QuickBooks data freshness check disabled via CRON_QB_FRESHNESS_REPORT_ENABLED=false');
 	}
 }
 
