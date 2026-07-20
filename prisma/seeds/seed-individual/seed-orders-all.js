@@ -2,7 +2,9 @@
  * seed-orders-all.js — Paginated + resilient seeding from Magento
  * - Avoids massive single-request payloads by using currentPage pagination
  * - Adds defensive fetch with retries/backoff on 5xx
- * - Deletes existing order/orderProduct rows before reseeding (no early disconnect)
+ * - Fetches everything first, then swaps the tables in ONE short transaction:
+ *   readers never see an empty/partial orders table mid-reseed
+ * - Aborts before any write if Magento returns suspiciously few orders
  * - Extracts the same custom attributes you were using (shipping fields, PO#, fraud score, etc.)
  */
 
@@ -15,6 +17,17 @@ const { acquireOrderSyncLock, releaseOrderSyncLock } = require("../../../lib/ord
 const PAGE_SIZE = parseInt(process.env.SEED_PAGE_SIZE || "400", 10); // tune 200–500
 const MAX_PAGES = parseInt(process.env.SEED_MAX_PAGES || "15", 10); // safety cap
 const MAX_RETRIES = 3;
+// Piso de sanidade: menos que isso indica Magento quebrado/token invalido —
+// abortar em vez de trocar a tabela por um resultado vazio.
+const MIN_ORDERS_FOR_SWAP = parseInt(process.env.SEED_ALL_MIN_ORDERS || "50", 10);
+const SWAP_TIMEOUT_MS = parseInt(process.env.SEED_ALL_SWAP_TIMEOUT_MS || "120000", 10);
+const INSERT_CHUNK_SIZE = 500;
+
+const chunkRows = (rows, size) => {
+  const chunks = [];
+  for (let i = 0; i < rows.length; i += size) chunks.push(rows.slice(i, i + size));
+  return chunks;
+};
 const BASE_URL_PREFIX =
   "https://www.justjeeps.com/rest/V1/orders/?searchCriteria[sortOrders][0][field]=created_at";
 const FIELDS =
@@ -373,15 +386,16 @@ async function seedOrders(options = {}) {
   }
 
   try {
-    // Clean slate (delete children first if no cascade)
-    await prisma.orderProduct.deleteMany();
-    await prisma.order.deleteMany();
-    console.log("🗑️  Existing orders cleared.");
-
     // Total is unknown up-front: we page until a short/empty page
     if (onProgress) {
       onProgress({ total: null, processed: 0, status: "running" });
     }
+
+    // ===== Fase 1: buscar TUDO do Magento (fora de transacao) =====
+    // A parte lenta (minutos) acontece sem tocar no banco; a troca em si e uma
+    // transacao curta na fase 3, entao leitores nunca veem tabela vazia.
+    const allOrderRows = [];
+    const allOrderProductRows = [];
 
     let currentPage = 1;
     for (; currentPage <= MAX_PAGES; currentPage++) {
@@ -404,26 +418,11 @@ async function seedOrders(options = {}) {
       }
 
       const { orderRows, orderProductRows } = buildBatchRows(parsedOrders);
-      if (orderRows.length) {
-        const skuSet = new Set(orderProductRows.map((row) => row.sku).filter(Boolean));
-        let filteredOrderProductRows = orderProductRows;
-        if (skuSet.size > 0) {
-          const existingProducts = await prisma.product.findMany({
-            where: { sku: { in: Array.from(skuSet) } },
-            select: { sku: true },
-          });
-          const existingSkuSet = new Set(existingProducts.map((p) => p.sku));
-          filteredOrderProductRows = orderProductRows.filter((row) => existingSkuSet.has(row.sku));
-        }
+      allOrderRows.push(...orderRows);
+      allOrderProductRows.push(...orderProductRows);
+      totalProcessed = allOrderRows.length;
 
-        await prisma.$transaction([
-          prisma.order.createMany({ data: orderRows, skipDuplicates: true }),
-          prisma.orderProduct.createMany({ data: filteredOrderProductRows, skipDuplicates: true }),
-        ]);
-        totalProcessed += orderRows.length;
-      }
-
-      console.log(`✅ Page ${currentPage} processed (${items.length} orders). Total so far: ${totalProcessed}`);
+      console.log(`✅ Page ${currentPage} fetched (${items.length} orders). Total so far: ${totalProcessed}`);
 
       if (onProgress) {
         onProgress({ total: null, processed: totalProcessed, status: "running" });
@@ -433,9 +432,48 @@ async function seedOrders(options = {}) {
       if (items.length < PAGE_SIZE) break;
     }
 
+    // Resultado suspeito de vazio/pequeno (Magento fora, WAF, token invalido)
+    // NUNCA pode apagar a tabela — aborta antes de qualquer write.
+    if (allOrderRows.length < MIN_ORDERS_FOR_SWAP) {
+      throw new Error(
+        `Only ${allOrderRows.length} orders fetched (min ${MIN_ORDERS_FOR_SWAP}); aborting before destructive swap`
+      );
+    }
+
+    // ===== Fase 2: filtrar orderProducts para SKUs existentes (so leitura) =====
+    const skuList = Array.from(
+      new Set(allOrderProductRows.map((row) => row.sku).filter(Boolean))
+    );
+    const existingSkuSet = new Set();
+    for (const chunk of chunkRows(skuList, 2000)) {
+      const existingProducts = await prisma.product.findMany({
+        where: { sku: { in: chunk } },
+        select: { sku: true },
+      });
+      for (const product of existingProducts) existingSkuSet.add(product.sku);
+    }
+    const filteredOrderProductRows = skuList.length > 0
+      ? allOrderProductRows.filter((row) => existingSkuSet.has(row.sku))
+      : allOrderProductRows;
+
+    // ===== Fase 3: swap atomico (transacao curta, so writes) =====
+    await prisma.$transaction(
+      async (tx) => {
+        await tx.orderProduct.deleteMany();
+        await tx.order.deleteMany();
+        for (const chunk of chunkRows(allOrderRows, INSERT_CHUNK_SIZE)) {
+          await tx.order.createMany({ data: chunk, skipDuplicates: true });
+        }
+        for (const chunk of chunkRows(filteredOrderProductRows, INSERT_CHUNK_SIZE)) {
+          await tx.orderProduct.createMany({ data: chunk, skipDuplicates: true });
+        }
+      },
+      { maxWait: 10_000, timeout: SWAP_TIMEOUT_MS }
+    );
+
     const elapsedMs = Date.now() - startTimeMs;
     const elapsedSec = (elapsedMs / 1000).toFixed(2);
-    console.log(`🎉 Orders seeded successfully. Total processed: ${totalProcessed}`);
+    console.log(`🎉 Orders swapped atomically. Total processed: ${totalProcessed} (${filteredOrderProductRows.length} items)`);
     console.log(`⏱️  Execution time: ${elapsedSec}s`);
 
     if (onProgress) {
