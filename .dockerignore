@@ -62,6 +62,8 @@ docker-compose*.yml
 !prisma/seeds/api-calls/accessoriesInvPriceData.csv
 !prisma/seeds/api-calls/tireInvPriceData.csv
 !prisma/seeds/api-calls/wheelInvPriceData.csv
+!prisma/seeds/api-calls/CTPENT_Inventory.csv
+!prisma/seeds/api-calls/quadratec_wholesale.csv
 *.xlsx
 **/*.xlsx
 !prisma/seeds/api-calls/CTPENT_Inventory.xlsx

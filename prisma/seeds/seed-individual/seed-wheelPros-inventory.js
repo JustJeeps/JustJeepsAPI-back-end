@@ -37,9 +37,16 @@ function readCsv(filePath) {
   if (!fs.existsSync(filePath)) {
     throw new Error(`Missing WheelPros CSV file: ${filePath}`);
   }
+  const stats = fs.statSync(filePath);
+  const ageHours = (Date.now() - stats.mtimeMs) / 36e5;
   const content = fs.readFileSync(filePath, "utf-8");
   const records = parse(content, { columns: true, skip_empty_lines: true });
-  console.log(`📄 Loaded ${records.length.toLocaleString()} rows from ${path.basename(filePath)}`);
+  console.log(
+    `📄 Loaded ${records.length.toLocaleString()} rows from ${path.basename(filePath)} (modified ${stats.mtime.toISOString()}, ~${ageHours.toFixed(1)}h old)`
+  );
+  if (ageHours > 24) {
+    console.warn(`⚠️  ${path.basename(filePath)} is older than 24h — may not be today's feed`);
+  }
   return records;
 }
 

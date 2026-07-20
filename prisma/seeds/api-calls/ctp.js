@@ -1,10 +1,9 @@
 const XLSX = require("xlsx");
-const path = require("path");
+const loadWorkbook = require("./load-workbook");
 
-// 1. Load CTP Excel inventory
+// 1. Load CTP inventory (CTPENT_Inventory.csv preferred, .xlsx fallback)
 const ctpInventory = async () => {
-  const filePath = path.join(__dirname, "CTPENT_Inventory.xlsx");
-  const workbook = XLSX.readFile(filePath);
+  const workbook = loadWorkbook("CTPENT_Inventory");
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
 
   const jsonData = XLSX.utils.sheet_to_json(sheet, {
@@ -12,17 +11,21 @@ const ctpInventory = async () => {
   });
 
   const finalResults = jsonData
-    .filter((row) => row["BrandName"] && row["SupplierCode"] && row["JobberPrice"])
     .map((row) => {
-      const item = `${row["BrandName"].toString().trim()}${row["SupplierCode"].toString().trim()}`;
+      const brand = (row["BrandName"] ?? "").toString().trim();
+      const supplierCode = (row["SupplierCode"] ?? "").toString().trim();
       const qty = parseInt(row["QtyAvailable"]) || 0;
+      // parseFloat handles both xlsx numbers and CSV strings; !cost keeps the
+      // original behavior of skipping rows with zero/missing jobber price.
       const cost = parseFloat(row["JobberPrice"]);
+      if (!brand || !supplierCode || !cost) return null;
       return {
-        Item: item,
+        Item: `${brand}${supplierCode}`,
         Inventory: qty,
         Cost: cost,
       };
-    });
+    })
+    .filter(Boolean);
 
   console.log(`CTP inventory rows: ${finalResults.length}`);
   return finalResults;

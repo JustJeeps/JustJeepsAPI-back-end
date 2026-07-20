@@ -1,8 +1,16 @@
 const XLSX = require("xlsx");
-const path = require("path");
+const loadWorkbook = require("./load-workbook");
 
 function normalizeText(value) {
   return (value ?? "").toString().trim();
+}
+
+function toNumberOrNull(value) {
+  if (value === null || value === undefined) return null;
+  const text = String(value).trim();
+  if (!text) return null;
+  const num = Number(text.replace(/[$,]/g, ""));
+  return Number.isFinite(num) ? num : null;
 }
 
 function startsWithQtc(value) {
@@ -75,12 +83,8 @@ function toPoisonSpyderDashedPartNumber(value) {
 }
 
 const quadratecInventory = () => {
-  // Step 1: Load Excel file
-  // Construct the absolute file path using __dirname and the file name
-  const filePath = path.join(__dirname, "quadratec_wholesale.xlsx");
-
-  // Read the file using the updated file path
-  const workbook = XLSX.readFile(filePath);
+  // Step 1: Load data file (quadratec_wholesale.csv preferred, .xlsx fallback)
+  const workbook = loadWorkbook("quadratec_wholesale");
 
   // Step 2: Extract Sheet Data
   const sheetName = workbook.SheetNames[0]; // assuming you want to read the first sheet
@@ -237,7 +241,7 @@ const quadratecInventory = () => {
       brand,
       original_brand: originalBrand,
       forced_quadratec_brand: forcedQuadratecBrand,
-      wholesalePrice: obj["Cost"],
+      wholesalePrice: toNumberOrNull(obj["Cost"]),
       quadratec_code: quadratecCode,
       quadratec_code_alt: quadratecCodeAlt || null,
       quadratec_code_alt2: quadratecCodeAlt2,
@@ -252,7 +256,7 @@ const quadratecInventory = () => {
       quadratec_code_alt11: quadratecCodeAlt11,
       quadratec_code_alt12: quadratecCodeAlt12,
       quadratec_sku: quadPartNo,
-      quadratec_inventory: obj["Inventory Total"],
+      quadratec_inventory: toNumberOrNull(obj["Inventory Total"]),
     };
   });
 
@@ -272,6 +276,9 @@ const quadratecInventory = () => {
   return finalResults;
 };
 
-quadratecInventory();
+// Only run if called directly (not when imported)
+if (require.main === module) {
+  quadratecInventory();
+}
 
 module.exports = quadratecInventory;
