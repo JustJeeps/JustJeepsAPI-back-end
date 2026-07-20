@@ -132,9 +132,12 @@ model Product {
   premier_code       String?
   black_friday_sale  String?
   t14_id             String?
+  contentHash        String?
   competitorProducts CompetitorProduct[]
   orderProducts      OrderProduct[]
   vendorProducts     VendorProduct[]
+
+  @@index([status])
 }
 
 model SkuStatusChangeHistory {
@@ -206,9 +209,19 @@ model VendorProduct {
   vendor_retail_price_usd Float?
   vendor_cost_usd         Float?
   quadratec_shipping_surcharge_usd Float?
+  // Pipeline de ingestao (jul/2026): hash do payload do vendor p/ skip de
+  // no-ops, hash do ultimo push ao Magento p/ so enviar o que mudou, e
+  // updatedAt informativo (seeds raw-SQL nao o atualizam).
+  contentHash             String?
+  lastPushedHash          String?
+  lastPushedAt            DateTime?
+  updatedAt               DateTime       @default(now()) @updatedAt
   orderProducts           OrderProduct[]
   product                 Product        @relation(fields: [product_sku], references: [sku], onDelete: Cascade)
   vendor                  Vendor         @relation(fields: [vendor_id], references: [id])
+
+  @@unique([vendor_id, vendor_sku])
+  @@index([product_sku])
 }
 
 model Vendor {
@@ -356,4 +369,28 @@ model SyncState {
   value       String?
   lockedUntil DateTime?
   updatedAt   DateTime  @updatedAt
+}
+
+model IngestRun {
+  id              Int       @id @default(autoincrement())
+  feed            String
+  startedAt       DateTime  @default(now())
+  finishedAt      DateTime?
+  status          String    @default("running") // running|success|failed|skipped-unchanged
+  sourceKind      String?   // magento|csv|xlsx|api|ftp
+  sourceRef       String?
+  sourceHash      String?
+  sourceMtime     DateTime?
+  sourceRowCount  Int?
+  rowsInserted    Int       @default(0)
+  rowsUpdated     Int       @default(0)
+  rowsMarkedStale Int       @default(0)
+  rowsDeleted     Int       @default(0)
+  rowsSkipped     Int       @default(0)
+  watermarkFrom   String?
+  watermarkTo     String?
+  error           String?   @db.Text
+
+  @@index([feed, startedAt])
+  @@index([feed, status])
 }

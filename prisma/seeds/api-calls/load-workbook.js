@@ -39,4 +39,16 @@ function loadWorkbook(baseName) {
   );
 }
 
+// Caminho resolvido sem carregar o arquivo (usado pelo gate de hash do
+// pipeline de ingestao).
+loadWorkbook.resolvePath = function resolvePath(baseName) {
+  const csvPath = path.join(__dirname, `${baseName}.csv`);
+  if (fs.existsSync(csvPath)) return csvPath;
+  const xlsxPath = path.join(__dirname, `${baseName}.xlsx`);
+  if (fs.existsSync(xlsxPath)) return xlsxPath;
+  throw new Error(
+    `Missing data file: expected ${baseName}.csv or ${baseName}.xlsx in ${__dirname}`
+  );
+};
+
 module.exports = loadWorkbook;

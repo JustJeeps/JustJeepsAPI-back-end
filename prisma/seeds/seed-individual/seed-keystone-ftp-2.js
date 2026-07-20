@@ -1,25 +1,25 @@
 /* prisma/seeds/seed-individual/seed-keystone-ftp-2.js */
 
-const { PrismaClient } = require("@prisma/client");
 const fs = require("fs");
 const path = require("path");
-const csv = require("csv-parser");
-
-const prisma = new PrismaClient();
+const prisma = require("../../../lib/prisma");
+const { hashFiles } = require("../../../lib/ingest/fileHash");
+const { startRun, isUnchanged } = require("../../../lib/ingest/ingestRun");
+const { ensureStagingTable, insertBatch, queryStaging, closePool } = require("../../../lib/ingest/stageTable");
+const { diffApply } = require("../../../lib/ingest/diffApply");
+const { streamCsvBatched } = require("../../../lib/ingest/streamCsv");
+const { withRetry } = require("../../../lib/ingest/withRetry");
 
 // ---- CONFIG ----
 const VENDOR_ID = 1; // Keystone
+const FEED = "keystone-ftp";
 const BASE_DIR = path.join(__dirname, "../api-calls/keystone_files");
-
 const INVENTORY_FILE = path.join(BASE_DIR, "Inventory.csv");
 const SPECIAL_ORDER_FILE = path.join(BASE_DIR, "SpecialOrder.csv");
+const STAGE_BATCH = 5000;
+const MIN_RATIO = Number(process.env.KEYSTONE_FTP2_MIN_RATIO || 0.5);
 
-// Insert + lookup tuning
-const BATCH_SIZE_INSERT = 5000; // like Quad
-const LOG_EVERY_BATCH = 5;
-
-// ---- helpers ----
-const nowMs = () => Number(process.hrtime.bigint() / 1000000n);
+// ---- helpers (preservados do legado) ----
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 
 function toNumber(v) {
@@ -35,35 +35,29 @@ function cleanCsvField(v) {
   if (v === null || v === undefined) return "";
   let s = String(v).trim();
   if (!s) return "";
-  // Excel-style formulas: ="123" -> 123
   if (/^=\s*".*"$/.test(s)) s = s.replace(/^=\s*"(.*)"$/, "$1");
-  // Strip wrapping quotes if any remain
   return s.replace(/^"+|"+$/g, "").trim();
 }
 
-function formatEta(seconds) {
-  if (!Number.isFinite(seconds) || seconds < 0) return "~?";
-  if (seconds < 60) return `~${Math.ceil(seconds)}s`;
-  const m = Math.floor(seconds / 60);
-  const s = Math.ceil(seconds % 60);
-  return `~${m}m ${s}s`;
+function getField(row, ...names) {
+  for (const n of names) {
+    if (row[n] !== undefined) return row[n];
+  }
+  return undefined;
 }
 
+// Revolution Gear: Keystone usa RGAEV..., alguns produtos foram gerados RGAREV...
 function getEquivalentKeystoneCodes(code) {
   const out = [code];
-
-  // Revolution Gear legacy variant handling:
-  // Keystone often uses RGAEV..., while some products were generated as RGAREV...
   if (/^RGAEV/i.test(code)) {
-    out.push(`RGAR${code.slice(3)}`); // RGAEV... -> RGAREV...
+    out.push(`RGAR${code.slice(3)}`);
   } else if (/^RGAREV/i.test(code)) {
-    out.push(`RGA${code.slice(4)}`); // RGAREV... -> RGAEV...
+    out.push(`RGA${code.slice(4)}`);
   }
-
   return out;
 }
 
-// Prefer SKUs that do NOT end with a dash when there's a collision on the same keystone_code
+// Em colisao de keystone_code, prefere SKU que NAO termina com "-"
 function preferSku(currentSku, candidateSku) {
   if (!currentSku) return candidateSku;
   const curEndsWithDash = currentSku.endsWith("-");
@@ -72,183 +66,15 @@ function preferSku(currentSku, candidateSku) {
   return currentSku;
 }
 
-async function withRetry(fn, label = "db") {
-  const max = 5;
-  let lastErr;
-  for (let i = 1; i <= max; i++) {
-    try {
-      return await fn();
-    } catch (e) {
-      lastErr = e;
-      const wait = 250 * i * i;
-      console.warn(`⚠️ ${label} failed (attempt ${i}/${max}) — retrying in ${wait}ms`);
-      await new Promise((r) => setTimeout(r, wait));
-    }
-  }
-  throw lastErr;
-}
-
-/**
- * Normalize CSV row field access (handles slight header variations).
- */
-function getField(row, ...names) {
-  for (const n of names) {
-    if (row[n] !== undefined) return row[n];
-  }
-  return undefined;
-}
-
-/**
- * Decide which row wins when the same VCPN appears multiple times (within a file or across files).
- *
- * Priority:
- *  1) Having a numeric cost is required (rows without cost are weak)
- *  2) Prefer Inventory over SpecialOrder
- *  3) Prefer rows with qty (if available)
- *  4) Higher qty wins
- *
- * (You can tweak this easily if you want SpecialOrder to override Inventory cost.)
- */
-function scoreRecord(rec) {
-  // source: higher is better
-  const sourceScore = rec.source === "Inventory.csv" ? 2 : 1;
-
-  const hasCost = isNum(rec.cost) ? 1 : 0;
-  const hasQty = isNum(rec.qty) ? 1 : 0;
-  const qtyVal = isNum(rec.qty) ? rec.qty : -1;
-
-  // tuple score
-  return [hasCost, sourceScore, hasQty, qtyVal];
-}
-
-function isScoreBetter(a, b) {
-  // returns true if score(a) > score(b)
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] > b[i]) return true;
-    if (a[i] < b[i]) return false;
-  }
-  return false;
-}
-
-/**
- * Stream a CSV and merge into invMap keyed by VCPN.
- * Memory-safe: only invMap is kept.
- */
-async function streamIntoMap(filePath, invMap, summary) {
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`File not found: ${filePath}`);
-  }
-
-  const fileName = path.basename(filePath);
-
-  return new Promise((resolve, reject) => {
-    fs.createReadStream(filePath)
-      .pipe(csv())
-      .on("data", (r) => {
-        summary.rows++;
-
-        // Your current logs show VCPN always present, but keep safe
-        const VCPN = cleanCsvField(getField(r, "VCPN"));
-
-        // Keystone files typically have VendorPart, DealerPrice, TotalQty
-        const vendorPart = cleanCsvField(getField(r, "VendorPart", "Vendor Part"));
-        const vendorCode = cleanCsvField(getField(r, "VendorCode", "Vendor Code"));
-        const manufacturerPartNo = cleanCsvField(
-          getField(r, "ManufacturerPartNo", "Manufacturer Part No", "MfgPartNo")
-        );
-        const cost = toNumber(getField(r, "DealerPrice", "Dealer Price", "Cost", "Price"));
-        const qty = toNumber(getField(r, "TotalQty", "Total Qty", "Qty", "QTY", "Inventory"));
-
-        if (VCPN) summary.haveVCPN++;
-        else summary.emptyVCPN++;
-
-        if (!VCPN) return;
-
-        const rec = {
-          code: VCPN,
-          vendorSku: vendorPart || VCPN,
-          vendorCode,
-          manufacturerPartNo,
-          cost,
-          qty: isNum(qty) ? qty : null,
-          source: fileName,
-        };
-
-        const existing = invMap.get(VCPN);
-        if (!existing) {
-          invMap.set(VCPN, rec);
-          return;
-        }
-
-        // merge: keep best record by scoring
-        const sNew = scoreRecord(rec);
-        const sOld = scoreRecord(existing);
-
-        if (isScoreBetter(sNew, sOld)) {
-          invMap.set(VCPN, rec);
-        }
-      })
-      .on("end", () => resolve())
-      .on("error", reject);
-  });
-}
-
-/**
- * Parse Inventory + SpecialOrder using streaming aggregation.
- */
-async function loadKeystoneMapFromCSVs() {
-  console.log("🚀 Seeding Keystone vendor products from local CSVs...");
-
-  const t0 = nowMs();
-
-  const invMap = new Map(); // VCPN -> best record
-
-  const invSummary = {
-    file: "Inventory.csv",
-    rows: 0,
-    haveVCPN: 0,
-    builtFromVendorPart: 0,
-    emptyVCPN: 0,
-  };
-
-  const soSummary = {
-    file: "SpecialOrder.csv",
-    rows: 0,
-    haveVCPN: 0,
-    builtFromVendorPart: 0,
-    emptyVCPN: 0,
-  };
-
-  // Stream Inventory first (so it naturally “wins” on ties via sourceScore)
-  await streamIntoMap(INVENTORY_FILE, invMap, invSummary);
-  // Then SpecialOrder
-  await streamIntoMap(SPECIAL_ORDER_FILE, invMap, soSummary);
-
-  const t1 = nowMs();
-
-  console.log("🧪 VCPN extraction summary per file:", [invSummary, soSummary]);
-  console.log(`📦 Total rows parsed: ${(invSummary.rows + soSummary.rows).toLocaleString()}`);
-  console.log(`✅ Unique VCPN codes after merge: ${invMap.size.toLocaleString()}`);
-  console.log(`parse CSVs: ${((t1 - t0) / 1000).toFixed(3)}s`);
-
-  return invMap;
-}
-
 async function loadProductsByKeystoneCodes() {
-  console.log(`🔎 Loading all Products by non-null keystone_code...`);
-
-  const t0 = nowMs();
+  console.log("🔎 Loading all Products by non-null keystone_code...");
   const codeToSku = new Map();
   let collisionsResolved = 0;
 
   const products = await withRetry(
     () =>
       prisma.product.findMany({
-        where: {
-          keystone_code: {
-            not: null,
-          },
-        },
+        where: { keystone_code: { not: null } },
         select: { sku: true, keystone_code: true },
       }),
     "product.findMany(all keystone_code)"
@@ -257,563 +83,195 @@ async function loadProductsByKeystoneCodes() {
   for (const p of products) {
     const code = p.keystone_code;
     if (!code) continue;
-
     const current = codeToSku.get(code);
     const chosen = preferSku(current, p.sku);
     if (current && chosen !== current) collisionsResolved++;
     codeToSku.set(code, chosen);
   }
 
-  const t1 = nowMs();
-  console.log(`ℹ️ Loaded ${codeToSku.size.toLocaleString()} unique keystone_code mappings from Product.`);
-  console.log(`ℹ️ Resolved ${collisionsResolved} duplicate keystone_code collisions (prefer non-dash SKUs).`);
-  console.log(`fetch products mapping: ${((t1 - t0) / 1000).toFixed(3)}s`);
-
+  console.log(`ℹ️ Loaded ${codeToSku.size.toLocaleString()} unique keystone_code mappings (${collisionsResolved} collisions resolved).`);
   return codeToSku;
 }
 
-async function seedKeystoneBulk() {
-  const totalStart = nowMs();
-
-  // 1) Stream both CSVs into a compact map (2.6M input safe)
-  const invMap = await loadKeystoneMapFromCSVs();
-  const codes = Array.from(invMap.keys());
-
-  // Build fallback codes for Keystone quirks (VendorCode + ManufacturerPartNo)
-  const fallbackCodeByVcpn = new Map();
-  for (const [vcpn, rec] of invMap.entries()) {
-    if (!rec.vendorCode || !rec.manufacturerPartNo) continue;
-    const fallback = `${rec.vendorCode}${rec.manufacturerPartNo}`;
-    if (fallback && fallback !== vcpn) {
-      fallbackCodeByVcpn.set(vcpn, fallback);
-    }
+// Casa uma linha do feed com um Product: equivalentes do VCPN e, se falhar,
+// equivalentes do fallback VendorCode+ManufacturerPartNo. Mesmo criterio do
+// legado — mas executado NO STREAM, entao linhas sem match sao descartadas
+// imediatamente (memoria O(batch), nao O(2,5M)).
+function matchSku(codeToSku, vcpn, vendorCode, manufacturerPartNo) {
+  for (const candidate of getEquivalentKeystoneCodes(vcpn)) {
+    const sku = codeToSku.get(candidate);
+    if (sku) return sku;
   }
-
-  // 2) Load Products mapping by keystone_code (single read)
-  const codeToSku = await loadProductsByKeystoneCodes();
-
-  // 3) Build VendorProduct rows (unique by code due to invMap)
-  const rowsToInsert = [];
-  let matched = 0;
-  let missing = 0;
-  let skippedNoCost = 0;
-
-  for (const code of codes) {
-    let sku = null;
-
-    for (const candidate of getEquivalentKeystoneCodes(code)) {
-      sku = codeToSku.get(candidate);
-      if (sku) break;
-    }
-
-    if (!sku) {
-      const fallback = fallbackCodeByVcpn.get(code);
-      if (fallback) {
-        for (const candidate of getEquivalentKeystoneCodes(fallback)) {
-          sku = codeToSku.get(candidate);
-          if (sku) break;
-        }
+  if (vendorCode && manufacturerPartNo) {
+    const fallback = `${vendorCode}${manufacturerPartNo}`;
+    if (fallback && fallback !== vcpn) {
+      for (const candidate of getEquivalentKeystoneCodes(fallback)) {
+        const sku = codeToSku.get(candidate);
+        if (sku) return sku;
       }
     }
-    if (!sku) {
-      missing++;
-      continue;
-    }
-
-    const rec = invMap.get(code);
-    if (!rec) continue;
-
-    if (!isNum(rec.cost)) {
-      skippedNoCost++;
-      continue;
-    }
-
-    matched++;
-    rowsToInsert.push({
-      product_sku: sku,
-      vendor_id: VENDOR_ID,
-      vendor_sku: rec.vendorSku || code,
-      vendor_cost: rec.cost,
-      vendor_inventory: isNum(rec.qty) ? rec.qty : null,
-    });
   }
-
-  console.log(`✅ Matched ${matched.toLocaleString()}/${codes.length.toLocaleString()} product codes`);
-  console.log(`⚠️ Missing products: ${missing.toLocaleString()}`);
-  console.log(`⚠️ Skipped (no cost): ${skippedNoCost.toLocaleString()}`);
-
-  // 4) Delete old vendor products first (same as your Quadratec script)
-  console.time("delete old vendor_id=1");
-  await withRetry(() => prisma.vendorProduct.deleteMany({ where: { vendor_id: VENDOR_ID } }), "vendorProduct.deleteMany");
-  console.timeEnd("delete old vendor_id=1");
-
-  // 5) Insert in batches w/ ETA + short transactions
-  console.time("insert vendorProducts");
-  const start = nowMs();
-  const total = rowsToInsert.length;
-
-  const batches = Math.ceil(total / BATCH_SIZE_INSERT);
-  let inserted = 0;
-
-  for (let b = 0; b < batches; b++) {
-    const chunk = rowsToInsert.slice(b * BATCH_SIZE_INSERT, (b + 1) * BATCH_SIZE_INSERT);
-
-    await withRetry(
-      () =>
-        prisma.$transaction(async (tx) => {
-          await tx.vendorProduct.createMany({
-            data: chunk,
-          });
-        }),
-      "vendorProduct.createMany(tx)"
-    );
-
-    inserted += chunk.length;
-
-    if ((b + 1) % LOG_EVERY_BATCH === 0 || b === batches - 1) {
-      const elapsedSec = (nowMs() - start) / 1000;
-      const rps = elapsedSec > 0 ? inserted / elapsedSec : 0;
-      const remaining = total - inserted;
-      const eta = rps > 0 ? remaining / rps : Infinity;
-
-      console.log(
-        `Batch ${b + 1}/${batches} | ${inserted}/${total} rows | ${rps.toFixed(1)} rows/s | ETA ${formatEta(eta)}`
-      );
-    }
-  }
-
-  console.timeEnd("insert vendorProducts");
-
-  const count = await prisma.vendorProduct.count({ where: { vendor_id: VENDOR_ID } });
-  const totalSec = ((nowMs() - totalStart) / 1000).toFixed(2);
-
-  console.log(`✅ VendorProduct count for Keystone (vendor_id=${VENDOR_ID}): ${count}`);
-  console.log(`✅ Keystone vendor products seeded successfully.`);
-  console.log(`seed-keystone-ftp2 total: ${totalSec}s`);
+  return null;
 }
 
-(async () => {
+const STAGING_RAW = "vp_keystone_raw";
+const STAGING_RAW_DDL = `
+  vcpn TEXT NOT NULL,
+  product_sku TEXT NOT NULL,
+  vendor_id INTEGER NOT NULL,
+  vendor_sku TEXT NOT NULL,
+  vendor_cost DOUBLE PRECISION NOT NULL,
+  vendor_inventory DOUBLE PRECISION,
+  source_rank INTEGER NOT NULL,
+  has_qty INTEGER NOT NULL,
+  qty_val DOUBLE PRECISION NOT NULL
+`;
+const STAGING_RAW_COLS = [
+  "vcpn", "product_sku", "vendor_id", "vendor_sku", "vendor_cost",
+  "vendor_inventory", "source_rank", "has_qty", "qty_val",
+];
+
+async function stageFile(filePath, sourceRank, codeToSku, summary) {
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`File not found: ${filePath}`);
+  }
+  const fileName = path.basename(filePath);
+
+  const transform = (r) => {
+    const vcpn = cleanCsvField(getField(r, "VCPN"));
+    if (!vcpn) return null;
+
+    const cost = toNumber(getField(r, "DealerPrice", "Dealer Price", "Cost", "Price"));
+    // Sem custo numerico a linha nunca venceria o score nem poderia ser
+    // inserida (vendor_cost e NOT NULL) — mesmo resultado do skippedNoCost legado.
+    if (!isNum(cost)) return null;
+
+    const vendorCode = cleanCsvField(getField(r, "VendorCode", "Vendor Code"));
+    const manufacturerPartNo = cleanCsvField(
+      getField(r, "ManufacturerPartNo", "Manufacturer Part No", "MfgPartNo")
+    );
+    const sku = matchSku(codeToSku, vcpn, vendorCode, manufacturerPartNo);
+    if (!sku) return null;
+
+    const vendorPart = cleanCsvField(getField(r, "VendorPart", "Vendor Part"));
+    const qty = toNumber(getField(r, "TotalQty", "Total Qty", "Qty", "QTY", "Inventory"));
+
+    summary.matched++;
+    return {
+      vcpn,
+      product_sku: sku,
+      vendor_id: VENDOR_ID,
+      vendor_sku: vendorPart || vcpn,
+      vendor_cost: cost,
+      vendor_inventory: isNum(qty) ? qty : null,
+      source_rank: sourceRank,
+      has_qty: isNum(qty) ? 1 : 0,
+      qty_val: isNum(qty) ? qty : -1,
+    };
+  };
+
+  const res = await streamCsvBatched(filePath, { batchSize: STAGE_BATCH, transform }, (batch) =>
+    insertBatch(STAGING_RAW, STAGING_RAW_COLS, batch)
+  );
+  console.log(`📄 ${fileName}: ${res.rowsRead.toLocaleString()} linhas lidas, ${res.rowsKept.toLocaleString()} com match+custo staged`);
+  summary.rowsRead += res.rowsRead;
+  return res;
+}
+
+// Pipeline novo: o dedup/score que era um invMap de ~2,4M entradas em heap
+// (OOM a 1024MB) agora e um DISTINCT ON no staging — memoria do processo fica
+// O(batch) + mapa de produtos (~dezenas de milhares).
+async function seedKeystoneStaged() {
+  const t0 = Date.now();
+  let run;
+
   try {
-    await seedKeystoneBulk();
+    console.log("🚀 Seeding Keystone vendor products from local CSVs (staged pipeline)...");
+
+    const sourceHash = await hashFiles([INVENTORY_FILE, SPECIAL_ORDER_FILE]);
+    run = await startRun(FEED, {
+      sourceKind: "ftp-csv",
+      sourceRef: "Inventory.csv+SpecialOrder.csv",
+      sourceHash,
+    });
+
+    if (await isUnchanged(FEED, sourceHash)) {
+      console.log("⏭️  Fonte identica a ultima rodada bem-sucedida — nada a fazer.");
+      await run.finish({ status: "skipped-unchanged", counts: { skipped: 1 } });
+      return;
+    }
+
+    const codeToSku = await loadProductsByKeystoneCodes();
+
+    await ensureStagingTable(STAGING_RAW, STAGING_RAW_DDL);
+    const summary = { rowsRead: 0, matched: 0 };
+    // Inventory primeiro (source_rank 2 > SpecialOrder 1, mesmo criterio do score legado)
+    await stageFile(INVENTORY_FILE, 2, codeToSku, summary);
+    await stageFile(SPECIAL_ORDER_FILE, 1, codeToSku, summary);
+
+    // Dedup em SQL, replicando o score legado [hasCost, source, hasQty, qty]:
+    // 1) melhor linha por VCPN; 2) uma linha por vendor_sku (constraint nova).
+    await queryStaging(`
+      CREATE UNLOGGED TABLE IF NOT EXISTS staging.vp_keystone_final (LIKE staging.${STAGING_RAW});
+      TRUNCATE staging.vp_keystone_final;
+    `);
+    await queryStaging(`
+      INSERT INTO staging.vp_keystone_final
+      SELECT DISTINCT ON (vendor_sku) *
+      FROM (
+        SELECT DISTINCT ON (vcpn) *
+        FROM staging.${STAGING_RAW}
+        ORDER BY vcpn, source_rank DESC, has_qty DESC, qty_val DESC
+      ) best_per_vcpn
+      ORDER BY vendor_sku, source_rank DESC, has_qty DESC, qty_val DESC, vcpn
+    `);
+    const staged = await queryStaging(`SELECT count(*)::int AS n FROM staging.vp_keystone_final`);
+    const stagedCount = staged.rows[0].n;
+    console.log(`✅ Staged ${stagedCount.toLocaleString()} linhas unicas (de ${summary.matched.toLocaleString()} matches em ${summary.rowsRead.toLocaleString()} lidas)`);
+
+    const currentCount = await prisma.vendorProduct.count({ where: { vendor_id: VENDOR_ID } });
+    if (currentCount > 0 && stagedCount < currentCount * MIN_RATIO) {
+      throw new Error(
+        `Feed encolheu demais: ${stagedCount} staged vs ${currentCount} no banco ` +
+        `(minimo ${Math.ceil(currentCount * MIN_RATIO)}). FTP truncado? Abortado sem tocar o banco.`
+      );
+    }
+
+    console.time("diff+apply");
+    const counts = await diffApply({
+      target: "VendorProduct",
+      staging: "staging.vp_keystone_final",
+      keyCols: ["vendor_id", "vendor_sku"],
+      compareCols: ["product_sku", "vendor_cost", "vendor_inventory"],
+      insertCols: ["product_sku", "vendor_id", "vendor_sku", "vendor_cost", "vendor_inventory"],
+      scopeWhereSql: `t."vendor_id" = ${VENDOR_ID}`,
+      staleStrategy: "delete",
+    });
+    console.timeEnd("diff+apply");
+
+    console.log(`✅ Diff aplicado: +${counts.inserted} inseridas, ~${counts.updated} atualizadas, -${counts.stale} removidas`);
+    console.log(`✅ Intocadas: ${stagedCount - counts.inserted - counts.updated} (sem mudanca)`);
+
+    await run.finish({
+      status: "success",
+      counts: { inserted: counts.inserted, updated: counts.updated, deleted: counts.stale },
+      sourceRowCount: summary.rowsRead,
+    });
+
+    const count = await prisma.vendorProduct.count({ where: { vendor_id: VENDOR_ID } });
+    console.log(`✅ VendorProduct count for Keystone (vendor_id=${VENDOR_ID}): ${count}`);
+    console.log(`seed-keystone-ftp2 total: ${((Date.now() - t0) / 1000).toFixed(2)}s`);
   } catch (e) {
     console.error("❌ Seed failed:", e);
+    if (run) {
+      await run.finish({ status: "failed", error: e.message }).catch(() => {});
+    }
+    process.exitCode = 1;
   } finally {
+    await closePool();
     await prisma.$disconnect();
   }
-})();
+}
 
-
-
-// /* eslint-disable no-console */
-// const { performance } = require("perf_hooks");
-// const path = require("path");
-// const fs = require("fs");
-
-// const parseKeystoneLocal = require("../api-calls/parse-keystone-local");
-// const prisma = require("../../../lib/prisma");
-
-// /**
-//  * CONFIG
-//  * Adjust VENDOR_CONNECT to uniquely identify Keystone in your Vendor table.
-//  * If id:1 isn’t correct, switch to something like { code: "KEYSTONE" } or { name: "Keystone" }.
-//  */
-// const KEYSTONE_DIR = path.resolve(__dirname, "../api-calls/keystone_files");
-// const VENDOR_CONNECT = { id: 1 };              // <-- change if needed
-// const CLEAR_OLD_FIRST = false;                 // delete all Keystone rows then recreate
-// const UPDATE_OR_CREATE_BY_VENDOR_SKU = true;   // API-style replace logic
-
-// // Logging
-// const VERBOSE_ROW_LOGS = true;                // set true to log each create/update to console
-// const PROGRESS_EVERY = 2000;                   // progress tick size
-// const LOG_TO_FILE = true;                      // write a CSV of every create/update
-// const LOG_DIR = path.resolve(__dirname, "../logs");
-
-// /** helpers */
-// const clean = (s) => {
-//   if (s == null) return "";
-//   let t = String(s).trim();
-//   if (/^=\s*".*"$/.test(t)) t = t.replace(/^=\s*"(.*)"$/, "$1"); // ="123" -> 123
-//   return t.replace(/^"+|"+$/g, "").trim();
-// };
-// const toFloatOrNull = (v) => {
-//   if (v === null || v === undefined || v === "") return null;
-//   const n = parseFloat(String(v).replace(/,/g, ""));
-//   return Number.isNaN(n) ? null : n;
-// };
-// const toInt = (v) => {
-//   if (v === null || v === undefined || v === "") return 0;
-//   const n = parseInt(String(v).replace(/,/g, ""), 10);
-//   return Number.isNaN(n) ? 0 : n;
-// };
-// const isNum = (v) => typeof v === "number" && Number.isFinite(v);
-
-// const withDbRetry = async (operation, label) => {
-//   const maxAttempts = 2;
-//   let attempt = 0;
-
-//   while (true) {
-//     try {
-//       return await operation();
-//     } catch (err) {
-//       const code = err && err.code;
-//       const message = err && err.message ? String(err.message) : "";
-//       const isClosed = code === "P1017" || /Server has closed the connection/i.test(message);
-
-//       attempt += 1;
-//       if (!isClosed || attempt >= maxAttempts) {
-//         throw err;
-//       }
-
-//       console.warn(`⚠️ ${label} failed (${code || "connection error"}); reconnecting and retrying...`);
-//       try {
-//         await prisma.$disconnect();
-//       } catch (disconnectError) {
-//         // ignore disconnect errors and retry connection
-//       }
-//       await prisma.$connect();
-//     }
-//   }
-// };
-
-// // CSV log helpers
-// function ensureLogDir() {
-//   if (LOG_TO_FILE && !fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true });
-// }
-// function openCsvLog() {
-//   if (!LOG_TO_FILE) return null;
-//   ensureLogDir();
-//   const ts = new Date().toISOString().replace(/[:.]/g, "-");
-//   const filePath = path.join(LOG_DIR, `keystone-local-${ts}.csv`);
-//   const stream = fs.createWriteStream(filePath, { encoding: "utf8" });
-//   stream.write("action,vendor_sku,product_sku,keystone_code,vendor_cost,vendor_inventory\n");
-//   return { stream, filePath };
-// }
-// function writeCsv(streamObj, row) {
-//   if (!LOG_TO_FILE || !streamObj) return;
-//   const { stream } = streamObj;
-//   const esc = (v) => {
-//     if (v === null || v === undefined) return "";
-//     const s = String(v);
-//     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-//   };
-//   stream.write(
-//     [
-//       esc(row.action),
-//       esc(row.vendor_sku),
-//       esc(row.product_sku),
-//       esc(row.keystone_code),
-//       esc(row.vendor_cost),
-//       esc(row.vendor_inventory),
-//     ].join(",") + "\n"
-//   );
-// }
-
-// (async function run() {
-//   console.log("🚀 Seeding Keystone vendor products from local CSVs...");
-//   const start = performance.now();
-
-//   let created = 0;
-//   let updated = 0;
-//   let missingProduct = 0;
-//   let deduped = 0;
-//   let processed = 0;
-
-//   const csvLog = openCsvLog();
-
-//   try {
-//     await prisma.$connect();
-//     // 1) read local files
-//     const fileSets = await parseKeystoneLocal(KEYSTONE_DIR);
-
-//     // 2) normalize rows (VCPN = Keystone code)
-//     const rows = [];
-//     for (const f of fileSets) {
-//       for (const r of f.data || []) {
-//         const VCPN = clean(r.vcPn ?? r.VCPN ?? r.VcPn);
-//         if (!VCPN) continue;
-//         rows.push({
-//           VCPN,
-//           cost: toFloatOrNull(r.cost),
-//           totalQty: toInt(r.totalQty),
-//         });
-//       }
-//     }
-//     console.log(`📦 Total rows parsed: ${rows.length}`);
-//     if (rows.length === 0) {
-//       console.log("ℹ️ No rows found. Check CSV headers & path:", KEYSTONE_DIR);
-//       if (csvLog) csvLog.stream.end();
-//       await prisma.$disconnect();
-//       return;
-//     }
-
-//     // 3) batch-load products by keystone_code
-//     const uniqueCodes = [...new Set(rows.map((x) => x.VCPN))];
-//     console.log(`🔎 Loading Products by keystone_code for ${uniqueCodes.length} codes...`);
-
-//     const products = await withDbRetry(
-//       () => prisma.product.findMany({
-//         where: { keystone_code: { in: uniqueCodes } },
-//         select: { keystone_code: true, sku: true },
-//       }),
-//       "product.findMany"
-//     );
-
-// // prefer SKUs that don't end with a hyphen
-// const endsWithDash = (s) => /-\s*$/.test(s);
-
-// const productByKeystone = new Map();
-// let duplicateKeystoneCodes = 0;
-
-// for (const p of products) {
-//   const key = p.keystone_code;
-//   const candidate = p.sku;
-//   const current = productByKeystone.get(key);
-
-//   if (!current) {
-//     productByKeystone.set(key, candidate);
-//     continue;
-//   }
-//   duplicateKeystoneCodes++;
-
-//   const candBad = endsWithDash(candidate);
-//   const curBad = endsWithDash(current);
-
-//   // If current is "bad" (ends with '-') and candidate is "good", replace.
-//   if (curBad && !candBad) {
-//     productByKeystone.set(key, candidate);
-//   }
-//   // else: keep the existing selection (first good wins; if both bad, first wins)
-// }
-
-// if (duplicateKeystoneCodes) {
-//   console.log(`ℹ️ Resolved ${duplicateKeystoneCodes} duplicate keystone_code collisions (prefer non-dash SKUs).`);
-// }
-
-//     // const products = await prisma.product.findMany({
-//     //   where: { keystone_code: { in: uniqueCodes } },
-//     //   select: { keystone_code: true, sku: true },
-//     // });
-//     // const productByKeystone = new Map(products.map((p) => [p.keystone_code, p.sku]));
-//     console.log(`✅ Matched ${products.length}/${uniqueCodes.length} product codes`);
-
-//     // 4) optional clear
-//     if (CLEAR_OLD_FIRST) {
-//       await withDbRetry(
-//         () => prisma.vendorProduct.deleteMany({
-//           where: { vendor: { is: VENDOR_CONNECT } }, // relation filter
-//         }),
-//         "vendorProduct.deleteMany"
-//       );
-//       console.log("🗑️ Deleted existing Keystone vendor products");
-//     }
-
-//     // 5) process rows in batches to avoid connection pool exhaustion
-//     const BATCH_SIZE = 100;
-//     for (let batchStart = 0; batchStart < rows.length; batchStart += BATCH_SIZE) {
-//       const batch = rows.slice(batchStart, batchStart + BATCH_SIZE);
-      
-//       for (const r of batch) {
-//         processed++;
-//         const { VCPN, cost, totalQty } = r;
-//         const sku = productByKeystone.get(VCPN);
-//         if (!sku) {
-//           if (missingProduct < 25) console.log(`⚠️ Missing product for Keystone code ${VCPN}`);
-//           missingProduct++;
-//           continue;
-//         }
-
-//       const vendorSku = VCPN; // API logic: vendor_sku must be VCPN
-
-//       if (CLEAR_OLD_FIRST) {
-//         // Create-only; your schema requires vendor_cost on create => skip if missing
-//         if (!isNum(cost)) {
-//           if (VERBOSE_ROW_LOGS) console.log(`[SKIP] ${vendorSku} (no cost; vendor_cost required on create)`);
-//           continue;
-//         }
-//         await prisma.vendorProduct.create({
-//           data: {
-//             vendor_sku: vendorSku,
-//             vendor_cost: cost,
-//             ...(isNum(totalQty) ? { vendor_inventory: totalQty } : {}),
-//             vendor: { connect: VENDOR_CONNECT },
-//             product: { connect: { sku } },
-//           },
-//         });
-//         created++;
-//         writeCsv(csvLog, {
-//           action: "CREATE",
-//           vendor_sku: vendorSku,
-//           product_sku: sku,
-//           keystone_code: VCPN,
-//           vendor_cost: cost,
-//           vendor_inventory: totalQty,
-//         });
-//         if (VERBOSE_ROW_LOGS) console.log(`[CREATE] vendor_sku=${vendorSku} product_sku=${sku} cost=${cost} inv=${totalQty}`);
-//         continue;
-//       }
-
-//       if (UPDATE_OR_CREATE_BY_VENDOR_SKU) {
-//         // find existing by (vendor relation + vendor_sku)
-//         const existing = await withDbRetry(
-//           () => prisma.vendorProduct.findMany({
-//             where: { vendor_sku: vendorSku, vendor: { is: VENDOR_CONNECT } },
-//             orderBy: { id: "desc" },
-//             select: { id: true },
-//           }),
-//           "vendorProduct.findMany"
-//         );
-
-//         if (existing.length > 0) {
-//           const keep = existing[0];
-//           const toDeleteIds = existing.slice(1).map((x) => x.id);
-//           if (toDeleteIds.length) {
-//             await withDbRetry(
-//               () => prisma.vendorProduct.deleteMany({ where: { id: { in: toDeleteIds } } }),
-//               "vendorProduct.deleteMany"
-//             );
-//             deduped += toDeleteIds.length;
-//           }
-
-//           // UPDATE: omit vendor_cost if not numeric (don’t send null)
-//           const data = {
-//             vendor_sku: vendorSku,
-//             ...(isNum(cost) ? { vendor_cost: cost } : {}),
-//             ...(isNum(totalQty) ? { vendor_inventory: totalQty } : {}),
-//             vendor: { connect: VENDOR_CONNECT },
-//             product: { connect: { sku } },
-//           };
-//           await withDbRetry(
-//             () => prisma.vendorProduct.update({ where: { id: keep.id }, data }),
-//             "vendorProduct.update"
-//           );
-//           updated++;
-//           writeCsv(csvLog, {
-//             action: "UPDATE",
-//             vendor_sku: vendorSku,
-//             product_sku: sku,
-//             keystone_code: VCPN,
-//             vendor_cost: isNum(cost) ? cost : "",
-//             vendor_inventory: isNum(totalQty) ? totalQty : "",
-//           });
-//           if (VERBOSE_ROW_LOGS) console.log(`[UPDATE] vendor_sku=${vendorSku} product_sku=${sku} cost=${cost} inv=${totalQty}`);
-//         } else {
-//           // CREATE: vendor_cost required on create => skip if missing
-//           if (!isNum(cost)) {
-//             if (VERBOSE_ROW_LOGS) console.log(`[SKIP] ${vendorSku} (no cost; vendor_cost required on create)`);
-//             continue;
-//           }
-//           await withDbRetry(
-//             () => prisma.vendorProduct.create({
-//               data: {
-//                 vendor_sku: vendorSku,
-//                 vendor_cost: cost,
-//                 ...(isNum(totalQty) ? { vendor_inventory: totalQty } : {}),
-//                 vendor: { connect: VENDOR_CONNECT },
-//                 product: { connect: { sku } },
-//               },
-//             }),
-//             "vendorProduct.create"
-//           );
-//           created++;
-//           writeCsv(csvLog, {
-//             action: "CREATE",
-//             vendor_sku: vendorSku,
-//             product_sku: sku,
-//             keystone_code: VCPN,
-//             vendor_cost: cost,
-//             vendor_inventory: totalQty,
-//           });
-//           if (VERBOSE_ROW_LOGS) console.log(`[CREATE] vendor_sku=${vendorSku} product_sku=${sku} cost=${cost} inv=${totalQty}`);
-//         }
-//       } else {
-//         // fallback: find by both relations
-//         const existing = await withDbRetry(
-//           () => prisma.vendorProduct.findFirst({
-//             where: { vendor: { is: VENDOR_CONNECT }, product: { is: { sku } } },
-//             select: { id: true },
-//           }),
-//           "vendorProduct.findFirst"
-//         );
-
-//         if (existing) {
-//           const data = {
-//             vendor_sku: vendorSku,
-//             ...(isNum(cost) ? { vendor_cost: cost } : {}),
-//             ...(isNum(totalQty) ? { vendor_inventory: totalQty } : {}),
-//             vendor: { connect: VENDOR_CONNECT },
-//             product: { connect: { sku } },
-//           };
-//           await withDbRetry(
-//             () => prisma.vendorProduct.update({ where: { id: existing.id }, data }),
-//             "vendorProduct.update"
-//           );
-//           updated++;
-//           writeCsv(csvLog, {
-//             action: "UPDATE",
-//             vendor_sku: vendorSku,
-//             product_sku: sku,
-//             keystone_code: VCPN,
-//             vendor_cost: isNum(cost) ? cost : "",
-//             vendor_inventory: isNum(totalQty) ? totalQty : "",
-//           });
-//         } else {
-//           if (!isNum(cost)) {
-//             if (VERBOSE_ROW_LOGS) console.log(`[SKIP] ${vendorSku} (no cost; vendor_cost required on create)`);
-//             continue;
-//           }
-//           await withDbRetry(
-//             () => prisma.vendorProduct.create({
-//               data: {
-//                 vendor_sku: vendorSku,
-//                 vendor_cost: cost,
-//                 ...(isNum(totalQty) ? { vendor_inventory: totalQty } : {}),
-//                 vendor: { connect: VENDOR_CONNECT },
-//                 product: { connect: { sku } },
-//               },
-//             }),
-//             "vendorProduct.create"
-//           );
-//           created++;
-//           writeCsv(csvLog, {
-//             action: "CREATE",
-//             vendor_sku: vendorSku,
-//             product_sku: sku,
-//             keystone_code: VCPN,
-//             vendor_cost: cost,
-//             vendor_inventory: totalQty,
-//           });
-//         }
-//       }
-
-//         if (processed % PROGRESS_EVERY === 0) {
-//           console.log(`⏳ ${processed} processed · ${created} created · ${updated} updated · ${missingProduct} missing · ${deduped} deduped`);
-//         }
-//       }
-
-//       // Release connection between batches
-//       if (batchStart + BATCH_SIZE < rows.length) {
-//         await new Promise(resolve => setTimeout(resolve, 100));
-//       }
-//     }
-
-//     const secs = ((performance.now() - start) / 1000).toFixed(2);
-//     console.log(`
-// ✅ Keystone (LOCAL CSV) seeding done!
-// 📊 Created: ${created}
-// 📊 Updated: ${updated}
-// 🧩 Missing product matches: ${missingProduct}
-// 🧹 De-duped removed: ${deduped}
-// ⏱️ Time: ${secs}s
-//     `);
-
-//     if (csvLog) {
-//       console.log(`📝 Detailed CSV log: ${csvLog.filePath}`);
-//       csvLog.stream.end();
-//     }
-//   } catch (e) {
-//     console.error("❌ Seed failed:", e);
-//     if (csvLog) csvLog.stream.end();
-//   } finally {
-//     await prisma.$disconnect();
-//   }
-// })();
+seedKeystoneStaged();
+module.exports = seedKeystoneStaged;
