@@ -118,7 +118,7 @@ function runCommandToLog(cmd) {
     const child = spawn("npm", ["run", cmd], {
       cwd: ROOT,
       stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, NODE_OPTIONS: `--max-old-space-size=${heapMb}` },
+      env: { ...process.env, NODE_OPTIONS: `--max-old-space-size=${heapMb}`, APP_ROLE: 'seed' },
     });
 
     if (child.stdout) child.stdout.pipe(logStream);

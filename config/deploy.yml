@@ -54,6 +54,9 @@ env:
     PORT: 8080
     NODE_ENV: production
     ENABLE_AUTH: "true"
+    # Papel do processo p/ sizing do pool Prisma (lib/prisma.js). Children de
+    # seed spawned pelo server/seed-all sobrescrevem para "seed".
+    APP_ROLE: api
     CRON_ENABLED: "true"
     CRON_TIMEZONE: America/Toronto
     CRON_COMMAND_NOTIFY_ON_SUCCESS: "false"

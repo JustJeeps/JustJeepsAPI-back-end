@@ -4892,6 +4892,9 @@ function registerCommandCronJob({
 			cwd: __dirname,
 			stdio: ['ignore', 'pipe', 'pipe'],
 			shell: true,
+			// Children de cron são seeds: pool de conexões menor que o da API
+			// (ver ROLE_POOL_DEFAULTS em lib/prisma.js)
+			env: { ...process.env, APP_ROLE: 'seed' },
 		});
 
 		let timedOut = false;
