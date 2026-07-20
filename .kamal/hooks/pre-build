@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Aborta o deploy ANTES do build se algum secret referenciado no deploy.yml
+# resolver vazio/ausente no shell atual. Classe de incidente que isto mata:
+# deploy sem `source`/dotenv do .env.production shipa container com env vazio
+# (jul/2026: 3 deploys falhos por USD_TO_CAD_RATE/EMAIL_*; depois SMTP_HOST
+# vazio derrubou todos os e-mails de alerta com ECONNREFUSED 127.0.0.1:587).
+#
+# Regras:
+# - Secrets com valor LITERAL no .kamal/secrets: ignorados (nao dependem do shell).
+# - Secrets com referencia $VAR: a VAR precisa existir e ser nao-vazia no shell,
+#   exceto se estiver na lista OPTIONAL abaixo (apenas warning).
+set -euo pipefail
+
+cd "$(dirname "$0")/../.."
+
+# Vazios legitimos hoje: SendGrid nao e usado; SMTP_SERVICE e alternativa ao
+# SMTP_HOST; listas de e-mail de report tem fallback no codigo.
+OPTIONAL="SENDGRID_API_KEY SMTP_SERVICE SKU_STATUS_REPORT_EMAILS SKU_STATUS_WEEKLY_REPORT_EMAILS ORDER_CANCELLATION_REPORT_EMAILS"
+
+missing=()
+warns=()
+
+# Chaves declaradas em env.secret no deploy.yml
+secret_keys=$(awk '/^  secret:/{f=1;next} f&&/^    - /{print $2} f&&!/^    /{f=0}' config/deploy.yml)
+
+for key in $secret_keys; do
+  # Como o .kamal/secrets resolve esta chave?
+  line=$(grep -E "^${key}=" .kamal/secrets | head -1 || true)
+  if [ -z "$line" ]; then
+    missing+=("$key (sem entrada no .kamal/secrets)")
+    continue
+  fi
+  value="${line#*=}"
+  case "$value" in
+    \$*)
+      var="${value#\$}"
+      if [ -z "${!var:-}" ]; then
+        if [[ " $OPTIONAL " == *" $key "* ]]; then
+          warns+=("$key")
+        else
+          missing+=("$key (\$$var vazio/ausente no shell)")
+        fi
+      fi
+      ;;
+    *) : ;; # literal no arquivo — nao depende do shell
+  esac
+done
+
+if [ ${#warns[@]} -gt 0 ]; then
+  echo "pre-build: aviso — secrets opcionais vazios: ${warns[*]}" >&2
+fi
+
+if [ ${#missing[@]} -gt 0 ]; then
+  echo "" >&2
+  echo "❌ pre-build ABORTADO: secrets obrigatorios nao resolvem no shell atual:" >&2
+  printf '   - %s\n' "${missing[@]}" >&2
+  echo "" >&2
+  echo "   Rode o deploy pelo wrapper dotenv (ver docs/DEPLOY + memoria do time):" >&2
+  echo "   node -e \"require('dotenv').config({path:'.env.production'}); const {spawn}=require('child_process'); spawn('kamal',['deploy'],{stdio:'inherit',env:process.env}).on('exit',c=>process.exit(c))\"" >&2
+  exit 1
+fi
+
+echo "pre-build: todos os $(echo "$secret_keys" | wc -w | tr -d ' ') secrets do deploy.yml resolvem ✔"

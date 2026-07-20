@@ -58,7 +58,10 @@ env:
     CRON_TIMEZONE: America/Toronto
     CRON_COMMAND_NOTIFY_ON_SUCCESS: "false"
     CRON_SEED_ALL_ENABLED: "true"
-    CRON_SEED_ALL_SCHEDULE: "30 7,19 * * *"
+    # :32 para nao colidir com o seed-orders-delta (*/5) no mutex global de
+    # command crons — em 20/jul a rodada das 7:30 foi PULADA porque o delta
+    # pegou o lock no mesmo segundo. Remover apos a Fase 4 (filas pg-boss).
+    CRON_SEED_ALL_SCHEDULE: "32 7,19 * * *"
     CRON_SEED_ALL_PRODUCTS_ENABLED: "false"
     CRON_SEED_ALL_PRODUCTS_SCHEDULE: "45 */6 * * *"
     CRON_SEED_MEYER_ENABLED: "false"
@@ -119,20 +122,23 @@ env:
     JWT_EXPIRES_IN: 24h
     PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: "true"
     PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium
+    # Roteamento de e-mail NAO e secret: fica em clear para nunca resolver
+    # vazio por shell sem source (incidente ECONNREFUSED 127.0.0.1:587 de
+    # 20/jul — container subiu com SMTP_HOST vazio e o nodemailer caiu no
+    # default localhost:587). Credenciais continuam em secret.
+    EMAIL_PROVIDER: smtp
+    EMAIL_FROM: JustJeeps API <tsantos@justjeeps.com>
+    SMTP_HOST: smtp-relay.brevo.com
+    SMTP_PORT: "2525"
+    SMTP_SECURE: "false"
   secret:
     # Database & Auth
     - DATABASE_URL
     - JWT_SECRET
     - USD_TO_CAD_RATE
-    # Email providers & notifications
-    - EMAIL_PROVIDER
-    - EMAIL_FROM
+    # Email credentials & notifications (roteamento nao-secreto esta em clear)
     - EMAIL_USER
     - EMAIL_PASSWORD
-    - SMTP_HOST
-    - SMTP_PORT
-    - SMTP_SECURE
-    - SMTP_SERVICE
     - SMTP_USER
     - SMTP_PASSWORD
     - SENDGRID_API_KEY
