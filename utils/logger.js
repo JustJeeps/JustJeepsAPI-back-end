@@ -74,7 +74,10 @@ const logger = {
       method: req.method,
       path: req.path,
       statusCode: res.statusCode,
+      // duration (string "123ms") e legado: o monitor de p95 no Axiom ainda a
+      // parseia. Remover depois que o monitor migrar para duration_ms.
       duration: `${duration}ms`,
+      duration_ms: duration,
       userAgent: req.get("user-agent"),
       ip: req.ip || req.connection.remoteAddress,
       query: Object.keys(req.query).length > 0 ? req.query : undefined,
@@ -117,6 +120,42 @@ const logger = {
   flush: async () => {
     if (axiom) {
       await axiom.flush();
+    }
+  },
+
+  // Evento de pipeline DURAVEL: aguarda ingest + flush antes de retornar, para
+  // que scripts/children de vida curta nao percam o evento no exit (os metodos
+  // info/warn/error sao fire-and-forget e dependem de flush no shutdown).
+  //
+  // Contrato ingest_run (emitido 1x por feed por rodada de ingestao):
+  //   { type: "ingest_run", feed, runId, trigger: "cron"|"manual"|"backfill",
+  //     outcome: "success"|"partial"|"failed"|"skipped-unchanged",
+  //     rowsIn, rowsChanged, rowsSkipped, rowsFailed, durationMs,
+  //     watermarkFrom, watermarkTo, heapUsedMb, error }
+  ingestEvent: async (event = {}) => {
+    const payload = {
+      _time: new Date().toISOString(),
+      level: event.outcome === "failed" ? "error" : "info",
+      message: event.type
+        ? `${event.type}:${event.feed || event.name || ""} ${event.outcome || ""}`.trim()
+        : "pipeline_event",
+      environment: process.env.NODE_ENV || "development",
+      service: "justjeeps-api",
+      heapUsedMb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+      ...event,
+    };
+
+    console.log(`[EVENT] ${payload.message}`, event);
+
+    if (!axiom) return { success: false, reason: "axiom-not-configured" };
+
+    try {
+      await axiom.ingest(dataset, [payload]);
+      await axiom.flush();
+      return { success: true };
+    } catch (err) {
+      console.error("Failed to ingest pipeline event:", err.message);
+      return { success: false, reason: err.message };
     }
   },
 };
