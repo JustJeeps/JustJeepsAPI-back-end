@@ -8,6 +8,7 @@ const app = Express();
 const BodyParser = require('body-parser');
 const PORT = process.env.PORT || 8080
 const cors = require('cors');
+const compression = require('compression');
 const cron = require('node-cron');
 const { spawn } = require('child_process');
 const logger = require('./utils/logger');
@@ -30,6 +31,7 @@ const {
 } = require('./services/quickbooksCustomerLookup');
 const seedOrders = require('./prisma/seeds/seed-individual/seed-orders.js');
 const seedOrdersAll = require('./prisma/seeds/seed-individual/seed-orders-all.js');
+const seedOrdersDelta = require('./prisma/seeds/seed-individual/seed-orders-delta.js');
 const quadratecProducts = require('./prisma/seeds/api-calls/quadratec-excel.js');
 const { getWheelProsSkus, makeApiRequestsInChunks } = require('./prisma/seeds/api-calls/wheelPros-api.js');
 
@@ -1215,6 +1217,7 @@ app.use(
 
 // app.use(cors()); // Old permissive CORS - now replaced with specific origins
 
+app.use(compression());
 
 // Express Configuration
 app.use(BodyParser.urlencoded({ extended: false, limit: '10mb' }));
@@ -3294,7 +3297,15 @@ const updateSeedJob = (jobId, patch) => {
 	});
 };
 
+// seed-orders-all deletes every order before reseeding, so concurrent seed
+// jobs (e.g. two browser tabs) would corrupt data
+const hasRunningSeedJob = () =>
+	[...seedJobs.values()].some((job) => job.status === 'running');
+
 app.post('/api/seed-orders/start', async (req, res) => {
+	if (hasRunningSeedJob()) {
+		return res.status(409).json({ error: 'A seed job is already running' });
+	}
 	const limit = Number(req.body?.limit) || 4000;
 	const jobId = createSeedJob(limit);
 
@@ -3321,6 +3332,83 @@ app.post('/api/seed-orders/start', async (req, res) => {
 			finishedAt: Date.now(),
 		});
 	});
+});
+
+app.post('/api/seed-orders-all/start', async (req, res) => {
+	if (hasRunningSeedJob()) {
+		return res.status(409).json({ error: 'A seed job is already running' });
+	}
+	const jobId = createSeedJob(null);
+
+	res.status(202).json({
+		jobId,
+	});
+
+	seedOrdersAll({
+		onProgress: ({ total, processed, status, error }) => {
+			updateSeedJob(jobId, {
+				total: total ?? null,
+				processed,
+				status: status || 'running',
+				error: error || null,
+				finishedAt: status === 'done' || status === 'error' ? Date.now() : null,
+			});
+		},
+	}).catch((error) => {
+		console.error("Error seeding all orders:", error);
+		updateSeedJob(jobId, {
+			status: 'error',
+			error: error?.message || 'Seed failed',
+			finishedAt: Date.now(),
+		});
+	});
+});
+
+// Sync incremental: busca so os pedidos com updated_at >= watermark e faz
+// upsert. E o caminho padrao do botao "Update Orders" e do cron delta.
+app.post('/api/seed-orders-delta/start', async (req, res) => {
+	if (hasRunningSeedJob()) {
+		return res.status(409).json({ error: 'A seed job is already running' });
+	}
+	const jobId = createSeedJob(null);
+
+	res.status(202).json({
+		jobId,
+	});
+
+	seedOrdersDelta({
+		onProgress: ({ total, processed, status, error }) => {
+			updateSeedJob(jobId, {
+				total: total ?? null,
+				processed,
+				status: status || 'running',
+				error: error || null,
+				finishedAt: status === 'done' || status === 'error' ? Date.now() : null,
+			});
+		},
+	}).catch((error) => {
+		console.error("Error running orders delta sync:", error);
+		updateSeedJob(jobId, {
+			status: 'error',
+			error: error?.message || 'Delta sync failed',
+			finishedAt: Date.now(),
+		});
+	});
+});
+
+app.get('/api/orders/sync-state', async (req, res) => {
+	try {
+		const state = await prisma.syncState.findUnique({
+			where: { key: 'orders-delta-watermark' },
+		});
+		res.json({
+			watermark: state?.value || null,
+			lastSyncedAt: state?.updatedAt || null,
+		});
+	} catch (error) {
+		console.error('Failed to fetch orders sync state:', error);
+		res.status(500).json({ error: 'Failed to fetch sync state' });
+	}
 });
 
 app.get('/api/seed-orders/status/:jobId', (req, res) => {

@@ -10,6 +10,8 @@ const cronTimezone = process.env.CRON_TIMEZONE || 'America/Toronto';
 const commandCronNotifyOnSuccess = process.env.CRON_COMMAND_NOTIFY_ON_SUCCESS !== 'false';
 const dailySeedEnabled = process.env.CRON_SEED_ALL_ENABLED !== 'false';
 const dailySeedSchedule = process.env.CRON_SEED_ALL_SCHEDULE || '0 6,19 * * *';
+const ordersDeltaSeedEnabled = process.env.CRON_SEED_ORDERS_DELTA_ENABLED !== 'false';
+const ordersDeltaSeedSchedule = process.env.CRON_SEED_ORDERS_DELTA_SCHEDULE || '*/5 * * * *';
 const allProductsSeedEnabled = process.env.CRON_SEED_ALL_PRODUCTS_ENABLED !== 'false';
 const allProductsSeedSchedule = process.env.CRON_SEED_ALL_PRODUCTS_SCHEDULE || '45 */6 * * *';
 const meyerSeedEnabled = process.env.CRON_SEED_MEYER_ENABLED !== 'false';
@@ -48,6 +50,13 @@ const skuStatusWeeklyReportTimezone = process.env.CRON_SKU_STATUS_WEEKLY_REPORT_
 const cronDigestEnabled = process.env.CRON_DIGEST_ENABLED === 'true';
 const cronDigestSchedule = process.env.CRON_DIGEST_SCHEDULE || '10 0 * * *';
 const cronDigestTimezone = process.env.CRON_DIGEST_TIMEZONE || cronTimezone;
+const qbFreshnessReportEnabled = process.env.CRON_QB_FRESHNESS_REPORT_ENABLED !== 'false';
+const qbFreshnessReportSchedule = process.env.CRON_QB_FRESHNESS_REPORT_SCHEDULE || '15 9 * * *';
+const qbFreshnessReportTimezone = process.env.CRON_QB_FRESHNESS_REPORT_TIMEZONE || cronTimezone;
+// Limiares de idade do snapshot do QuickBooks (dias). O lookup alimenta
+// triagem de fraude: dado velho degrada a decisao silenciosamente.
+const qbStaleWarnDays = Number(process.env.QB_STALE_WARN_DAYS || 14);
+const qbStaleCritDays = Number(process.env.QB_STALE_CRIT_DAYS || 30);
 const cronChildTimeoutMs = Number(process.env.CRON_CHILD_TIMEOUT_MS || 10 * 60 * 60 * 1000);
 const cronChildKillGraceMs = Number(process.env.CRON_CHILD_KILL_GRACE_MS || 10000);
 
@@ -63,6 +72,16 @@ function getCronJobDefinitions({ includeDisabled = false } = {}) {
 			logPrefix: 'Daily seed-all',
 			reportLogFile: 'prisma/seeds/logs/seed-all.log',
 			readSummaryFile: 'prisma/seeds/logs/seed-all-summary.json',
+		},
+		{
+			enabled: ordersDeltaSeedEnabled,
+			schedule: ordersDeltaSeedSchedule,
+			command: 'seed-orders-delta',
+			jobName: 'Orders Incremental Sync (delta)',
+			logPrefix: 'Orders delta sync',
+			reportLogFile: 'prisma/seeds/logs/seed-orders-delta.log',
+			// Roda a cada poucos minutos: sucesso silencioso, so falha notifica
+			notifyOnSuccess: false,
 		},
 		{
 			enabled: allProductsSeedEnabled,
@@ -179,6 +198,15 @@ function getReportCronJobDefinitions({ includeDisabled = false } = {}) {
 			reportLogFile: 'logs/report-cron-digest-daily.log',
 			timezone: cronDigestTimezone,
 		},
+		{
+			enabled: qbFreshnessReportEnabled,
+			schedule: qbFreshnessReportSchedule,
+			command: 'report-quickbooks-freshness',
+			jobName: 'QuickBooks Data Freshness Check',
+			logPrefix: 'QuickBooks data freshness check',
+			reportLogFile: 'logs/report-quickbooks-freshness.log',
+			timezone: qbFreshnessReportTimezone,
+		},
 	].filter((job) => includeDisabled || job.enabled !== false);
 }
 
@@ -199,6 +227,8 @@ module.exports = {
 		commandCronNotifyOnSuccess,
 		dailySeedEnabled,
 		dailySeedSchedule,
+		ordersDeltaSeedEnabled,
+		ordersDeltaSeedSchedule,
 		allProductsSeedEnabled,
 		allProductsSeedSchedule,
 		meyerSeedEnabled,
@@ -232,6 +262,11 @@ module.exports = {
 		cronDigestEnabled,
 		cronDigestSchedule,
 		cronDigestTimezone,
+		qbFreshnessReportEnabled,
+		qbFreshnessReportSchedule,
+		qbFreshnessReportTimezone,
+		qbStaleWarnDays,
+		qbStaleCritDays,
 		cronChildTimeoutMs,
 		cronChildKillGraceMs,
 	},

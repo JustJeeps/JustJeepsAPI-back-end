@@ -9,6 +9,7 @@
 const axios = require("axios");
 
 const prisma = require("../../../lib/prisma");
+const { acquireOrderSyncLock, releaseOrderSyncLock } = require("../../../lib/orderSyncLock.js");
 
 // ======== Config ========
 const PAGE_SIZE = parseInt(process.env.SEED_PAGE_SIZE || "400", 10); // tune 200–500
@@ -350,14 +351,37 @@ function buildBatchRows(parsedOrders) {
   return { orderRows, orderProductRows };
 }
 
-async function seedOrders() {
+async function seedOrders(options = {}) {
+  const onProgress = typeof options.onProgress === "function" ? options.onProgress : null;
   const startTimeMs = Date.now();
   let totalProcessed = 0;
+
+  // Full reseed faz deleteMany antes de reimportar: nunca pode rodar em
+  // paralelo com o delta sync (ou outro full reseed).
+  const locked = await acquireOrderSyncLock({ leaseMinutes: 60 });
+  if (!locked) {
+    console.log("[seed-orders-all] Skipped: another order sync holds the lock.");
+    if (onProgress) {
+      onProgress({
+        total: null,
+        processed: 0,
+        status: "error",
+        error: "Another order sync is already running",
+      });
+    }
+    return;
+  }
+
   try {
     // Clean slate (delete children first if no cascade)
     await prisma.orderProduct.deleteMany();
     await prisma.order.deleteMany();
     console.log("🗑️  Existing orders cleared.");
+
+    // Total is unknown up-front: we page until a short/empty page
+    if (onProgress) {
+      onProgress({ total: null, processed: 0, status: "running" });
+    }
 
     let currentPage = 1;
     for (; currentPage <= MAX_PAGES; currentPage++) {
@@ -401,6 +425,10 @@ async function seedOrders() {
 
       console.log(`✅ Page ${currentPage} processed (${items.length} orders). Total so far: ${totalProcessed}`);
 
+      if (onProgress) {
+        onProgress({ total: null, processed: totalProcessed, status: "running" });
+      }
+
       // If we received less than a full page, we're done
       if (items.length < PAGE_SIZE) break;
     }
@@ -409,15 +437,29 @@ async function seedOrders() {
     const elapsedSec = (elapsedMs / 1000).toFixed(2);
     console.log(`🎉 Orders seeded successfully. Total processed: ${totalProcessed}`);
     console.log(`⏱️  Execution time: ${elapsedSec}s`);
+
+    if (onProgress) {
+      onProgress({ total: totalProcessed, processed: totalProcessed, status: "done" });
+    }
   } catch (error) {
     console.error("Error during seeding:", error);
+    if (onProgress) {
+      onProgress({
+        total: null,
+        processed: totalProcessed,
+        status: "error",
+        error: error?.message || "Seed failed",
+      });
+    }
   } finally {
-    await prisma.$disconnect();
+    await releaseOrderSyncLock();
   }
 }
 
 if (require.main === module) {
-  seedOrders();
+  // Only the CLI owns the shared prisma client's lifecycle; when required by
+  // the server, disconnecting here would kill the server's client mid-flight.
+  seedOrders().finally(() => prisma.$disconnect());
 }
 
 module.exports = seedOrders;

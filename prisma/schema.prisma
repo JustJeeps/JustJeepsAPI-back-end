@@ -348,3 +348,12 @@ model QuickBooksCustomer {
   @@index([importId, phoneSortDigits])
   @@index([importId, codeSort])
 }
+
+// Estado de sincronizacao (watermark do delta de pedidos + lock cross-process
+// por lease — advisory lock nao sobrevive ao pool de conexoes do Prisma)
+model SyncState {
+  key         String    @id
+  value       String?
+  lockedUntil DateTime?
+  updatedAt   DateTime  @updatedAt
+}

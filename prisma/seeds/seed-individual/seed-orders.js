@@ -412,6 +412,8 @@ const seedOrders = async (
 };
 
 module.exports = seedOrders;
+// Reusado pelo seed-orders-delta.js (upsert idempotente de um pedido)
+module.exports.processOrder = processOrder;
 
 // Executa apenas quando rodado diretamente (npm run seed-orders)
 // Não executa quando importado por outro arquivo (server.js)
