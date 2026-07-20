@@ -21,6 +21,9 @@ const MAX_RETRIES = 3;
 // abortar em vez de trocar a tabela por um resultado vazio.
 const MIN_ORDERS_FOR_SWAP = parseInt(process.env.SEED_ALL_MIN_ORDERS || "50", 10);
 const SWAP_TIMEOUT_MS = parseInt(process.env.SEED_ALL_SWAP_TIMEOUT_MS || "120000", 10);
+// Paginas buscadas em paralelo por janela. 15 paginas / 3 = ~35 req/min no
+// pico — dentro do mandato de <=60 req/min do hosting do Magento.
+const FETCH_CONCURRENCY = parseInt(process.env.SEED_ALL_FETCH_CONCURRENCY || "3", 10);
 const INSERT_CHUNK_SIZE = 500;
 
 const chunkRows = (rows, size) => {
@@ -392,45 +395,63 @@ async function seedOrders(options = {}) {
     }
 
     // ===== Fase 1: buscar TUDO do Magento (fora de transacao) =====
-    // A parte lenta (minutos) acontece sem tocar no banco; a troca em si e uma
+    // A parte lenta acontece sem tocar no banco; a troca em si e uma
     // transacao curta na fase 3, entao leitores nunca veem tabela vazia.
-    const allOrderRows = [];
-    const allOrderProductRows = [];
+    // Paginas sao buscadas em janelas de FETCH_CONCURRENCY em paralelo:
+    // mesmos 15 requests no total, so mais compactos no tempo — bem abaixo
+    // do teto de 60 req/min do hosting do Magento.
+    // Dedupe por entity_id: se a paginacao deslizar durante o scan, a ultima
+    // ocorrencia do pedido vence (Map preserva ordem de insercao por pagina).
+    const parsedByEntityId = new Map();
 
-    let currentPage = 1;
-    for (; currentPage <= MAX_PAGES; currentPage++) {
-      const items = await fetchOrdersPage(PAGE_SIZE, currentPage);
-      if (!items.length) {
-        console.log(`No items returned on page ${currentPage}. Stopping.`);
-        break;
+    let reachedEnd = false;
+    for (let windowStart = 1; windowStart <= MAX_PAGES && !reachedEnd; windowStart += FETCH_CONCURRENCY) {
+      const pageNumbers = [];
+      for (let p = windowStart; p < windowStart + FETCH_CONCURRENCY && p <= MAX_PAGES; p++) {
+        pageNumbers.push(p);
       }
 
-      const parsedOrders = [];
-      for (const orderData of items) {
-        try {
-          parsedOrders.push(extractOrderAttributes(orderData));
-        } catch (err) {
-          console.error(
-            `Error processing order entity_id=${orderData?.entity_id} on page ${currentPage}:`,
-            err?.message
-          );
+      const results = await Promise.all(
+        pageNumbers.map((page) =>
+          fetchOrdersPage(PAGE_SIZE, page).then((items) => ({ page, items }))
+        )
+      );
+
+      for (const { page, items } of results) {
+        if (reachedEnd) break;
+        if (!items.length) {
+          console.log(`No items returned on page ${page}. Stopping.`);
+          reachedEnd = true;
+          break;
         }
+
+        for (const orderData of items) {
+          try {
+            const parsed = extractOrderAttributes(orderData);
+            parsedByEntityId.set(parsed.entity_id, parsed);
+          } catch (err) {
+            console.error(
+              `Error processing order entity_id=${orderData?.entity_id} on page ${page}:`,
+              err?.message
+            );
+          }
+        }
+
+        console.log(`✅ Page ${page} fetched (${items.length} orders). Total so far: ${parsedByEntityId.size}`);
+
+        // If we received less than a full page, we're done
+        if (items.length < PAGE_SIZE) reachedEnd = true;
       }
 
-      const { orderRows, orderProductRows } = buildBatchRows(parsedOrders);
-      allOrderRows.push(...orderRows);
-      allOrderProductRows.push(...orderProductRows);
-      totalProcessed = allOrderRows.length;
-
-      console.log(`✅ Page ${currentPage} fetched (${items.length} orders). Total so far: ${totalProcessed}`);
-
+      totalProcessed = parsedByEntityId.size;
       if (onProgress) {
         onProgress({ total: null, processed: totalProcessed, status: "running" });
       }
-
-      // If we received less than a full page, we're done
-      if (items.length < PAGE_SIZE) break;
     }
+
+    const { orderRows: allOrderRows, orderProductRows: allOrderProductRows } =
+      buildBatchRows(Array.from(parsedByEntityId.values()));
+    totalProcessed = allOrderRows.length;
 
     // Resultado suspeito de vazio/pequeno (Magento fora, WAF, token invalido)
     // NUNCA pode apagar a tabela — aborta antes de qualquer write.
