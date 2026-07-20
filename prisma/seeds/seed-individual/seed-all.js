@@ -11,9 +11,12 @@ if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
 const vendorSeeds = [
   { main: "seed-quadratec",   dependent: "seed-quad-inventory" },
   { main: "seed-omix",        dependent: "seed-omix-inventory" },
-  { main: "seed-keystone-ftp2", dependent: "seed-keystone-ftp-codes" },
+  // seed-keystone-ftp-codes ja roda no passo 2 (apos seed-allProducts) e seus
+  // inputs nao mudam durante a rodada: seed-keystone-ftp2 so escreve
+  // VendorProduct e os CSVs do FTP nao sao re-baixados aqui. Rodar de novo
+  // como dependente so repetia o custo de memoria/tempo com ~0 updates.
+  { main: "seed-keystone-ftp2" },
   { main: "seed-wheelPros",   dependent: "seed-wp-inventory" },
-  // Keep Keystone pair if you want FTP→API ordering
 ];
 
 // parallel tails
@@ -38,6 +41,24 @@ const otherSeeds = [
 ];
 
 const RUN_CODES_AFTER_VENDORS = false; // flip to true if you want a final pass
+
+// Heap cap por processo-filho: falha determinística com exit 134 (registrada no
+// summary) em vez de deixar o OOM-killer do kernel escolher uma vítima no host.
+// O droplet tem 1.9GB para API + Postgres + seed; não subir sem medir.
+const DEFAULT_CHILD_HEAP_MB = 768;
+const CHILD_HEAP_MB_BY_CMD = {
+  "seed-keystone-ftp2": 1024, // invMap de ~2.4M VCPNs é o maior consumidor legítimo
+  "seed-keystone-ftp-codes": 512, // pós-streaming; funciona como teste de regressão
+};
+
+function childHeapMbFor(cmd) {
+  const perCmdEnv = Number(process.env[`SEED_CHILD_MAX_OLD_SPACE_${cmd.replace(/[^A-Za-z0-9]/g, "_").toUpperCase()}`]);
+  if (Number.isFinite(perCmdEnv) && perCmdEnv > 0) return perCmdEnv;
+  if (CHILD_HEAP_MB_BY_CMD[cmd]) return CHILD_HEAP_MB_BY_CMD[cmd];
+  const globalEnv = Number(process.env.SEED_CHILD_MAX_OLD_SPACE);
+  if (Number.isFinite(globalEnv) && globalEnv > 0) return globalEnv;
+  return DEFAULT_CHILD_HEAP_MB;
+}
 
 const jobName = "Daily Vendor Sync (seed-all)";
 const summaryPath = path.join(logsDir, "seed-all-summary.json");
@@ -93,9 +114,11 @@ function runCommandToLog(cmd) {
     console.log(`🚀 Starting: ${cmd} @ ${formatDateTime(startedAt)}`);
     const logFile = path.join(logsDir, `${cmd}.log`);
     const logStream = fs.createWriteStream(logFile, { flags: "a" });
+    const heapMb = childHeapMbFor(cmd);
     const child = spawn("npm", ["run", cmd], {
       cwd: ROOT,
       stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, NODE_OPTIONS: `--max-old-space-size=${heapMb}` },
     });
 
     if (child.stdout) child.stdout.pipe(logStream);
@@ -145,7 +168,9 @@ function runCommandToLog(cmd) {
         return finalize({ cmd, success: true, code, logFile, durationMs });
       }
 
-      const errorText = signal ? `Signal ${signal}` : `Exit code ${code}`;
+      const errorText = (code === 134 || signal === "SIGABRT")
+        ? `V8 heap OOM (exceeded --max-old-space-size=${childHeapMbFor(cmd)}MB)`
+        : signal ? `Signal ${signal}` : `Exit code ${code}`;
       console.log(`❌ Failed: ${cmd} @ ${formatDateTime(finishedAt)} (${durationText}) (see prisma/seeds/logs/${path.basename(logFile)})`);
       return finalize({ cmd, success: false, code, logFile, durationMs, error: errorText });
     });
@@ -205,7 +230,9 @@ async function runCommandSafely(cmd) {
       if (g.pre) {
         results.push(await runCommandSafely(g.pre));
       }
-      results.push(await runCommandSafely(g.dependent));
+      if (g.dependent) {
+        results.push(await runCommandSafely(g.dependent));
+      }
     }
 
     // 4) Others sequentially

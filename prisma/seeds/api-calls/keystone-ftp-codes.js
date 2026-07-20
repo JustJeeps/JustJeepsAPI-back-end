@@ -4,10 +4,9 @@
 const { PrismaClient } = require("@prisma/client");
 const path = require("path");
 const fs = require("fs");
+const csv = require("csv-parser");
 const { performance } = require("perf_hooks");
 
-// Parser returns: { vcPn, vendorName, manufacturerPartNo, ... }
-const parseKeystoneLocal = require("./parse-keystone-local");
 // Brand config + aliases
 const vendorsPrefix = require("../hard-code_data/vendors_prefix");
 
@@ -17,8 +16,9 @@ const prisma = new PrismaClient();
  *        CONFIG
  * ========================== */
 const KEYSTONE_DIR = path.resolve(__dirname, "keystone_files");
-const WRITE_LOGS = true;
-const DRY_RUN = false;
+const KEYSTONE_FILES = ["Inventory.csv", "SpecialOrder.csv"];
+const WRITE_LOGS = process.env.WRITE_LOGS !== "false";
+const DRY_RUN = process.env.DRY_RUN === "true";
 const BATCH_SIZE = 100;
 const MAX_WRITE_RETRIES = 5;
 
@@ -39,6 +39,20 @@ function normalize(str) {
   if (str == null) return "";
   const cleaned = String(str).replace(/^=\s*"?/, "").replace(/"$/, "");
   return cleaned.toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+/** Normalize a code the way the DB expects it */
+function normalizeVcPnForDB(code) {
+  if (code == null) return "";
+  return String(code).trim().replace(/\s+/g, "").toUpperCase();
+}
+
+/** Clean Excel-ish strings like ="800110" */
+function clean(s) {
+  if (s == null) return "";
+  let t = String(s).trim();
+  if (/^=\s*".*"$/.test(t)) t = t.replace(/^=\s*"(.*)"$/, "$1"); // ="123" -> 123
+  return t.replace(/^"+|"+$/g, "").trim();
 }
 
 /** Prefer product whose SKU does NOT end with '-' (tie-break: shorter SKU) */
@@ -131,47 +145,6 @@ function canonicalizeBrand(brandRaw, aliasToCanonical) {
 }
 
 /** =========================
- *      LOAD FTP -> MAP
- * ========================== */
-async function loadFtpMap(aliasToCanonical) {
-  const files = await parseKeystoneLocal(KEYSTONE_DIR);
-  const rows = files.flatMap((f) => f.data || []);
-  console.log(`📦 Parsed FTP rows: ${rows.length.toLocaleString()}`);
-
-  // Map< key, { vcPn, vendorNameRaw, vendorNameCanon, manufacturerPartNo } >
-  const map = new Map();
-  let aliasHits = 0;
-
-  const addFtpKey = (keyPart, data) => {
-    const key = normalize(data.vendorNameCanon) + normalize(keyPart);
-    if (!key || map.has(key)) return;
-    map.set(key, data);
-  };
-
-  for (const r of rows) {
-    const vendorNameRaw = r.vendorName ?? r.VendorName ?? "";
-    const vendorNameCanon = canonicalizeBrand(vendorNameRaw, aliasToCanonical);
-    if (vendorNameCanon !== vendorNameRaw) aliasHits++;
-
-    const manufacturerPartNo = r.manufacturerPartNo ?? r.ManufacturerPartNo ?? "";
-    const vcPn = r.vcPn ?? r.VCPN;
-    if (!vcPn) continue;
-
-    const data = {
-      vcPn: String(vcPn).trim(),
-      vendorNameRaw,
-      vendorNameCanon,
-      manufacturerPartNo,
-    };
-
-    addFtpKey(manufacturerPartNo, data);
-    addFtpKey(vcPn, data);
-  }
-  console.log(`🗺️  FTP keys (post-alias): ${map.size.toLocaleString()} (aliases used: ${aliasHits.toLocaleString()})`);
-  return map;
-}
-
-/** =========================
  *   LOAD PRODUCTS -> INDEX
  * ========================== */
 async function loadProductIndex(aliasToCanonical) {
@@ -226,6 +199,89 @@ async function loadProductIndex(aliasToCanonical) {
 }
 
 /** =========================
+ *   STREAM FTP CSV FILES
+ * ==========================
+ * The FTP side is ~2.5M rows (SpecialOrder.csv alone is ~460MB), while the
+ * product index is only a few thousand entries. Never materialize the FTP
+ * rows: stream each CSV and probe the small product index per row. Memory
+ * stays proportional to the product index + matches, not to the CSV size.
+ */
+function streamKeystoneFile(absPath, onRow) {
+  return new Promise((resolve) => {
+    if (!fs.existsSync(absPath)) {
+      console.warn(`⚠️ File not found: ${absPath} — skipping`);
+      return resolve(null);
+    }
+
+    const stats = {
+      file: path.basename(absPath),
+      rows: 0,
+      haveVCPN: 0,
+      builtFromVendorPart: 0,
+      emptyVCPN: 0,
+    };
+
+    fs.createReadStream(absPath)
+      .pipe(csv())
+      .on("data", (raw) => {
+        const get = (...keys) => {
+          for (const k of keys) {
+            if (raw[k] !== undefined) return String(raw[k]).trim();
+          }
+          return "";
+        };
+
+        const vendorCode = clean(get("VendorCode", "Vendor Code", "Vendor", "VENDOR"));
+        const vendorName = clean(
+          get("VendorName", "Vendor Name", "Brand", "Manufacturer")
+        );
+        const manufacturerPartNo = clean(
+          get(
+            "ManufacturerPartNo",
+            "Manufacturer Part No",
+            "Manufacturer Part Number",
+            "ManufacturerPartNumber",
+            "MfrPartNo",
+            "Mfr Part #",
+            "MPN"
+          )
+        );
+
+        // PartNumber is the vendor's part number (not the MPN); only used to derive VCPN
+        const partNumber = clean(
+          get("PartNumber", "Part Number", "PARTNUMBER", "PartNo", "Part #", "PN")
+        );
+
+        // Keystone code (VCPN) may be present or derivable
+        let vcPn = clean(get("vcPn", "VCPN", "VcPn", "KeystonePN", "KeystoneCode", "Keystone_Code"));
+
+        if (!vcPn) {
+          if (vendorCode && partNumber) {
+            vcPn = normalizeVcPnForDB(`${vendorCode}${partNumber}`);
+            if (vcPn) stats.builtFromVendorPart++;
+            else stats.emptyVCPN++;
+          } else {
+            stats.emptyVCPN++;
+          }
+        } else {
+          vcPn = normalizeVcPnForDB(vcPn);
+          stats.haveVCPN++;
+        }
+
+        if (!vcPn) return; // no join key — skip line
+
+        stats.rows++;
+        onRow({ vcPn, vendorName, manufacturerPartNo });
+      })
+      .on("end", () => resolve(stats))
+      .on("error", (err) => {
+        console.error(`❌ Stream error on ${stats.file}:`, err.message);
+        resolve(stats);
+      });
+  });
+}
+
+/** =========================
  *      APPLY UPDATES
  * ========================== */
 async function main() {
@@ -236,84 +292,106 @@ async function main() {
   const aliasToCanonical = buildAliasToCanonicalMap();
   const aliasToSitePrefix = buildAliasToSitePrefixMap();
 
-  // 1) Build maps
-  const ftpMap = await loadFtpMap(aliasToCanonical);
+  // 1) Small side of the join first: product index (~few thousand entries)
   const productIndex = await loadProductIndex(aliasToCanonical);
-
-  // 2) Compute planned updates + optional per-brand split report
-  const updates = []; // items with { sku, old_code, new_code?, old_site, new_site? , brand, ftp_vendor_name, mpn }
-  const splitBuckets = new Map(); // brand -> rows for report
-  let matched = 0;
-  let missing = 0;
-  let alreadyCorrect = 0;
 
   const reportCanonSet = new Set(REPORT_CANON_BRANDS.map((b) => canonicalizeBrand(b, aliasToCanonical)));
 
-  for (const [key, data] of ftpMap.entries()) {
-    const prod = productIndex.get(key);
-    if (!prod) { missing++; continue; }
-    matched++;
+  // 2) Stream FTP files, probing the product index per row.
+  // First occurrence of a key wins (same as the old pre-built FTP map).
+  // Only matched keys are remembered — no-match keys would be millions.
+  const seenMatchedKeys = new Set();
+  const updateBySku = new Map();
+  const splitBuckets = new Map(); // brand -> rows for report
+  let totalRows = 0;
+  let aliasHits = 0;
+  let matched = 0;
+  let missing = 0; // counts row-key probes without a product (not unique keys)
+  let alreadyCorrect = 0;
 
-    // Split report (e.g., Mickey)
-    if (reportCanonSet.has(data.vendorNameCanon)) {
-      if (!splitBuckets.has(data.vendorNameCanon)) splitBuckets.set(data.vendorNameCanon, []);
-      splitBuckets.get(data.vendorNameCanon).push({
-        product_sku: prod.sku,
-        ftp_vendor_name: data.vendorNameRaw,
-        manufacturer_part_no: data.manufacturerPartNo,
-        vcPn: data.vcPn,
-      });
-    }
+  const handleRow = ({ vcPn, vendorName, manufacturerPartNo }) => {
+    totalRows++;
+    const vendorNameRaw = vendorName;
+    const vendorNameCanon = canonicalizeBrand(vendorNameRaw, aliasToCanonical);
+    if (vendorNameCanon !== vendorNameRaw) aliasHits++;
 
-    // Decide new values
-    const change = {};
+    const vcPnClean = String(vcPn).trim();
 
-    // keystone_code from VCPN (only if different)
-    if (!equal(prod.keystone_code, data.vcPn)) {
-      change.keystone_code = data.vcPn;
-    }
+    // Same key order as before: ManufacturerPartNo first, then VCPN
+    for (const keyPart of [manufacturerPartNo, vcPnClean]) {
+      const key = normalize(vendorNameCanon) + normalize(keyPart);
+      if (!key || seenMatchedKeys.has(key)) continue;
 
-    // keystone_code_site from alias-specific site prefix + product searchableSku/_sku
-    const searchVal = prod.searchableSku ?? prod.searchable_sku ?? "";
-    const sitePrefix =
-      aliasToSitePrefix.get(normalize(data.vendorNameRaw)) ||
-      aliasToSitePrefix.get(normalize(data.vendorNameCanon)) ||
-      null;
+      const prod = productIndex.get(key);
+      if (!prod) { missing++; continue; }
 
-    if (sitePrefix && searchVal) {
-      const desiredSitePid = `${sitePrefix}${searchVal}`;
-      if (!equal(prod.keystone_code_site, desiredSitePid)) {
-        change.keystone_code_site = desiredSitePid;
+      seenMatchedKeys.add(key);
+      matched++;
+
+      // Split report (e.g., Mickey)
+      if (reportCanonSet.has(vendorNameCanon)) {
+        if (!splitBuckets.has(vendorNameCanon)) splitBuckets.set(vendorNameCanon, []);
+        splitBuckets.get(vendorNameCanon).push({
+          product_sku: prod.sku,
+          ftp_vendor_name: vendorNameRaw,
+          manufacturer_part_no: manufacturerPartNo,
+          vcPn: vcPnClean,
+        });
+      }
+
+      // Decide new values
+      const change = {};
+
+      // keystone_code from VCPN (only if different)
+      if (!equal(prod.keystone_code, vcPnClean)) {
+        change.keystone_code = vcPnClean;
+      }
+
+      // keystone_code_site from alias-specific site prefix + product searchableSku/_sku
+      const searchVal = prod.searchableSku ?? prod.searchable_sku ?? "";
+      const sitePrefix =
+        aliasToSitePrefix.get(normalize(vendorNameRaw)) ||
+        aliasToSitePrefix.get(normalize(vendorNameCanon)) ||
+        null;
+
+      if (sitePrefix && searchVal) {
+        const desiredSitePid = `${sitePrefix}${searchVal}`;
+        if (!equal(prod.keystone_code_site, desiredSitePid)) {
+          change.keystone_code_site = desiredSitePid;
+        }
+      }
+
+      if (Object.keys(change).length === 0) {
+        alreadyCorrect++;
+        continue;
+      }
+
+      if (!updateBySku.has(prod.sku)) {
+        updateBySku.set(prod.sku, {
+          sku: prod.sku,
+          old_code: prod.keystone_code || "",
+          new_code: change.keystone_code ?? "",
+          old_site: prod.keystone_code_site || "",
+          new_site: change.keystone_code_site ?? "",
+          brand: vendorNameCanon,
+          ftp_vendor_name: vendorNameRaw,
+          mpn: manufacturerPartNo,
+        });
       }
     }
+  };
 
-    if (Object.keys(change).length === 0) {
-      alreadyCorrect++;
-      continue;
-    }
-
-    updates.push({
-      sku: prod.sku,
-      old_code: prod.keystone_code || "",
-      new_code: change.keystone_code ?? "",
-      old_site: prod.keystone_code_site || "",
-      new_site: change.keystone_code_site ?? "",
-      brand: data.vendorNameCanon,
-      ftp_vendor_name: data.vendorNameRaw,
-      mpn: data.manufacturerPartNo,
-    });
+  const fileStats = [];
+  for (const file of KEYSTONE_FILES) {
+    const stats = await streamKeystoneFile(path.resolve(KEYSTONE_DIR, file), handleRow);
+    if (stats) fileStats.push(stats);
   }
-
-  console.log(`🔎 Matches: ${matched.toLocaleString()} | No-match: ${missing.toLocaleString()}`);
+  console.log("🧪 VCPN extraction summary per file:", fileStats);
+  console.log(`📦 Streamed FTP rows: ${totalRows.toLocaleString()} (aliases used: ${aliasHits.toLocaleString()})`);
+  console.log(`🔎 Matched keys: ${matched.toLocaleString()} | No-match probes: ${missing.toLocaleString()}`);
   console.log(`✅ Already correct (no update needed): ${alreadyCorrect.toLocaleString()}`);
 
-  const updateBySku = new Map();
-  for (const update of updates) {
-    if (!updateBySku.has(update.sku)) updateBySku.set(update.sku, update);
-  }
-  updates.length = 0;
-  updates.push(...[...updateBySku.values()].sort((a, b) => a.sku.localeCompare(b.sku)));
-
+  const updates = [...updateBySku.values()].sort((a, b) => a.sku.localeCompare(b.sku));
   console.log(`✏️  Will update ${updates.length.toLocaleString()} products`);
 
   // 3) CSV audit
@@ -410,210 +488,3 @@ if (require.main === module) {
 }
 
 module.exports = main;
-
-
-// /* eslint-disable no-console */
-// const { PrismaClient } = require("@prisma/client");
-// const path = require("path");
-// const fs = require("fs");
-// const { performance } = require("perf_hooks");
-
-// // Parser returns: { vcPn, vendorName, manufacturerPartNo, ... }
-// const parseKeystoneLocal = require("./parse-keystone-local");
-
-// const prisma = new PrismaClient();
-
-// /** =========================
-//  *        CONFIG
-//  * ========================== */
-// const KEYSTONE_DIR = path.resolve(__dirname, "keystone_files");
-// const WRITE_LOGS = true;
-// const DRY_RUN = false;
-// const BATCH_SIZE = 500;
-
-// /** =========================
-//  *       UTIL HELPERS
-//  * ========================== */
-// const ts = () => new Date().toISOString().replace(/[:.]/g, "-");
-// function ensureDir(p) { if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true }); }
-
-// /** Normalize join keys:
-//  * - strip ="..."; uppercase; remove non [A-Z0-9]
-//  */
-// function normalize(str) {
-//   if (str == null) return "";
-//   const cleaned = String(str).replace(/^=\s*"?/, "").replace(/"$/, "");
-//   return cleaned.toUpperCase().replace(/[^A-Z0-9]/g, "");
-// }
-
-// /** Prefer product whose SKU does NOT end with '-' */
-// function pickPreferredProduct(a, b) {
-//   const aBad = a.sku.endsWith("-");
-//   const bBad = b.sku.endsWith("-");
-//   if (aBad !== bBad) return aBad ? b : a;
-//   // tie-breaker: shorter SKU first; else keep existing (a)
-//   return a.sku.length <= b.sku.length ? a : b;
-// }
-
-// /** =========================
-//  *      LOAD FTP -> MAP
-//  * ========================== */
-// async function loadFtpMap() {
-//   const files = await parseKeystoneLocal(KEYSTONE_DIR);
-//   const rows = files.flatMap((f) => f.data || []);
-//   console.log(`📦 Parsed FTP rows: ${rows.length.toLocaleString()}`);
-
-//   // Map< key, { vcPn, vendorName, manufacturerPartNo } >
-//   const map = new Map();
-
-//   for (const r of rows) {
-//     const vendorName = r.vendorName ?? r.VendorName ?? "";
-//     const manufacturerPartNo = r.manufacturerPartNo ?? r.ManufacturerPartNo ?? "";
-//     const vcPn = r.vcPn ?? r.VCPN;
-
-//     const key = normalize(vendorName) + normalize(manufacturerPartNo);
-//     if (!key || !vcPn) continue;
-
-//     // keep first; good enough for this correction pass
-//     if (!map.has(key)) {
-//       map.set(key, {
-//         vcPn: String(vcPn).trim(),
-//         vendorName,
-//         manufacturerPartNo,
-//       });
-//     }
-//   }
-//   console.log(`🗺️  FTP keys: ${map.size.toLocaleString()}`);
-//   return map;
-// }
-
-// /** =========================
-//  *   LOAD PRODUCTS -> INDEX
-//  * ========================== */
-// async function loadProductIndex() {
-//   // try with searchableSku (camelCase) first; if prisma errors, retry with searchable_sku
-//   const build = (products, searchableField) => {
-//     const index = new Map();
-//     for (const p of products) {
-//       const searchVal = p[searchableField];
-//       const key = normalize(p.keystone_ftp_brand) + normalize(searchVal);
-//       const existing = index.get(key);
-//       if (!existing) index.set(key, p);
-//       else index.set(key, pickPreferredProduct(existing, p));
-//     }
-//     console.log(`🧩 Product keys: ${index.size.toLocaleString()} (from ${products.length.toLocaleString()} products)`);
-//     return index;
-//   };
-
-//   try {
-//     const products = await prisma.product.findMany({
-//       where: { keystone_ftp_brand: { not: null }, searchableSku: { not: null } },
-//       select: { sku: true, searchableSku: true, keystone_ftp_brand: true, keystone_code: true },
-//     });
-//     return build(products, "searchableSku");
-//   } catch (err) {
-//     // fallback to snake_case
-//     if (!/searchableSku/i.test(String(err))) throw err;
-//     const products = await prisma.product.findMany({
-//       where: { keystone_ftp_brand: { not: null }, searchable_sku: { not: null } },
-//       select: { sku: true, searchable_sku: true, keystone_ftp_brand: true, keystone_code: true },
-//     });
-//     return build(products, "searchable_sku");
-//   }
-// }
-
-// /** =========================
-//  *      APPLY UPDATES
-//  * ========================== */
-// async function main() {
-//   console.log("🚀 Fixing product.keystone_code from Keystone FTP (VendorName+ManufacturerPartNo → VCPN) ...");
-//   const start = performance.now();
-
-//   // 1) Build maps
-//   const ftpMap = await loadFtpMap();
-//   const productIndex = await loadProductIndex();
-
-//   // 2) Compute planned updates
-//   const updates = [];
-//   let matched = 0;
-//   let missing = 0;
-
-//   for (const [key, data] of ftpMap.entries()) {
-//     const prod = productIndex.get(key);
-//     if (!prod) { missing++; continue; }
-//     matched++;
-
-//     if (prod.keystone_code !== data.vcPn) {
-//       updates.push({
-//         sku: prod.sku,                // use SKU as unique id
-//         from: prod.keystone_code || "",
-//         to: data.vcPn,
-//         vendorName: data.vendorName,
-//         manufacturerPartNo: data.manufacturerPartNo,
-//       });
-//     }
-//   }
-
-//   console.log(`🔎 Matches: ${matched.toLocaleString()} | No-match: ${missing.toLocaleString()}`);
-//   console.log(`✏️  Will update keystone_code on ${updates.length.toLocaleString()} products`);
-
-//   // 3) Write CSV audit
-//   let outPath = "";
-//   if (WRITE_LOGS) {
-//     const outDir = path.resolve(__dirname, "../logs");
-//     ensureDir(outDir);
-//     outPath = path.join(outDir, `keystone-code-fix-${ts()}.csv`);
-//     const header = [
-//       "product_sku",
-//       "old_keystone_code",
-//       "new_keystone_code",
-//       "VendorName",
-//       "ManufacturerPartNo",
-//     ].join(",");
-//     const lines = updates.map(
-//       (u) =>
-//         [
-//           u.sku,
-//           u.from,
-//           u.to,
-//           `"${(u.vendorName || "").replace(/"/g, '""')}"`,
-//           `"${(u.manufacturerPartNo || "").replace(/"/g, '""')}"`,
-//         ].join(",")
-//     );
-//     fs.writeFileSync(outPath, `${header}\n${lines.join("\n")}`, "utf8");
-//     console.log(`📝 CSV log written: ${outPath}`);
-//   }
-
-//   // 4) Apply updates
-//   if (DRY_RUN) {
-//     console.log("🧪 DRY_RUN enabled — no database writes performed.");
-//   } else {
-//     let applied = 0;
-//     for (let i = 0; i < updates.length; i += BATCH_SIZE) {
-//       const slice = updates.slice(i, i + BATCH_SIZE);
-//       await prisma.$transaction(
-//         slice.map((u) =>
-//           prisma.product.update({
-//             where: { sku: u.sku },            // SKU is unique in your schema
-//             data: { keystone_code: u.to },
-//           })
-//         )
-//       );
-//       applied += slice.length;
-//       console.log(`   → Applied ${applied.toLocaleString()}/${updates.length.toLocaleString()}`);
-//     }
-//   }
-
-//   console.log(`✅ Done in ${((performance.now() - start) / 1000).toFixed(2)}s`);
-//   await prisma.$disconnect();
-// }
-
-// if (require.main === module) {
-//   main().catch(async (e) => {
-//     console.error("❌ Failed:", e);
-//     await prisma.$disconnect();
-//     process.exit(1);
-//   });
-// }
-
-// module.exports = main;
