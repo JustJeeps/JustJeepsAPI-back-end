@@ -65,6 +65,9 @@ env:
     CRON_SEED_MEYER_SCHEDULE: "7 */4 * * *"
     CRON_SEED_ROUGH_COUNTRY_ENABLED: "false"
     CRON_SEED_ROUGH_COUNTRY_SCHEDULE: "37 */4 * * *"
+    # Nomes historicos enganosos: "PRIORITY" controla o job magento-attributes-daily
+    # (Rough Country + KeyParts) e "ROUGH" controla o magento-attributes-weekly
+    # (Omix + AEV + MetalCloak). Ver getCronJobDefinitions em server.js.
     CRON_MAGENTO_ATTRIBUTES_PRIORITY_ENABLED: "true"
     CRON_MAGENTO_ATTRIBUTES_PRIORITY_SCHEDULE: "20 2 * * *"
     CRON_MAGENTO_ATTRIBUTES_ROUGH_ENABLED: "true"
@@ -177,3 +180,8 @@ builder:
 volumes:
   - "/var/lib/justjeeps-api/logs:/app/logs"
   - "/var/lib/justjeeps-api/prisma-seeds-logs:/app/prisma/seeds/logs"
+  # CSVs do audit/disable CAD-US precisam sobreviver a deploys (o disable le o
+  # CSV gerado pelo audit). Antes do primeiro deploy com este volume, criar o
+  # dir no host com o owner do user nodejs do container (mesmo uid dos volumes
+  # de logs acima): mkdir -p /var/lib/justjeeps-api/reports && chown <uid>:<gid>
+  - "/var/lib/justjeeps-api/reports:/app/reports"

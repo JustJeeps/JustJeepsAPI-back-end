@@ -220,16 +220,11 @@ async function runCommandSafely(cmd) {
       results.push(await runCommandSafely("seed-keystone-ftp-codes"));
     }
 
-    console.log("\n🔹 Auditing CAD-disabled / US-enabled SKUs...");
-    const cadDisabledUsEnabledAudit = await runCommandSafely("audit-cad-disabled-us-enabled-daily");
-    results.push(cadDisabledUsEnabledAudit);
-
-    if (cadDisabledUsEnabledAudit.success) {
-      console.log("\n🔹 Disabling confirmed CAD-disabled / US-enabled SKUs across Magento store views...");
-      results.push(await runCommandSafely("disable-cad-disabled-us-enabled-daily"));
-    } else {
-      console.log("⚠️ Skipping CAD-disabled / US-enabled disable step because the audit failed.");
-    }
+    // CAD-disabled / US-enabled audit+disable runs only in the dedicated weekly
+    // cron (cad-disabled-us-enabled-weekly). At the Magento-mandated 60 req/min
+    // cap the audit takes ~4.4h, which would hold the global cron lock here and
+    // starve the 30-min order sync.
+    console.log("\nℹ️ CAD-disabled / US-enabled audit+disable moved to dedicated weekly cron job.");
   } catch (err) {
     console.error("❌ Unexpected error during seeding pipeline:", err.message);
   } finally {

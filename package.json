@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "",
   "main": "server.js",
+  "prisma": {
+    "schema": "prisma/schema.prisma"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js",
@@ -53,6 +56,7 @@
     "seed-daily-premier": "node prisma/seeds/seed-individual/seed-daily-premier.js",
     "test-premier-api": "node test-premier-api.js",
     "test-smtp-connectivity": "node scripts/test-smtp-connectivity.js",
+    "test-email-delivery": "node scripts/test-smtp-connectivity.js --send-test-email",
     "convert-qb-open-invoices": "node \"QuickBooks Project/convert-qb-open-invoices-to-qbo.js\"",
     "scrape-metalcloak": "node prisma/seeds/scrapping/metalCloak/metalCloak-improved-scraper.js",
     "process-metalcloak": "node prisma/seeds/scrapping/metalCloak/metalcloak-integration.js",
@@ -64,10 +68,13 @@
     "magento-attributes-rough": "node prisma/seeds/seed-individual/seed-attribute-magento.js vendor \"Rough Country\"",
     "magento-attributes-metalcloak": "node prisma/seeds/seed-individual/seed-attribute-magento.js vendor \"MetalCloak\"",
     "magento-attributes-omix": "node prisma/seeds/seed-individual/seed-attribute-magento.js vendor \"Omix\"",
+    "magento-attributes-daily": "node prisma/seeds/seed-individual/seed-attribute-magento.js vendor \"Rough Country\" && node prisma/seeds/seed-individual/seed-attribute-magento.js vendor \"KeyParts\"",
+    "magento-attributes-weekly": "node prisma/seeds/seed-individual/seed-attribute-magento.js vendor \"Omix\" && node prisma/seeds/seed-individual/seed-attribute-magento.js vendor \"AEV\" && node prisma/seeds/seed-individual/seed-attribute-magento.js vendor \"MetalCloak\"",
     "audit-cad-disabled-us-enabled": "node scripts/audit-cad-disabled-us-enabled.js",
     "disable-cad-disabled-us-enabled": "node scripts/disable-cad-disabled-us-enabled.js",
-    "audit-cad-disabled-us-enabled-daily": "node scripts/audit-cad-disabled-us-enabled.js --concurrency 75 --exclude-sku DOD-DD5166 --output reports/cad-disabled-us-enabled-status-audit-daily.csv",
+    "audit-cad-disabled-us-enabled-daily": "node scripts/audit-cad-disabled-us-enabled.js --concurrency 2 --max-requests-per-minute 60 --exclude-sku DOD-DD5166 --output reports/cad-disabled-us-enabled-status-audit-daily.csv",
     "disable-cad-disabled-us-enabled-daily": "node scripts/disable-cad-disabled-us-enabled.js --concurrency 15 --exclude-sku DOD-DD5166 --file reports/cad-disabled-us-enabled-status-audit-daily.csv --output reports/cad-disabled-us-enabled-disable-daily.csv",
+    "cad-disabled-us-enabled-weekly": "node scripts/audit-cad-disabled-us-enabled.js --concurrency 2 --max-requests-per-minute 60 --exclude-sku DOD-DD5166 --output reports/cad-disabled-us-enabled-status-audit-weekly.csv && node scripts/disable-cad-disabled-us-enabled.js --concurrency 15 --exclude-sku DOD-DD5166 --file reports/cad-disabled-us-enabled-status-audit-weekly.csv --output reports/cad-disabled-us-enabled-disable-weekly.csv",
     "disable-products-us-store": "node pricing_update/us_store/disable-products-us-store.js",
     "update-quadratec-us-store-prices": "node pricing_update/us_store/update-quadratec-only-prices-us-store.js",
     "update-omix-us-store-prices": "node pricing_update/us_store/update-omix-ada-only-prices-us-store.js",

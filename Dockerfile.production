@@ -99,10 +99,13 @@ RUN rm -rf \
     .vscode \
     .claude
 
-# Garante que diretorios de log usados em runtime existam com owner correto
-# (server.js linhas 78/85 + utils/cronHistory + prisma/seeds/seed-all.js linha 7-8)
-RUN mkdir -p /app/logs /app/prisma/seeds/logs && \
-    chown -R nodejs:nodejs /app/logs /app/prisma/seeds/logs
+# Garante que diretorios usados em runtime existam com owner correto:
+# - /app/logs e /app/prisma/seeds/logs: logs de cron/seeds
+# - /app/reports: CSVs do audit CAD/US (reports/ esta no .dockerignore, entao
+#   nunca vem no build context; sem este mkdir o script falha com EACCES)
+# - /home/nodejs: useradd -r nao cria home; npm precisa dele para _logs/cache
+RUN mkdir -p /app/logs /app/prisma/seeds/logs /app/reports /home/nodejs/.npm && \
+    chown -R nodejs:nodejs /app/logs /app/prisma/seeds/logs /app/reports /home/nodejs
 
 # Muda para usuario nao-root
 USER nodejs
