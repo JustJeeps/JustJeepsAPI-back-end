@@ -32,48 +32,55 @@ const seedOrdersAll = require('./prisma/seeds/seed-individual/seed-orders-all.js
 const quadratecProducts = require('./prisma/seeds/api-calls/quadratec-excel.js');
 const { getWheelProsSkus, makeApiRequestsInChunks } = require('./prisma/seeds/api-calls/wheelPros-api.js');
 
-const cronEnabled = process.env.CRON_ENABLED !== 'false';
-const cronTimezone = process.env.CRON_TIMEZONE || 'America/Toronto';
-const commandCronNotifyOnSuccess = process.env.CRON_COMMAND_NOTIFY_ON_SUCCESS !== 'false';
-const dailySeedEnabled = process.env.CRON_SEED_ALL_ENABLED !== 'false';
-const dailySeedSchedule = process.env.CRON_SEED_ALL_SCHEDULE || '0 6,19 * * *';
-const allProductsSeedEnabled = process.env.CRON_SEED_ALL_PRODUCTS_ENABLED !== 'false';
-const allProductsSeedSchedule = process.env.CRON_SEED_ALL_PRODUCTS_SCHEDULE || '45 */6 * * *';
-const meyerSeedEnabled = process.env.CRON_SEED_MEYER_ENABLED !== 'false';
-const meyerSeedSchedule = process.env.CRON_SEED_MEYER_SCHEDULE || '7 */4 * * *';
-const roughCountrySeedEnabled = process.env.CRON_SEED_ROUGH_COUNTRY_ENABLED !== 'false';
-const roughCountrySeedSchedule = process.env.CRON_SEED_ROUGH_COUNTRY_SCHEDULE || '37 */4 * * *';
-const magentoAttributesPriorityEnabled = process.env.CRON_MAGENTO_ATTRIBUTES_PRIORITY_ENABLED !== 'false';
-const magentoAttributesPrioritySchedule = process.env.CRON_MAGENTO_ATTRIBUTES_PRIORITY_SCHEDULE || '20 2 * * *';
-const magentoAttributesRoughEnabled = process.env.CRON_MAGENTO_ATTRIBUTES_ROUGH_ENABLED !== 'false';
-const magentoAttributesRoughSchedule = process.env.CRON_MAGENTO_ATTRIBUTES_ROUGH_SCHEDULE || '20 15 * * *';
-const skuCostAlertEnabled = process.env.CRON_SKU_COST_ALERT_ENABLED !== 'false';
-const skuCostAlertSchedule = process.env.CRON_SKU_COST_ALERT_SCHEDULE || '*/30 * * * *';
-const skuCostAlertSku = process.env.SKU_COST_ALERT_SKU || 'TH-635801';
-const cadDisabledUsWeeklyEnabled = process.env.CRON_CAD_US_WEEKLY_ENABLED !== 'false';
-const cadDisabledUsWeeklySchedule = process.env.CRON_CAD_US_WEEKLY_SCHEDULE || '30 6 * * 1';
-const testCronEnabled = process.env.CRON_TEST_ENABLED === 'true';
-const testCronSchedule = process.env.CRON_TEST_SCHEDULE || '*/5 * * * *';
-const testCronCommand = process.env.CRON_TEST_COMMAND || 'seed-tdot';
-const testCronJobName = process.env.CRON_TEST_JOB_NAME || 'Cron Test Job';
-const testCronLogFile = process.env.CRON_TEST_LOG_FILE || `prisma/seeds/logs/${testCronCommand}.log`;
-const testCronNotifyOnSuccess = process.env.CRON_TEST_NOTIFY_ON_SUCCESS
-	? process.env.CRON_TEST_NOTIFY_ON_SUCCESS !== 'false'
-	: commandCronNotifyOnSuccess;
-const cancellationReportEnabled = process.env.CRON_CANCELLATION_REPORT_ENABLED !== 'false';
-const cancellationReportSchedule = process.env.CRON_CANCELLATION_REPORT_SCHEDULE || '59 23 * * *';
-const cancellationReportTimezone = process.env.CRON_CANCELLATION_REPORT_TIMEZONE || cronTimezone;
-const skuStatusReportEnabled = process.env.CRON_SKU_STATUS_REPORT_ENABLED !== 'false';
-const skuStatusReportSchedule = process.env.CRON_SKU_STATUS_REPORT_SCHEDULE || '0 22 * * *';
-const skuStatusReportTimezone = process.env.CRON_SKU_STATUS_REPORT_TIMEZONE || cronTimezone;
-const skuStatusWeeklyReportEnabled = process.env.CRON_SKU_STATUS_WEEKLY_REPORT_ENABLED !== 'false';
-const skuStatusWeeklyReportSchedule = process.env.CRON_SKU_STATUS_WEEKLY_REPORT_SCHEDULE || '0 18 * * 5';
-const skuStatusWeeklyReportTimezone = process.env.CRON_SKU_STATUS_WEEKLY_REPORT_TIMEZONE || skuStatusReportTimezone;
-const cronDigestEnabled = process.env.CRON_DIGEST_ENABLED === 'true';
-const cronDigestSchedule = process.env.CRON_DIGEST_SCHEDULE || '10 0 * * *';
-const cronDigestTimezone = process.env.CRON_DIGEST_TIMEZONE || cronTimezone;
-const cronChildTimeoutMs = Number(process.env.CRON_CHILD_TIMEOUT_MS || 10 * 60 * 60 * 1000);
-const cronChildKillGraceMs = Number(process.env.CRON_CHILD_KILL_GRACE_MS || 10000);
+// Definicoes e flags de cron centralizadas em config/cron-jobs.js (modulo puro,
+// tambem usado por scripts/verify-cron-scripts.js e pelo CI).
+const {
+	getCronJobDefinitions,
+	getReportCronJobDefinitions,
+	getCronDashboardDefinitions,
+	config: {
+		cronEnabled,
+		cronTimezone,
+		commandCronNotifyOnSuccess,
+		dailySeedEnabled,
+		dailySeedSchedule,
+		allProductsSeedEnabled,
+		allProductsSeedSchedule,
+		meyerSeedEnabled,
+		meyerSeedSchedule,
+		roughCountrySeedEnabled,
+		roughCountrySeedSchedule,
+		magentoAttributesPriorityEnabled,
+		magentoAttributesPrioritySchedule,
+		magentoAttributesRoughEnabled,
+		magentoAttributesRoughSchedule,
+		skuCostAlertEnabled,
+		skuCostAlertSchedule,
+		skuCostAlertSku,
+		cadDisabledUsWeeklyEnabled,
+		cadDisabledUsWeeklySchedule,
+		testCronEnabled,
+		testCronSchedule,
+		testCronCommand,
+		testCronJobName,
+		testCronLogFile,
+		testCronNotifyOnSuccess,
+		cancellationReportEnabled,
+		cancellationReportSchedule,
+		cancellationReportTimezone,
+		skuStatusReportEnabled,
+		skuStatusReportSchedule,
+		skuStatusReportTimezone,
+		skuStatusWeeklyReportEnabled,
+		skuStatusWeeklyReportSchedule,
+		skuStatusWeeklyReportTimezone,
+		cronDigestEnabled,
+		cronDigestSchedule,
+		cronDigestTimezone,
+		cronChildTimeoutMs,
+		cronChildKillGraceMs,
+	},
+} = require('./config/cron-jobs');
 
 function formatCronExitLabel(code, signal) {
 	if (typeof code === 'number') return `exit code ${code}`;
@@ -105,149 +112,6 @@ const skuStatusHistoryRetentionDays = Number(process.env.SKU_STATUS_HISTORY_RETE
 const quickBooksPreloadEnabled = process.env.QB_LOOKUP_PRELOAD_ON_BOOT !== 'false';
 const quickBooksPreloadDelayMs = Number(process.env.QB_LOOKUP_PRELOAD_DELAY_MS || 60000);
 let activeCommandCronJob = null;
-
-function getCronJobDefinitions() {
-	const jobs = [
-		{
-			enabled: dailySeedEnabled,
-			schedule: dailySeedSchedule,
-			command: 'seed-all',
-			jobName: 'Daily Vendor Sync (seed-all)',
-			logPrefix: 'Daily seed-all',
-			reportLogFile: 'prisma/seeds/logs/seed-all.log',
-			readSummaryFile: 'prisma/seeds/logs/seed-all-summary.json',
-		},
-		{
-			enabled: allProductsSeedEnabled,
-			schedule: allProductsSeedSchedule,
-			command: 'seed-allProducts',
-			jobName: 'Magento Products Sync',
-			logPrefix: 'Magento products sync',
-			reportLogFile: 'prisma/seeds/logs/seed-allProducts.log',
-		},
-		{
-			enabled: meyerSeedEnabled,
-			schedule: meyerSeedSchedule,
-			command: 'seed-meyer',
-			jobName: 'Meyer Sync',
-			logPrefix: 'Meyer sync',
-			reportLogFile: 'prisma/seeds/logs/seed-meyer.log',
-		},
-		{
-			enabled: roughCountrySeedEnabled,
-			schedule: roughCountrySeedSchedule,
-			command: 'seed-roughCountry',
-			jobName: 'Rough Country Sync',
-			logPrefix: 'Rough Country sync',
-			reportLogFile: 'prisma/seeds/logs/seed-roughCountry.log',
-		},
-		{
-			enabled: magentoAttributesPriorityEnabled,
-			schedule: magentoAttributesPrioritySchedule,
-			command: 'magento-attributes-daily',
-			jobName: 'Magento Attributes Daily Sync (Rough Country + KeyParts)',
-			logPrefix: 'Magento attributes daily sync',
-			reportLogFile: 'logs/magento-attributes-daily.log',
-		},
-		{
-			enabled: magentoAttributesRoughEnabled,
-			schedule: magentoAttributesRoughSchedule,
-			command: 'magento-attributes-weekly',
-			jobName: 'Magento Attributes Weekly Sync (Omix + AEV + MetalCloak)',
-			logPrefix: 'Magento attributes weekly sync',
-			reportLogFile: 'logs/magento-attributes-weekly.log',
-		},
-	];
-
-	if (skuCostAlertEnabled) {
-		jobs.push({
-			enabled: true,
-			schedule: skuCostAlertSchedule,
-			command: 'alert-sku-cost',
-			jobName: `SKU Cost Alert Watch (${skuCostAlertSku})`,
-			logPrefix: `SKU cost alert watch (${skuCostAlertSku})`,
-			reportLogFile: 'logs/alert-sku-cost.log',
-		});
-	}
-
-	if (cadDisabledUsWeeklyEnabled) {
-		jobs.push({
-			enabled: true,
-			schedule: cadDisabledUsWeeklySchedule,
-			command: 'cad-disabled-us-enabled-weekly',
-			jobName: 'CAD/US Status Weekly Fix',
-			logPrefix: 'CAD/US weekly status fix',
-			reportLogFile: 'logs/cad-disabled-us-enabled-weekly.log',
-		});
-	}
-
-	if (testCronEnabled) {
-		jobs.push({
-			enabled: true,
-			schedule: testCronSchedule,
-			command: testCronCommand,
-			jobName: testCronJobName,
-			logPrefix: testCronJobName,
-			reportLogFile: testCronLogFile,
-			notifyOnSuccess: testCronNotifyOnSuccess,
-		});
-	}
-
-	return jobs
-		.filter((job) => job.enabled !== false)
-		.map((job) => ({
-			notifyOnSuccess: commandCronNotifyOnSuccess,
-			...job,
-		}));
-}
-
-function getReportCronJobDefinitions() {
-	return [
-		{
-			enabled: cancellationReportEnabled,
-			schedule: cancellationReportSchedule,
-			command: 'report-order-cancellations-daily',
-			jobName: 'Daily Cancelled Orders Report',
-			logPrefix: 'Daily cancelled orders report',
-			reportLogFile: 'logs/report-order-cancellations-daily.log',
-			timezone: cancellationReportTimezone,
-		},
-		{
-			enabled: skuStatusReportEnabled,
-			schedule: skuStatusReportSchedule,
-			command: 'report-sku-status-daily',
-			jobName: 'Daily SKU Status Change Report',
-			logPrefix: 'Daily SKU status change report',
-			reportLogFile: 'logs/report-sku-status-daily.log',
-			timezone: skuStatusReportTimezone,
-		},
-		{
-			enabled: skuStatusWeeklyReportEnabled,
-			schedule: skuStatusWeeklyReportSchedule,
-			command: 'report-sku-status-weekly',
-			jobName: 'Weekly SKU Status Change Report',
-			logPrefix: 'Weekly SKU status change report',
-			reportLogFile: 'logs/report-sku-status-weekly.log',
-			timezone: skuStatusWeeklyReportTimezone,
-		},
-		{
-			enabled: cronDigestEnabled,
-			schedule: cronDigestSchedule,
-			command: 'report-cron-digest-daily',
-			jobName: 'Daily Cron Activity Digest',
-			logPrefix: 'Daily cron activity digest',
-			reportLogFile: 'logs/report-cron-digest-daily.log',
-			timezone: cronDigestTimezone,
-		},
-	].filter((job) => job.enabled !== false);
-}
-
-function getCronDashboardDefinitions() {
-	return [
-		...getCronJobDefinitions(),
-		...getReportCronJobDefinitions(),
-	];
-}
 
 function upsertCronJobRecord(command, patch) {
 	const current = cronJobRegistry.get(command) || { command };
@@ -5281,6 +5145,61 @@ function markReportCronFinished({ command, jobName, startedAt, finishedAt, durat
 	});
 }
 
+// Guard-rail anti-drift: todo command cron faz spawn de "npm run <command>".
+// Se o script sumir do package.json (ex.: revert acidental como o 81047cf), o
+// job falharia em TODO disparo com "Missing script" + email de erro. Aqui a
+// falha vira: log alto no boot, registro "invalid" no dashboard /api/cron-jobs,
+// UM email agregado e o job fica sem agendar (a API continua de pe).
+function validateCronCommandScripts(definitions) {
+	const packageScripts = require('./package.json').scripts || {};
+	const valid = [];
+	const invalid = [];
+
+	for (const definition of definitions) {
+		if (Object.prototype.hasOwnProperty.call(packageScripts, definition.command)) {
+			valid.push(definition);
+			continue;
+		}
+
+		invalid.push(definition);
+		logger.error('CRON MISCONFIGURED: npm script missing from package.json — job will NOT be scheduled', {
+			command: definition.command,
+			jobName: definition.jobName,
+			schedule: definition.schedule,
+		});
+		console.error(`❌ [CRON] Job "${definition.jobName}" NAO agendado: npm script "${definition.command}" nao existe no package.json`);
+		upsertCronJobRecord(definition.command, {
+			jobName: definition.jobName,
+			schedule: definition.schedule,
+			logFile: definition.reportLogFile ? path.resolve(__dirname, definition.reportLogFile) : null,
+			isRunning: false,
+			lastStatus: 'invalid',
+			lastError: `npm script "${definition.command}" missing from package.json`,
+		});
+	}
+
+	if (invalid.length > 0) {
+		const summary = invalid
+			.map((definition) => `${definition.jobName} -> npm run ${definition.command} (schedule: ${definition.schedule})`)
+			.join('; ');
+		deliverCronNotification({
+			command: 'cron-config-validation',
+			jobName: 'Cron Configuration Validation',
+			success: false,
+			exitCode: null,
+			error: `${invalid.length} cron job(s) reference npm scripts that do not exist in package.json: ${summary}`,
+			duration: null,
+			notifyOnSuccess: false,
+		}).catch((notifyError) => {
+			logger.error('Failed to send cron misconfiguration alert email', {
+				error: notifyError?.message || notifyError,
+			});
+		});
+	}
+
+	return valid;
+}
+
 function registerCronJobs() {
 	if (cronJobsRegistered) {
 		logger.warn('Cron jobs already registered; skipping duplicate initialization');
@@ -5293,7 +5212,7 @@ function registerCronJobs() {
 		return;
 	}
 
-	for (const definition of getCronJobDefinitions()) {
+	for (const definition of validateCronCommandScripts(getCronJobDefinitions())) {
 		registerCommandCronJob(definition);
 	}
 
