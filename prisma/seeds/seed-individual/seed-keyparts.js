@@ -220,7 +220,15 @@ const seedKeyPartsProducts = async () => {
 };
 
 if (require.main === module) {
-  seedKeyPartsProducts();
+  seedKeyPartsProducts().catch(async (error) => {
+    console.error(`❌ KeyParts seeding failed: ${error.message || error}`);
+    try {
+      await prisma.$disconnect();
+    } catch (_) {
+      // ignore disconnect errors during failure cleanup
+    }
+    process.exitCode = 1;
+  });
 }
 
 module.exports = seedKeyPartsProducts;

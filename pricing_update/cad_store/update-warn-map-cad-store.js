@@ -3,6 +3,7 @@
 const axios = require('axios');
 const dotenv = require('dotenv');
 const path = require('path');
+const fs = require('fs');
 const XLSX = require('xlsx');
 const prisma = require('../../lib/prisma');
 
@@ -134,6 +135,14 @@ function findColumnIndex(headerRow, matcher) {
 }
 
 function extractWarnMapByPart(filePath) {
+  if (!fs.existsSync(filePath)) {
+    throw new Error(
+      `WARN MAP file not found at ${filePath}. This vendor sheet is required and is ` +
+      `not fetched automatically — place the current WARN MAP .xlsx there ` +
+      `(columns "WARN Part Number" and "Retailer to Consumer") and redeploy, or pass --file <path>.`
+    );
+  }
+
   const workbook = XLSX.readFile(filePath, { cellDates: false });
   const firstSheet = workbook.SheetNames[0];
   const sheet = workbook.Sheets[firstSheet];
