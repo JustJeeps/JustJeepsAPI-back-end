@@ -7,7 +7,7 @@
     "schema": "prisma/schema.prisma"
   },
   "scripts": {
-    "test": "npm run verify-cron",
+    "test": "npm run verify-cron && node --test $(find test -name '*.test.js')",
     "verify-cron": "node scripts/verify-cron-scripts.js",
     "start": "node server.js",
     "dev": "nodemon server.js",
