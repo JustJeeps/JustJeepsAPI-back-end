@@ -68,6 +68,14 @@ const logger = {
     sendToAxiom("debug", message, meta);
   },
 
+  // Batimento p/ o monitor "API Offline (P1)": evento minimo direto ao Axiom,
+  // sem console (1/min poluiria o docker logs). Garante fluxo continuo de
+  // eventos no dataset mesmo de madrugada sem trafego — "zero eventos em Xmin"
+  // volta a significar queda real (processo morto ou pipeline de log morto).
+  heartbeat: () => {
+    sendToAxiom("info", "heartbeat", { type: "heartbeat" });
+  },
+
   // Log HTTP request
   request: (req, res, duration) => {
     const meta = {

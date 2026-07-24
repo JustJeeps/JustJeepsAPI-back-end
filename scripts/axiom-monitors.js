@@ -32,7 +32,37 @@ const DRY_RUN = process.argv.includes("--dry-run");
 // meyer-ca/meyer-us so emitem eventos ingest_run apos a migracao stage+diff.
 const WATCHED_FEEDS = ["keystone-ftp", "meyer-ca", "meyer-us"];
 
+// Destinatarios do notifier de e-mail (INGEST_NOTIFIER). tsantos foi removida
+// sem querer na migracao de mai/2026 que apontou tudo para developer@.
+const NOTIFIER_EMAILS = ["developer@justjeeps.com", "tsantos@justjeeps.com"];
+
 const monitors = [
+  {
+    // Casa por NOME com o monitor existente (id 5joi92SRRX9oSrDBEg) → PUT, nao
+    // duplica. Redefinido em jul/2026: a versao antiga ("zero eventos em 3min")
+    // disparava toda madrugada — /api/health e' excluido do logger e o trafego
+    // noturno cai a ~12 req/h, entao janelas vazias eram garantidas. Agora o
+    // sinal e' a ausencia do heartbeat de 60s que o server.js emite
+    // (logger.heartbeat), imune ao volume de trafego.
+    name: "API Offline (P1)",
+    type: "Threshold",
+    description:
+      "Zero heartbeats em 5min — queda real do processo ou do pipeline de log " +
+      "(o app emite heartbeat 1x/min; trafego de madrugada nao influencia).",
+    aplQuery: [
+      `['${DATASET}']`,
+      `| where type == "heartbeat"`,
+      `| summarize value = count()`,
+    ].join("\n"),
+    columnName: "value",
+    operator: "Below",
+    threshold: 1,
+    rangeMinutes: 5,
+    intervalMinutes: 1,
+    alertOnNoData: true, // sem linhas = sem heartbeat = alerta
+    resolvable: true,
+    notifierIds: [INGEST_NOTIFIER],
+  },
   {
     name: "Ingest Feed Stale — só skips sem sucesso (P2)",
     type: "Threshold",
@@ -83,8 +113,26 @@ async function upsertMonitor(api, def) {
   console.log(`✔ criado: ${def.name} (id ${data && data.id})`);
 }
 
+// Garante que o notifier de e-mail contenha todos os NOTIFIER_EMAILS (merge,
+// nunca remove destinatario existente). GET → uniao → PUT so se mudou.
+async function ensureNotifierEmails(api, notifierId, emails) {
+  const { data: notifier } = await api.get(`/v2/notifiers/${notifierId}`);
+  const current = (notifier.properties && notifier.properties.email && notifier.properties.email.emails) || [];
+  const merged = Array.from(new Set([...current, ...emails]));
+  if (merged.length === current.length) {
+    console.log(`✔ notifier ${notifierId} ja inclui: ${merged.join(", ")}`);
+    return;
+  }
+  await api.put(`/v2/notifiers/${notifierId}`, {
+    ...notifier,
+    properties: { ...notifier.properties, email: { ...notifier.properties.email, emails: merged } },
+  });
+  console.log(`✔ notifier ${notifierId} atualizado: ${merged.join(", ")}`);
+}
+
 async function main() {
   if (DRY_RUN) {
+    console.log(`[dry-run] notifier ${INGEST_NOTIFIER} → garantir e-mails: ${NOTIFIER_EMAILS.join(", ")}`);
     for (const def of monitors) {
       console.log(`[dry-run] payload para: ${def.name}`);
       console.log(JSON.stringify(def, null, 2));
@@ -101,6 +149,17 @@ async function main() {
   }
 
   const api = makeClient();
+
+  try {
+    await ensureNotifierEmails(api, INGEST_NOTIFIER, NOTIFIER_EMAILS);
+  } catch (e) {
+    const detail = e.response
+      ? `${e.response.status} ${JSON.stringify(e.response.data)}`
+      : e.message;
+    console.error(`✗ notifier ${INGEST_NOTIFIER} — ${detail}`);
+    process.exitCode = 1;
+  }
+
   for (const def of monitors) {
     try {
       await upsertMonitor(api, def);

@@ -5782,6 +5782,11 @@ registerCronJobs();
 
 app.listen(PORT, () => {
 	logger.info(`Server started on port ${PORT}`, { port: PORT, env: process.env.NODE_ENV });
+	// Heartbeat p/ o monitor "API Offline (P1)" do Axiom: >=1 evento/min no
+	// dataset, entao "zero eventos em Xmin" significa queda real. Sem isto o
+	// monitor dispara toda madrugada: /api/health e' excluido do logger (abaixo)
+	// e o trafego real cai a ~12 req/h (falsos positivos diarios pos-20/jul).
+	setInterval(() => logger.heartbeat(), 60 * 1000).unref();
 	console.log(
 		`Express seems to be listening on port ${PORT} so that's pretty good 👍`
 	);
