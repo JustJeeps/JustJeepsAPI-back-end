@@ -1,7 +1,7 @@
 const prisma = require("../../../lib/prisma");
 const getOrdersUpdatedSince = require("../api-calls/magento-ordersUpdatedSince.js");
 const { processOrder } = require("./seed-orders.js");
-const { acquireOrderSyncLock, releaseOrderSyncLock } = require("../../../lib/orderSyncLock.js");
+const { acquireOrderSyncLock, releaseOrderSyncLock, orderSyncLockLost } = require("../../../lib/orderSyncLock.js");
 
 const WATERMARK_KEY = "orders-delta-watermark";
 const PAGE_SIZE = Number(process.env.SEED_ORDERS_DELTA_PAGE_SIZE) || 100;
@@ -33,7 +33,9 @@ const seedOrdersDelta = async (options = {}) => {
   const onProgress = typeof options.onProgress === "function" ? options.onProgress : null;
   const startedAtMs = Date.now();
 
-  const locked = await acquireOrderSyncLock({ leaseMinutes: 15 });
+  // Lease curta com renovacao automatica (ver lib/orderSyncLock.js): se este
+  // processo morrer no meio, o lock libera sozinho em <=5min.
+  const locked = await acquireOrderSyncLock();
   if (!locked) {
     // Outro sync (delta, seed-orders-all etc.) esta rodando: pular e uma
     // condicao normal para o cron, nao uma falha — sai com codigo 0.
@@ -69,6 +71,11 @@ const seedOrdersDelta = async (options = {}) => {
     let maxUpdatedAt = null;
 
     for (let currentPage = 1; currentPage <= MAX_PAGES; currentPage++) {
+      // Perdemos o lock (lease expirou com o processo travado e outro sync
+      // assumiu)? Abortar sem avancar watermark — nunca escrever em paralelo.
+      if (orderSyncLockLost()) {
+        throw new Error("Order sync lock lost mid-run; aborting to avoid concurrent writes");
+      }
       const data = await getOrdersUpdatedSince(sinceUtc, { pageSize: PAGE_SIZE, currentPage });
       // Resposta sem items[] (ex.: HTML de WAF/proxy com status 200) nao pode
       // ser tratada como "nada mudou" — senao o watermark avancaria por cima

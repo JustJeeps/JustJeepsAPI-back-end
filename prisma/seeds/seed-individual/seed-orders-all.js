@@ -11,7 +11,7 @@
 const axios = require("axios");
 
 const prisma = require("../../../lib/prisma");
-const { acquireOrderSyncLock, releaseOrderSyncLock } = require("../../../lib/orderSyncLock.js");
+const { acquireOrderSyncLock, releaseOrderSyncLock, orderSyncLockLost } = require("../../../lib/orderSyncLock.js");
 
 // ======== Config ========
 const PAGE_SIZE = parseInt(process.env.SEED_PAGE_SIZE || "400", 10); // tune 200–500
@@ -373,8 +373,9 @@ async function seedOrders(options = {}) {
   let totalProcessed = 0;
 
   // Full reseed faz deleteMany antes de reimportar: nunca pode rodar em
-  // paralelo com o delta sync (ou outro full reseed).
-  const locked = await acquireOrderSyncLock({ leaseMinutes: 60 });
+  // paralelo com o delta sync (ou outro full reseed). Lease curta renovada a
+  // cada 60s (lib/orderSyncLock.js): se o processo morrer, libera em <=5min.
+  const locked = await acquireOrderSyncLock();
   if (!locked) {
     console.log("[seed-orders-all] Skipped: another order sync holds the lock.");
     if (onProgress) {
@@ -406,6 +407,11 @@ async function seedOrders(options = {}) {
 
     let reachedEnd = false;
     for (let windowStart = 1; windowStart <= MAX_PAGES && !reachedEnd; windowStart += FETCH_CONCURRENCY) {
+      // Perdemos o lock (lease expirou com o processo travado e outro sync
+      // assumiu)? Abortar ANTES do deleteMany/import — nunca em paralelo.
+      if (orderSyncLockLost()) {
+        throw new Error("Order sync lock lost mid-run; aborting to avoid concurrent writes");
+      }
       const pageNumbers = [];
       for (let p = windowStart; p < windowStart + FETCH_CONCURRENCY && p <= MAX_PAGES; p++) {
         pageNumbers.push(p);
@@ -478,6 +484,12 @@ async function seedOrders(options = {}) {
       : allOrderProductRows;
 
     // ===== Fase 3: swap atomico (transacao curta, so writes) =====
+    // Ultima checagem de posse antes do trecho destrutivo: se outro sync
+    // assumiu o lock durante o fetch longo, abortar aqui evita deleteMany
+    // em paralelo com escritas dele.
+    if (orderSyncLockLost()) {
+      throw new Error("Order sync lock lost before swap; aborting to avoid concurrent writes");
+    }
     await prisma.$transaction(
       async (tx) => {
         await tx.orderProduct.deleteMany();
