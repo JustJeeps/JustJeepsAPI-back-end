@@ -145,10 +145,18 @@
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
     "react-resizable": "^3.0.5",
-    "xlsx": "^0.18.5",
+    "xlsx": "file:vendor/xlsx-0.20.3.tgz",
     "xml2js": "^0.5.0"
   },
   "devDependencies": {
     "nodemon": "^2.0.22"
+  },
+  "overrides": {
+    "exceljs": {
+      "uuid": "^11.1.1"
+    },
+    "node-cron": {
+      "uuid": "^11.1.1"
+    }
   }
 }
