@@ -26,11 +26,14 @@ const DATASET = process.env.AXIOM_DATASET || "justjeeps-api";
 const INGEST_NOTIFIER = process.env.AXIOM_INGEST_NOTIFIER || "BAbASf5WlFkdMpNx33";
 const DRY_RUN = process.argv.includes("--dry-run");
 
-// Feeds que MUDAM com frequencia — skip prolongado neles sugere download
-// silenciosamente velho (hash batendo num arquivo estagnado). Quadratec fica de
-// fora: le um arquivo commitado, entao skip longo e' esperado, nao staleness.
-// meyer-ca/meyer-us so emitem eventos ingest_run apos a migracao stage+diff.
-const WATCHED_FEEDS = ["keystone-ftp", "meyer-ca", "meyer-us"];
+// Feeds cuja FONTE se renova sozinha — skip prolongado neles sugere download
+// silenciosamente velho. Quadratec E keystone-ftp ficam de FORA: ambos leem
+// arquivos COMMITADOS na imagem (o download FTP do keystone esta desativado no
+// seed-all — descoberta de 24/jul), entao skip continuo e' o estado esperado,
+// nao staleness. Reincluir keystone-ftp SE o download em runtime voltar.
+// meyer-ca/meyer-us so emitem ingest_run apos a migracao stage+diff (ate la o
+// monitor fica silencioso: alertOnNoData=false).
+const WATCHED_FEEDS = ["meyer-ca", "meyer-us"];
 
 // Destinatarios do notifier de e-mail (INGEST_NOTIFIER). tsantos foi removida
 // sem querer na migracao de mai/2026 que apontou tudo para developer@.
