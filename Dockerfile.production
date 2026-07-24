@@ -11,8 +11,11 @@ FROM node:20-slim AS deps
 
 WORKDIR /app
 
-# Copia apenas arquivos de dependencia para aproveitar cache
+# Copia apenas arquivos de dependencia para aproveitar cache.
+# vendor/ contem tarballs referenciados via "file:" no package.json
+# (ex.: xlsx 0.20.3 vendorizado) — o npm ci precisa deles neste estagio.
 COPY package.json package-lock.json ./
+COPY vendor ./vendor
 
 # Instala dependencias de producao
 RUN npm ci --only=production --ignore-scripts && \
