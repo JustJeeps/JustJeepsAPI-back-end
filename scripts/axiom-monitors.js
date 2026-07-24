@@ -113,21 +113,29 @@ async function upsertMonitor(api, def) {
   console.log(`✔ criado: ${def.name} (id ${data && data.id})`);
 }
 
-// Garante que o notifier de e-mail contenha todos os NOTIFIER_EMAILS (merge,
-// nunca remove destinatario existente). GET → uniao → PUT so se mudou.
+// Declarativo (decisao do usuario, 24/jul): o notifier deve ter EXATAMENTE os
+// NOTIFIER_EMAILS — adiciona quem falta e REMOVE quem nao esta na lista.
+// GET → compara → PUT so se mudou, logando o delta.
 async function ensureNotifierEmails(api, notifierId, emails) {
   const { data: notifier } = await api.get(`/v2/notifiers/${notifierId}`);
   const current = (notifier.properties && notifier.properties.email && notifier.properties.email.emails) || [];
-  const merged = Array.from(new Set([...current, ...emails]));
-  if (merged.length === current.length) {
-    console.log(`✔ notifier ${notifierId} ja inclui: ${merged.join(", ")}`);
+  const desired = Array.from(new Set(emails));
+  const same = current.length === desired.length && desired.every((e) => current.includes(e));
+  if (same) {
+    console.log(`✔ notifier ${notifierId} ja e' exatamente: ${desired.join(", ")}`);
     return;
   }
+  const added = desired.filter((e) => !current.includes(e));
+  const removed = current.filter((e) => !desired.includes(e));
   await api.put(`/v2/notifiers/${notifierId}`, {
     ...notifier,
-    properties: { ...notifier.properties, email: { ...notifier.properties.email, emails: merged } },
+    properties: { ...notifier.properties, email: { ...notifier.properties.email, emails: desired } },
   });
-  console.log(`✔ notifier ${notifierId} atualizado: ${merged.join(", ")}`);
+  console.log(
+    `✔ notifier ${notifierId} → ${desired.join(", ")}` +
+    (added.length ? ` | adicionados: ${added.join(", ")}` : "") +
+    (removed.length ? ` | removidos: ${removed.join(", ")}` : "")
+  );
 }
 
 async function main() {
