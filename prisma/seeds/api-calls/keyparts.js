@@ -1,5 +1,6 @@
 const XLSX = require("xlsx");
 const path = require("path");
+const fs = require("fs");
 const fetch = require("node-fetch");
 const csv = require("csv-parser");
 const { Readable } = require("stream");
@@ -33,11 +34,28 @@ const getInventoryMap = async () => {
 // 2. Combine price and inventory
 const keypartsCost = async () => {
   const filePath = path.join(__dirname, "KeyParts-price-file.xlsx");
+
+  if (!fs.existsSync(filePath)) {
+    throw new Error(
+      `KeyParts price file not found at ${filePath}. This vendor sheet is required and is ` +
+      `not fetched automatically — place the current KeyParts price .xlsx there ` +
+      `(sheet "Price List", columns "Item" and "Unit Price") and redeploy.`
+    );
+  }
+
   const workbook = XLSX.readFile(filePath);
   const sheet = workbook.Sheets["Price List"];
 
   console.log("Loaded file:", filePath);
   console.log("Sheet names:", workbook.SheetNames);
+
+  if (!sheet) {
+    throw new Error(
+      `KeyParts price file ${filePath} has no "Price List" sheet. ` +
+      `Available sheets: ${workbook.SheetNames.join(", ") || "(none)"}. ` +
+      `Rename the price tab to "Price List" (headers on row 7, columns "Item" and "Unit Price").`
+    );
+  }
 
   const jsonData = XLSX.utils.sheet_to_json(sheet, {
     range: 6, // Start from row 7 where headers are
