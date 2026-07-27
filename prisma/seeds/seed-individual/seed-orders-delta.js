@@ -2,8 +2,8 @@ const prisma = require("../../../lib/prisma");
 const getOrdersUpdatedSince = require("../api-calls/magento-ordersUpdatedSince.js");
 const { processOrder } = require("./seed-orders.js");
 const { acquireOrderSyncLock, releaseOrderSyncLock, orderSyncLockLost } = require("../../../lib/orderSyncLock.js");
+const { readWatermark, saveWatermark } = require("../../../lib/ordersWatermark.js");
 
-const WATERMARK_KEY = "orders-delta-watermark";
 const PAGE_SIZE = Number(process.env.SEED_ORDERS_DELTA_PAGE_SIZE) || 100;
 const MAX_PAGES = Number(process.env.SEED_ORDERS_DELTA_MAX_PAGES) || 50;
 // Janela de sobreposicao: reprocessa alguns minutos antes do watermark para
@@ -15,19 +15,6 @@ const CONCURRENCY = Number(process.env.SEED_ORDERS_DELTA_CONCURRENCY) || 5;
 // Magento usa "YYYY-MM-DD HH:MM:SS" em UTC — comparacao lexicografica desse
 // formato equivale a comparacao cronologica.
 const toMagentoUtc = (date) => date.toISOString().slice(0, 19).replace("T", " ");
-
-const readWatermark = async () => {
-  const state = await prisma.syncState.findUnique({ where: { key: WATERMARK_KEY } });
-  return state?.value || null;
-};
-
-const saveWatermark = async (value) => {
-  await prisma.syncState.upsert({
-    where: { key: WATERMARK_KEY },
-    create: { key: WATERMARK_KEY, value },
-    update: { value },
-  });
-};
 
 const seedOrdersDelta = async (options = {}) => {
   const onProgress = typeof options.onProgress === "function" ? options.onProgress : null;
@@ -52,7 +39,7 @@ const seedOrdersDelta = async (options = {}) => {
   }
 
   try {
-    const watermark = await readWatermark();
+    const watermark = await readWatermark(prisma);
     const scanStartUtc = toMagentoUtc(new Date());
     let sinceUtc;
     if (watermark) {
@@ -126,7 +113,7 @@ const seedOrdersDelta = async (options = {}) => {
     // So avanca o watermark quando nada falhou: pedidos com erro continuam
     // dentro da janela e sao retentados na proxima rodada.
     if (failed === 0) {
-      await saveWatermark(maxUpdatedAt || scanStartUtc);
+      await saveWatermark(prisma, maxUpdatedAt || scanStartUtc);
     } else {
       console.warn(`[seed-orders-delta] ${failed} order(s) failed; watermark not advanced (will retry next run).`);
     }

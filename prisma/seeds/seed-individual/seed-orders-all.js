@@ -12,6 +12,7 @@ const axios = require("axios");
 
 const prisma = require("../../../lib/prisma");
 const { acquireOrderSyncLock, releaseOrderSyncLock, orderSyncLockLost } = require("../../../lib/orderSyncLock.js");
+const { saveWatermark } = require("../../../lib/ordersWatermark.js");
 
 // ======== Config ========
 const PAGE_SIZE = parseInt(process.env.SEED_PAGE_SIZE || "400", 10); // tune 200–500
@@ -31,6 +32,10 @@ const chunkRows = (rows, size) => {
   for (let i = 0; i < rows.length; i += size) chunks.push(rows.slice(i, i + size));
   return chunks;
 };
+
+// Magento usa "YYYY-MM-DD HH:MM:SS" em UTC — comparacao lexicografica desse
+// formato equivale a comparacao cronologica (mesma convencao do delta).
+const toMagentoUtc = (date) => date.toISOString().slice(0, 19).replace("T", " ");
 const BASE_URL_PREFIX =
   "https://www.justjeeps.com/rest/V1/orders/?searchCriteria[sortOrders][0][field]=created_at";
 const FIELDS =
@@ -395,6 +400,10 @@ async function seedOrders(options = {}) {
       onProgress({ total: null, processed: 0, status: "running" });
     }
 
+    // Momento do inicio do scan: fallback do watermark caso nenhuma row
+    // traga updated_at (mesma semantica do delta).
+    const scanStartUtc = toMagentoUtc(new Date());
+
     // ===== Fase 1: buscar TUDO do Magento (fora de transacao) =====
     // A parte lenta acontece sem tocar no banco; a troca em si e uma
     // transacao curta na fase 3, entao leitores nunca veem tabela vazia.
@@ -503,6 +512,19 @@ async function seedOrders(options = {}) {
       },
       { maxWait: 10_000, timeout: SWAP_TIMEOUT_MS }
     );
+
+    // So no caminho de sucesso (apos o swap): avanca o watermark compartilhado
+    // para max(updated_at) importado, como o delta faz — o proximo delta nao
+    // reprocessa o que este full reseed ja trouxe, e o "Last sync" da tela de
+    // Orders (updatedAt desta chave) passa a refletir tambem o full reseed.
+    let maxUpdatedAt = null;
+    for (const row of allOrderRows) {
+      const updatedAt = row?.updated_at;
+      if (updatedAt && (!maxUpdatedAt || updatedAt > maxUpdatedAt)) {
+        maxUpdatedAt = updatedAt;
+      }
+    }
+    await saveWatermark(prisma, maxUpdatedAt || scanStartUtc);
 
     const elapsedMs = Date.now() - startTimeMs;
     const elapsedSec = (elapsedMs / 1000).toFixed(2);
