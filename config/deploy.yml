@@ -14,9 +14,9 @@ servers:
     hosts:
       - 138.197.173.222
     labels:
-      traefik.http.routers.justjeeps-api.rule: Host(`orderapi.nunchisolucoes.com`) || Host(`pricingtoolapi.justjeeps.com`)
+      traefik.http.routers.justjeeps-api.rule: Host(`pricingtoolapi.justjeeps.com`)
       traefik.http.routers.justjeeps-api-secure.entrypoints: websecure
-      traefik.http.routers.justjeeps-api-secure.rule: Host(`orderapi.nunchisolucoes.com`) || Host(`pricingtoolapi.justjeeps.com`)
+      traefik.http.routers.justjeeps-api-secure.rule: Host(`pricingtoolapi.justjeeps.com`)
       traefik.http.routers.justjeeps-api-secure.tls: true
       traefik.http.routers.justjeeps-api-secure.tls.certresolver: letsencrypt
     options:
@@ -130,7 +130,7 @@ env:
     # 20/jul — container subiu com SMTP_HOST vazio e o nodemailer caiu no
     # default localhost:587). Credenciais continuam em secret.
     EMAIL_PROVIDER: smtp
-    EMAIL_FROM: JustJeeps API <tsantos@justjeeps.com>
+    EMAIL_FROM: JustJeeps API <webdev@justjeeps.com>
     SMTP_HOST: smtp-relay.brevo.com
     SMTP_PORT: "2525"
     SMTP_SECURE: "false"
