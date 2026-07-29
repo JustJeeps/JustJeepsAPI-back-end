@@ -1,6 +1,10 @@
 const axios = require("axios");
 const XLSX = require("xlsx");
-const path = require("path");
+
+const parseNumber = (value) => {
+  const parsed = parseFloat(String(value ?? "").replace(/,/g, ""));
+  return Number.isFinite(parsed) ? parsed : NaN;
+};
 
 const RoughCountryCost = async () => {
   try {
@@ -19,56 +23,9 @@ const RoughCountryCost = async () => {
     const sheetName = workbook.SheetNames[0]; // assuming you want to read the first sheet
     const sheet = workbook.Sheets[sheetName];
 
-    // Define custom header array based on your file structure
-    const customHeader = [
-      "sku",
-      "availability",
-      "NV_Stock",
-      "TN_Stock",
-      "link",
-      "title",
-      "description",
-      "price",
-      "sale_price",
-      "special_from_date",
-      "special_to_date",
-      "cnd_map",
-      "cost",
-      // "image_1",
-      // "image_2",
-      // "image_3",
-      // "image_4",
-      // "image_5",
-      // "image_6",
-      // "video",
-      // "features",
-      // "notes",
-      // "install_time",
-      // "front_components",
-      // "rear_components",
-      // "instructions",
-      // "fitment",
-      // "tire_info",
-      // "height",
-      // "width",
-      // "length",
-      // "weight",
-      // "manufacturer",
-      // "upc",
-      // "category",
-      // "discount",
-      // "multiple_box",
-      // "shipping_group",
-      // "coo",
-      // "tariff_code",
-      // "utv_product",
-      // "added_date"
-    ];
-
     // Convert sheet to JSON data
     const jsonData = XLSX.utils.sheet_to_json(sheet, {
-      header: customHeader,
-      range: 1,
+      defval: "",
     });
 
     // Step 4: Access JSON Data and format as needed
@@ -82,9 +39,9 @@ const RoughCountryCost = async () => {
         AVAILABILITY: obj["availability"],
         TN_STOCK: obj["TN_Stock"],
         MAP: obj["cnd_map"],
-        PRICE: parseFloat(obj["price"]),
-        SALE_PRICE: parseFloat(obj["sale_price"]),
-        COST: parseFloat(obj["cost"]), // Ensure to convert to number if needed
+        PRICE: parseNumber(obj["price"]),
+        SALE_PRICE: parseNumber(obj["sale_price"]),
+        COST: parseNumber(obj["cost"]), // Ensure to convert to number if needed
    
       };
     });
