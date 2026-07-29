@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const path = require("path");
 const prisma = require("../../../lib/prisma");
 const quadratecCost = require("../api-calls/quadratec-excel.js");
 const loadWorkbook = require("../api-calls/load-workbook.js");
@@ -268,10 +269,18 @@ async function seedQuadratecStaged() {
   try {
     const sourcePath = loadWorkbook.resolvePath("quadratec_wholesale");
     const fileDigest = await hashFile(sourcePath);
+    // Os precos vem do pricingSheet_quad.xlsx (via quadratec-excel.js), nao do
+    // CSV — o gate precisa invalidar o skip quando QUALQUER uma das fontes muda,
+    // senao um refresh do xlsx sozinho nunca roda (precos ficam congelados).
+    const priceSheetDigest = await hashFile(
+      path.join(__dirname, "..", "api-calls", "pricingSheet_quad.xlsx")
+    );
     // O custo em CAD deriva do cambio: mudanca de USD_TO_CAD_RATE precisa
-    // invalidar o skip mesmo com arquivo identico.
+    // invalidar o skip mesmo com arquivos identicos.
     const sourceHash = crypto.createHash("sha256")
-      .update(fileDigest).update("|").update(String(USD_TO_CAD_RATE)).digest("hex");
+      .update(fileDigest).update("|")
+      .update(priceSheetDigest).update("|")
+      .update(String(USD_TO_CAD_RATE)).digest("hex");
 
     run = await startRun(FEED, {
       sourceKind: "csv",
