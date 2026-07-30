@@ -5819,6 +5819,6 @@ app.listen(PORT, () => {
 	} else {
 		console.log('🕐 [CRON] Cron jobs disabled via CRON_ENABLED=false');
 	}
-	console.log('📧 [EMAIL] Notifications will be sent to:', process.env.CRON_NOTIFICATION_EMAIL || 'tsantos@justjeeps.com');
+	console.log('📧 [EMAIL] Notifications will be sent to:', process.env.CRON_NOTIFICATION_EMAIL || '(none configured)');
 	scheduleQuickBooksLookupPreload();
 });

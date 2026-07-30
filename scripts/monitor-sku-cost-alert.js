@@ -22,7 +22,7 @@ function getEnvConfig() {
   return {
     sku: String(process.env.SKU_COST_ALERT_SKU || DEFAULT_SKU).trim(),
     vendorName: String(process.env.SKU_COST_ALERT_VENDOR || DEFAULT_VENDOR_NAME).trim(),
-    recipients: String(process.env.SKU_COST_ALERT_RECIPIENTS || process.env.CRON_NOTIFICATION_EMAIL || 'tsantos@justjeeps.com').trim(),
+    recipients: String(process.env.SKU_COST_ALERT_RECIPIENTS || process.env.CRON_NOTIFICATION_EMAIL || '').trim(),
     stateFile: String(process.env.SKU_COST_ALERT_STATE_FILE || DEFAULT_STATE_FILE).trim(),
     timezone: String(process.env.CRON_TIMEZONE || 'America/Toronto').trim(),
   };

@@ -109,6 +109,45 @@ if (packageJson.prisma?.schema !== 'prisma/schema.prisma') {
 }
 
 // ---------------------------------------------------------------------------
+// 5) Nenhum e-mail hardcoded em codigo de runtime: destinatarios vivem SO em
+//    env (.env.production). Listas locais ja desviaram destinatario sem review
+//    duas vezes (mai/2026 axiom-monitors, jul/2026 .kamal/secrets). Uso
+//    legitimo novo entra explicitamente no EMAIL_ALLOWLIST abaixo.
+// ---------------------------------------------------------------------------
+const EMAIL_LITERAL_PATTERN = /['"`]([A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})['"`]/g;
+const EMAIL_SCAN_TARGETS = ['server.js', 'utils', 'scripts'];
+const EMAIL_ALLOWLIST = new Set([
+	// 'caminho/relativo.js:email' — vazio hoje, de proposito
+]);
+
+function collectJsFiles(target) {
+	const absolute = path.resolve(ROOT, target);
+	if (!fs.existsSync(absolute)) return [];
+	if (fs.statSync(absolute).isFile()) return [absolute];
+	const files = [];
+	for (const entry of fs.readdirSync(absolute, { withFileTypes: true })) {
+		if (entry.name === 'node_modules') continue;
+		const entryPath = path.join(absolute, entry.name);
+		if (entry.isDirectory()) files.push(...collectJsFiles(path.relative(ROOT, entryPath)));
+		else if (entry.name.endsWith('.js')) files.push(entryPath);
+	}
+	return files;
+}
+
+for (const target of EMAIL_SCAN_TARGETS) {
+	for (const filePath of collectJsFiles(target)) {
+		const relative = path.relative(ROOT, filePath);
+		const content = fs.readFileSync(filePath, 'utf8');
+		for (const match of content.matchAll(EMAIL_LITERAL_PATTERN)) {
+			const literal = match[1];
+			if (!EMAIL_ALLOWLIST.has(`${relative}:${literal}`)) {
+				addViolation(`${relative}: e-mail hardcoded "${literal}" — destinatarios devem vir de env (.env.production)`);
+			}
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Resultado
 // ---------------------------------------------------------------------------
 if (violations.length > 0) {

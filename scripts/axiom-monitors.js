@@ -35,9 +35,19 @@ const DRY_RUN = process.argv.includes("--dry-run");
 // monitor fica silencioso: alertOnNoData=false).
 const WATCHED_FEEDS = ["meyer-ca", "meyer-us"];
 
-// Destinatarios do notifier de e-mail (INGEST_NOTIFIER). tsantos foi removida
-// sem querer na migracao de mai/2026 que apontou tudo para developer@.
-const NOTIFIER_EMAILS = ["developer@justjeeps.com", "tsantos@justjeeps.com"];
+// Destinatarios do notifier de e-mail (INGEST_NOTIFIER). Sem lista hardcoded:
+// vem de INGEST_NOTIFIER_EMAILS ou CRON_NOTIFICATION_EMAIL (fonte unica no
+// .env.production) — listas locais ja derrubaram destinatario 2x (mai e jul/2026).
+const NOTIFIER_EMAILS = String(process.env.INGEST_NOTIFIER_EMAILS || process.env.CRON_NOTIFICATION_EMAIL || "")
+  .split(/[,\s]+/)
+  .filter(Boolean);
+
+// ensureNotifierEmails REMOVE quem nao esta na lista — rodar com lista vazia
+// esvaziaria o notifier no Axiom. Aborta antes.
+if (NOTIFIER_EMAILS.length === 0) {
+  console.error("NOTIFIER_EMAILS vazio: defina INGEST_NOTIFIER_EMAILS ou CRON_NOTIFICATION_EMAIL antes de rodar.");
+  process.exit(1);
+}
 
 const monitors = [
   {

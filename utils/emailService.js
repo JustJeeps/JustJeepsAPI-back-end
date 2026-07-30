@@ -219,8 +219,17 @@ async function sendEmail({ to, subject, text, html }) {
  * @param {string} params.duration - Job duration
  */
 async function sendCronNotification({ jobName, success, exitCode, error, duration }) {
-  const recipient = process.env.CRON_NOTIFICATION_EMAIL || 'tsantos@justjeeps.com';
-  
+  const recipient = String(process.env.CRON_NOTIFICATION_EMAIL || '')
+    .split(/[,\s]+/)
+    .map((email) => email.trim())
+    .filter(Boolean)
+    .join(',');
+
+  if (!recipient) {
+    console.warn('⚠️ Cron notification skipped: CRON_NOTIFICATION_EMAIL not configured');
+    return { success: false, error: 'No recipients configured' };
+  }
+
   const subject = success 
     ? `✅ ${jobName} - Completed Successfully`
     : `❌ ${jobName} - Failed`;
@@ -283,7 +292,16 @@ async function sendCronNotification({ jobName, success, exitCode, error, duratio
  * @param {Array} params.results
  */
 async function sendCronReport({ jobName, success, exitCode, error, duration, results = [] }) {
-  const recipient = process.env.CRON_NOTIFICATION_EMAIL || 'tsantos@justjeeps.com';
+  const recipient = String(process.env.CRON_NOTIFICATION_EMAIL || '')
+    .split(/[,\s]+/)
+    .map((email) => email.trim())
+    .filter(Boolean)
+    .join(',');
+
+  if (!recipient) {
+    console.warn('⚠️ Cron report skipped: CRON_NOTIFICATION_EMAIL not configured');
+    return { success: false, error: 'No recipients configured' };
+  }
 
   const subject = success
     ? `✅ ${jobName} - Report (All Completed)`
