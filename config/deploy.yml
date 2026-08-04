@@ -134,6 +134,17 @@ env:
     SMTP_HOST: smtp-relay.brevo.com
     SMTP_PORT: "2525"
     SMTP_SECURE: "false"
+    # Requests (chamados internos): quem pode atribuir/fechar. Usernames nao
+    # sao secret — em clear para nunca resolver vazio (config/requests.js).
+    REQUESTS_TRIAGE_USERS: "ricardo,rafael"
+    REQUESTS_ASSIGNMENT_EMAIL_ENABLED: "true"
+    # Digest de Requests: opt-in (ligar depois da reuniao definir
+    # periodicidade/destinatarios). Recipients em REQUESTS_DIGEST_EMAILS (secret).
+    CRON_REQUESTS_DIGEST_ENABLED: "false"
+    CRON_REQUESTS_DIGEST_SCHEDULE: "0 8 * * 1-5"
+    CRON_REQUESTS_DIGEST_TIMEZONE: America/Toronto
+    # Trello one-way (card criado ao atribuir): configuracao 100% no banco via
+    # painel /settings (credencial global + board por usuario). Sem envs.
   secret:
     # Database & Auth
     - DATABASE_URL
@@ -151,6 +162,7 @@ env:
     - ORDER_CANCELLATION_REPORT_EMAILS
     - SKU_STATUS_REPORT_EMAILS
     - SKU_STATUS_WEEKLY_REPORT_EMAILS
+    - REQUESTS_DIGEST_EMAILS
     # Magento
     - MAGENTO_KEY
     # Keystone
@@ -177,6 +189,13 @@ env:
     # Other APIs
     - PARSEHUB_KEY_NORTHRIDGE
     - FREIGHTCOM_API_KEY
+    # DigitalOcean Spaces (anexos de Requests). Opcionais no pre-build: sem
+    # eles o upload responde 409 ATTACHMENTS_DISABLED, o resto da feature vive.
+    - DO_SPACES_ENDPOINT
+    - DO_SPACES_REGION
+    - DO_SPACES_BUCKET
+    - DO_SPACES_KEY
+    - DO_SPACES_SECRET
     # Axiom (Error Monitoring)
     - AXIOM_TOKEN
     - AXIOM_DATASET
