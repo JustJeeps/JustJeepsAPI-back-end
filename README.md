@@ -22,8 +22,9 @@ cp .env.example .env
 # Generate Prisma client
 npx prisma generate
 
-# Run database migrations
-npx prisma migrate dev
+# NOTE: do NOT run `npx prisma migrate dev` if your .env points at a shared
+# database. Migrations are hand-written SQL folders in prisma/migrations/ and
+# run in production via `migrate deploy` in the container entrypoint.
 
 # Seed essential data
 npm run seed-hard-code
@@ -58,7 +59,8 @@ See `.env.example` for vendor API keys and other variables.
 
 ## Reports
 
-- Canceled orders by month: ensure DATABASE_URL is configured, then run node scripts/canceled-orders-report.js (optionally add --since=YYYY-MM, default 2025-01) to see monthly counts, totals, and cancellation percentages plus overall totals.
+- Canceled orders by month: ensure DATABASE_URL is configured, then run node scripts/canceled-orders-report.js (optionally add --since=YYYY-MM, default 2025-09) to see monthly counts, totals, and cancellation percentages plus overall totals.
+- Tests: `npm test` runs the cron config check plus `node --test` over `test/` (no database or network needed). CI runs the same suite and `npx prisma validate` on every push.
 
 ## API Endpoints
 
@@ -70,6 +72,8 @@ See `.env.example` for vendor API keys and other variables.
 
 ### Core Resources
 
+All `/api/*` routes below (and every route registered after the auth middleware in `server.js`) require a Bearer token when `ENABLE_AUTH=true` (which is the case in production).
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/products` | List products with vendor info |
@@ -77,6 +81,8 @@ See `.env.example` for vendor API keys and other variables.
 | GET | `/api/vendors` | List all vendors |
 | GET | `/api/vendor_products` | Product-vendor mappings |
 | GET | `/api/purchase_orders` | Purchase orders |
+
+This table is a summary, not an inventory: the API has ~76 routes (orders workflow, reports, cron dashboard, QuickBooks lookup, requests). The requests/ticketing API (including the Trello settings panel) is documented in `docs/REQUESTS.md`.
 
 ### Authentication
 
@@ -119,31 +125,46 @@ curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8080/api/auth/me
 ## Project Structure
 
 ```
-├── server.js              # Main Express application
+├── server.js              # Main Express application (most routes)
 ├── lib/
-│   └── prisma.js          # Database client singleton
+│   ├── prisma.js          # Database client (role-based connection pools)
+│   ├── requests/          # Requests domain rules (pure, tested)
+│   ├── trello/            # Trello client + settings persistence
+│   ├── reports/           # Report/digest data collectors
+│   └── ingest/            # CSV/feed ingest framework
 ├── routes/
-│   └── auth.js            # Authentication routes
+│   ├── auth.js            # Authentication routes
+│   ├── requests.js        # Requests (internal tickets)
+│   ├── users.js           # User list for selects
+│   └── trelloSettings.js  # Trello settings panel (triage only)
 ├── middleware/
 │   └── auth.js            # JWT middleware
-├── services/              # External API integrations
-│   ├── metalcloak/
+├── services/
+│   ├── requests/          # Requests use cases
+│   ├── trello/            # Trello card creation + settings
+│   ├── storage/           # DO Spaces attachments
+│   ├── metalcloak/        # External API integrations
 │   ├── turn14/
 │   └── premier/
 ├── utils/
-│   └── logger.js          # Axiom logging utility
+│   ├── logger.js          # Axiom logging utility
+│   └── emailService.js    # All email senders (cron, reports, requests)
+├── config/
+│   ├── deploy.yml         # Kamal deployment config
+│   ├── cron-jobs.js       # Central cron definitions
+│   └── requests.js        # Requests constants + triage allowlist
+├── test/                  # node:test suites (npm test)
 ├── prisma/
-│   ├── schema.prisma      # Database schema
+│   ├── schema.prisma      # Database schema (the real one; /schema.prisma at the root is stale)
 │   └── seeds/             # Data seeding scripts
 │       ├── hard-code_data/
 │       ├── seed-individual/
 │       ├── api-calls/
 │       └── scrapping/
-├── config/
-│   └── deploy.yml         # Kamal deployment config
 └── docs/
-    ├── prd/               # Product Requirements Documents
-    └── design/            # Design Documents
+    ├── REQUESTS.md        # Requests + Trello integration
+    ├── prd/               # Product Requirements Documents (Jan/2026 snapshot)
+    └── design/            # Design Documents (Jan/2026 snapshot)
 ```
 
 ## Authentication System
@@ -200,11 +221,11 @@ kamal app exec -i -- sh
 
 ### Environment Setup
 
-1. Copy `.env.production.example` to `.env.production`
+1. Copy `.env.production.example` to `.env.production` (note: the template does not list every secret the deploy needs; `.kamal/hooks/pre-build` aborts the deploy and prints the missing ones)
 2. Configure all required variables
-3. Export variables before deploy:
+3. Export variables before deploy (plain `source` does not export, the pre-build hook will abort):
    ```bash
-   source .env.production
+   set -a; source .env.production; set +a
    kamal deploy
    ```
 

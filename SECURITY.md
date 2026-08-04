@@ -22,10 +22,9 @@ This document outlines the security measures and best practices implemented in t
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `POSTGRES_USER` | Database username | Yes |
-| `POSTGRES_PASSWORD` | Database password | Yes |
-| `POSTGRES_DB` | Database name | No (default: justjeeps) |
-| `JWT_SECRET` | Secret key for JWT tokens (min 32 chars) | Yes |
+| `DATABASE_URL` | PostgreSQL connection string (the app fails to boot without it) | Yes |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Only used by docker-compose to provision the local container (the Node app reads `DATABASE_URL`) | Docker only |
+| `JWT_SECRET` | Secret key for JWT tokens (use 64+ random chars; see command below) | Yes |
 | `MAGENTO_KEY` | Magento API key | For Magento integration |
 
 ### Security Rules

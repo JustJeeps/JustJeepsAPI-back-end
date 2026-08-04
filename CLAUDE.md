@@ -30,8 +30,14 @@ docker compose down
 ### Database Setup
 ```bash
 npx prisma generate           # Generate Prisma client after schema changes
-npx prisma migrate dev        # Run migrations in development
-npx prisma migrate deploy     # Run migrations in production
+npx prisma validate           # Validate the schema (safe, no DB contact)
+```
+
+**WARNING: never run `npx prisma migrate dev` (or `reset`) locally.** The local `.env` points at the shared production Postgres. New migrations are hand-written SQL folders under `prisma/migrations/YYYYMMDDHHMM00_name/` and are applied in production by `npx prisma migrate deploy` inside the container entrypoint (`docker-entrypoint.sh`).
+
+### Tests
+```bash
+npm test                      # verify-cron + node --test over test/ (no DB, no network)
 ```
 
 ### Data Seeding
@@ -51,14 +57,32 @@ Individual vendor seeders: `seed-meyer`, `seed-keystone`, `seed-omix`, `seed-qua
 
 ### Directory Structure
 ```
-server.js                    # Express app with all routes
-routes/auth.js               # Authentication endpoints (separated)
+server.js                    # Express app with most routes (monolithic)
+routes/
+  ├── auth.js                # Authentication endpoints
+  ├── requests.js            # Requests (internal tickets) — see docs/REQUESTS.md
+  ├── users.js               # GET /api/users (assignee selects)
+  └── trelloSettings.js      # Trello admin panel (triage only)
 middleware/auth.js           # JWT verification & feature flag middleware
-schema.prisma                # Database schema
+prisma/schema.prisma         # Database schema (the REAL one — package.json "prisma.schema")
+                             # WARNING: /schema.prisma at the repo root is STALE, do not use
+config/
+  ├── cron-jobs.js           # Central cron definitions (pure: env + literals only)
+  └── requests.js            # Requests constants + triage allowlist
+lib/
+  ├── prisma.js              # Prisma client with role-based pools (APP_ROLE/DB_POOL_*)
+  ├── requests/              # Pure domain rules (transitions, activity diff)
+  ├── trello/                # Trello client + settings persistence (injectable, tested)
+  ├── reports/               # Digest data collectors
+  └── ingest/                # CSV/feed ingest framework
 services/
+  ├── requests/              # Requests use cases (single data-access layer)
+  ├── trello/                # Trello card creation + settings service
+  ├── storage/               # DO Spaces attachment storage
   ├── turn14/                # Turn14 API integration
   ├── premier/               # Premier API integration
   └── metalcloak/            # MetalCloak API integration
+test/lib/                    # node:test suites (no DB/network — stubs injected)
 prisma/seeds/
   ├── hard-code_data/        # Static reference data (vendors, users, competitors)
   ├── seed-individual/       # 40+ vendor-specific seeders
@@ -121,7 +145,9 @@ node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 
 Core models: `Product`, `Order`, `OrderProduct`, `Vendor`, `VendorProduct`, `PurchaseOrder`, `PurchaseOrderLineItem`, `User`, `Competitor`, `CompetitorProduct`
 
-Products contain 20,000+ SKUs with multi-vendor support. Schema has 50+ migrations tracking evolution.
+Requests feature models: `Request`, `RequestComment`, `RequestAttachment`, `RequestActivity`, `TrelloSettings`, `TrelloUserBoard` (see `docs/REQUESTS.md`). Other models: `QuickBooksImport`, `QuickBooksCustomer`, `SyncState`, `IngestRun`, `SkuStatusChangeHistory`, `OrderCancellationWorkflowHistory`.
+
+Products contain 20,000+ SKUs with multi-vendor support. Schema lives in `prisma/schema.prisma` (~84 migrations; new ones are hand-written SQL folders applied by `migrate deploy` in the container entrypoint — never run `migrate dev` locally, the local `.env` points at the shared production database).
 
 ## Security
 
