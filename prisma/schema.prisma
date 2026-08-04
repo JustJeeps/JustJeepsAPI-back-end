@@ -238,13 +238,150 @@ model Vendor {
 }
 
 model User {
-  id             Int             @id @default(autoincrement())
-  firstname      String
-  lastname       String
-  username       String
-  email          String
-  password       String
-  purchaseOrders PurchaseOrder[]
+  id                 Int                 @id @default(autoincrement())
+  firstname          String
+  lastname           String
+  username           String
+  email              String
+  password           String
+  purchaseOrders     PurchaseOrder[]
+  requestsCreated    Request[]           @relation("RequestRequester")
+  requestsAssigned   Request[]           @relation("RequestAssignee")
+  requestComments    RequestComment[]    @relation("RequestCommentAuthor")
+  requestAttachments RequestAttachment[] @relation("RequestAttachmentUploader")
+  requestActivities  RequestActivity[]   @relation("RequestActivityActor")
+  requestAssignments RequestAssignee[]   @relation("RequestAssigneeUser")
+  trelloBoard        TrelloUserBoard?    @relation("UserTrelloBoard")
+}
+
+// ---------------------------------------------------------------------------
+// Requests: sistema de chamados internos do Pricing Tool (substitui as listas
+// de pedidos por e-mail). Status/priority/project/type sao Strings validadas
+// contra as constantes de config/requests.js (padrao do repo: sem enums).
+// ---------------------------------------------------------------------------
+
+model Request {
+  id           Int                 @id @default(autoincrement())
+  title        String
+  description  String              @db.Text
+  project      String
+  type         String
+  priority     String              @default("Normal")
+  status       String              @default("New Request")
+  links        Json?
+  // Integracao one-way com Trello (config via painel /settings)
+  trelloCardId  String?
+  trelloCardUrl String?
+  // Arquivado (2026-08-03): some dos filtros padrao da tela, mas fica salvo.
+  // So chamados Completed/Closed podem ser arquivados (regra no servico).
+  archivedAt   DateTime?
+  requester_id Int
+  assignee_id  Int?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @default(now()) @updatedAt
+  requester    User                @relation("RequestRequester", fields: [requester_id], references: [id])
+  // assignee = responsavel PRIMARIO (primeiro da lista): dirige board do
+  // Trello, auto-status e KPI de unassigned. A lista completa fica em assignees.
+  assignee     User?               @relation("RequestAssignee", fields: [assignee_id], references: [id], onDelete: SetNull)
+  assignees    RequestAssignee[]
+  comments     RequestComment[]
+  attachments  RequestAttachment[]
+  activities   RequestActivity[]
+
+  @@index([status])
+  @@index([assignee_id])
+  @@index([requester_id])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@index([archivedAt])
+}
+
+model RequestComment {
+  id         Int      @id @default(autoincrement())
+  request_id Int
+  author_id  Int
+  body       String   @db.Text
+  internal   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  request    Request  @relation(fields: [request_id], references: [id], onDelete: Cascade)
+  author     User     @relation("RequestCommentAuthor", fields: [author_id], references: [id])
+
+  @@index([request_id])
+}
+
+model RequestAttachment {
+  id           Int      @id @default(autoincrement())
+  request_id   Int
+  uploader_id  Int
+  originalName String
+  storedName   String   @unique
+  mimeType     String
+  sizeBytes    Int
+  createdAt    DateTime @default(now())
+  request      Request  @relation(fields: [request_id], references: [id], onDelete: Cascade)
+  uploader     User     @relation("RequestAttachmentUploader", fields: [uploader_id], references: [id])
+
+  @@index([request_id])
+}
+
+model RequestActivity {
+  id         Int      @id @default(autoincrement())
+  request_id Int
+  actor_id   Int
+  action     String // created|status_change|assignee_change|priority_change|field_update|comment_added|attachment_added|attachment_removed|reopened|archived|unarchived|trello_card_created|trello_card_skipped|trello_card_failed
+  field      String?
+  oldValue   String?
+  newValue   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  request    Request  @relation(fields: [request_id], references: [id], onDelete: Cascade)
+  actor      User     @relation("RequestActivityActor", fields: [actor_id], references: [id])
+
+  @@index([request_id])
+  @@index([createdAt])
+}
+
+// Multi-assignee (decisao de 2026-08-03): um chamado pode ter varios
+// responsaveis. Request.assignee_id continua como o primario (= primeiro da
+// lista enviada no PATCH assigneeIds).
+model RequestAssignee {
+  id         Int      @id @default(autoincrement())
+  request_id Int
+  user_id    Int
+  createdAt  DateTime @default(now())
+  request    Request  @relation(fields: [request_id], references: [id], onDelete: Cascade)
+  user       User     @relation("RequestAssigneeUser", fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([request_id, user_id])
+  @@index([user_id])
+}
+
+// ---------------------------------------------------------------------------
+// Integracao Trello configurada pelo painel /settings (usuarios de triage).
+// Credencial global unica (linha singleton id=1) + mapeamento usuario ->
+// board/lista de destino (card do request vai para o board do assignee).
+// apiToken em plaintext por decisao: DB interno, token revogavel no Trello,
+// e criptografia exigiria chave em env (que esta feature elimina). O token
+// NUNCA sai da API sem mascara (ver lib/trello/settings.js).
+// ---------------------------------------------------------------------------
+
+model TrelloSettings {
+  id          Int      @id @default(1)
+  apiKey      String?
+  apiToken    String?
+  updatedById Int?
+  updatedAt   DateTime @default(now()) @updatedAt
+}
+
+model TrelloUserBoard {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @unique
+  boardId   String
+  boardName String
+  listId    String
+  listName  String
+  updatedAt DateTime @default(now()) @updatedAt
+  user      User     @relation("UserTrelloBoard", fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model PurchaseOrder {
