@@ -289,6 +289,8 @@ const seedOmix = async () => {
     );
   } catch (error) {
     console.error("Error seeding vendor products from Omix:", error);
+    // Without this, seed-all records success even when the xlsx is missing.
+    process.exitCode = 1;
   } finally {
     await prisma.$disconnect();
   }
