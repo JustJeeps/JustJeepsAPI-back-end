@@ -1,6 +1,7 @@
 const Express = require('express');
 const fs = require('fs');
 const path = require('path');
+const { pipeline } = require('stream');
 require('dotenv').config();
 const axios = require('axios');
 const { format, parseISO } = require('date-fns');
@@ -1160,6 +1161,15 @@ function buildCronJobStatus(definition, historyEntries = null) {
 const authRoutes = require('./routes/auth');
 const { authenticateToken, optionalAuth } = require('./middleware/auth');
 
+// Feeds de vendor no Spaces: catalogo/auditoria, painel e download
+const ingestRoutes = require('./routes/ingest');
+const feedRunner = require('./services/feeds/runnerInstance');
+const feedCatalog = require('./lib/feeds/catalog');
+const { createFeedStore } = require('./lib/feeds/feedStore');
+const { getFeedDefinitions } = require('./config/feeds');
+const { collectFeedFreshnessResults } = require('./lib/feeds/freshnessReport');
+const feedStore = createFeedStore();
+
 function scheduleQuickBooksLookupPreload() {
 	if (isQuickBooksDbSource()) {
 		logger.info('QuickBooks lookup preload skipped: QB_LOOKUP_SOURCE=db (data served from Postgres)');
@@ -1266,6 +1276,10 @@ app.get('/', (req, res) =>
 // Public routes: /api/auth/*, /api/health, /
 // Protected routes: all other /api/* routes
 app.use('/api', authenticateToken);
+
+// Feeds de vendor: montado APOS o authenticateToken de proposito — mover para
+// antes deixaria upload e "Run now" sem autenticacao.
+app.use('/api/ingest', ingestRoutes);
 
 // Sample GET route
 app.get('/api/data', (req, res) =>
@@ -1861,21 +1875,32 @@ app.get('/api/products/export', async (req, res) => {
 	}
 });
 
-// Route for downloading specific source files used by seed updates
-app.get('/api/files/download/:fileKey', (req, res) => {
+// Route for downloading specific source files used by seed updates.
+// Fonte preferida: lote corrente no catalogo de feeds (Spaces) — e o arquivo
+// que os seeds realmente consomem. Fallback: arquivo local (vale enquanto o
+// catalogo esta vazio). Nota: a versao antiga servia Inventory.csv para a key
+// keystone-special-order-price; via catalogo o SpecialOrder.csv correto e que
+// e servido.
+app.get('/api/files/download/:fileKey', async (req, res) => {
 	try {
 		const fileKey = req.params.fileKey;
 		const fileMap = {
 			'quad-price': {
-				path: path.join(__dirname, 'prisma/seeds/api-calls/pricingSheet_quad.xlsx'),
+				feed: 'quadratec-pricing',
+				fileName: 'pricingSheet_quad.xlsx',
+				legacyPath: path.join(__dirname, 'prisma/seeds/api-calls/pricingSheet_quad.xlsx'),
 				name: 'pricingSheet_quad.xlsx',
 			},
 			'keystone-instock-price': {
-				path: path.join(__dirname, 'prisma/seeds/api-calls/keystone_files/Inventory.csv'),
+				feed: 'keystone-ftp',
+				fileName: 'Inventory.csv',
+				legacyPath: path.join(__dirname, 'prisma/seeds/api-calls/keystone_files/Inventory.csv'),
 				name: 'keystone_instock_inventory.csv',
 			},
 			'keystone-special-order-price': {
-				path: path.join(__dirname, 'prisma/seeds/api-calls/keystone_files/Inventory.csv'),
+				feed: 'keystone-ftp',
+				fileName: 'SpecialOrder.csv',
+				legacyPath: path.join(__dirname, 'prisma/seeds/api-calls/keystone_files/SpecialOrder.csv'),
 				name: 'keystone_special_order_inventory.csv',
 			},
 		};
@@ -1885,11 +1910,31 @@ app.get('/api/files/download/:fileKey', (req, res) => {
 			return res.status(404).json({ error: 'File key not found' });
 		}
 
-		if (!fs.existsSync(fileConfig.path)) {
+		if (feedStore.isConfigured()) {
+			try {
+				const batch = await feedCatalog.getCurrentBatch(prisma, fileConfig.feed, [fileConfig.fileName]);
+				const artifact = batch?.artifacts.find((item) => item.fileName === fileConfig.fileName);
+				if (artifact) {
+					const { body, contentLength } = await feedStore.getObjectStream(artifact.objectKey);
+					res.setHeader('Content-Disposition', `attachment; filename="${fileConfig.name}"`);
+					if (contentLength) res.setHeader('Content-Length', contentLength);
+					// pipeline (nao pipe cru): destroi o stream do Spaces se o
+					// cliente abortar e trata erro no meio da transferencia — um
+					// 'error' solto no stream derrubaria o processo.
+					return pipeline(body, res, (pipeError) => {
+						if (pipeError) console.warn(`File download stream aborted (${fileKey}):`, pipeError.message);
+					});
+				}
+			} catch (storeError) {
+				console.warn(`Feed store download falhou para ${fileKey}, caindo para o arquivo local:`, storeError.message);
+			}
+		}
+
+		if (!fs.existsSync(fileConfig.legacyPath)) {
 			return res.status(404).json({ error: 'File not found on server' });
 		}
 
-		return res.download(fileConfig.path, fileConfig.name);
+		return res.download(fileConfig.legacyPath, fileConfig.name);
 	} catch (error) {
 		console.error('File download failed:', error);
 		return res.status(500).json({ error: 'Failed to download file' });
@@ -4840,6 +4885,19 @@ function registerCommandCronJob({
 			return;
 		}
 
+		// Run manual de feed em andamento (botao do painel): os dois caminhos
+		// rodam os mesmos seeds sobre a mesma staging table — deixar comecar
+		// aqui truncaria os dados do run manual no meio.
+		if (feedRunner.isBusy()) {
+			upsertCronJobRecord(command, {
+				lastStatus: 'skipped',
+				lastError: 'Skipped because a manual feed run is in progress',
+			});
+			logger.warn('Cron job skipped because a manual feed run is active', { jobName, schedule, command });
+			console.log(`⏭️ [CRON] Skipping ${jobName}; a manual feed run is in progress`);
+			return;
+		}
+
 		isRunning = true;
 		const startTime = Date.now();
 		activeCommandCronJob = {
@@ -5582,7 +5640,13 @@ function registerCronJobs() {
 			markReportCronStarted({ command: cronDigestCommand, startedAt: startedAtIso });
 
 			try {
-				const results = buildCronDigestResults({ lookbackHours: 24 });
+				// Linhas de cron + frescor dos feeds de vendor: feed sem lote ou
+				// stale entra como falha e vira o assunto do digest (nada de
+				// silencio — caso seed-omix).
+				const results = [
+					...buildCronDigestResults({ lookbackHours: 24 }),
+					...(await collectFeedFreshnessResults(prisma, getFeedDefinitions())),
+				];
 				const digestSuccess = results.every((result) => result.success);
 				const durationMs = Date.now() - startedAt;
 				const durationLabel = formatDuration(startedAt);

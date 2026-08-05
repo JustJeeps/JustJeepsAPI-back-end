@@ -66,6 +66,26 @@ for (const definition of commandDefinitions) {
 }
 
 // ---------------------------------------------------------------------------
+// 1b) Feeds: seedCommand do botao "Run now" tambem aponta para npm script
+// ---------------------------------------------------------------------------
+const { getFeedDefinitions } = require('../config/feeds');
+
+for (const feed of getFeedDefinitions()) {
+	if (!feed.seedCommand) continue;
+	const label = `Feed ${feed.name} (seedCommand: ${feed.seedCommand})`;
+
+	if (!Object.prototype.hasOwnProperty.call(scripts, feed.seedCommand)) {
+		addViolation(`${label}: npm script "${feed.seedCommand}" nao existe em package.json`);
+	} else {
+		for (const scriptPath of extractNodeScriptPaths(scripts[feed.seedCommand])) {
+			if (!fs.existsSync(path.resolve(ROOT, scriptPath))) {
+				addViolation(`${label}: arquivo "${scriptPath}" referenciado pelo npm script nao existe`);
+			}
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
 // 2) Report crons (in-process): apenas schedule valido (nao usam npm scripts)
 // ---------------------------------------------------------------------------
 for (const definition of getReportCronJobDefinitions({ includeDisabled: true })) {

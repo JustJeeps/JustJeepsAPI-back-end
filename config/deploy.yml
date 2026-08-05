@@ -134,6 +134,16 @@ env:
     SMTP_HOST: smtp-relay.brevo.com
     SMTP_PORT: "2525"
     SMTP_SECURE: "false"
+    # Feeds de vendor no Spaces (bucket provisionado em 2026-08-05).
+    # 4:47/16:47 = fora da grade */5 do delta e com folga antes do seed-all
+    # (7:32/19:32) — mutex global de crons. O FTP da Keystone derruba
+    # transfers longos (426): resume por byte + tentativas generosas.
+    CRON_FEED_FETCH_KEYSTONE_ENABLED: "true"
+    CRON_FEED_FETCH_KEYSTONE_SCHEDULE: "47 4,16 * * *"
+    KEYSTONE_FTP_MAX_ATTEMPTS: "12"
+    FEED_CACHE_DIR: /app/feed-cache
+    # Quem pode subir feed e usar o botao "Run now" do painel.
+    FEEDS_TRIAGE_USERS: "ricardo,rafael"
   secret:
     # Database & Auth
     - DATABASE_URL
@@ -177,6 +187,13 @@ env:
     # Other APIs
     - PARSEHUB_KEY_NORTHRIDGE
     - FREIGHTCOM_API_KEY
+    # DigitalOcean Spaces (feeds de vendor). Opcionais no pre-build: sem eles
+    # o feed-sync so avisa e os seeds usam os arquivos locais existentes.
+    - DO_SPACES_ENDPOINT
+    - DO_SPACES_REGION
+    - DO_SPACES_BUCKET
+    - DO_SPACES_KEY
+    - DO_SPACES_SECRET
     # Axiom (Error Monitoring)
     - AXIOM_TOKEN
     - AXIOM_DATASET
@@ -211,3 +228,8 @@ volumes:
   # dos CSVs novos para o dir no host e rodar seed-quickbooks-customers.
   # Ver docs/QUICKBOOKS-DATA-REFRESH.md.
   - "/var/lib/justjeeps-api/quickbooks-inbox:/data/quickbooks-customers"
+  # Cache local dos feeds de vendor materializados do Spaces (lib/feeds).
+  # Puro cache: se o host perder o dir, o materializer redownloada do bucket.
+  # Bootstrap antes do primeiro deploy: mkdir -p /var/lib/justjeeps-api/feed-cache
+  # && chown <uid>:<gid> (mesmo uid do nodejs dos volumes acima).
+  - "/var/lib/justjeeps-api/feed-cache:/app/feed-cache"
