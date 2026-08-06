@@ -161,8 +161,11 @@ env:
     FEED_CACHE_DIR: /app/feed-cache
     # Who can upload a feed and use the panel "Run now" button.
     FEEDS_TRIAGE_USERS: "admin,ricardo,tess"
-    # Requests (internal tickets): who can close. Usernames are not secret;
-    # kept in clear so the value never resolves empty (config/requests.js).
+    # Requests (internal tickets): rollout gate while the team tests the
+    # feature. Release = widen this list (or list the whole team).
+    REQUESTS_ALLOWED_USERS: "ricardo,admin,tess"
+    # Who can close. Usernames are not secret; kept in clear so the value
+    # never resolves empty (config/requests.js).
     REQUESTS_TRIAGE_USERS: "ricardo,rafael"
     REQUESTS_ASSIGNMENT_EMAIL_ENABLED: "true"
     # Requests digest: opt-in (enable after the meeting decides schedule and

@@ -18,7 +18,7 @@ Frontend lives in `JustJeepsAPI-front-end/src/features/requests/` (route `/reque
 
 ## API
 
-All routes require a logged in user (`ENABLE_AUTH=true`). Business rule violations return **409 with a `code`**, never 403. Reason: the frontend interceptor logs the user out on auth 403, so 403 is reserved for real auth failures.
+All routes require a logged in user (`ENABLE_AUTH=true`). While the team tests the feature, a rollout gate (`REQUESTS_ALLOWED_USERS`, default `ricardo,admin,tess`) hides it from everyone else: the menu item disappears, `/meta` answers with `requestsEnabled: false` and every other route returns 409 `REQUESTS_RESTRICTED`. To release, widen the env in `config/deploy.yml`. Business rule violations return **409 with a `code`**, never 403. Reason: the frontend interceptor logs the user out on auth 403, so 403 is reserved for real auth failures.
 
 | Method | Path | What it does |
 |---|---|---|

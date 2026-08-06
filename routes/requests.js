@@ -15,6 +15,7 @@ const {
 	REQUEST_PROJECTS,
 	REQUEST_TYPES,
 	ATTACHMENT_ALLOWED_TYPES,
+	isRequestsUser,
 	config: requestsConfig,
 } = require('../config/requests');
 
@@ -123,6 +124,15 @@ router.use((req, res, next) => {
 			message: 'The requests feature requires authentication (ENABLE_AUTH=true)',
 		});
 	}
+	// Rollout gate: durante o teste a feature so existe para REQUESTS_ALLOWED_USERS.
+	// /meta fica aberto (e o que conta ao front se o usuario ve a feature, e a
+	// aba Trello do /settings depende de meta.triageUsers para outros usuarios).
+	if (req.path !== '/meta' && !isRequestsUser(req.user.username)) {
+		return res.status(409).json({
+			error: 'The requests feature is not enabled for your user yet',
+			code: 'REQUESTS_RESTRICTED',
+		});
+	}
 	next();
 });
 
@@ -130,7 +140,7 @@ router.use((req, res, next) => {
 // /meta precisa vir antes de /:id.
 
 router.get('/meta', handle(async (req, res) => {
-	res.json(await requestsService.getMeta());
+	res.json(await requestsService.getMeta({ username: req.user.username }));
 }));
 
 router.get('/', handle(async (req, res) => {

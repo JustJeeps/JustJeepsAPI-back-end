@@ -54,6 +54,17 @@ function isTriageUser(username) {
 	return requestsTriageUsers.includes(String(username || '').toLowerCase());
 }
 
+// Feature gate (rollout): while the team tests, only these users see and use
+// the requests feature. Release = widen the env (or set it to the whole team).
+const requestsAllowedUsers = (process.env.REQUESTS_ALLOWED_USERS || 'ricardo,admin,tess')
+	.split(/[,\s]+/)
+	.map((username) => username.trim().toLowerCase())
+	.filter(Boolean);
+
+function isRequestsUser(username) {
+	return requestsAllowedUsers.includes(String(username || '').toLowerCase());
+}
+
 // Limites de anexos (multer + validacao no front).
 const attachmentsMaxFileSizeBytes = Number(process.env.REQUEST_ATTACHMENTS_MAX_FILE_SIZE_BYTES || 10 * 1024 * 1024);
 const attachmentsMaxFilesPerUpload = Number(process.env.REQUEST_ATTACHMENTS_MAX_FILES || 5);
@@ -85,8 +96,10 @@ module.exports = {
 	REQUEST_TYPES,
 	ATTACHMENT_ALLOWED_TYPES,
 	isTriageUser,
+	isRequestsUser,
 	config: {
 		requestsTriageUsers,
+		requestsAllowedUsers,
 		attachmentsMaxFileSizeBytes,
 		attachmentsMaxFilesPerUpload,
 	},

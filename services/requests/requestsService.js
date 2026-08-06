@@ -20,6 +20,7 @@ const {
 	REQUEST_TYPES,
 	ATTACHMENT_ALLOWED_TYPES,
 	isTriageUser,
+	isRequestsUser,
 	config: requestsConfig,
 } = require('../../config/requests');
 const { RequestServiceError } = require('./errors');
@@ -78,11 +79,14 @@ function notifyAssignee({ request, assignee, assignedBy }) {
 
 // --- meta / listagem ----------------------------------------------------------
 
-async function getMeta() {
+async function getMeta({ username } = {}) {
 	// trello.configured vem do banco (painel /settings); enabled mantem o nome
 	// antigo por compat com o front (RequestTrelloPanel le meta.trello.enabled).
 	const trelloConfigured = await trelloService.isConfigured();
 	return {
+		// Rollout gate: o front usa isto para mostrar/esconder a feature
+		// (menu + pagina); o back bloqueia de verdade nas demais rotas.
+		requestsEnabled: isRequestsUser(username),
 		statuses: REQUEST_STATUSES,
 		priorities: REQUEST_PRIORITIES,
 		defaultPriority: DEFAULT_PRIORITY,
