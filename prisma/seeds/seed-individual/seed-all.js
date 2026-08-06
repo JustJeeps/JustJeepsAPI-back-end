@@ -45,6 +45,10 @@ const RUN_CODES_AFTER_VENDORS = false; // flip to true if you want a final pass
 // Heap cap per child process (same table used by the panel "Run now"):
 // lib/seeds/childHeap.js
 const { childHeapMbFor } = require("../../../lib/seeds/childHeap");
+// Vendor scripts that do not record an IngestRun of their own would leave the
+// feeds panel showing "never" the morning after a sync that worked.
+const prisma = require("../../../lib/prisma");
+const { recordScriptRun, findFeedByCommand } = require("../../../lib/feeds/runRecorder");
 
 const jobName = "Daily Vendor Sync (seed-all)";
 const summaryPath = path.join(logsDir, "seed-all-summary.json");
@@ -173,10 +177,12 @@ function runCommandToLog(cmd) {
 }
 
 async function runCommandSafely(cmd) {
+  const startedAt = new Date();
+  let result;
   try {
-    return await runCommandToLog(cmd);
+    result = await runCommandToLog(cmd);
   } catch (err) {
-    return {
+    result = {
       cmd,
       success: false,
       code: null,
@@ -185,6 +191,21 @@ async function runCommandSafely(cmd) {
       error: err && err.message ? err.message : 'Unknown error'
     };
   }
+
+  // Best effort: the sync never fails because of its own bookkeeping.
+  const feed = findFeedByCommand(cmd);
+  if (feed) {
+    await recordScriptRun(prisma, {
+      feed,
+      command: cmd,
+      startedAt,
+      finishedAt: new Date(),
+      status: result.success ? 'success' : 'failed',
+      error: result.error,
+    }).catch((error) => console.warn(`Could not record the run of ${cmd}: ${error.message}`));
+  }
+
+  return result;
 }
 
 (async () => {

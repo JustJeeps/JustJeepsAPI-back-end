@@ -7,6 +7,9 @@
 // of locks blind on one side and two seeds of the same vendor would run
 // together over the same staging table.
 
+const prisma = require('../../lib/prisma');
 const { createFeedRunner } = require('../../lib/feeds/feedRunner');
 
-module.exports = createFeedRunner();
+// prisma goes in so a run started from the panel leaves a trace even when the
+// vendor script does not record one itself.
+module.exports = createFeedRunner({ prisma });
