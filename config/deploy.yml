@@ -141,6 +141,11 @@ env:
     CRON_FEED_FETCH_KEYSTONE_ENABLED: "true"
     CRON_FEED_FETCH_KEYSTONE_SCHEDULE: "47 4,16 * * *"
     KEYSTONE_FTP_MAX_ATTEMPTS: "12"
+    # CA intermediaria do FTPS da Keystone: o servidor manda so a folha, entao
+    # o Node precisa do intermediario para montar a cadeia. Fica num diretorio
+    # privado do bucket (nunca no repositorio); alternativa: KEYSTONE_FTP_CA_PEM
+    # como secret com o conteudo do PEM.
+    KEYSTONE_FTP_CA_OBJECT_KEY: certs/keystone-ftp-ca.pem
     FEED_CACHE_DIR: /app/feed-cache
     # Quem pode subir feed e usar o botao "Run now" do painel.
     FEEDS_TRIAGE_USERS: "ricardo,rafael"

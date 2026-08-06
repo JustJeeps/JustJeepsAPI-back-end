@@ -20,7 +20,9 @@ async function main() {
 
 	const started = Date.now();
 	const result = await runKeystoneFetch({
-		ftpClient: createKeystoneFtpClient(),
+		// store entra aqui porque a CA intermediaria do FTPS da Keystone vive num
+		// diretorio privado do bucket (nao no repositorio) — ver lib/feeds/keystoneFtp.js
+		ftpClient: createKeystoneFtpClient({ store }),
 		store,
 		prisma,
 	});
