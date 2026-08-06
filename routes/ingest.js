@@ -27,15 +27,43 @@ const CONTENT_TYPES = {
 };
 
 // Upload em disco (tmp): planilhas de feed chegam a 34MB — nunca em memoria.
+// Limites de partes tambem sao explicitos: sem eles multer aceita infinitos
+// campos nao-arquivo, todos bufferizados antes do handler rodar.
 const upload = multer({
 	storage: multer.diskStorage({ destination: os.tmpdir() }),
-	limits: { fileSize: feedsConfig.config.uploadPanelMaxBytes, files: 5 },
+	limits: {
+		fileSize: feedsConfig.config.uploadPanelMaxBytes,
+		files: 5,
+		fields: 4,
+		parts: 12,
+		fieldSize: 4096,
+	},
 });
+
+// Triage antes de QUALQUER escrita. Como middleware (e nao dentro do handler),
+// roda ANTES do multer: sem isso qualquer usuario autenticado despejava ate
+// 500MB no disco do container e so depois levava 409.
+const requireTriage = (req, res, next) => {
+	if (!isTriageUser(req.user.username)) {
+		return res.status(409).json({ error: 'Only triage users can manage feeds', code: 'TRIAGE_ONLY' });
+	}
+	next();
+};
 
 // BigInt (sizeBytes) nao serializa em JSON.
 const serializeArtifact = (artifact) => ({ ...artifact, sizeBytes: Number(artifact.sizeBytes) });
 
 const runningFeed = (feed) => runner.getStatus(feed)?.status === 'running';
+
+const RUN_STATUSES = ['running', 'success', 'failed', 'skipped-unchanged', 'skipped-locked'];
+
+// Nunca devolver linha que pareca credencial (seed que loga header de auth,
+// connection string do Prisma num erro, etc.).
+const SECRET_LINE = /(password|passwd|secret|token|api[-_ ]?key|authorization|bearer\s|postgres(ql)?:\/\/|amqp:\/\/)/i;
+const redactLogTail = (tail) => String(tail || '')
+	.split('\n')
+	.map((line) => (SECRET_LINE.test(line) ? '[line redacted: possible credential]' : line))
+	.join('\n');
 
 const serializeStatus = (status) => ({
 	...status,
@@ -79,13 +107,20 @@ router.get('/feeds', async (req, res) => {
 	}
 });
 
-router.get('/runs', async (req, res) => {
+router.get('/runs', requireTriage, async (req, res) => {
 	try {
-		const limit = Math.min(Number(req.query.limit) || 50, 200);
+		// Express usa o parser "extended": ?feed[contains]=x chega como OBJETO e
+		// iria direto para o where do Prisma. String() + allowlist fecham isso.
+		const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
 		const offset = Math.max(Number(req.query.offset) || 0, 0);
+		const feedParam = req.query.feed === undefined ? undefined : String(req.query.feed);
+		const statusParam = req.query.status === undefined ? undefined : String(req.query.status);
+		if (statusParam !== undefined && !RUN_STATUSES.includes(statusParam)) {
+			return res.status(400).json({ error: `Invalid status. Allowed: ${RUN_STATUSES.join(', ')}` });
+		}
 		const { runs, total } = await catalog.listRuns(prisma, {
-			feed: req.query.feed || undefined,
-			status: req.query.status || undefined,
+			feed: feedParam,
+			status: statusParam,
 			limit,
 			offset,
 		});
@@ -99,15 +134,11 @@ router.get('/runs', async (req, res) => {
 // Upload manual via painel: exige triage e o conjunto COMPLETO de arquivos do
 // feed numa request so (lote parcial nunca vira corrente — a CLI cobre o caso
 // avancado de completar lote com --batch).
-router.post('/feeds/:feed/upload', upload.array('files', 5), async (req, res) => {
+router.post('/feeds/:feed/upload', requireTriage, upload.array('files', 5), async (req, res) => {
 	const tmpFiles = (req.files || []).map((file) => file.path);
 	const cleanup = () => tmpFiles.forEach((tmpPath) => fs.rmSync(tmpPath, { force: true }));
 
 	try {
-		if (!isTriageUser(req.user.username)) {
-			return res.status(409).json({ error: 'Only triage users can upload feeds', code: 'TRIAGE_ONLY' });
-		}
-
 		const feed = feedsConfig.getFeedByName(req.params.feed);
 		if (!feed) {
 			return res.status(404).json({ error: `Unknown feed: ${req.params.feed}` });
@@ -182,11 +213,8 @@ router.post('/feeds/:feed/upload', upload.array('files', 5), async (req, res) =>
 // "Run now": roda o script daquele feed no servidor para conferir o arquivo
 // recem subido sem esperar o seed-all. Assincrono — o painel acompanha por
 // GET .../run-status. Triage only (o script escreve em VendorProduct de prod).
-router.post('/feeds/:feed/run', (req, res) => {
+router.post('/feeds/:feed/run', requireTriage, (req, res) => {
 	try {
-		if (!isTriageUser(req.user.username)) {
-			return res.status(409).json({ error: 'Only triage users can run feed scripts', code: 'TRIAGE_ONLY' });
-		}
 		const record = runner.start(req.params.feed, { startedBy: req.user.username });
 		res.status(202).json(record);
 	} catch (error) {
@@ -201,10 +229,13 @@ router.post('/feeds/:feed/run', (req, res) => {
 	}
 });
 
-router.get('/feeds/:feed/run-status', (req, res) => {
-	const status = runner.getStatus(req.params.feed);
+router.get('/feeds/:feed/run-status', requireTriage, (req, res) => {
+	const status = runner.getStatus(String(req.params.feed));
 	if (!status) return res.status(404).json({ error: 'No run for this feed in the current server session' });
-	res.json(status);
+	// logFile e caminho interno do container; o log tail traz saida crua de seed
+	// (que um script futuro pode imprimir com header de auth): redigido.
+	const { logFile, ...safe } = status;
+	res.json({ ...safe, logTail: redactLogTail(status.logTail) });
 });
 
 module.exports = router;

@@ -76,8 +76,7 @@ Set `ENABLE_AUTH=true` in your environment to require JWT authentication.
 ### Test Users (Development Only)
 
 After running `npm run seed-users`:
-- admin / adminpassword
-- johndoe / mypassword1
+Credentials are provisioned per user with `npm run seed-users` and delivered out of band. Never document a real password here.
 
 **WARNING:** Change these credentials immediately in any non-local environment.
 

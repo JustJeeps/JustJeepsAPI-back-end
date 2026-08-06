@@ -71,8 +71,10 @@ const seedUsers = async () => {
         continue;
       }
 
-      // Create the user
-      await prisma.user.create({ data: user });
+      // users_data.js nao tem mais senha (era texto puro versionado). Criacao de
+      // usuario com credencial fica no seed dedicado: npm run seed-users.
+      console.warn(`⚠️  Usuario ${user.username} nao criado aqui — rode "npm run seed-users"`);
+      continue;
       // console.log(`User "${user.email}" created.`);
     }
     console.log("Users seeded successfully!");

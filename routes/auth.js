@@ -2,17 +2,31 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { authenticateToken } = require('../middleware/auth');
+const { isTriageUser } = require('../config/triage');
 require('dotenv').config();
 
 const router = express.Router();
 const prisma = require('../lib/prisma');
+
+// Criar usuario e operacao administrativa: exige triage (allowlist por env).
+const requireTriage = (req, res, next) => {
+  if (!req.user || !isTriageUser(req.user.username)) {
+    return res.status(403).json({
+      error: 'Not authorized',
+      message: 'Only triage users can create accounts'
+    });
+  }
+  next();
+};
 
 // Generate JWT Token
 const generateToken = (userId) => {
   return jwt.sign(
     { userId: userId },
     process.env.JWT_SECRET,
-    { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
+    // algorithm fixado: sem isso o token so depende da lib rejeitar "alg: none"
+    // por padrao — uma troca de versao poderia reabrir confusao de algoritmo.
+    { expiresIn: process.env.JWT_EXPIRES_IN || '24h', algorithm: 'HS256' }
   );
 };
 
@@ -43,12 +57,14 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Find user by username or email
+    // Find user by username or email (case-insensitive: contas antigas foram
+    // criadas com capitalizacao variada e a allowlist de triage compara em
+    // minusculo — o login precisa resolver para a MESMA conta).
     const user = await prisma.user.findFirst({
       where: {
         OR: [
-          { username: username },
-          { email: username }
+          { username: { equals: String(username).trim(), mode: 'insensitive' } },
+          { email: { equals: String(username).trim(), mode: 'insensitive' } }
         ]
       }
     });
@@ -95,8 +111,15 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// POST /api/auth/register (optional - for creating new users)
-router.post('/register', async (req, res) => {
+// POST /api/auth/register — criacao de usuario.
+//
+// SEGURANCA: esta rota fica montada ANTES do app.use('/api', authenticateToken)
+// do server.js, entao ela precisa exigir o token por conta propria. Enquanto era
+// publica, qualquer pessoa na internet criava conta e passava por todas as rotas
+// protegidas — inclusive escolhendo um username que casava com a allowlist de
+// triage (comparacao case-insensitive), o que dava upload de feed e execucao de
+// script em producao. Agora: precisa de usuario logado E de triage.
+router.post('/register', authenticateToken, requireTriage, async (req, res) => {
   try {
     // Check if authentication is enabled
     if (process.env.ENABLE_AUTH !== 'true') {
@@ -106,22 +129,27 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    const { username, email, password, firstname, lastname } = req.body;
+    const { email, password, firstname, lastname } = req.body;
+    // Username/e-mail normalizados: a allowlist de triage compara em minusculo,
+    // entao gravar "Ricardo" e "ricardo" como contas diferentes seria um bypass.
+    const username = String(req.body.username || '').trim().toLowerCase();
+    const normalizedEmail = String(email || '').trim().toLowerCase();
 
     // Validate input
-    if (!username || !email || !password || !firstname || !lastname) {
+    if (!username || !normalizedEmail || !password || !firstname || !lastname) {
       return res.status(400).json({
         error: 'Missing information',
         message: 'All fields are required: username, email, password, firstname, lastname'
       });
     }
 
-    // Check if user already exists
+    // Colisao case-insensitive tambem e colisao (o banco ainda nao tem indice
+    // unico em username; ver prisma/migrations/*_user_username_unique).
     const existingUser = await prisma.user.findFirst({
       where: {
         OR: [
-          { username: username },
-          { email: email }
+          { username: { equals: username, mode: 'insensitive' } },
+          { email: { equals: normalizedEmail, mode: 'insensitive' } }
         ]
       }
     });
@@ -140,7 +168,7 @@ router.post('/register', async (req, res) => {
     const newUser = await prisma.user.create({
       data: {
         username,
-        email,
+        email: normalizedEmail,
         password: hashedPassword,
         firstname,
         lastname

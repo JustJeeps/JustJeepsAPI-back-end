@@ -10,6 +10,8 @@ const BodyParser = require('body-parser');
 const PORT = process.env.PORT || 8080
 const cors = require('cors');
 const compression = require('compression');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const cron = require('node-cron');
 const { spawn } = require('child_process');
 const logger = require('./utils/logger');
@@ -97,11 +99,12 @@ function formatCronExitLabel(code, signal) {
 	if (signal) return `signal ${signal}`;
 	return 'unknown exit status';
 }
-const MAGENTO_STATUS_ALLOWED_USERS = new Set(['admin', 'jerry', 'tess', 'jacob', 'david', 'rafael', 'ricardo', 'paula']);
+// 'admin' removido: conta de teste com senha publicada no repo (rotacionar/desativar em prod)
+const MAGENTO_STATUS_ALLOWED_USERS = new Set(['jerry', 'tess', 'jacob', 'david', 'rafael', 'ricardo', 'paula']);
 const ORDER_CANCEL_EXECUTE_ALLOWED_USERS = new Set(['tess', 'jerry', 'jacob', 'paula', 'karoline']);
 const ORDER_CANCEL_DRY_RUN_ALLOWED_USERS = new Set(['tess']);
 const ORDER_CANCEL_MANUAL_REFUND_RESTRICTED_USERS = new Set(['paula']);
-const ORDER_PO_INIT_ALLOWED_USERS = new Set(['admin', 'tess', 'jerry', 'jacob', 'paula', 'karoline']);
+const ORDER_PO_INIT_ALLOWED_USERS = new Set(['tess', 'jerry', 'jacob', 'paula', 'karoline']);
 const ORDER_CANCEL_PO_INITIALS_BY_USER = Object.freeze({
 	jacob: 'JK',
 	jerry: 'JD',
@@ -1193,20 +1196,27 @@ function scheduleQuickBooksLookupPreload() {
 	}, quickBooksPreloadDelayMs);
 }
 
-// Use cors middleware
-app.use(
-  cors({
-    origin: [
-      "http://localhost:5173", // local frontend
-			"http://127.0.0.1:5173", // local frontend (loopback)
-      "https://lionfish-app-v8v9s.ondigitalocean.app", // production frontend (old)
-      "https://pricingtool.justjeeps.com", // production frontend (custom domain)
-    ],
-    credentials: true,
-  })
-);
+// Atras do proxy do Kamal/Traefik: sem isto req.ip e sempre o IP do proxy, o
+// que quebra o log de auditoria E jogaria a internet inteira no mesmo balde do
+// rate limiter abaixo.
+app.set('trust proxy', 1);
+app.disable('x-powered-by');
 
-// app.use(cors()); // Old permissive CORS - now replaced with specific origins
+// Cabecalhos de seguranca (HSTS, nosniff, frameguard, referrer-policy).
+// CSP fica desligada: a API serve JSON e um /public estatico, e uma CSP mal
+// calibrada aqui nao protege o SPA, que e servido em outro host.
+app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: false }));
+
+// Origens permitidas: producao so o dominio do painel. localhost entra apenas
+// fora de producao (dev roda o front local contra esta API). O dominio antigo
+// da DigitalOcean saiu: se aquele app foi destruido, o hostname volta para o
+// pool e outro tenant herdaria um canal cross-origin confiavel.
+const corsOrigins = (process.env.CORS_ALLOWED_ORIGINS
+  ? process.env.CORS_ALLOWED_ORIGINS.split(/[,\s]+/).filter(Boolean)
+  : ['https://pricingtool.justjeeps.com']
+).concat(process.env.NODE_ENV === 'production' ? [] : ['http://localhost:5173', 'http://127.0.0.1:5173']);
+
+app.use(cors({ origin: corsOrigins }));
 
 app.use(compression());
 
@@ -1227,6 +1237,26 @@ app.use((req, res, next) => {
   });
   next();
 });
+
+// Rate limiting. Login e o alvo obvio de forca bruta (bcrypt custa CPU num
+// droplet de 1 vCPU); o limite geral protege o resto da API de abuso.
+// skipSuccessfulRequests: uso normal do painel nao consome a cota do login.
+app.use('/api/auth/login', rateLimit({
+  windowMs: Number(process.env.RATE_LIMIT_LOGIN_WINDOW_MS || 15 * 60 * 1000),
+  limit: Number(process.env.RATE_LIMIT_LOGIN_MAX || 10),
+  skipSuccessfulRequests: true,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Too many login attempts', message: 'Try again in a few minutes' },
+}));
+app.use('/api', rateLimit({
+  windowMs: Number(process.env.RATE_LIMIT_API_WINDOW_MS || 60 * 1000),
+  limit: Number(process.env.RATE_LIMIT_API_MAX || 600),
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  skip: (req) => req.path === '/health',
+  message: { error: 'Too many requests', message: 'Slow down and try again shortly' },
+}));
 
 // 🔐 Authentication routes (safe - disabled by default via ENABLE_AUTH=false)
 app.use('/api/auth', authRoutes);
@@ -1413,9 +1443,12 @@ app.post('/api/reports/purchaser/email', async (req, res) => {
 			return res.status(400).json({ error: 'Missing report or date' });
 		}
 
-		if (process.env.ENABLE_AUTH === 'true' && req.user) {
+		// Fail-closed: sem usuario identificado NAO passa. Antes o check era
+		// "ENABLE_AUTH === 'true' && req.user", entao um deploy com ENABLE_AUTH
+		// errado abria o disparo de e-mail para qualquer anonimo.
+		{
 			const allowed = ['tess', 'paula', 'karoline'];
-			const username = (req.user.username || req.user.firstname || '').toLowerCase();
+			const username = (req.user?.username || req.user?.firstname || '').toLowerCase();
 			if (!allowed.includes(username)) {
 				return res.status(403).json({ error: 'Not authorized to send report' });
 			}
@@ -1444,9 +1477,12 @@ app.post('/api/reports/order-cancellations/daily/email', async (req, res) => {
 		const requestedDate = String(date || '').trim();
 		const reportDate = requestedDate || getDateStringInTimezone(new Date(), cancellationReportTimezone || 'America/Toronto');
 
-		if (process.env.ENABLE_AUTH === 'true' && req.user) {
+		// Fail-closed: sem usuario identificado NAO passa. Antes o check era
+		// "ENABLE_AUTH === 'true' && req.user", entao um deploy com ENABLE_AUTH
+		// errado abria o disparo de e-mail para qualquer anonimo.
+		{
 			const allowed = ['admin', 'tess', 'jerry', 'jacob', 'paula', 'karoline'];
-			const username = (req.user.username || req.user.firstname || '').toLowerCase();
+			const username = (req.user?.username || req.user?.firstname || '').toLowerCase();
 			if (!allowed.includes(username)) {
 				return res.status(403).json({ error: 'Not authorized to send cancellation report' });
 			}
@@ -1479,8 +1515,9 @@ app.post('/api/reports/sku-status/daily/email', async (req, res) => {
 		const requestedDate = String(date || '').trim();
 		const reportDate = requestedDate || getDateStringInTimezone(new Date(), skuStatusReportTimezone || 'America/Toronto');
 
-		if (process.env.ENABLE_AUTH === 'true' && req.user) {
-			const username = (req.user.username || req.user.firstname || '').toLowerCase();
+		// Fail-closed: sem usuario identificado NAO passa (ver rotas de report acima).
+		{
+			const username = (req.user?.username || req.user?.firstname || '').toLowerCase();
 			if (!MAGENTO_STATUS_ALLOWED_USERS.has(username)) {
 				return res.status(403).json({ error: 'Not authorized to send SKU status report' });
 			}
@@ -1514,8 +1551,9 @@ app.post('/api/reports/sku-status/weekly/email', async (req, res) => {
 		const requestedEndDate = String(endDate || '').trim();
 		const reportEndDate = requestedEndDate || getDateStringInTimezone(new Date(), skuStatusWeeklyReportTimezone || 'America/Toronto');
 
-		if (process.env.ENABLE_AUTH === 'true' && req.user) {
-			const username = (req.user.username || req.user.firstname || '').toLowerCase();
+		// Fail-closed: sem usuario identificado NAO passa (ver rotas de report acima).
+		{
+			const username = (req.user?.username || req.user?.firstname || '').toLowerCase();
 			if (!MAGENTO_STATUS_ALLOWED_USERS.has(username)) {
 				return res.status(403).json({ error: 'Not authorized to send SKU status report' });
 			}
@@ -1568,7 +1606,7 @@ app.get('/api/quadratec', async (req, res) => {
 
 
 // Route for getting top 5 products by qty_ordered
-app.get('/top5skus', async (req, res) => {
+app.get('/top5skus', authenticateToken, async (req, res) => {
 	try {
 		const top5Skus = await prisma.orderProduct.groupBy({
 			by: ['sku'],
@@ -2677,7 +2715,7 @@ async function updateMagentoOrderCustomAttributes({ baseUrl, token, orderId, att
 	);
 }
 
-app.get('/brands', async (req, res) => {
+app.get('/brands', authenticateToken, async (req, res) => {
 	try {
 		const uniqueBrandNames = await prisma.product.findMany({
 			distinct: ['brand_name'],
@@ -4011,7 +4049,7 @@ app.get('/api/order_products', async (req, res) => {
 });
 
 // Route for creating an order product
-app.post('/order_products', async (req, res) => {
+app.post('/order_products', authenticateToken, async (req, res) => {
 	try {
 		const {
 			order_id,
@@ -4053,7 +4091,7 @@ app.post('/order_products', async (req, res) => {
 });
 
 // Route for editing an order product
-app.post('/order_products/:id/edit', async (req, res) => {
+app.post('/order_products/:id/edit', authenticateToken, async (req, res) => {
 	try {
 		const id = req.params.id;
 		const {
@@ -4101,7 +4139,7 @@ app.post('/order_products/:id/edit', async (req, res) => {
 });
 
 // Route for editing an order product
-app.post('/order_products/:id/edit/selected_supplier', async (req, res) => {
+app.post('/order_products/:id/edit/selected_supplier', authenticateToken, async (req, res) => {
 	try {
 		const id = req.params.id;
 		const {
@@ -4149,7 +4187,7 @@ app.post('/order_products/:id/edit/selected_supplier', async (req, res) => {
 });
 
 // Route for deleting an order product
-app.delete('/order_products/:id/delete', async (req, res) => {
+app.delete('/order_products/:id/delete', authenticateToken, async (req, res) => {
 	try {
 		const id = parseInt(req.params.id);
 
@@ -4158,13 +4196,10 @@ app.delete('/order_products/:id/delete', async (req, res) => {
 			where: { id },
 		});
 
-		// res.redirect(204, '/orders');
-		const orders = await prisma.order.findMany({
-			include: {
-				items: true,
-			},
-		});
-		res.json(orders);
+		// Antes devolvia TODOS os pedidos (com dados de cliente) so para confirmar
+		// uma exclusao — payload enorme e exposicao desnecessaria. O front recarrega
+		// a lista por conta propria depois do delete.
+		res.json({ success: true, deletedId: id });
 	} catch (error) {
 		console.error(error);
 		res.status(500).json({ error: 'Failed to delete order product' });
@@ -4386,7 +4421,7 @@ app.post('/api/purchase_orders', async (req, res) => {
 });
 
 // Route for creating or updating a Purchase Order Line Item
-app.post('/purchaseOrderLineItem', async (req, res) => {
+app.post('/purchaseOrderLineItem', authenticateToken, async (req, res) => {
 	try {
 		const {
 			purchaseOrderId,
@@ -4481,7 +4516,7 @@ app.post('/api/purchase_orders/:id/delete', async (req, res) => {
 });
 
 // Route for getting the grand total and total count of all orders
-app.get('/totalOrderInfo', async (req, res) => {
+app.get('/totalOrderInfo', authenticateToken, async (req, res) => {
 	try {
 		const result = await prisma.order.aggregate({
 			_sum: {
@@ -4509,7 +4544,7 @@ app.get('/totalOrderInfo', async (req, res) => {
 });
 
 //Route for getting the total of all orders by month
-app.get('/totalGrandTotalByMonth', async (req, res) => {
+app.get('/totalGrandTotalByMonth', authenticateToken, async (req, res) => {
 	try {
 		const orders = await prisma.order.findMany();
 		const totalByMonth = orders.reduce((acc, order) => {
@@ -4535,7 +4570,7 @@ app.get('/totalGrandTotalByMonth', async (req, res) => {
 });
 
 // // Route for get all products info
-app.get('/productinfo', async (req, res) => {
+app.get('/productinfo', authenticateToken, async (req, res) => {
 	try {
 		const countProduct = await prisma.product.aggregate({
 			_count: {
@@ -4558,7 +4593,7 @@ app.get('/productinfo', async (req, res) => {
 });
 
 // Route for top 10 popular products
-app.get('/toppopularproduct', async (req, res) => {
+app.get('/toppopularproduct', authenticateToken, async (req, res) => {
 	const result3 = [];
 	try {
 		const result1 = await prisma.orderProduct.groupBy({
@@ -4930,7 +4965,9 @@ function registerCommandCronJob({
 		const seedProcess = spawn('npm', ['run', command], {
 			cwd: __dirname,
 			stdio: ['ignore', 'pipe', 'pipe'],
-			shell: true,
+			// Sem shell: com shell:true os args voltam a virar string de shell e
+			// metacaracteres no nome do comando (vem de env/config de cron) seriam
+			// interpretados. npm resolve sozinho no PATH, o shell nao e necessario.
 			// Children de cron são seeds: pool de conexões menor que o da API
 			// (ver ROLE_POOL_DEFAULTS em lib/prisma.js)
 			env: { ...process.env, APP_ROLE: 'seed' },
@@ -5841,6 +5878,19 @@ backfillCancelWorkflowHistoryFromFileToDatabase().catch((error) => {
 		error: error.message,
 	});
 });
+
+// Auth ligada sem segredo forte e uma falsa sensacao de seguranca: um
+// JWT_SECRET curto/ausente torna os tokens forjaveis. Falha no boot em vez de
+// subir vulneravel (so quando ENABLE_AUTH=true, para nao quebrar dev sem auth).
+if (process.env.ENABLE_AUTH === 'true') {
+	const jwtSecret = process.env.JWT_SECRET || '';
+	if (jwtSecret.length < 32) {
+		logger.error?.('JWT_SECRET ausente ou curto demais (<32 chars) com ENABLE_AUTH=true');
+		console.error('❌ JWT_SECRET ausente ou com menos de 32 caracteres. Gere um novo:');
+		console.error('   node -e "console.log(require(\'crypto\').randomBytes(64).toString(\'hex\'))"');
+		process.exit(1);
+	}
+}
 
 registerCronJobs();
 
