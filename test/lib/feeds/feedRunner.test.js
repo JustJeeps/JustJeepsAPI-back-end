@@ -7,6 +7,8 @@ const { createFeedRunner } = require('../../../lib/feeds/feedRunner');
 const FEEDS = {
 	getFeedByName: (name) => {
 		if (name === 'omix') return { name: 'omix', seedCommand: 'seed-omix' };
+		// A feed may list several scripts, run in sequence.
+		if (name === 'quadratec') return { name: 'quadratec', seedCommand: ['seed-quadratec', 'seed-quad-inventory'] };
 		if (name === 'warn-map') {
 			return { name: 'warn-map', seedCommand: null, seedCommandNote: 'Updates prices on the live store, so it only runs in the daily sync' };
 		}
@@ -109,4 +111,14 @@ test('a spawn error marks it failed and releases the slot', () => {
 	assert.strictEqual(status.status, 'failed');
 	assert.strictEqual(status.error, 'spawn ENOENT');
 	assert.strictEqual(fixture.runner.isBusy(), false);
+});
+
+test('a feed with several scripts chains them after the sync, in order', () => {
+	const fixture = makeFixture();
+	fixture.runner.start('quadratec');
+
+	assert.strictEqual(
+		fixture.spawned[0].args[1],
+		'npm run feed-sync -- quadratec && npm run seed-quadratec && npm run seed-quad-inventory'
+	);
 });

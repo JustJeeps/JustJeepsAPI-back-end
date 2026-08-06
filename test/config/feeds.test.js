@@ -19,10 +19,12 @@ test('feed registry has unique names and defined files', () => {
 
 test('workbookBaseName is unique and resolves the matching feed', () => {
 	const feeds = feedsConfig.getFeedDefinitions();
-	const baseNames = feeds.map((feed) => feed.workbookBaseName).filter(Boolean);
+	const baseNames = feeds.flatMap((feed) => [feed.workbookBaseName, ...(feed.workbookBaseNames || [])]).filter(Boolean);
 	assert.strictEqual(new Set(baseNames).size, baseNames.length);
 
-	assert.strictEqual(feedsConfig.getFeedByWorkbookBaseName('quadratec_wholesale').name, 'quadratec-wholesale');
+	// One vendor, two workbooks: both resolve to the same feed.
+	assert.strictEqual(feedsConfig.getFeedByWorkbookBaseName('quadratec_wholesale').name, 'quadratec');
+	assert.strictEqual(feedsConfig.getFeedByWorkbookBaseName('pricingSheet_quad').name, 'quadratec');
 	assert.strictEqual(feedsConfig.getFeedByWorkbookBaseName('CTPENT_Inventory').name, 'ctp');
 	assert.strictEqual(feedsConfig.getFeedByWorkbookBaseName('does-not-exist'), null);
 });

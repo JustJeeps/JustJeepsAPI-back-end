@@ -45,21 +45,17 @@ const FEED_DEFINITIONS = [
 		maxUploadBytes: 600 * 1024 * 1024, // CLI only in practice (the panel caps at uploadPanelMaxBytes)
 	},
 	{
-		name: 'quadratec-wholesale',
-		label: 'Quadratec wholesale (CSV)',
-		files: ['quadratec_wholesale.csv'],
-		ingestFeed: 'quadratec',
-		seedCommand: 'seed-quad-inventory',
-		workbookBaseName: 'quadratec_wholesale',
+		// One vendor, two files: the wholesale CSV carries inventory and the
+		// pricing sheet carries prices, and the scripts read them together (the
+		// price seed hashes both plus the CAD rate, so replacing only one would
+		// freeze the other). Keeping them as a single feed also means the batch
+		// is only current when both files are present.
+		name: 'quadratec',
+		label: 'Quadratec (CSV + XLSX)',
+		files: ['quadratec_wholesale.csv', 'pricingSheet_quad.xlsx'],
+		seedCommand: ['seed-quadratec', 'seed-quad-inventory'],
+		workbookBaseNames: ['quadratec_wholesale', 'pricingSheet_quad'],
 		staleAfterHours: 30 * DAY_HOURS,
-	},
-	{
-		name: 'quadratec-pricing',
-		label: 'Quadratec pricing sheet (XLSX)',
-		files: ['pricingSheet_quad.xlsx'],
-		ingestFeed: 'quadratec',
-		seedCommand: 'seed-quadratec',
-		staleAfterHours: 60 * DAY_HOURS,
 	},
 	{
 		name: 'ctp',
@@ -136,8 +132,12 @@ function getFeedByName(name) {
 
 // Bridge to the central workbook resolver (load-workbook.js): file baseName
 // -> matching feed.
+// A feed may answer for more than one workbook, which is the case for vendors
+// that ship a CSV and a spreadsheet that are read together.
 function getFeedByWorkbookBaseName(baseName) {
-	return getFeedDefinitions().find((feed) => feed.workbookBaseName === baseName) || null;
+	return getFeedDefinitions().find((feed) =>
+		feed.workbookBaseName === baseName || (feed.workbookBaseNames || []).includes(baseName)
+	) || null;
 }
 
 module.exports = {

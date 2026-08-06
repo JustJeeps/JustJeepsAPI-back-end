@@ -72,14 +72,17 @@ const { getFeedDefinitions } = require('../config/feeds');
 
 for (const feed of getFeedDefinitions()) {
 	if (!feed.seedCommand) continue;
-	const label = `Feed ${feed.name} (seedCommand: ${feed.seedCommand})`;
+	// A feed may list several scripts (they run in sequence).
+	for (const command of Array.isArray(feed.seedCommand) ? feed.seedCommand : [feed.seedCommand]) {
+		const label = `Feed ${feed.name} (seedCommand: ${command})`;
 
-	if (!Object.prototype.hasOwnProperty.call(scripts, feed.seedCommand)) {
-		addViolation(`${label}: npm script "${feed.seedCommand}" does not exist in package.json`);
-	} else {
-		for (const scriptPath of extractNodeScriptPaths(scripts[feed.seedCommand])) {
-			if (!fs.existsSync(path.resolve(ROOT, scriptPath))) {
-				addViolation(`${label}: file "${scriptPath}" referenced by the npm script does not exist`);
+		if (!Object.prototype.hasOwnProperty.call(scripts, command)) {
+			addViolation(`${label}: npm script "${command}" does not exist in package.json`);
+		} else {
+			for (const scriptPath of extractNodeScriptPaths(scripts[command])) {
+				if (!fs.existsSync(path.resolve(ROOT, scriptPath))) {
+					addViolation(`${label}: file "${scriptPath}" referenced by the npm script does not exist`);
+				}
 			}
 		}
 	}
