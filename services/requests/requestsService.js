@@ -324,18 +324,52 @@ async function ensureTrelloCard({ user, id }) {
 }
 
 // Auto-create na transicao para Assigned. Fire-and-forget: nunca lanca.
-// Integracao desligada / card ja existente sao silenciosos; assignee sem
-// board vira 'trello_card_skipped' e falha real (credencial revogada, API
-// fora) vira 'trello_card_failed' — ambos visiveis no activity log.
+//
+// Enquanto a integracao nao estiver COMPLETAMENTE configurada (sem
+// credencial, ou o assignee ainda sem board mapeado no painel /settings), a
+// sincronizacao simplesmente nao acontece: nada de card, nada de entrada no
+// historico do chamado (decisao do Ricardo, 2026-08-06 — o log so poluiria a
+// tela durante o periodo de configuracao). O motivo fica no log do servidor.
+//
+// Ja uma falha REAL com tudo configurado (credencial revogada, API do Trello
+// fora) vira 'trello_card_failed' no activity log, porque ai o time precisa
+// saber que o card nao existe. O botao "Create card now" continua explicando
+// o motivo em qualquer caso (409), por ser acao explicita do usuario.
+const TRELLO_SILENT_CODES = new Set([
+	'TRELLO_NOT_CONFIGURED',
+	'TRELLO_NO_ASSIGNEE',
+	'TRELLO_NO_BOARD_FOR_USER',
+	'CARD_EXISTS',
+	'CARD_IN_PROGRESS',
+]);
+
 function autoCreateTrelloCard({ user, id }) {
 	ensureTrelloCard({ user, id }).catch(async (error) => {
-		if (error.code === 'TRELLO_NOT_CONFIGURED' || error.code === 'CARD_EXISTS') return;
-		const action = (error.code === 'TRELLO_NO_ASSIGNEE' || error.code === 'TRELLO_NO_BOARD_FOR_USER')
-			? 'trello_card_skipped'
-			: 'trello_card_failed';
-		console.error(`Trello card ${action} for request ${id}:`, error.message);
+		if (TRELLO_SILENT_CODES.has(error.code)) {
+			// Configuracao incompleta: nao sincroniza e nao polui a tela.
+			console.log(`Trello sync skipped for request ${id}: ${error.message}`);
+			return;
+		}
+		console.error(`Trello card creation failed for request ${id}:`, error.message);
+
+		// Enquanto a causa nao muda (ex.: API fora), toda reentrada em Assigned
+		// tentaria de novo e gravaria a mesma linha: registra so quando a ultima
+		// entrada de Trello for diferente, para nao poluir o historico.
+		const last = await prisma.requestActivity.findFirst({
+			where: { request_id: id, field: 'trello' },
+			orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+			select: { action: true, newValue: true },
+		}).catch(() => null);
+		if (last && last.action === 'trello_card_failed' && last.newValue === error.message) return;
+
 		await prisma.requestActivity.create({
-			data: { request_id: id, actor_id: user.id, action, field: 'trello', newValue: error.message },
+			data: {
+				request_id: id,
+				actor_id: user.id,
+				action: 'trello_card_failed',
+				field: 'trello',
+				newValue: error.message,
+			},
 		}).catch((activityError) => {
 			console.error(`Trello activity write failed for request ${id}:`, activityError.message);
 		});

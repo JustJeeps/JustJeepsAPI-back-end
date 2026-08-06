@@ -60,7 +60,7 @@ One way only: the Pricing Tool creates a card, nothing syncs back.
 - Configuration lives **in the database**, set from the gear icon in the navbar (`/settings`, triage users only). There are no `TRELLO_*` environment variables.
 - One global credential (API key + token of the workspace account) plus one board and list **per user**. The admin panel has a Test connection button, a board dropdown loaded from Trello and a list dropdown per board.
 - When a request moves to Assigned, the card is created on the **assignee's** board, in the mapped list. The card name is `REQ-{id} - {title}` and the description links back to the request.
-- If the assignee has no board mapped, no card is created and the activity log shows `Trello card not created`. If Trello fails (revoked token, API down), the log shows `Trello card creation failed`. Card creation never blocks the status change.
+- **The sync only runs once the setup is complete.** With no credentials, or with an assignee that has no board mapped yet, the request simply does not sync: no card, no entry in the request history (the reason goes to the server log only). A real failure with everything configured (revoked token, Trello down) does show up as `Trello card creation failed` in the history, deduplicated so a repeated failure does not flood it. The manual "Create card now" button always explains the reason, since it is an explicit action. Card creation never blocks the status change.
 - Reassigning after the card exists does not move the card.
 - API endpoints for the panel are under `/api/trello-settings` (triage only, validated on the backend).
 
