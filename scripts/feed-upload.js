@@ -96,9 +96,27 @@ async function main() {
 	for (const upload of uploads) {
 		const sha256 = await hashFile(upload.filePath);
 		const sizeBytes = fs.statSync(upload.filePath).size;
-		const key = store.buildKey({ feed: feed.name, fileName: upload.fileName, sha256 });
 		const contentType = CONTENT_TYPES[path.extname(upload.fileName).toLowerCase()] || 'application/octet-stream';
 
+		// Conteudo identico ja no bucket? Nao reenvia (o SpecialOrder tem 460MB).
+		// O objeto e imutavel e enderecado por conteudo: o artefato novo pode
+		// apontar para a mesma key com seguranca.
+		const existing = args.archive
+			? null
+			: await catalog.findArtifactByHash(prisma, feed.name, upload.fileName, sha256);
+		if (existing) {
+			console.log(`♻️  ${upload.fileName} ja esta no bucket com este conteudo (sha ${sha256.slice(0, 8)}) — reaproveitando`);
+			files.push({
+				fileName: upload.fileName,
+				objectKey: existing.objectKey,
+				sha256,
+				sizeBytes: Number(existing.sizeBytes),
+				contentType: existing.contentType || contentType,
+			});
+			continue;
+		}
+
+		const key = store.buildKey({ feed: feed.name, fileName: upload.fileName, sha256 });
 		console.log(`⬆️  Subindo ${upload.fileName} (${(sizeBytes / 1024 / 1024).toFixed(1)}MB, sha ${sha256.slice(0, 8)})...`);
 		await store.putFile({ key, filePath: upload.filePath, contentType, sizeBytes });
 		files.push({ fileName: upload.fileName, objectKey: key, sha256, sizeBytes, contentType });

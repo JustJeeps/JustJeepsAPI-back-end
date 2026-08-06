@@ -178,6 +178,78 @@ const resolveFeedAndFile = (req, res) => {
 	return feed;
 };
 
+// 0) Ja temos este conteudo? O navegador manda o sha256 do arquivo ANTES de
+// enviar um byte. Se o hash ja existe para (feed, arquivo), nao ha o que subir:
+// o objeto no bucket e imutavel e identificado pelo conteudo. Isso evita
+// reenviar 460MB so porque alguem clicou de novo no mesmo arquivo.
+router.post('/feeds/:feed/uploads/check', requireTriage, async (req, res) => {
+	try {
+		const feed = resolveFeedAndFile(req, res);
+		if (!feed) return undefined;
+
+		const fileName = String(req.body?.fileName || '');
+		const sha256 = String(req.body?.sha256 || '');
+		if (!feed.files.includes(fileName)) {
+			return res.status(409).json({ error: `Unexpected file for feed ${feed.name}: ${fileName}`, code: 'FEED_FILE_MISMATCH' });
+		}
+		if (!/^[a-f0-9]{64}$/i.test(sha256)) {
+			return res.status(400).json({ error: 'sha256 is required' });
+		}
+
+		const existing = await catalog.findArtifactByHash(prisma, feed.name, fileName, sha256);
+		const current = await catalog.getCurrentBatch(prisma, feed.name, feed.files);
+		const isCurrent = Boolean(
+			existing && current?.artifacts.some((artifact) => artifact.id === existing.id)
+		);
+
+		res.json({
+			duplicate: Boolean(existing),
+			isCurrent,
+			artifact: existing ? serializeArtifact(existing) : null,
+		});
+	} catch (error) {
+		console.error('Ingest upload check error:', error);
+		res.status(500).json({ error: 'Internal server error' });
+	}
+});
+
+// 0b) Conteudo repetido, mas de um lote antigo: cataloga um artefato novo
+// apontando para o objeto que JA esta no bucket — zero bytes trafegados. Serve
+// tambem para completar um lote onde so um dos arquivos mudou.
+router.post('/feeds/:feed/uploads/reuse', requireTriage, async (req, res) => {
+	try {
+		const feed = resolveFeedAndFile(req, res);
+		if (!feed) return undefined;
+
+		const fileName = String(req.body?.fileName || '');
+		const sha256 = String(req.body?.sha256 || '');
+		const existing = await catalog.findArtifactByHash(prisma, feed.name, fileName, sha256);
+		if (!existing) {
+			return res.status(404).json({ error: 'No catalogued file with this content', code: 'FEED_HASH_UNKNOWN' });
+		}
+
+		const { batchId, artifacts } = await catalog.registerArtifacts(prisma, {
+			feed: feed.name,
+			batchId: req.body?.batchId || undefined,
+			source: 'manual',
+			uploadedBy: req.user.username,
+			note: req.body?.note ? String(req.body.note).slice(0, 2000) : 'reused: identical content already in storage',
+			files: [{
+				fileName: existing.fileName,
+				objectKey: existing.objectKey,
+				sha256: existing.sha256,
+				sizeBytes: Number(existing.sizeBytes),
+				contentType: existing.contentType,
+			}],
+		});
+
+		res.status(201).json({ batchId, artifacts: artifacts.map(serializeArtifact), reused: true });
+	} catch (error) {
+		console.error('Ingest upload reuse error:', error);
+		res.status(500).json({ error: 'Internal server error' });
+	}
+});
+
 // 1) Abre a sessao: valida feed/arquivo/tamanho e devolve uploadId + key.
 router.post('/feeds/:feed/uploads', requireTriage, async (req, res) => {
 	try {
