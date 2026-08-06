@@ -5,12 +5,12 @@ if [ "$#" -eq 0 ]; then
 fi
 
 if [ "$1" = "node" ] && [ "${2:-}" = "server.js" ]; then
-	echo "==> Executando migracoes do Prisma..."
-	npx prisma migrate deploy || echo "AVISO: Migracoes falharam, continuando mesmo assim..."
+	echo "==> Running Prisma migrations..."
+	npx prisma migrate deploy || echo "WARNING: Migrations failed, continuing anyway..."
 
-	echo "==> Iniciando servidor..."
+	echo "==> Starting server..."
 else
-	echo "==> Executando comando: $*"
+	echo "==> Running command: $*"
 fi
 
 exec "$@"

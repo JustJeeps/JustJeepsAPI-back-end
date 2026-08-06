@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 
-// Cria/atualiza (idempotente) os monitores do Axiom versionados neste repo.
-// Monitor-as-code: rodar de novo casa o monitor por NOME e faz PUT no existente,
-// nunca duplica. E' uma ferramenta de setup rodada LOCALMENTE — nao roda em
-// producao nem no boot do app.
+// Creates/updates (idempotently) the Axiom monitors versioned in this repo.
+// Monitor-as-code: running it again matches the monitor by NAME and PUTs over
+// the existing one, it never duplicates. This is a setup tool run LOCALLY: it
+// does not run in production nor at app boot.
 //
-// Requer AXIOM_MGMT_TOKEN: um Personal Access Token (PAT) ou API token com
-// escopo de gerenciamento de monitores. O AXIOM_TOKEN de ingestao NAO serve
-// (so escreve eventos). Se usar um PAT (que varre varias orgs), defina tambem
-// AXIOM_ORG_ID com o id da org. ⚠️ Guarde o token em .env local (gitignored);
-// nunca commite — ja houve vazamento de chaves no .kamal/secrets.
+// Requires AXIOM_MGMT_TOKEN: a Personal Access Token (PAT) or API token with
+// monitor management scope. The AXIOM_TOKEN used for ingestion does NOT work
+// (it only writes events). If you use a PAT (which spans several orgs), also
+// set AXIOM_ORG_ID with the org id. ⚠️ Keep the token in a local .env
+// (gitignored) and never commit it: keys have already leaked in .kamal/secrets.
 //
-// Uso:  node scripts/axiom-monitors.js            (cria/atualiza)
-//       node scripts/axiom-monitors.js --dry-run  (so mostra o que faria)
+// Usage:  node scripts/axiom-monitors.js            (create/update)
+//         node scripts/axiom-monitors.js --dry-run  (only prints what it would do)
 
 const dotenv = require("dotenv");
 const axios = require("axios");
@@ -21,47 +21,48 @@ dotenv.config();
 
 const API_BASE = process.env.AXIOM_API_URL || "https://api.axiom.co";
 const TOKEN = process.env.AXIOM_MGMT_TOKEN;
-const ORG_ID = process.env.AXIOM_ORG_ID; // opcional; necessario para PAT
+const ORG_ID = process.env.AXIOM_ORG_ID; // optional; required for a PAT
 const DATASET = process.env.AXIOM_DATASET || "justjeeps-api";
 const INGEST_NOTIFIER = process.env.AXIOM_INGEST_NOTIFIER || "BAbASf5WlFkdMpNx33";
 const DRY_RUN = process.argv.includes("--dry-run");
 
-// Feeds cuja FONTE se renova sozinha — skip prolongado neles sugere download
-// silenciosamente velho. Quadratec E keystone-ftp ficam de FORA: ambos leem
-// arquivos COMMITADOS na imagem (o download FTP do keystone esta desativado no
-// seed-all — descoberta de 24/jul), entao skip continuo e' o estado esperado,
-// nao staleness. Reincluir keystone-ftp SE o download em runtime voltar.
-// meyer-ca/meyer-us so emitem ingest_run apos a migracao stage+diff (ate la o
-// monitor fica silencioso: alertOnNoData=false).
+// Feeds whose SOURCE refreshes on its own: a long skip streak on them suggests
+// a silently stale download. Quadratec AND keystone-ftp are left OUT: both read
+// files COMMITTED into the image (the keystone FTP download is disabled in
+// seed-all, found on Jul 24), so a continuous skip is the expected state, not
+// staleness. Re-include keystone-ftp IF the runtime download comes back.
+// meyer-ca/meyer-us only emit ingest_run after the stage+diff migration (until
+// then the monitor stays silent: alertOnNoData=false).
 const WATCHED_FEEDS = ["meyer-ca", "meyer-us"];
 
-// Destinatarios do notifier de e-mail (INGEST_NOTIFIER). Sem lista hardcoded:
-// vem de INGEST_NOTIFIER_EMAILS ou CRON_NOTIFICATION_EMAIL (fonte unica no
-// .env.production) — listas locais ja derrubaram destinatario 2x (mai e jul/2026).
+// Recipients of the e-mail notifier (INGEST_NOTIFIER). No hardcoded list: they
+// come from INGEST_NOTIFIER_EMAILS or CRON_NOTIFICATION_EMAIL (single source in
+// .env.production); local lists have already dropped a recipient twice (May and
+// Jul 2026).
 const NOTIFIER_EMAILS = String(process.env.INGEST_NOTIFIER_EMAILS || process.env.CRON_NOTIFICATION_EMAIL || "")
   .split(/[,\s]+/)
   .filter(Boolean);
 
-// ensureNotifierEmails REMOVE quem nao esta na lista — rodar com lista vazia
-// esvaziaria o notifier no Axiom. Aborta antes.
+// ensureNotifierEmails REMOVES anyone not in the list, so running with an empty
+// list would wipe the notifier in Axiom. Abort before that happens.
 if (NOTIFIER_EMAILS.length === 0) {
-  console.error("NOTIFIER_EMAILS vazio: defina INGEST_NOTIFIER_EMAILS ou CRON_NOTIFICATION_EMAIL antes de rodar.");
+  console.error("NOTIFIER_EMAILS is empty: set INGEST_NOTIFIER_EMAILS or CRON_NOTIFICATION_EMAIL before running.");
   process.exit(1);
 }
 
 const monitors = [
   {
-    // Casa por NOME com o monitor existente (id 5joi92SRRX9oSrDBEg) → PUT, nao
-    // duplica. Redefinido em jul/2026: a versao antiga ("zero eventos em 3min")
-    // disparava toda madrugada — /api/health e' excluido do logger e o trafego
-    // noturno cai a ~12 req/h, entao janelas vazias eram garantidas. Agora o
-    // sinal e' a ausencia do heartbeat de 60s que o server.js emite
-    // (logger.heartbeat), imune ao volume de trafego.
+    // Matches the existing monitor by NAME (id 5joi92SRRX9oSrDBEg) -> PUT, no
+    // duplicate. Redefined in Jul 2026: the old version ("zero events in 3min")
+    // fired every night because /api/health is excluded from the logger and
+    // night traffic drops to ~12 req/h, so empty windows were guaranteed. The
+    // signal now is the absence of the 60s heartbeat that server.js emits
+    // (logger.heartbeat), which is immune to traffic volume.
     name: "API Offline (P1)",
     type: "Threshold",
     description:
-      "Zero heartbeats em 5min — queda real do processo ou do pipeline de log " +
-      "(o app emite heartbeat 1x/min; trafego de madrugada nao influencia).",
+      "Zero heartbeats in 5min: a real outage of the process or of the log " +
+      "pipeline (the app emits a heartbeat 1x/min; night traffic has no effect).",
     aplQuery: [
       `['${DATASET}']`,
       `| where type == "heartbeat"`,
@@ -72,7 +73,7 @@ const monitors = [
     threshold: 1,
     rangeMinutes: 5,
     intervalMinutes: 1,
-    alertOnNoData: true, // sem linhas = sem heartbeat = alerta
+    alertOnNoData: true, // no rows = no heartbeat = alert
     resolvable: true,
     notifierIds: [INGEST_NOTIFIER],
   },
@@ -80,9 +81,9 @@ const monitors = [
     name: "Ingest Feed Stale — só skips sem sucesso (P2)",
     type: "Threshold",
     description:
-      "Alerta quando um feed de ingestao que deveria mudar (keystone/meyer) so " +
-      "produz skipped-unchanged (0 success) por ~26h — possivel download " +
-      "silenciosamente velho. Quadratec fica de fora (arquivo commitado).",
+      "Alerts when an ingestion feed that should change (keystone/meyer) only " +
+      "produces skipped-unchanged (0 success) for ~26h: possibly a silently " +
+      "stale download. Quadratec is left out (committed file).",
     aplQuery: [
       `['${DATASET}']`,
       `| where type == "ingest_run" and feed in (${WATCHED_FEEDS.map((f) => `"${f}"`).join(", ")})`,
@@ -90,13 +91,13 @@ const monitors = [
       `| where successes == 0 and skips > 0`,
       `| project feed, value = skips`,
     ].join("\n"),
-    columnName: "value", // coluna agregada onde o threshold e' aplicado
+    columnName: "value", // aggregated column the threshold is applied to
     operator: "AboveOrEqual",
-    threshold: 2, // >=2 rodadas na janela, todas skip, zero sucesso
-    rangeMinutes: 1560, // ~26h: cobre com folga as 2 rodadas diarias (06:00 e 19:00)
+    threshold: 2, // >=2 runs in the window, all skipped, zero success
+    rangeMinutes: 1560, // ~26h: covers the 2 daily runs (06:00 and 19:00) with room to spare
     intervalMinutes: 60,
-    alertOnNoData: false, // nao alertar feed que simplesmente nao rodou
-    notifyByGroup: true, // um alerta por feed (grupo do `by feed`)
+    alertOnNoData: false, // do not alert on a feed that simply did not run
+    notifyByGroup: true, // one alert per feed (the `by feed` group)
     resolvable: true,
     notifierIds: [INGEST_NOTIFIER],
   },
@@ -119,23 +120,23 @@ async function upsertMonitor(api, def) {
 
   if (existing) {
     await api.put(`/v2/monitors/${existing.id}`, { ...def });
-    console.log(`✔ atualizado: ${def.name} (id ${existing.id})`);
+    console.log(`✔ updated: ${def.name} (id ${existing.id})`);
     return;
   }
   const { data } = await api.post("/v2/monitors", def);
-  console.log(`✔ criado: ${def.name} (id ${data && data.id})`);
+  console.log(`✔ created: ${def.name} (id ${data && data.id})`);
 }
 
-// Declarativo (decisao do usuario, 24/jul): o notifier deve ter EXATAMENTE os
-// NOTIFIER_EMAILS — adiciona quem falta e REMOVE quem nao esta na lista.
-// GET → compara → PUT so se mudou, logando o delta.
+// Declarative (user decision, Jul 24): the notifier must hold EXACTLY the
+// NOTIFIER_EMAILS, so it adds whoever is missing and REMOVES whoever is not in
+// the list. GET -> compare -> PUT only if it changed, logging the delta.
 async function ensureNotifierEmails(api, notifierId, emails) {
   const { data: notifier } = await api.get(`/v2/notifiers/${notifierId}`);
   const current = (notifier.properties && notifier.properties.email && notifier.properties.email.emails) || [];
   const desired = Array.from(new Set(emails));
   const same = current.length === desired.length && desired.every((e) => current.includes(e));
   if (same) {
-    console.log(`✔ notifier ${notifierId} ja e' exatamente: ${desired.join(", ")}`);
+    console.log(`✔ notifier ${notifierId} is already exactly: ${desired.join(", ")}`);
     return;
   }
   const added = desired.filter((e) => !current.includes(e));
@@ -146,16 +147,16 @@ async function ensureNotifierEmails(api, notifierId, emails) {
   });
   console.log(
     `✔ notifier ${notifierId} → ${desired.join(", ")}` +
-    (added.length ? ` | adicionados: ${added.join(", ")}` : "") +
-    (removed.length ? ` | removidos: ${removed.join(", ")}` : "")
+    (added.length ? ` | added: ${added.join(", ")}` : "") +
+    (removed.length ? ` | removed: ${removed.join(", ")}` : "")
   );
 }
 
 async function main() {
   if (DRY_RUN) {
-    console.log(`[dry-run] notifier ${INGEST_NOTIFIER} → garantir e-mails: ${NOTIFIER_EMAILS.join(", ")}`);
+    console.log(`[dry-run] notifier ${INGEST_NOTIFIER} → ensure e-mails: ${NOTIFIER_EMAILS.join(", ")}`);
     for (const def of monitors) {
-      console.log(`[dry-run] payload para: ${def.name}`);
+      console.log(`[dry-run] payload for: ${def.name}`);
       console.log(JSON.stringify(def, null, 2));
     }
     return;
@@ -163,8 +164,8 @@ async function main() {
 
   if (!TOKEN) {
     console.error(
-      "ERRO: AXIOM_MGMT_TOKEN nao definido. Precisa de um PAT ou API token com " +
-        "escopo de monitores (o AXIOM_TOKEN de ingestao NAO serve)."
+      "ERROR: AXIOM_MGMT_TOKEN is not set. It needs a PAT or API token with " +
+        "monitor scope (the AXIOM_TOKEN used for ingestion does NOT work)."
     );
     process.exit(1);
   }
@@ -188,7 +189,7 @@ async function main() {
       const detail = e.response
         ? `${e.response.status} ${JSON.stringify(e.response.data)}`
         : e.message;
-      console.error(`✗ falhou: ${def.name} — ${detail}`);
+      console.error(`✗ failed: ${def.name} — ${detail}`);
       process.exitCode = 1;
     }
   }

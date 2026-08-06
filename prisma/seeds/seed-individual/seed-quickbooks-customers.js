@@ -11,19 +11,19 @@ const {
   TRANSACTION_CSV_PATH,
 } = require('../../../services/quickbooksCustomerLookup');
 
-// Linhas largas (42 colunas + Json de ate 25 transacoes): batch pequeno para
-// nao estourar o limite de bind params do Postgres nem o pool de 2 conexoes.
+// Wide rows (42 columns + JSON with up to 25 transactions): small batch so we
+// do not blow past the Postgres bind param limit or the pool of 2 connections.
 const BATCH_SIZE = 500;
 
-// Aborta se o novo snapshot tiver menos que esta fracao de clientes do import
-// anterior (export truncado nunca substitui dado bom).
+// Aborts if the new snapshot has fewer customers than this fraction of the
+// previous import (a truncated export must never replace good data).
 const MIN_RATIO = Number(process.env.QB_IMPORT_MIN_RATIO || 0.7);
 
 function fileFreshness(filePath) {
   const stats = fs.statSync(filePath);
   const ageHours = (Date.now() - stats.mtime.getTime()) / (1000 * 60 * 60);
   console.log(
-    `  ${filePath}\n    modificado: ${stats.mtime.toISOString()} | ${(stats.size / 1024 / 1024).toFixed(1)}MB | idade: ${ageHours.toFixed(1)}h`
+    `  ${filePath}\n    modified: ${stats.mtime.toISOString()} | ${(stats.size / 1024 / 1024).toFixed(1)}MB | age: ${ageHours.toFixed(1)}h`
   );
   return stats.mtime;
 }
@@ -34,23 +34,23 @@ async function seedQuickBooksCustomers() {
 
   for (const filePath of [CUSTOMER_CSV_PATH, TRANSACTION_CSV_PATH]) {
     if (!fs.existsSync(filePath)) {
-      throw new Error(`Arquivo CSV nao encontrado: ${filePath}`);
+      throw new Error(`CSV file not found: ${filePath}`);
     }
   }
 
-  console.log('Arquivos de origem:');
+  console.log('Source files:');
   const customersMtime = fileFreshness(CUSTOMER_CSV_PATH);
   const transactionsMtime = fileFreshness(TRANSACTION_CSV_PATH);
-  // O snapshot e tao velho quanto o export mais antigo dos dois.
+  // The snapshot is only as fresh as the older of the two exports.
   const sourceExportedAt = customersMtime < transactionsMtime ? customersMtime : transactionsMtime;
 
-  console.log('Parseando CSVs...');
+  console.log('Parsing CSVs...');
   const customers = loadCustomers(CUSTOMER_CSV_PATH);
   const transactionsByCustomer = loadTransactions(TRANSACTION_CSV_PATH);
-  console.log(`  clientes: ${customers.length} | clientes com transacoes: ${transactionsByCustomer.size}`);
+  console.log(`  customers: ${customers.length} | customers with transactions: ${transactionsByCustomer.size}`);
 
   if (!customers.length) {
-    throw new Error('CSV de clientes vazio - import abortado');
+    throw new Error('Customer CSV is empty: import aborted');
   }
 
   const previousImport = await prisma.quickBooksImport.findFirst({
@@ -60,17 +60,17 @@ async function seedQuickBooksCustomers() {
 
   if (previousImport && customers.length < previousImport.customers * MIN_RATIO) {
     throw new Error(
-      `Contagem de clientes colapsou: ${customers.length} vs ${previousImport.customers} do import anterior ` +
-      `(minimo aceito: ${Math.ceil(previousImport.customers * MIN_RATIO)}). Export truncado? Import abortado.`
+      `Customer count collapsed: ${customers.length} vs ${previousImport.customers} from the previous import ` +
+      `(minimum accepted: ${Math.ceil(previousImport.customers * MIN_RATIO)}). Truncated export? Import aborted.`
     );
   }
 
   const currentImport = await prisma.quickBooksImport.create({
     data: { status: 'pending', sourceExportedAt },
   });
-  console.log(`Import #${currentImport.id} criado (pending). Montando linhas...`);
+  console.log(`Import #${currentImport.id} created (pending). Building rows...`);
 
-  // Dedupe defensivo por customerCode (last-wins, espelha o Map do modo csv).
+  // Defensive dedupe by customerCode (last wins, mirrors the Map used in csv mode).
   const rowByCode = new Map();
   customers.forEach((customer) => {
     const stats = calculateStats(transactionsByCustomer.get(customer.customerCode) || []);
@@ -78,7 +78,7 @@ async function seedQuickBooksCustomers() {
   });
   const rows = [...rowByCode.values()];
   if (rows.length !== customers.length) {
-    console.warn(`  aviso: ${customers.length - rows.length} customerCode duplicados descartados (last-wins)`);
+    console.warn(`  warning: ${customers.length - rows.length} duplicate customerCode values discarded (last wins)`);
   }
 
   const totalBatches = Math.ceil(rows.length / BATCH_SIZE);
@@ -96,11 +96,11 @@ async function seedQuickBooksCustomers() {
   });
   if (insertedCount !== rows.length) {
     throw new Error(
-      `Contagem inserida (${insertedCount}) difere do esperado (${rows.length}) - import #${currentImport.id} mantido como pending para investigacao`
+      `Inserted count (${insertedCount}) differs from expected (${rows.length}): import #${currentImport.id} kept as pending for investigation`
     );
   }
 
-  // Ponto atomico do swap: leituras passam a resolver este import.
+  // Atomic swap point: reads start resolving to this import.
   await prisma.quickBooksImport.update({
     where: { id: currentImport.id },
     data: {
@@ -110,7 +110,7 @@ async function seedQuickBooksCustomers() {
       errors: [],
     },
   });
-  console.log(`Import #${currentImport.id} completo: ${insertedCount} clientes.`);
+  console.log(`Import #${currentImport.id} complete: ${insertedCount} customers.`);
 
   const removedRows = await prisma.quickBooksCustomer.deleteMany({
     where: { importId: { not: currentImport.id } },
@@ -119,14 +119,14 @@ async function seedQuickBooksCustomers() {
     where: { id: { not: currentImport.id }, status: 'complete' },
     data: { status: 'superseded' },
   });
-  console.log(`Cleanup: ${removedRows.count} linhas de snapshots antigos removidas, ${supersededImports.count} imports marcados como superseded.`);
+  console.log(`Cleanup: ${removedRows.count} rows from old snapshots removed, ${supersededImports.count} imports marked as superseded.`);
 
-  console.log(`=== Concluido em ${((Date.now() - startedAt) / 1000).toFixed(1)}s ===`);
+  console.log(`=== Done in ${((Date.now() - startedAt) / 1000).toFixed(1)}s ===`);
 }
 
 seedQuickBooksCustomers()
   .catch((error) => {
-    console.error('Seed QuickBooks Customers falhou:', error.message);
+    console.error('Seed QuickBooks Customers failed:', error.message);
     process.exitCode = 1;
   })
   .finally(async () => {

@@ -21,24 +21,25 @@ const {
   buildDetailResponseFromRow,
 } = require('./quickbooksCustomerData');
 
-// Diretorio dos CSVs: configuravel porque o path legado tem espaco no nome, o
-// que quebra o volume mount do Kamal (docker run sem quoting). Em producao,
-// QB_LOOKUP_DATA_DIR aponta para /data/quickbooks-customers (volume inbox).
+// CSV directory: configurable because the legacy path has a space in its name,
+// which breaks the Kamal volume mount (docker run without quoting). In
+// production, QB_LOOKUP_DATA_DIR points at /data/quickbooks-customers (the
+// inbox volume).
 const QB_LOOKUP_DATA_DIR = process.env.QB_LOOKUP_DATA_DIR
   || path.resolve(__dirname, '..', 'QuickBooks Project', 'customers');
 
 const CUSTOMER_CSV_PATH = path.join(QB_LOOKUP_DATA_DIR, 'customers_qb_desktop.csv');
 const TRANSACTION_CSV_PATH = path.join(QB_LOOKUP_DATA_DIR, 'transactions_per_customer.csv');
 
-// Fonte dos dados: 'csv' (cache em memoria, legado) ou 'db' (Postgres,
-// populado pelo seed-quickbooks-customers). Lido a cada chamada para permitir
-// flip sem rebuild.
+// Data source: 'csv' (in memory cache, legacy) or 'db' (Postgres, populated by
+// seed-quickbooks-customers). Read on every call so it can be flipped without a
+// rebuild.
 function isDbSource() {
   return String(process.env.QB_LOOKUP_SOURCE || 'csv').toLowerCase() === 'db';
 }
 
 // ---------------------------------------------------------------------------
-// Modo csv (legado): cache em memoria carregado dos CSVs.
+// csv mode (legacy): in memory cache loaded from the CSVs.
 // ---------------------------------------------------------------------------
 
 const cache = {
@@ -244,7 +245,7 @@ function getQuickBooksLookupMetaCsv() {
 }
 
 // ---------------------------------------------------------------------------
-// Modo db: consultas ao Postgres (snapshot corrente = ultimo import complete).
+// db mode: queries against Postgres (current snapshot = last complete import).
 // ---------------------------------------------------------------------------
 
 const SORT_COLUMN_BY_FIELD = {
@@ -301,8 +302,8 @@ async function queryCustomersDb({ query = '', field = 'all', limit = 20, page = 
   const where = { importId };
 
   if (cleanQuery) {
-    // codeNorm e variantes de telefone sao alfanumericos puros; apenas o texto
-    // livre precisa de escape de metacaracteres LIKE.
+    // codeNorm and the phone variants are purely alphanumeric; only the free
+    // text needs LIKE metacharacters escaped.
     const likeQuery = escapeLikePattern(normalizedQuery);
     const phoneVariantFilters = normalizePhoneVariants(normalizedPhone)
       .map((variant) => ({ phoneSearch: { contains: variant } }));
@@ -416,8 +417,8 @@ async function getQuickBooksLookupMetaDb() {
 }
 
 // ---------------------------------------------------------------------------
-// API publica (nomes preservados; handlers do server.js fazem await, que
-// funciona tanto para os retornos sincronos do csv quanto para as Promises do db).
+// Public API (names preserved; the server.js handlers await, which works both
+// for the synchronous csv returns and for the db Promises).
 // ---------------------------------------------------------------------------
 
 function queryCustomers(params) {

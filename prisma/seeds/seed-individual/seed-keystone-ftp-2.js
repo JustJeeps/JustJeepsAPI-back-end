@@ -19,7 +19,7 @@ const SPECIAL_ORDER_FILE = path.join(BASE_DIR, "SpecialOrder.csv");
 const STAGE_BATCH = 5000;
 const MIN_RATIO = Number(process.env.KEYSTONE_FTP2_MIN_RATIO || 0.5);
 
-// ---- helpers (preservados do legado) ----
+// ---- helpers (preserved from the legacy version) ----
 const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 
 function toNumber(v) {
@@ -46,7 +46,7 @@ function getField(row, ...names) {
   return undefined;
 }
 
-// Revolution Gear: Keystone usa RGAEV..., alguns produtos foram gerados RGAREV...
+// Revolution Gear: Keystone uses RGAEV..., some products were generated as RGAREV...
 function getEquivalentKeystoneCodes(code) {
   const out = [code];
   if (/^RGAEV/i.test(code)) {
@@ -57,7 +57,7 @@ function getEquivalentKeystoneCodes(code) {
   return out;
 }
 
-// Em colisao de keystone_code, prefere SKU que NAO termina com "-"
+// On a keystone_code collision, prefer the SKU that does NOT end with "-"
 function preferSku(currentSku, candidateSku) {
   if (!currentSku) return candidateSku;
   const curEndsWithDash = currentSku.endsWith("-");
@@ -93,10 +93,10 @@ async function loadProductsByKeystoneCodes() {
   return codeToSku;
 }
 
-// Casa uma linha do feed com um Product: equivalentes do VCPN e, se falhar,
-// equivalentes do fallback VendorCode+ManufacturerPartNo. Mesmo criterio do
-// legado — mas executado NO STREAM, entao linhas sem match sao descartadas
-// imediatamente (memoria O(batch), nao O(2,5M)).
+// Matches a feed row to a Product: VCPN equivalents and, if that fails, the
+// equivalents of the VendorCode+ManufacturerPartNo fallback. Same criteria as
+// the legacy version, but run IN THE STREAM, so rows without a match are
+// discarded immediately (memory is O(batch), not O(2.5M)).
 function matchSku(codeToSku, vcpn, vendorCode, manufacturerPartNo) {
   for (const candidate of getEquivalentKeystoneCodes(vcpn)) {
     const sku = codeToSku.get(candidate);
@@ -142,8 +142,8 @@ async function stageFile(filePath, sourceRank, codeToSku, summary) {
     if (!vcpn) return null;
 
     const cost = toNumber(getField(r, "DealerPrice", "Dealer Price", "Cost", "Price"));
-    // Sem custo numerico a linha nunca venceria o score nem poderia ser
-    // inserida (vendor_cost e NOT NULL) — mesmo resultado do skippedNoCost legado.
+    // Without a numeric cost the row would never win the score and could not be
+    // inserted (vendor_cost is NOT NULL): same result as the legacy skippedNoCost.
     if (!isNum(cost)) return null;
 
     const vendorCode = cleanCsvField(getField(r, "VendorCode", "Vendor Code"));
@@ -173,14 +173,14 @@ async function stageFile(filePath, sourceRank, codeToSku, summary) {
   const res = await streamCsvBatched(filePath, { batchSize: STAGE_BATCH, transform }, (batch) =>
     insertBatch(STAGING_RAW, STAGING_RAW_COLS, batch)
   );
-  console.log(`📄 ${fileName}: ${res.rowsRead.toLocaleString()} linhas lidas, ${res.rowsKept.toLocaleString()} com match+custo staged`);
+  console.log(`📄 ${fileName}: ${res.rowsRead.toLocaleString()} rows read, ${res.rowsKept.toLocaleString()} with match+cost staged`);
   summary.rowsRead += res.rowsRead;
   return res;
 }
 
-// Pipeline novo: o dedup/score que era um invMap de ~2,4M entradas em heap
-// (OOM a 1024MB) agora e um DISTINCT ON no staging — memoria do processo fica
-// O(batch) + mapa de produtos (~dezenas de milhares).
+// New pipeline: the dedup/score that used to be an invMap of about 2.4M entries
+// on the heap (OOM at 1024MB) is now a DISTINCT ON in staging, so process memory
+// stays O(batch) plus the product map (tens of thousands of entries).
 async function seedKeystoneStaged() {
   const t0 = Date.now();
   let run;
@@ -196,7 +196,7 @@ async function seedKeystoneStaged() {
     });
 
     if (await isUnchanged(FEED, sourceHash)) {
-      console.log("⏭️  Fonte identica a ultima rodada bem-sucedida — nada a fazer.");
+      console.log("⏭️  Source identical to the last successful run: nothing to do.");
       await run.finish({ status: "skipped-unchanged", counts: { skipped: 1 } });
       return;
     }
@@ -205,12 +205,12 @@ async function seedKeystoneStaged() {
 
     await ensureStagingTable(STAGING_RAW, STAGING_RAW_DDL);
     const summary = { rowsRead: 0, matched: 0 };
-    // Inventory primeiro (source_rank 2 > SpecialOrder 1, mesmo criterio do score legado)
+    // Inventory first (source_rank 2 > SpecialOrder 1, same criteria as the legacy score)
     await stageFile(INVENTORY_FILE, 2, codeToSku, summary);
     await stageFile(SPECIAL_ORDER_FILE, 1, codeToSku, summary);
 
-    // Dedup em SQL, replicando o score legado [hasCost, source, hasQty, qty]:
-    // 1) melhor linha por VCPN; 2) uma linha por vendor_sku (constraint nova).
+    // Dedup in SQL, replicating the legacy score [hasCost, source, hasQty, qty]:
+    // 1) best row per VCPN; 2) one row per vendor_sku (new constraint).
     await queryStaging(`
       CREATE UNLOGGED TABLE IF NOT EXISTS staging.vp_keystone_final (LIKE staging.${STAGING_RAW});
       TRUNCATE staging.vp_keystone_final;
@@ -227,13 +227,13 @@ async function seedKeystoneStaged() {
     `);
     const staged = await queryStaging(`SELECT count(*)::int AS n FROM staging.vp_keystone_final`);
     const stagedCount = staged.rows[0].n;
-    console.log(`✅ Staged ${stagedCount.toLocaleString()} linhas unicas (de ${summary.matched.toLocaleString()} matches em ${summary.rowsRead.toLocaleString()} lidas)`);
+    console.log(`✅ Staged ${stagedCount.toLocaleString()} unique rows (from ${summary.matched.toLocaleString()} matches in ${summary.rowsRead.toLocaleString()} rows read)`);
 
     const currentCount = await prisma.vendorProduct.count({ where: { vendor_id: VENDOR_ID } });
     if (currentCount > 0 && stagedCount < currentCount * MIN_RATIO) {
       throw new Error(
-        `Feed encolheu demais: ${stagedCount} staged vs ${currentCount} no banco ` +
-        `(minimo ${Math.ceil(currentCount * MIN_RATIO)}). FTP truncado? Abortado sem tocar o banco.`
+        `Feed shrank too much: ${stagedCount} staged vs ${currentCount} in the database ` +
+        `(minimum ${Math.ceil(currentCount * MIN_RATIO)}). Truncated FTP? Aborted without touching the database.`
       );
     }
 
@@ -249,8 +249,8 @@ async function seedKeystoneStaged() {
     });
     console.timeEnd("diff+apply");
 
-    console.log(`✅ Diff aplicado: +${counts.inserted} inseridas, ~${counts.updated} atualizadas, -${counts.stale} removidas`);
-    console.log(`✅ Intocadas: ${stagedCount - counts.inserted - counts.updated} (sem mudanca)`);
+    console.log(`✅ Diff applied: +${counts.inserted} inserted, ~${counts.updated} updated, -${counts.stale} removed`);
+    console.log(`✅ Untouched: ${stagedCount - counts.inserted - counts.updated} (no change)`);
 
     await run.finish({
       status: "success",

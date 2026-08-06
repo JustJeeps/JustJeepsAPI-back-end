@@ -412,11 +412,11 @@ const seedOrders = async (
 };
 
 module.exports = seedOrders;
-// Reusado pelo seed-orders-delta.js (upsert idempotente de um pedido)
+// Reused by seed-orders-delta.js (idempotent upsert of a single order)
 module.exports.processOrder = processOrder;
 
-// Executa apenas quando rodado diretamente (npm run seed-orders)
-// Não executa quando importado por outro arquivo (server.js)
+// Runs only when executed directly (npm run seed-orders)
+// Does not run when imported by another file (server.js)
 if (require.main === module) {
   seedOrders();
 }

@@ -6,26 +6,26 @@ const { readWatermark, saveWatermark } = require("../../../lib/ordersWatermark.j
 
 const PAGE_SIZE = Number(process.env.SEED_ORDERS_DELTA_PAGE_SIZE) || 100;
 const MAX_PAGES = Number(process.env.SEED_ORDERS_DELTA_MAX_PAGES) || 50;
-// Janela de sobreposicao: reprocessa alguns minutos antes do watermark para
-// absorver clock skew e updates na borda. Upserts sao idempotentes.
+// Overlap window: reprocess a few minutes before the watermark to absorb clock
+// skew and updates that land on the edge of the window. Upserts are idempotent.
 const OVERLAP_MINUTES = Number(process.env.SEED_ORDERS_DELTA_OVERLAP_MINUTES) || 5;
 const INITIAL_LOOKBACK_HOURS = Number(process.env.SEED_ORDERS_DELTA_LOOKBACK_HOURS) || 48;
 const CONCURRENCY = Number(process.env.SEED_ORDERS_DELTA_CONCURRENCY) || 5;
 
-// Magento usa "YYYY-MM-DD HH:MM:SS" em UTC — comparacao lexicografica desse
-// formato equivale a comparacao cronologica.
+// Magento uses "YYYY-MM-DD HH:MM:SS" in UTC, so a lexicographic comparison of
+// that format is equivalent to a chronological comparison.
 const toMagentoUtc = (date) => date.toISOString().slice(0, 19).replace("T", " ");
 
 const seedOrdersDelta = async (options = {}) => {
   const onProgress = typeof options.onProgress === "function" ? options.onProgress : null;
   const startedAtMs = Date.now();
 
-  // Lease curta com renovacao automatica (ver lib/orderSyncLock.js): se este
-  // processo morrer no meio, o lock libera sozinho em <=5min.
+  // Short lease with automatic renewal (see lib/orderSyncLock.js): if this
+  // process dies mid-run, the lock releases itself within 5 minutes.
   const locked = await acquireOrderSyncLock();
   if (!locked) {
-    // Outro sync (delta, seed-orders-all etc.) esta rodando: pular e uma
-    // condicao normal para o cron, nao uma falha — sai com codigo 0.
+    // Another sync (delta, seed-orders-all, etc.) is running: skipping is a
+    // normal condition for the cron, not a failure, so exit with code 0.
     console.log("[seed-orders-delta] Skipped: another order sync holds the lock.");
     if (onProgress) {
       onProgress({
@@ -58,15 +58,16 @@ const seedOrdersDelta = async (options = {}) => {
     let maxUpdatedAt = null;
 
     for (let currentPage = 1; currentPage <= MAX_PAGES; currentPage++) {
-      // Perdemos o lock (lease expirou com o processo travado e outro sync
-      // assumiu)? Abortar sem avancar watermark — nunca escrever em paralelo.
+      // Did we lose the lock (the lease expired while this process was stuck
+      // and another sync took over)? Abort without advancing the watermark:
+      // never write in parallel.
       if (orderSyncLockLost()) {
         throw new Error("Order sync lock lost mid-run; aborting to avoid concurrent writes");
       }
       const data = await getOrdersUpdatedSince(sinceUtc, { pageSize: PAGE_SIZE, currentPage });
-      // Resposta sem items[] (ex.: HTML de WAF/proxy com status 200) nao pode
-      // ser tratada como "nada mudou" — senao o watermark avancaria por cima
-      // de pedidos nao sincronizados.
+      // A response without items[] (for example, WAF or proxy HTML returned
+      // with status 200) cannot be treated as "nothing changed", otherwise the
+      // watermark would advance past orders that were never synced.
       if (!data || !Array.isArray(data.items)) {
         throw new Error("Unexpected Magento response shape (items missing)");
       }
@@ -110,8 +111,8 @@ const seedOrdersDelta = async (options = {}) => {
       }
     }
 
-    // So avanca o watermark quando nada falhou: pedidos com erro continuam
-    // dentro da janela e sao retentados na proxima rodada.
+    // Only advance the watermark when nothing failed: orders that errored stay
+    // inside the window and are retried on the next run.
     if (failed === 0) {
       await saveWatermark(prisma, maxUpdatedAt || scanStartUtc);
     } else {
@@ -146,8 +147,8 @@ const seedOrdersDelta = async (options = {}) => {
 
 module.exports = seedOrdersDelta;
 
-// Executa apenas quando rodado diretamente (npm run seed-orders-delta / cron).
-// Exit code != 0 em falha para o cron runner notificar.
+// Runs only when executed directly (npm run seed-orders-delta / cron).
+// Exit code != 0 on failure so the cron runner can notify.
 if (require.main === module) {
   seedOrdersDelta()
     .catch(() => {

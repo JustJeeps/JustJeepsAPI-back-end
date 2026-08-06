@@ -1,8 +1,8 @@
 const fs = require('fs');
 const { parse } = require('csv-parse/sync');
 
-// Logica pura do QuickBooks Customer Lookup, compartilhada entre o service
-// (modos csv e db) e o seeder que importa os CSVs para o Postgres.
+// Pure QuickBooks Customer Lookup logic, shared between the service (csv and db
+// modes) and the seeder that imports the CSVs into Postgres.
 
 const ACTIVE_TYPES = new Set([
   'Invoice',
@@ -22,8 +22,8 @@ const PURCHASE_TYPES = new Set(['Invoice', 'Sales Receipt']);
 const PAYMENT_TYPES = new Set(['Payment', 'Cheque', 'Credit Card Charge', 'Sales Receipt']);
 const CREDIT_TYPES = new Set(['Credit Memo', 'Credit Card Refund', 'Credit Card Credit']);
 
-// Sentinela para lastPurchaseDate ausente: Date.parse('') vira NaN -> 0 no sort
-// atual, entao "sem compra" ordena como epoch.
+// Sentinel for a missing lastPurchaseDate: Date.parse('') becomes NaN -> 0 in
+// the current sort, so "no purchase" sorts as the epoch.
 const EPOCH = new Date(0);
 
 function nonEmpty(value) {
@@ -242,8 +242,9 @@ function safeNumber(value, fallback = 0) {
   return Number.isFinite(value) ? value : fallback;
 }
 
-// O `contains` do Prisma 4 nao escapa metacaracteres LIKE: sem isto, uma busca
-// por "smith%" vira wildcard em vez do literal que o String.includes fazia.
+// The `contains` in Prisma 4 does not escape LIKE metacharacters: without this,
+// a search for "smith%" becomes a wildcard instead of the literal that
+// String.includes used to match.
 function escapeLikePattern(value) {
   return String(value || '').replace(/[\\%_]/g, '\\$&');
 }
@@ -435,7 +436,7 @@ function loadTransactions(csvPath) {
 }
 
 // ---------------------------------------------------------------------------
-// Builders para o modo db: linha do QuickBooksCustomer e respostas da API.
+// Builders for db mode: the QuickBooksCustomer row and the API responses.
 // ---------------------------------------------------------------------------
 
 function parseSortableDate(rawDate) {

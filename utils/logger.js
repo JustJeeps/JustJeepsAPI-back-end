@@ -89,10 +89,11 @@ const logger = {
     sendToAxiom("debug", message, meta);
   },
 
-  // Batimento p/ o monitor "API Offline (P1)": evento minimo direto ao Axiom,
-  // sem console (1/min poluiria o docker logs). Garante fluxo continuo de
-  // eventos no dataset mesmo de madrugada sem trafego — "zero eventos em Xmin"
-  // volta a significar queda real (processo morto ou pipeline de log morto).
+  // Beat for the "API Offline (P1)" monitor: a minimal event sent straight to
+  // Axiom, with no console output (one per minute would pollute the docker
+  // logs). It guarantees a continuous flow of events in the dataset even
+  // overnight with no traffic, so "zero events in X minutes" goes back to
+  // meaning a real outage (dead process or dead log pipeline).
   heartbeat: () => {
     sendToAxiom("info", "heartbeat", { type: "heartbeat" });
   },
@@ -103,8 +104,8 @@ const logger = {
       method: req.method,
       path: req.path,
       statusCode: res.statusCode,
-      // duration (string "123ms") e legado: o monitor de p95 no Axiom ainda a
-      // parseia. Remover depois que o monitor migrar para duration_ms.
+      // duration (the string "123ms") is legacy: the p95 monitor in Axiom still
+      // parses it. Remove it once that monitor moves to duration_ms.
       duration: `${duration}ms`,
       duration_ms: duration,
       userAgent: req.get("user-agent"),
@@ -155,11 +156,12 @@ const logger = {
     }
   },
 
-  // Evento de pipeline DURAVEL: aguarda ingest + flush antes de retornar, para
-  // que scripts/children de vida curta nao percam o evento no exit (os metodos
-  // info/warn/error sao fire-and-forget e dependem de flush no shutdown).
+  // DURABLE pipeline event: awaits ingest plus flush before returning, so that
+  // short lived scripts and child processes do not lose the event on exit (the
+  // info/warn/error methods are fire-and-forget and rely on a flush at
+  // shutdown).
   //
-  // Contrato ingest_run (emitido 1x por feed por rodada de ingestao):
+  // ingest_run contract (emitted once per feed per ingestion run):
   //   { type: "ingest_run", feed, runId, trigger: "cron"|"manual"|"backfill",
   //     outcome: "success"|"partial"|"failed"|"skipped-unchanged",
   //     rowsIn, rowsChanged, rowsSkipped, rowsFailed, durationMs,

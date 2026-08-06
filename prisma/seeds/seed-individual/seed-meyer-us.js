@@ -310,14 +310,15 @@ SELECT
 };
 
 // ─────────────────────────────────────────────────────────────────────────
-// Pipeline stage+diff (jul/2026). Migra o Meyer US para o padrao de lib/ingest:
-// escreve so o delta (via IS DISTINCT FROM) em vez de upsert cego + reescrita da
-// Product inteira a cada batch. staleStrategy 'none': ausencia do feed NUNCA
-// deleta — CA e US compartilham vendor_id=2, e delecao aqui e' so por
-// descontinuado (predicado positivo), nunca por ausencia. O fetch segue
-// sequencial (rate limit do Meyer), entao o runtime nao muda; o ganho e'
-// reducao de escrita + proveniencia (IngestRun) + guard de falha silenciosa.
-// Rollback operacional:  MEYER_US_PIPELINE=legacy npm run seed-meyer-us
+// stage+diff pipeline (Jul 2026). Moves Meyer US to the lib/ingest pattern:
+// writes only the delta (via IS DISTINCT FROM) instead of a blind upsert plus a
+// rewrite of the whole Product row on every batch. staleStrategy 'none': absence
+// from the feed NEVER deletes, because CA and US share vendor_id=2, and deletion
+// here happens only for discontinued items (a positive predicate), never for
+// absence. The fetch stays sequential (Meyer rate limit), so the runtime does
+// not change; the gain is less write volume, provenance (IngestRun) and a
+// silent-failure guard.
+// Operational rollback:  MEYER_US_PIPELINE=legacy npm run seed-meyer-us
 const FEED = "meyer-us";
 const VENDOR_ID = 2;
 const STAGING_TABLE = "vp_meyer_us";
@@ -338,24 +339,25 @@ const STAGING_DDL = `
   meyer_height DOUBLE PRECISION,
   meyer_weight DOUBLE PRECISION
 `;
-// Todas as colunas da staging table (inclui meyer_* que sao da Product, usadas
-// so pelo UPDATE companheiro — NAO existem na VendorProduct).
+// All columns of the staging table (includes meyer_*, which belong to Product
+// and are used only by the companion UPDATE: they do NOT exist on VendorProduct).
 const STAGING_COLS = [
   "product_sku", "vendor_id", "vendor_sku", "vendor_cost", "vendor_cost_usd",
   "vendor_inventory", "partStatus_meyer",
   "meyer_length", "meyer_width", "meyer_height", "meyer_weight",
 ];
-// Subconjunto que EXISTE na VendorProduct — usado no INSERT do diffApply. Sem os
-// meyer_* (senao o INSERT referenciaria colunas inexistentes na VendorProduct).
+// Subset that DOES exist on VendorProduct, used by the diffApply INSERT. Without
+// the meyer_* columns (otherwise the INSERT would reference columns that do not
+// exist on VendorProduct).
 const VP_INSERT_COLS = [
   "product_sku", "vendor_id", "vendor_sku", "vendor_cost", "vendor_cost_usd",
   "vendor_inventory", "partStatus_meyer",
 ];
 
-// SKUs protegidos de delecao por descontinuado (decisao de negocio). Espelha o
-// seed-meyer.js (CA): default + SEED_MEYER_KEEP_DISCONTINUED_ZERO_SKUS. No US o
-// legado nao honrava a keep-list; passar a honrar so PREVINE delecao (mais
-// seguro) e alinha CA/US.
+// SKUs protected from deletion by discontinued status (business decision).
+// Mirrors seed-meyer.js (CA): defaults + SEED_MEYER_KEEP_DISCONTINUED_ZERO_SKUS.
+// On US the legacy code did not honor the keep list; honoring it only PREVENTS
+// deletions (safer) and aligns CA with US.
 function parseKeepList() {
   const defaults = ["BAJ-447723"];
   const extra = String(process.env.SEED_MEYER_KEEP_DISCONTINUED_ZERO_SKUS || "")
@@ -379,9 +381,10 @@ async function loadMeyerProductMap() {
   return map;
 }
 
-// Monta as linhas de staging (excluindo descontinuados+qty0, que vao para o
-// sweep) e coleta os product_sku a remover. Mesma resolucao/filtro do legado
-// (US pula linhas com custo nulo). Dedup por vendor_sku (ultimo vence).
+// Builds the staging rows (excluding discontinued+qty0, which go to the sweep)
+// and collects the product_sku values to remove. Same resolution and filter as
+// the legacy version (US skips rows with a null cost). Dedup by vendor_sku (the
+// last one wins).
 function buildRows(fetched, productMap) {
   const rowsByKey = new Map();
   const discontinuedSkus = new Set();
@@ -402,13 +405,13 @@ function buildRows(fetched, productMap) {
     }
 
     const costUsd = safeFloat(item.CustomerPrice);
-    if (costUsd === null) continue; // vendor_cost e' NOT NULL; legado tambem pula
+    if (costUsd === null) continue; // vendor_cost is NOT NULL; the legacy version skips too
 
     rowsByKey.set(item.ItemNumber, {
       product_sku: productSku,
       vendor_id: VENDOR_ID,
       vendor_sku: item.ItemNumber,
-      vendor_cost: costUsd, // brand-new row precisa (NOT NULL) = valor USD, igual ao legado
+      vendor_cost: costUsd, // a brand-new row requires it (NOT NULL) = USD value, same as legacy
       vendor_cost_usd: costUsd,
       vendor_inventory: safeFloat(item.QtyAvailable),
       partStatus_meyer: item.PartStatus || null,
@@ -430,8 +433,9 @@ function hashRows(rows) {
   return crypto.createHash("sha256").update(canonical).digest("hex");
 }
 
-// UPDATE companheiro na Product (dims + partStatus), gated por IS DISTINCT FROM
-// (o legado reescrevia a Product inteira a cada batch — churn evitavel).
+// Companion UPDATE on Product (dims + partStatus), gated by IS DISTINCT FROM
+// (the legacy version rewrote the whole Product row on every batch: avoidable
+// churn).
 async function updateProductDims(stagingTable) {
   const rows = await prisma.$queryRawUnsafe(`
     WITH upd AS (
@@ -452,9 +456,10 @@ async function updateProductDims(stagingTable) {
   return rows[0].n;
 }
 
-// Remove descontinuados (feed diz discontinued+qty0) por product_sku, de forma
-// FK-safe (anula OrderProduct.vendor_product_id antes — o legado deletava direto
-// e o ON DELETE CASCADE destruia line items historicos).
+// Removes discontinued items (the feed says discontinued+qty0) by product_sku in
+// an FK-safe way (it nulls OrderProduct.vendor_product_id first: the legacy
+// version deleted directly and ON DELETE CASCADE destroyed historical line
+// items).
 async function sweepDiscontinued(discontinuedSkus) {
   const keep = parseKeepList();
   const toDelete = Array.from(discontinuedSkus).filter((sku) => !keep.has(sku));
@@ -476,24 +481,25 @@ async function seedMeyerUsStaged() {
   try {
     locked = await acquireIngestLock(FEED, { leaseMinutes: LEASE_MINUTES });
     if (!locked) {
-      console.log("⏭️  Outra rodada meyer-us em andamento (lock ativo). Abortado.");
+      console.log("⏭️  Another meyer-us run is in progress (lock held). Aborted.");
       const r = await startRun(FEED, { sourceKind: "api", sourceRef: "ItemInformation" });
       await r.finish({ status: "skipped-locked", counts: { skipped: 1 } });
       return;
     }
 
-    // FETCH (inalterado) — antes de tocar o banco; o lock ja foi pego para nao
-    // duplicar pressao no rate limit do Meyer.
+    // FETCH (unchanged), before touching the database; the lock was already
+    // acquired so we do not double up pressure on the Meyer rate limit.
     const fetched = await meyerApiUs();
 
-    // GUARD de falha silenciosa: chave expirada/rate limit faz todos os itens
-    // voltarem como erro; sem isto a run reportaria "success" com ~0 escritas.
+    // Silent-failure GUARD: an expired key or a rate limit makes every item come
+    // back as an error; without this the run would report "success" with close
+    // to 0 writes.
     const totalFetched = fetched.length;
     const failedFetch = fetched.filter((d) => d && d.statusCode).length;
     if (totalFetched > 0 && failedFetch / totalFetched > MAX_FAILED_RATIO) {
       throw new Error(
-        `Fetch Meyer US degradado: ${failedFetch}/${totalFetched} itens falharam ` +
-        `(> ${MAX_FAILED_RATIO}). Chave expirada ou rate limit? Abortado sem tocar o banco.`
+        `Meyer US fetch degraded: ${failedFetch}/${totalFetched} items failed ` +
+        `(> ${MAX_FAILED_RATIO}). Expired key or rate limit? Aborted without touching the database.`
       );
     }
 
@@ -504,7 +510,7 @@ async function seedMeyerUsStaged() {
     run = await startRun(FEED, { sourceKind: "api", sourceRef: "ItemInformation", sourceHash });
 
     if (await isUnchanged(FEED, sourceHash)) {
-      console.log("⏭️  Payload identico a ultima rodada bem-sucedida — nada a fazer.");
+      console.log("⏭️  Payload identical to the last successful run: nothing to do.");
       await run.finish({ status: "skipped-unchanged", counts: { skipped: 1 } });
       return;
     }
@@ -514,9 +520,9 @@ async function seedMeyerUsStaged() {
       await insertBatch(STAGING_TABLE, STAGING_COLS, stagingRows.slice(i, i + BATCH_SIZE));
     }
 
-    // staleStrategy 'none' (ver comentario do bloco). vendor_cost fica FORA de
-    // compareCols: o US so escreve vendor_cost_usd em linhas existentes; so
-    // preenche vendor_cost no INSERT de linha nova (satisfaz o NOT NULL).
+    // staleStrategy 'none' (see the block comment above). vendor_cost stays OUT
+    // of compareCols: US only writes vendor_cost_usd on existing rows, and only
+    // fills vendor_cost on the INSERT of a new row (to satisfy the NOT NULL).
     const counts = await diffApply({
       target: "VendorProduct",
       staging: `staging.${STAGING_TABLE}`,
@@ -531,8 +537,8 @@ async function seedMeyerUsStaged() {
     const removed = await sweepDiscontinued(discontinuedSkus);
 
     console.log(
-      `✅ meyer-us: +${counts.inserted} inseridas, ~${counts.updated} atualizadas, ` +
-      `Product ~${productUpdated} atualizadas, -${removed} descontinuadas removidas`
+      `✅ meyer-us: +${counts.inserted} inserted, ~${counts.updated} updated, ` +
+      `Product ~${productUpdated} updated, -${removed} discontinued removed`
     );
 
     await run.finish({
@@ -541,7 +547,7 @@ async function seedMeyerUsStaged() {
       sourceRowCount: rawCount,
     });
   } catch (error) {
-    console.error("❌ Erro no seed Meyer US (staged):", error);
+    console.error("❌ Error in the Meyer US seed (staged):", error);
     if (run) await run.finish({ status: "failed", error: error.message }).catch(() => {});
     process.exitCode = 1;
   } finally {

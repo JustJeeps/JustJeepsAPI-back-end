@@ -39,8 +39,8 @@ const seedOrdersDelta = require('./prisma/seeds/seed-individual/seed-orders-delt
 const quadratecProducts = require('./prisma/seeds/api-calls/quadratec-excel.js');
 const { getWheelProsSkus, makeApiRequestsInChunks } = require('./prisma/seeds/api-calls/wheelPros-api.js');
 
-// Definicoes e flags de cron centralizadas em config/cron-jobs.js (modulo puro,
-// tambem usado por scripts/verify-cron-scripts.js e pelo CI).
+// Cron definitions and flags are centralized in config/cron-jobs.js (a pure
+// module, also used by scripts/verify-cron-scripts.js and by CI).
 const {
 	getCronJobDefinitions,
 	getReportCronJobDefinitions,
@@ -1267,7 +1267,7 @@ app.use('/api', rateLimit({
 // 🔐 Authentication routes (safe - disabled by default via ENABLE_AUTH=false)
 app.use('/api/auth', authRoutes);
 
-// Health check endpoint para Kamal/Load Balancer
+// Health check endpoint for Kamal/Load Balancer
 app.get('/api/health', async (req, res) => {
 	// Liveness endpoint: stays healthy while process is running.
 	res.status(200).json({
@@ -3432,8 +3432,9 @@ app.post('/api/seed-orders-all/start', async (req, res) => {
 	});
 });
 
-// Sync incremental: busca so os pedidos com updated_at >= watermark e faz
-// upsert. E o caminho padrao do botao "Update Orders" e do cron delta.
+// Incremental sync: fetches only the orders with updated_at >= watermark and
+// upserts them. This is the default path for the "Update Orders" button and
+// for the delta cron.
 app.post('/api/seed-orders-delta/start', async (req, res) => {
 	if (hasRunningSeedJob()) {
 		return res.status(409).json({ error: 'A seed job is already running' });
@@ -4200,9 +4201,9 @@ app.delete('/order_products/:id/delete', authenticateToken, async (req, res) => 
 			where: { id },
 		});
 
-		// Antes devolvia TODOS os pedidos (com dados de cliente) so para confirmar
-		// uma exclusao — payload enorme e exposicao desnecessaria. O front recarrega
-		// a lista por conta propria depois do delete.
+		// This used to return ALL orders (with customer data) just to confirm one
+		// deletion: a huge payload and needless exposure. The front end reloads
+		// the list on its own after the delete.
 		res.json({ success: true, deletedId: id });
 	} catch (error) {
 		console.error(error);
@@ -4924,9 +4925,9 @@ function registerCommandCronJob({
 			return;
 		}
 
-		// Run manual de feed em andamento (botao do painel): os dois caminhos
-		// rodam os mesmos seeds sobre a mesma staging table — deixar comecar
-		// aqui truncaria os dados do run manual no meio.
+		// A manual feed run is in progress (panel button): both paths run the
+		// same seeds over the same staging table, so letting this one start
+		// here would truncate the manual run's data midway.
 		if (feedRunner.isBusy()) {
 			upsertCronJobRecord(command, {
 				lastStatus: 'skipped',
@@ -5328,11 +5329,12 @@ function markReportCronFinished({ command, jobName, startedAt, finishedAt, durat
 	});
 }
 
-// Guard-rail anti-drift: todo command cron faz spawn de "npm run <command>".
-// Se o script sumir do package.json (ex.: revert acidental como o 81047cf), o
-// job falharia em TODO disparo com "Missing script" + email de erro. Aqui a
-// falha vira: log alto no boot, registro "invalid" no dashboard /api/cron-jobs,
-// UM email agregado e o job fica sem agendar (a API continua de pe).
+// Anti-drift guard-rail: every command cron spawns "npm run <command>".
+// If the script disappears from package.json (for example, an accidental revert
+// like 81047cf), the job would fail on EVERY trigger with "Missing script" plus
+// an error email. Here the failure becomes: a loud log at boot, an "invalid"
+// record in the /api/cron-jobs dashboard, ONE aggregated email, and the job is
+// left unscheduled (the API stays up).
 function validateCronCommandScripts(definitions) {
 	const packageScripts = require('./package.json').scripts || {};
 	const valid = [];
@@ -5350,7 +5352,7 @@ function validateCronCommandScripts(definitions) {
 			jobName: definition.jobName,
 			schedule: definition.schedule,
 		});
-		console.error(`❌ [CRON] Job "${definition.jobName}" NAO agendado: npm script "${definition.command}" nao existe no package.json`);
+		console.error(`❌ [CRON] Job "${definition.jobName}" NOT scheduled: npm script "${definition.command}" does not exist in package.json`);
 		upsertCronJobRecord(definition.command, {
 			jobName: definition.jobName,
 			schedule: definition.schedule,
@@ -5774,8 +5776,9 @@ function registerCronJobs() {
 			markReportCronStarted({ command: qbFreshnessCommand, startedAt: startedAtIso });
 
 			try {
-				// Idade real do snapshot: no modo db vem do import (sourceExportedAt =
-				// mtime do export); no modo csv, do mtime dos proprios arquivos.
+				// Real snapshot age: in db mode it comes from the import
+				// (sourceExportedAt = mtime of the export); in csv mode, from
+				// the mtime of the files themselves.
 				let referenceIso = null;
 				if (isQuickBooksDbSource()) {
 					const meta = await getQuickBooksLookupMeta();
@@ -5902,10 +5905,10 @@ registerCronJobs();
 
 app.listen(PORT, () => {
 	logger.info(`Server started on port ${PORT}`, { port: PORT, env: process.env.NODE_ENV });
-	// Heartbeat p/ o monitor "API Offline (P1)" do Axiom: >=1 evento/min no
-	// dataset, entao "zero eventos em Xmin" significa queda real. Sem isto o
-	// monitor dispara toda madrugada: /api/health e' excluido do logger (abaixo)
-	// e o trafego real cai a ~12 req/h (falsos positivos diarios pos-20/jul).
+	// Heartbeat for the Axiom monitor "API Offline (P1)": >=1 event/min in the
+	// dataset, so "zero events in Xmin" means a real outage. Without this the
+	// monitor fires every night: /api/health is excluded from the logger (below)
+	// and real traffic drops to ~12 req/h (daily false positives after Jul 20).
 	setInterval(() => logger.heartbeat(), 60 * 1000).unref();
 	console.log(
 		`Express seems to be listening on port ${PORT} so that's pretty good 👍`

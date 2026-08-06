@@ -12,8 +12,9 @@ const { diffApply } = require("../../../lib/ingest/diffApply");
 const VENDOR_ID = 4;
 const BATCH_SIZE = 5000;
 const FEED = "quadratec";
-// Piso de sanidade: aborta se o feed encolher demais vs o que esta no banco
-// (um export truncado nunca pode virar delete em massa via stale-delete).
+// Sanity floor: aborts if the feed shrinks too much versus what is in the
+// database (a truncated export must never turn into a mass delete through
+// stale-delete).
 const MIN_RATIO = Number(process.env.QUADRATEC_MIN_RATIO || 0.5);
 
 function round2(n) {
@@ -81,8 +82,8 @@ function toBajaVendorCodeFromSku(value) {
   return normalizeBajaVendorCode(value);
 }
 
-// Transform original preservado: feed -> linhas de VendorProduct (uma por
-// product_sku, score prefere match exato de quadratec_code).
+// Original transform preserved: feed -> VendorProduct rows (one per
+// product_sku, the score prefers an exact quadratec_code match).
 async function buildQuadratecRows() {
   console.time("fetch quadratecCost");
   const raw = await quadratecCost();
@@ -259,9 +260,10 @@ const STAGING_COLS = [
   "quadratec_shipping_surcharge_usd", "vendor_retail_price_usd", "quadratec_sku",
 ];
 
-// Pipeline novo: EXTRACT -> GUARD(hash) -> STAGE -> DIFF+APPLY -> IngestRun.
-// So linhas que mudaram tocam o banco (o full-replace legado deletava e
-// recriava ~tudo 2x/dia — e o delete cascateava OrderProducts historicos).
+// New pipeline: EXTRACT -> GUARD(hash) -> STAGE -> DIFF+APPLY -> IngestRun.
+// Only rows that changed touch the database (the legacy full replace deleted
+// and recreated nearly everything twice a day, and that delete cascaded into
+// historical OrderProducts).
 async function seedQuadratecStaged() {
   console.time("seed-quadratec total");
   let run;
@@ -269,14 +271,14 @@ async function seedQuadratecStaged() {
   try {
     const sourcePath = loadWorkbook.resolvePath("quadratec_wholesale");
     const fileDigest = await hashFile(sourcePath);
-    // Os precos vem do pricingSheet_quad.xlsx (via quadratec-excel.js), nao do
-    // CSV — o gate precisa invalidar o skip quando QUALQUER uma das fontes muda,
-    // senao um refresh do xlsx sozinho nunca roda (precos ficam congelados).
+    // Prices come from pricingSheet_quad.xlsx (via quadratec-excel.js), not
+    // from the CSV. The gate has to invalidate the skip when ANY of the sources
+    // changes, otherwise an xlsx-only refresh never runs and prices stay frozen.
     const priceSheetDigest = await hashFile(
       path.join(__dirname, "..", "api-calls", "pricingSheet_quad.xlsx")
     );
-    // O custo em CAD deriva do cambio: mudanca de USD_TO_CAD_RATE precisa
-    // invalidar o skip mesmo com arquivos identicos.
+    // The CAD cost derives from the exchange rate, so a change to
+    // USD_TO_CAD_RATE has to invalidate the skip even with identical files.
     const sourceHash = crypto.createHash("sha256")
       .update(fileDigest).update("|")
       .update(priceSheetDigest).update("|")
@@ -289,7 +291,7 @@ async function seedQuadratecStaged() {
     });
 
     if (await isUnchanged(FEED, sourceHash)) {
-      console.log("⏭️  Fonte identica a ultima rodada bem-sucedida — nada a fazer.");
+      console.log("⏭️  Source identical to the last successful run: nothing to do.");
       await run.finish({ status: "skipped-unchanged", counts: { skipped: 1 } });
       return;
     }
@@ -299,8 +301,8 @@ async function seedQuadratecStaged() {
     const currentCount = await prisma.vendorProduct.count({ where: { vendor_id: VENDOR_ID } });
     if (currentCount > 0 && rowsToInsert.length < currentCount * MIN_RATIO) {
       throw new Error(
-        `Feed encolheu demais: ${rowsToInsert.length} linhas vs ${currentCount} no banco ` +
-        `(minimo ${Math.ceil(currentCount * MIN_RATIO)}). Export truncado? Abortado sem tocar o banco.`
+        `Feed shrank too much: ${rowsToInsert.length} rows vs ${currentCount} in the database ` +
+        `(minimum ${Math.ceil(currentCount * MIN_RATIO)}). Truncated export? Aborted without touching the database.`
       );
     }
 
@@ -326,8 +328,8 @@ async function seedQuadratecStaged() {
     });
     console.timeEnd("diff+apply");
 
-    console.log(`✅ Diff aplicado: +${counts.inserted} inseridas, ~${counts.updated} atualizadas, -${counts.stale} removidas (ausentes do feed)`);
-    console.log(`✅ Intocadas: ${rowsToInsert.length - counts.inserted - counts.updated} (sem mudanca)`);
+    console.log(`✅ Diff applied: +${counts.inserted} inserted, ~${counts.updated} updated, -${counts.stale} removed (missing from the feed)`);
+    console.log(`✅ Untouched: ${rowsToInsert.length - counts.inserted - counts.updated} (no change)`);
 
     await run.finish({
       status: "success",
@@ -350,7 +352,7 @@ async function seedQuadratecStaged() {
   }
 }
 
-// Caminho legado (full replace) preservado para rollback operacional:
+// Legacy path (full replace) kept for operational rollback:
 // QUADRATEC_PIPELINE=legacy npm run seed-quadratec
 async function seedQuadratecLegacy() {
   console.time("seed-quadratec total");

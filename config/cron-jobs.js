@@ -1,9 +1,9 @@
-// Definicoes centrais dos cron jobs (fonte unica para server.js, para o
-// verificador scripts/verify-cron-scripts.js e para o CI).
+// Central cron job definitions (single source for server.js, for the
+// scripts/verify-cron-scripts.js checker and for CI).
 //
-// IMPORTANTE: este modulo precisa continuar "puro" — apenas process.env e
-// dados literais. Nada de require de prisma/express/nodemailer aqui, para que
-// ele possa ser carregado por scripts de validacao sem subir o servidor.
+// IMPORTANT: this module must stay "pure": only process.env and literal data.
+// Do not require prisma/express/nodemailer here, so that validation scripts can
+// load it without starting the server.
 
 const cronEnabled = process.env.CRON_ENABLED !== 'false';
 const cronTimezone = process.env.CRON_TIMEZONE || 'America/Toronto';
@@ -18,9 +18,9 @@ const meyerSeedEnabled = process.env.CRON_SEED_MEYER_ENABLED !== 'false';
 const meyerSeedSchedule = process.env.CRON_SEED_MEYER_SCHEDULE || '7 */4 * * *';
 const roughCountrySeedEnabled = process.env.CRON_SEED_ROUGH_COUNTRY_ENABLED !== 'false';
 const roughCountrySeedSchedule = process.env.CRON_SEED_ROUGH_COUNTRY_SCHEDULE || '37 */4 * * *';
-// Nomes historicos enganosos: "PRIORITY" controla o job magento-attributes-daily
-// e "ROUGH" controla o magento-attributes-weekly. Mantidos por compatibilidade
-// com deploy.yml/ambientes existentes.
+// Misleading historical names: "PRIORITY" controls the magento-attributes-daily
+// job and "ROUGH" controls magento-attributes-weekly. Kept for compatibility
+// with deploy.yml and existing environments.
 const magentoAttributesPriorityEnabled = process.env.CRON_MAGENTO_ATTRIBUTES_PRIORITY_ENABLED !== 'false';
 const magentoAttributesPrioritySchedule = process.env.CRON_MAGENTO_ATTRIBUTES_PRIORITY_SCHEDULE || '20 2 * * *';
 const magentoAttributesRoughEnabled = process.env.CRON_MAGENTO_ATTRIBUTES_ROUGH_ENABLED !== 'false';
@@ -30,9 +30,9 @@ const skuCostAlertSchedule = process.env.CRON_SKU_COST_ALERT_SCHEDULE || '*/30 *
 const skuCostAlertSku = process.env.SKU_COST_ALERT_SKU || 'TH-635801';
 const cadDisabledUsWeeklyEnabled = process.env.CRON_CAD_US_WEEKLY_ENABLED !== 'false';
 const cadDisabledUsWeeklySchedule = process.env.CRON_CAD_US_WEEKLY_SCHEDULE || '30 6 * * 1';
-// Fetch dos feeds Keystone (FTP -> Spaces): opt-in ate o bucket estar
-// provisionado (DO_SPACES_*). Horario fora da grade */5 do delta e com folga
-// antes do seed-all (mutex global de crons de comando).
+// Keystone feed fetch (FTP -> Spaces): opt-in until the bucket is provisioned
+// (DO_SPACES_*). The schedule sits off the delta's */5 grid and leaves room
+// before seed-all (global mutex across command crons).
 const keystoneFeedFetchEnabled = process.env.CRON_FEED_FETCH_KEYSTONE_ENABLED === 'true';
 const keystoneFeedFetchSchedule = process.env.CRON_FEED_FETCH_KEYSTONE_SCHEDULE || '47 4,16 * * *';
 const testCronEnabled = process.env.CRON_TEST_ENABLED === 'true';
@@ -58,15 +58,15 @@ const cronDigestTimezone = process.env.CRON_DIGEST_TIMEZONE || cronTimezone;
 const qbFreshnessReportEnabled = process.env.CRON_QB_FRESHNESS_REPORT_ENABLED !== 'false';
 const qbFreshnessReportSchedule = process.env.CRON_QB_FRESHNESS_REPORT_SCHEDULE || '15 9 * * *';
 const qbFreshnessReportTimezone = process.env.CRON_QB_FRESHNESS_REPORT_TIMEZONE || cronTimezone;
-// Limiares de idade do snapshot do QuickBooks (dias). O lookup alimenta
-// triagem de fraude: dado velho degrada a decisao silenciosamente.
+// QuickBooks snapshot age thresholds (days). The lookup feeds fraud triage:
+// stale data silently degrades the decision.
 const qbStaleWarnDays = Number(process.env.QB_STALE_WARN_DAYS || 14);
 const qbStaleCritDays = Number(process.env.QB_STALE_CRIT_DAYS || 30);
 const cronChildTimeoutMs = Number(process.env.CRON_CHILD_TIMEOUT_MS || 10 * 60 * 60 * 1000);
 const cronChildKillGraceMs = Number(process.env.CRON_CHILD_KILL_GRACE_MS || 10000);
 
-// Crons de comando: executados via spawn("npm run <command>"). Cada `command`
-// PRECISA existir em package.json.scripts (validado no boot e pelo verify-cron).
+// Command crons: executed via spawn("npm run <command>"). Every `command` MUST
+// exist in package.json.scripts (validated at boot and by verify-cron).
 function getCronJobDefinitions({ includeDisabled = false } = {}) {
 	const jobs = [
 		{
@@ -85,7 +85,7 @@ function getCronJobDefinitions({ includeDisabled = false } = {}) {
 			jobName: 'Orders Incremental Sync (delta)',
 			logPrefix: 'Orders delta sync',
 			reportLogFile: 'prisma/seeds/logs/seed-orders-delta.log',
-			// Roda a cada poucos minutos: sucesso silencioso, so falha notifica
+			// Runs every few minutes: success stays silent, only failures notify
 			notifyOnSuccess: false,
 		},
 		{
@@ -171,8 +171,8 @@ function getCronJobDefinitions({ includeDisabled = false } = {}) {
 		}));
 }
 
-// Crons de relatorio: rodam in-process no server.js (handlers proprios).
-// O `command` aqui e so um identificador de dashboard — NAO vira npm script.
+// Report crons: they run in-process inside server.js (with their own handlers).
+// The `command` here is only a dashboard identifier: it is NOT an npm script.
 function getReportCronJobDefinitions({ includeDisabled = false } = {}) {
 	return [
 		{
