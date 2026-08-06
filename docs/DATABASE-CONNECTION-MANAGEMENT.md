@@ -1,5 +1,12 @@
 # Database Connection Pool Management Guide
 
+> **OUTDATED (kept for history).** The numbers below are wrong: measured in
+> production (Jul/2026), the managed Postgres has **max_connections=100**
+> (not 25) with ~19 in use. The real pool sizes live in `lib/prisma.js`
+> (`ROLE_POOL_DEFAULTS = { api: 10, worker: 12, seed: 4 }`), selected by the
+> `APP_ROLE` env and overridable per role with `DB_POOL_API`, `DB_POOL_WORKER`
+> and `DB_POOL_SEED`. Trust `lib/prisma.js`, not this document.
+
 ## 🎯 Problem Solved
 Your database was running out of connection slots because multiple processes (API server, seed scripts, Prisma Studio) were each creating connection pools, exhausting the database's maximum connections.
 

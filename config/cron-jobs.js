@@ -58,6 +58,11 @@ const cronDigestTimezone = process.env.CRON_DIGEST_TIMEZONE || cronTimezone;
 const qbFreshnessReportEnabled = process.env.CRON_QB_FRESHNESS_REPORT_ENABLED !== 'false';
 const qbFreshnessReportSchedule = process.env.CRON_QB_FRESHNESS_REPORT_SCHEDULE || '15 9 * * *';
 const qbFreshnessReportTimezone = process.env.CRON_QB_FRESHNESS_REPORT_TIMEZONE || cronTimezone;
+// Requests digest (internal tickets): opt-in until the meeting decides the
+// schedule and recipients (both are 100% env-driven).
+const requestsDigestEnabled = process.env.CRON_REQUESTS_DIGEST_ENABLED === 'true';
+const requestsDigestSchedule = process.env.CRON_REQUESTS_DIGEST_SCHEDULE || '0 8 * * 1-5';
+const requestsDigestTimezone = process.env.CRON_REQUESTS_DIGEST_TIMEZONE || cronTimezone;
 // QuickBooks snapshot age thresholds (days). The lookup feeds fraud triage:
 // stale data silently degrades the decision.
 const qbStaleWarnDays = Number(process.env.QB_STALE_WARN_DAYS || 14);
@@ -220,6 +225,15 @@ function getReportCronJobDefinitions({ includeDisabled = false } = {}) {
 			reportLogFile: 'logs/report-quickbooks-freshness.log',
 			timezone: qbFreshnessReportTimezone,
 		},
+		{
+			enabled: requestsDigestEnabled,
+			schedule: requestsDigestSchedule,
+			command: 'report-requests-digest',
+			jobName: 'Requests Digest',
+			logPrefix: 'Requests digest',
+			reportLogFile: 'logs/report-requests-digest.log',
+			timezone: requestsDigestTimezone,
+		},
 	].filter((job) => includeDisabled || job.enabled !== false);
 }
 
@@ -280,6 +294,9 @@ module.exports = {
 		qbFreshnessReportEnabled,
 		qbFreshnessReportSchedule,
 		qbFreshnessReportTimezone,
+		requestsDigestEnabled,
+		requestsDigestSchedule,
+		requestsDigestTimezone,
 		qbStaleWarnDays,
 		qbStaleCritDays,
 		cronChildTimeoutMs,

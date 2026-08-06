@@ -161,6 +161,17 @@ env:
     FEED_CACHE_DIR: /app/feed-cache
     # Who can upload a feed and use the panel "Run now" button.
     FEEDS_TRIAGE_USERS: "admin,ricardo,tess"
+    # Requests (internal tickets): who can close. Usernames are not secret;
+    # kept in clear so the value never resolves empty (config/requests.js).
+    REQUESTS_TRIAGE_USERS: "ricardo,rafael"
+    REQUESTS_ASSIGNMENT_EMAIL_ENABLED: "true"
+    # Requests digest: opt-in (enable after the meeting decides schedule and
+    # recipients). Recipients live in REQUESTS_DIGEST_EMAILS (secret).
+    CRON_REQUESTS_DIGEST_ENABLED: "false"
+    CRON_REQUESTS_DIGEST_SCHEDULE: "0 8 * * 1-5"
+    CRON_REQUESTS_DIGEST_TIMEZONE: America/Toronto
+    # Trello one-way (card created on assignment): configured 100% in the
+    # database via the /settings panel (global credential + board per user).
   secret:
     # Database & Auth
     - DATABASE_URL
@@ -178,6 +189,7 @@ env:
     - ORDER_CANCELLATION_REPORT_EMAILS
     - SKU_STATUS_REPORT_EMAILS
     - SKU_STATUS_WEEKLY_REPORT_EMAILS
+    - REQUESTS_DIGEST_EMAILS
     # Magento
     - MAGENTO_KEY
     # Keystone
@@ -204,8 +216,8 @@ env:
     # Other APIs
     - PARSEHUB_KEY_NORTHRIDGE
     - FREIGHTCOM_API_KEY
-    # DigitalOcean Spaces (vendor feeds). Optional in pre-build: without them
-    # feed-sync only warns and the seeds use the existing local files.
+    # DigitalOcean Spaces (vendor feeds + request attachments). Required since
+    # the feeds pipeline went live; request attachments use the same bucket.
     - DO_SPACES_ENDPOINT
     - DO_SPACES_REGION
     - DO_SPACES_BUCKET

@@ -22,9 +22,15 @@ const {
 	sendOrderCancellationDailyReportEmail,
 	sendSkuStatusDailyReportEmail,
 	sendSkuStatusWeeklyReportEmail,
+	sendRequestsDigestEmail,
 } = require('./utils/emailService');
 const prisma = require('./lib/prisma');
 const { getDateStringInTimezone, getTrailingDateStringsInTimezone } = require('./lib/reports/dates');
+const {
+	readDigestWatermark: readRequestsDigestWatermark,
+	saveDigestWatermark: saveRequestsDigestWatermark,
+	collectRequestsDigestData,
+} = require('./lib/reports/requestsDigest');
 const {
 	loadDataIfNeeded: loadQuickBooksLookupData,
 	queryCustomers: queryQuickBooksCustomers,
@@ -87,6 +93,9 @@ const {
 		qbFreshnessReportEnabled,
 		qbFreshnessReportSchedule,
 		qbFreshnessReportTimezone,
+		requestsDigestEnabled,
+		requestsDigestSchedule,
+		requestsDigestTimezone,
 		qbStaleWarnDays,
 		qbStaleCritDays,
 		cronChildTimeoutMs,
@@ -1177,6 +1186,10 @@ const { createFeedStore } = require('./lib/feeds/feedStore');
 const { getFeedDefinitions } = require('./config/feeds');
 const { collectFeedFreshnessResults } = require('./lib/feeds/freshnessReport');
 const feedStore = createFeedStore();
+// Requests (internal tickets) + user list for assignee selects
+const requestsRoutes = require('./routes/requests');
+const usersRoutes = require('./routes/users');
+const trelloSettingsRoutes = require('./routes/trelloSettings');
 
 function scheduleQuickBooksLookupPreload() {
 	if (isQuickBooksDbSource()) {
@@ -1313,9 +1326,12 @@ app.get('/', (req, res) =>
 // Protected routes: all other /api/* routes
 app.use('/api', authenticateToken);
 
-// Vendor feeds: mounted AFTER authenticateToken on purpose, moving it before
-// would leave upload and "Run now" without authentication.
+// Vendor feeds + requests: mounted AFTER authenticateToken on purpose, moving
+// them before would leave these routes without authentication.
 app.use('/api/ingest', ingestRoutes);
+app.use('/api/requests', requestsRoutes);
+app.use('/api/users', usersRoutes);
+app.use('/api/trello-settings', trelloSettingsRoutes);
 
 // Sample GET route
 app.get('/api/data', (req, res) =>
@@ -5872,6 +5888,84 @@ function registerCronJobs() {
 		});
 	} else {
 		logger.info('QuickBooks data freshness check disabled via CRON_QB_FRESHNESS_REPORT_ENABLED=false');
+	}
+
+	if (requestsDigestEnabled) {
+		const requestsDigestCommand = 'report-requests-digest';
+		const requestsDigestJobName = 'Requests Digest';
+		let requestsDigestRunning = false;
+		logger.info('Registering requests digest cron job', {
+			schedule: requestsDigestSchedule,
+			timezone: requestsDigestTimezone,
+		});
+
+		cron.schedule(requestsDigestSchedule, async () => {
+			if (requestsDigestRunning) {
+				markReportCronSkipped({
+					command: requestsDigestCommand,
+					message: 'Previous run still in progress',
+				});
+				logger.warn('Requests digest skipped because previous run is still in progress');
+				return;
+			}
+
+			requestsDigestRunning = true;
+			const startedAt = Date.now();
+			const startedAtIso = new Date(startedAt).toISOString();
+			markReportCronStarted({ command: requestsDigestCommand, startedAt: startedAtIso });
+
+			try {
+				const now = new Date();
+				const since = await readRequestsDigestWatermark(prisma);
+				const digest = await collectRequestsDigestData(prisma, { since, now });
+				const result = await sendRequestsDigestEmail({ digest, timeZone: requestsDigestTimezone });
+				if (!result.success) {
+					throw new Error(result.error || 'Requests digest email failed');
+				}
+				// Watermark so avanca depois do e-mail sair — falha reenvia na proxima.
+				await saveRequestsDigestWatermark(prisma, now);
+
+				const summary = {
+					newRequests: digest.newRequests.length,
+					updates: digest.updates.length,
+					unassigned: digest.unassigned.length,
+					aging: digest.aging.length,
+				};
+				markReportCronFinished({
+					command: requestsDigestCommand,
+					jobName: requestsDigestJobName,
+					startedAt: startedAtIso,
+					finishedAt: new Date().toISOString(),
+					durationMs: Date.now() - startedAt,
+					durationLabel: formatDuration(startedAt),
+					status: 'success',
+					summary,
+				});
+				logger.info('Requests digest email sent', { ...summary, duration: formatDuration(startedAt) });
+			} catch (error) {
+				markReportCronFinished({
+					command: requestsDigestCommand,
+					jobName: requestsDigestJobName,
+					startedAt: startedAtIso,
+					finishedAt: new Date().toISOString(),
+					durationMs: Date.now() - startedAt,
+					durationLabel: formatDuration(startedAt),
+					status: 'failed',
+					error: error.message,
+				});
+				logger.error('Failed to send requests digest email', {
+					error: error.message,
+					duration: formatDuration(startedAt),
+				});
+			} finally {
+				requestsDigestRunning = false;
+			}
+		}, {
+			scheduled: true,
+			timezone: requestsDigestTimezone,
+		});
+	} else {
+		logger.info('Requests digest cron job disabled via CRON_REQUESTS_DIGEST_ENABLED (opt-in)');
 	}
 }
 

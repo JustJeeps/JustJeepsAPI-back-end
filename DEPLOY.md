@@ -99,21 +99,28 @@ servers:
     hosts:
       - SEU_IP_DO_DROPLET  # ex: 143.198.123.45
     labels:
-      traefik.http.routers.justjeeps-api.rule: Host(`api.seudominio.com`)
+      traefik.http.routers.justjeeps-api.rule: Host(`pricingtoolapi.justjeeps.com`)
       # ... resto das labels
 
-# Na secao traefik, configure seu email:
-traefik:
-  args:
-    certificatesResolvers.letsencrypt.acme.email: "seu@email.com"
+# Kamal 2.x: o TLS e resolvido pelo bloco `proxy:` do config/deploy.yml
+# (nao existe mais a secao `traefik:` do Kamal 1.x). Ajuste `proxy.host`
+# e os labels dos hosts no proprio deploy.yml.
 ```
 
 ### Passo 3: Carregar segredos
 
 ```bash
-# Exportar variaveis do .env.production
-export $(cat .env.production | xargs)
+# Exportar variaveis do .env.production (set -a exporta tudo; um `source`
+# simples NAO exporta e o hook pre-build aborta o deploy; `export $(cat ...)`
+# quebra com valores contendo espacos)
+set -a; source .env.production; set +a
 ```
+
+O hook `.kamal/hooks/pre-build` valida os segredos ANTES do build: qualquer
+variavel referenciada como `$VAR` no `.kamal/secrets` que resolver vazia
+aborta o deploy (exceto as da lista OPTIONAL do proprio hook). O
+`.env.production.example` nao cobre todos os segredos obrigatorios — se o
+hook abortar, ele imprime exatamente o que falta.
 
 Ou use um gerenciador de segredos:
 
@@ -135,11 +142,11 @@ kamal setup
 Este comando:
 1. Conecta via SSH no Droplet
 2. Instala Docker no servidor
-3. Configura Traefik como proxy reverso
-4. Faz build da imagem Docker
-5. Envia para o registry
-6. Executa o hook pre-deploy (migracoes Prisma)
-7. Inicia o container da aplicacao
+3. Configura o kamal-proxy (proxy reverso do Kamal 2.x)
+4. Executa o hook pre-build (validacao de segredos — aborta se faltar algo)
+5. Faz build da imagem Docker e envia para o registry
+6. Inicia o container; as migracoes Prisma rodam no docker-entrypoint.sh
+   (`npx prisma migrate deploy`) na subida do container
 
 ### Passo 5: Deploys subsequentes
 
@@ -185,8 +192,9 @@ JWT_SECRET=$JWT_SECRET
 
 Execute:
 ```bash
-# Carrega do .env.production e executa
-export $(cat .env.production | xargs) && kamal deploy
+# Carrega do .env.production e executa (set -a exporta com espacos seguros)
+set -a; source .env.production; set +a
+kamal deploy
 ```
 
 ### Opcao C: 1Password CLI (Producao)
@@ -278,7 +286,7 @@ npm run seed-all
    - **Output Directory:** `dist`
    - **Environment Variables:**
      ```
-     VITE_API_URL=https://api.seudominio.com
+     VITE_API_URL=https://pricingtoolapi.justjeeps.com
      ```
 
 4. Deploy automatico em cada push
@@ -292,7 +300,7 @@ npm run seed-all
 
 ```bash
 # No diretorio do frontend
-VITE_API_URL=https://api.seudominio.com npm run build
+VITE_API_URL=https://pricingtoolapi.justjeeps.com npm run build
 
 # Upload para Spaces (use s3cmd ou doctl)
 s3cmd sync ./dist/ s3://seu-space-name/ --acl-public
@@ -305,7 +313,7 @@ Adicione ao `package.json` do frontend:
 ```json
 {
   "scripts": {
-    "build:production": "VITE_API_URL=https://api.seudominio.com vite build",
+    "build:production": "VITE_API_URL=https://pricingtoolapi.justjeeps.com vite build",
     "build:staging": "VITE_API_URL=https://api-staging.seudominio.com vite build"
   }
 }
@@ -359,7 +367,7 @@ kamal app exec -- npx prisma migrate deploy
 kamal rollback
 
 # Atualizar Traefik
-kamal traefik reboot
+kamal proxy reboot
 
 # Ver configuracao atual
 kamal config
@@ -382,11 +390,11 @@ kamal config
 3. Verifique Trusted Sources no painel da DO
 4. Teste conexao: `kamal app exec -- npx prisma db pull`
 
-### Erro: "Permission denied" no hook pre-deploy
+### Erro: "Permission denied" no hook pre-build
 
 ```bash
-chmod +x .kamal/hooks/pre-deploy
-git add .kamal/hooks/pre-deploy
+chmod +x .kamal/hooks/pre-build
+git add .kamal/hooks/pre-build
 git commit -m "Fix hook permissions"
 ```
 
@@ -401,7 +409,7 @@ git commit -m "Fix hook permissions"
 1. Verifique se o dominio aponta para o IP do Droplet
 2. Verifique email no Let's Encrypt config
 3. Aguarde propagacao DNS (ate 48h)
-4. Verifique logs do Traefik: `kamal traefik logs`
+4. Verifique logs do proxy: `kamal proxy logs` (Kamal 2.x)
 
 ---
 
@@ -413,10 +421,12 @@ git commit -m "Fix hook permissions"
 - [ ] `config/deploy.yml` configurado
 - [ ] `.env.production` criado (NAO commitado)
 - [ ] Dockerfile.production testado localmente
-- [ ] Hook pre-deploy com permissao de execucao
+- [ ] Hook pre-build com permissao de execucao
 - [ ] Endpoint `/api/health` funcionando
-- [ ] CORS configurado para dominio de producao
-- [ ] DNS configurado (api.seudominio.com)
+- [ ] CORS configurado para dominio de producao (origens reais em server.js:
+      pricingtool.justjeeps.com + localhost:5173)
+- [ ] DNS configurado (producao real: pricingtoolapi.justjeeps.com para a API,
+      pricingtool.justjeeps.com para o front)
 - [ ] `kamal setup` executado com sucesso
 - [ ] Frontend apontando para URL correta
 - [ ] Frontend deployado (App Platform ou Spaces)

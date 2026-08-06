@@ -15,8 +15,9 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 # Legitimately empty today: SendGrid is not used; SMTP_SERVICE is an alternative
-# to SMTP_HOST; the report e-mail lists have a fallback in the code.
-OPTIONAL="SENDGRID_API_KEY SMTP_SERVICE SKU_STATUS_REPORT_EMAILS SKU_STATUS_WEEKLY_REPORT_EMAILS ORDER_CANCELLATION_REPORT_EMAILS"
+# to SMTP_HOST; the report e-mail lists have a fallback in the code; the
+# requests digest is opt-in.
+OPTIONAL="SENDGRID_API_KEY SMTP_SERVICE SKU_STATUS_REPORT_EMAILS SKU_STATUS_WEEKLY_REPORT_EMAILS ORDER_CANCELLATION_REPORT_EMAILS REQUESTS_DIGEST_EMAILS"
 
 missing=()
 warns=()

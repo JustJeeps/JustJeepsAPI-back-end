@@ -781,6 +781,141 @@ async function sendSkuStatusWeeklyReportEmail({ reportDate, summary, rows, timeZ
   });
 }
 
+/**
+ * Digest periodico de Requests (chamados internos): novas solicitacoes e
+ * atualizacoes desde o ultimo envio + retrato de unassigned e aging.
+ * @param {Object} params
+ * @param {Object} params.digest - retorno de collectRequestsDigestData
+ * @param {string} params.timeZone
+ */
+async function sendRequestsDigestEmail({ digest, timeZone = 'America/Toronto' }) {
+  const recipients = String(process.env.REQUESTS_DIGEST_EMAILS || process.env.CRON_NOTIFICATION_EMAIL || '')
+    .split(/[,\s]+/)
+    .map((email) => email.trim())
+    .filter(Boolean)
+    .join(',');
+
+  if (!recipients) {
+    console.warn('⚠️ Requests digest skipped: REQUESTS_DIGEST_EMAILS/CRON_NOTIFICATION_EMAIL not configured');
+    return { success: false, error: 'No recipients configured' };
+  }
+
+  const { newRequests, updates, unassigned, aging, windowStart, now } = digest;
+  const appUrl = String(process.env.PRICING_TOOL_URL || 'https://pricingtool.justjeeps.com').replace(/\/+$/, '');
+  const dateLabel = now.toLocaleDateString('en-US', { timeZone, dateStyle: 'medium' });
+  const sinceLabel = windowStart.toLocaleString('en-US', { timeZone, dateStyle: 'medium', timeStyle: 'short' });
+
+  const subject = `📋 Requests Digest — ${dateLabel}: ${newRequests.length} new, ${updates.length} updates, ${unassigned.length} unassigned`;
+
+  const personLabel = (user) => (user ? (user.firstname || user.username) : 'Unassigned');
+  const requestLine = (request) =>
+    `REQ-${request.id} [${request.status}] ${request.title} (${request.project} · ${request.priority} · requester ${personLabel(request.requester)} · assignee ${personLabel(request.assignee)})`;
+
+  const text =
+    `Requests digest since ${sinceLabel}\n\n` +
+    `NEW (${newRequests.length}):\n${newRequests.map(requestLine).join('\n') || 'none'}\n\n` +
+    `UPDATES (${updates.length}):\n${updates.map((a) => `REQ-${a.request.id} ${a.action}${a.newValue ? ` -> ${a.newValue}` : ''} by ${personLabel(a.actor)}`).join('\n') || 'none'}\n\n` +
+    `UNASSIGNED OPEN (${unassigned.length}):\n${unassigned.map(requestLine).join('\n') || 'none'}\n\n` +
+    `AGING > 7 DAYS (${aging.length}):\n${aging.map(requestLine).join('\n') || 'none'}\n\n` +
+    `Open the Requests board: ${appUrl}/requests`;
+
+  const requestRow = (request) => `
+    <tr>
+      <td style="padding:6px 10px;border:1px solid #e8e8e8;white-space:nowrap;">
+        <a href="${escapeHtml(`${appUrl}/requests?open=${request.id}`)}" style="color:#235789;font-weight:600;">REQ-${request.id}</a>
+      </td>
+      <td style="padding:6px 10px;border:1px solid #e8e8e8;">${escapeHtml(request.title)}</td>
+      <td style="padding:6px 10px;border:1px solid #e8e8e8;white-space:nowrap;">${escapeHtml(request.status)}</td>
+      <td style="padding:6px 10px;border:1px solid #e8e8e8;white-space:nowrap;">${escapeHtml(request.priority)}</td>
+      <td style="padding:6px 10px;border:1px solid #e8e8e8;white-space:nowrap;">${escapeHtml(personLabel(request.assignee))}</td>
+    </tr>`;
+
+  const requestTable = (rows) => rows.length
+    ? `<table style="border-collapse:collapse;font-size:13px;width:100%;">
+        <tr>
+          <th style="text-align:left;padding:6px 10px;background:#f8f4ef;border:1px solid #e8e8e8;">ID</th>
+          <th style="text-align:left;padding:6px 10px;background:#f8f4ef;border:1px solid #e8e8e8;">Title</th>
+          <th style="text-align:left;padding:6px 10px;background:#f8f4ef;border:1px solid #e8e8e8;">Status</th>
+          <th style="text-align:left;padding:6px 10px;background:#f8f4ef;border:1px solid #e8e8e8;">Priority</th>
+          <th style="text-align:left;padding:6px 10px;background:#f8f4ef;border:1px solid #e8e8e8;">Assignee</th>
+        </tr>${rows.map(requestRow).join('')}</table>`
+    : '<p style="color:#5b6676;margin:4px 0 0;">None.</p>';
+
+  const updatesList = updates.length
+    ? `<ul style="margin:4px 0 0;padding-left:18px;font-size:13px;line-height:1.7;">${
+        updates.map((activity) => `<li><a href="${escapeHtml(`${appUrl}/requests?open=${activity.request.id}`)}" style="color:#235789;">REQ-${activity.request.id}</a> — ${escapeHtml(activity.action.replace(/_/g, ' '))}${activity.newValue ? ` → ${escapeHtml(activity.newValue)}` : ''} <span style="color:#5b6676;">by ${escapeHtml(personLabel(activity.actor))}</span></li>`).join('')
+      }</ul>`
+    : '<p style="color:#5b6676;margin:4px 0 0;">None.</p>';
+
+  const section = (title, body) => `
+    <h3 style="margin:18px 0 6px;color:#1c2430;font-size:15px;">${escapeHtml(title)}</h3>${body}`;
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 720px; margin: 0 auto;">
+      <h2 style="color:#1c2430;">📋 Requests Digest — ${escapeHtml(dateLabel)}</h2>
+      <p style="color:#5b6676;">Changes since ${escapeHtml(sinceLabel)} (${timeZone}).</p>
+      ${section(`New requests (${newRequests.length})`, requestTable(newRequests))}
+      ${section(`Updates (${updates.length})`, updatesList)}
+      ${section(`Unassigned open (${unassigned.length})`, requestTable(unassigned))}
+      ${section(`Aging > 7 days (${aging.length})`, requestTable(aging))}
+      <p style="margin-top:22px;">
+        <a href="${escapeHtml(`${appUrl}/requests`)}" style="color:#235789;font-weight:600;">Open the Requests board</a>
+      </p>
+    </div>
+  `;
+
+  return await sendEmail({ to: recipients, subject, text, html });
+}
+
+/**
+ * Notifica o executor quando um Request (chamado interno) e atribuido a ele.
+ * Destinatario = e-mail do proprio assignee (nunca hardcoded).
+ * @param {Object} params
+ * @param {Object} params.request - { id, title, project, type, priority, status, description }
+ * @param {Object} params.assignee - { email, firstname, username }
+ * @param {Object} params.assignedBy - { firstname, username }
+ */
+async function sendRequestAssignedEmail({ request, assignee, assignedBy }) {
+  const recipient = String(assignee?.email || '').trim();
+  if (!recipient) {
+    console.warn('⚠️ Request assignment email skipped: assignee has no email');
+    return { success: false, error: 'Assignee has no email' };
+  }
+
+  const requestRef = `REQ-${request.id}`;
+  const assignedByName = assignedBy?.firstname || assignedBy?.username || 'Triage';
+  const appUrl = String(process.env.PRICING_TOOL_URL || 'https://pricingtool.justjeeps.com').replace(/\/+$/, '');
+  const requestUrl = `${appUrl}/requests?open=${request.id}`;
+
+  const subject = `📌 ${requestRef} assigned to you — ${request.title}`;
+
+  const text =
+    `${requestRef} was assigned to you by ${assignedByName}.\n\n` +
+    `Title: ${request.title}\n` +
+    `Project: ${request.project}\n` +
+    `Type: ${request.type}\n` +
+    `Priority: ${request.priority}\n\n` +
+    `Open it in the Pricing Tool: ${requestUrl}`;
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color:#1c2430;">📌 ${escapeHtml(requestRef)} assigned to you</h2>
+      <div style="background:#f8f9fb; border:1px solid #d9d9d9; padding:20px; border-radius:4px;">
+        <h3 style="margin-top:0;">${escapeHtml(request.title)}</h3>
+        <p><strong>Assigned by:</strong> ${escapeHtml(assignedByName)}</p>
+        <p><strong>Project:</strong> ${escapeHtml(request.project)}</p>
+        <p><strong>Type:</strong> ${escapeHtml(request.type)}</p>
+        <p><strong>Priority:</strong> ${escapeHtml(request.priority)}</p>
+      </div>
+      <p style="margin-top:20px;">
+        <a href="${escapeHtml(requestUrl)}" style="color:#235789;font-weight:600;">Open ${escapeHtml(requestRef)} in the Pricing Tool</a>
+      </p>
+    </div>
+  `;
+
+  return await sendEmail({ to: recipient, subject, text, html });
+}
+
 module.exports = {
   createTransporter,
   getEmailProvider,
@@ -791,5 +926,7 @@ module.exports = {
   sendPurchaserReportEmail,
   sendOrderCancellationDailyReportEmail,
   sendSkuStatusDailyReportEmail,
-  sendSkuStatusWeeklyReportEmail
+  sendSkuStatusWeeklyReportEmail,
+  sendRequestAssignedEmail,
+  sendRequestsDigestEmail
 };
