@@ -16,7 +16,7 @@ const FEEDS = {
 	},
 };
 
-function makeFixture({ seedAllRunning = false } = {}) {
+function makeFixture({ seedAllRunning = false, seedAllLockAgeMs = 60_000 } = {}) {
 	const spawned = [];
 	const child = () => {
 		const proc = new EventEmitter();
@@ -36,12 +36,14 @@ function makeFixture({ seedAllRunning = false } = {}) {
 		mkdirSync: () => {},
 		writeFileSync: () => {},
 		createWriteStream: () => ({}),
-		statSync: () => ({ size: 5 }),
+		// mtimeMs is what tells a live lock from one left behind by a restart.
+		statSync: () => ({ size: 5, mtimeMs: Date.now() - seedAllLockAgeMs }),
 		openSync: () => 1,
 		readSync: (fd, buffer) => { buffer.write('done!'); return 5; },
 		closeSync: () => {},
 	};
-	const runner = createFeedRunner({ spawn, fs, feedsConfig: FEEDS, now: () => 1000 });
+	// now() must follow the clock here: the lock age is measured against it.
+	const runner = createFeedRunner({ spawn, fs, feedsConfig: FEEDS, now: () => Date.now() });
 	return { runner, spawned, getChild: () => lastChild };
 }
 
@@ -121,4 +123,13 @@ test('a feed with several scripts chains them after the sync, in order', () => {
 		fixture.spawned[0].args[1],
 		'npm run feed-sync -- quadratec && npm run seed-quadratec && npm run seed-quad-inventory'
 	);
+});
+
+test('a lock left behind by a restart does not block the button forever', () => {
+	// seed-all removes its lock when it ends, which does not happen if the
+	// container is replaced mid-run. An old lock must not block Run now.
+	const fixture = makeFixture({ seedAllRunning: true, seedAllLockAgeMs: 6 * 60 * 60 * 1000 });
+
+	assert.doesNotThrow(() => fixture.runner.start('omix'));
+	assert.strictEqual(fixture.spawned.length, 1);
 });

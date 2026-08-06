@@ -397,16 +397,22 @@ model IngestRun {
 }
 
 // Catalogo dos feeds de vendor no DO Spaces (landing zone imutavel). Cada
-// upload vira um objeto novo no bucket + uma linha aqui; arquivos que chegam
-// juntos compartilham batchId e o lote so e "corrente" quando TODOS os
-// arquivos esperados do feed estao available (atomicidade na leitura —
-// lib/feeds/catalog.js). Nunca apagar linhas: superseded e historico barato.
+// Catalog of the vendor feed files stored in DO Spaces (immutable landing
+// zone). Each upload becomes a new object in the bucket plus a row here. Files
+// that arrive together share a batchId, and a batch only becomes "current"
+// when ALL the files the feed expects are available, which is the read-time
+// atomicity guarantee in lib/feeds/catalog.js. Rows are never deleted:
+// superseded is cheap history.
+//
+// objectKey is indexed but NOT unique: an object is addressed by its content,
+// so the same object can be catalogued again when a later batch reuses a file
+// that did not change. Making it unique broke exactly that path.
 model FeedArtifact {
   id          Int      @id @default(autoincrement())
   feed        String
   fileName    String // nome canonico que os seeds esperam, ex. "Inventory.csv"
   batchId     String // uuid agrupando arquivos do mesmo fetch/upload
-  objectKey   String   @unique
+  objectKey   String
   sha256      String
   sizeBytes   BigInt
   contentType String?
@@ -418,4 +424,5 @@ model FeedArtifact {
 
   @@index([feed, fileName, status, uploadedAt])
   @@index([batchId])
+  @@index([objectKey])
 }

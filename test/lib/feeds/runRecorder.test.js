@@ -66,6 +66,52 @@ test('a script that records its own run is left alone', async () => {
 	assert.strictEqual(prisma.created.length, 0, 'the detailed row stays the last one');
 });
 
+test('a failure is recorded even when an earlier script of the feed succeeded', async () => {
+	const startedAt = new Date('2026-08-06T12:00:00Z');
+	// Quadratec runs two scripts: the first recorded its own successful run, the
+	// second one failed. Skipping the write here left a green success on screen
+	// for a feed whose ingest had actually broken.
+	const prisma = makePrismaStub([{ feed: 'quadratec', startedAt: new Date('2026-08-06T12:00:05Z') }]);
+
+	await recordScriptRun(prisma, {
+		feed: QUADRATEC,
+		command: 'seed-quad-inventory',
+		startedAt,
+		finishedAt: new Date('2026-08-06T12:02:00Z'),
+		status: 'failed',
+		error: 'exit code 1',
+	});
+
+	assert.strictEqual(prisma.created.length, 1);
+	assert.strictEqual(prisma.created[0].status, 'failed');
+});
+
+test('a feed whose scripts record their own counts gets no bookkeeping row on success', async () => {
+	// Without recordsOwnRuns the zero-count row lands after the detailed one and
+	// the panel reads "+0 ~0 -0" for a run that touched hundreds of rows.
+	const prisma = makePrismaStub();
+
+	await recordScriptRun(prisma, {
+		feed: { name: 'quadratec', ingestFeed: 'quadratec', recordsOwnRuns: true },
+		command: 'seed-quadratec',
+		startedAt: new Date(),
+		finishedAt: new Date(),
+		status: 'success',
+	});
+
+	assert.strictEqual(prisma.created.length, 0);
+});
+
+test('every script the daily sync runs maps to a feed, button or not', () => {
+	// update-warn-cad-map-prices has no Run now button on purpose (it writes
+	// prices to the live store) and used to map to nothing, so the feed showed
+	// "never" while running every night.
+	assert.strictEqual(findFeedByCommand('update-warn-cad-map-prices').name, 'warn-map');
+	assert.strictEqual(findFeedByCommand('seed-omix-inventory').name, 'omix');
+	assert.strictEqual(findFeedByCommand('seed-wheelPros').name, 'wheelpros-inventory');
+	assert.strictEqual(findFeedByCommand('seed-keystone-ftp-codes').name, 'keystone-ftp');
+});
+
 test('a failure is recorded with its message', async () => {
 	const prisma = makePrismaStub();
 

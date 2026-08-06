@@ -104,6 +104,12 @@ router.get('/feeds', async (req, res) => {
 			// only triage writes. The panel uses this to enable the buttons, the
 			// real validation still happens in every write route.
 			canManage: isTriageUser(req.user.username),
+			// The panel can only disable the button correctly if it knows what is
+			// holding the slot: another feed, or the daily sync.
+			busy: {
+				feed: runner.busyFeed(),
+				dailySync: runner.isDailySyncRunning(),
+			},
 			// The panel uses this to choose between the direct upload to the
 			// bucket (signed multipart) and the legacy upload through the API.
 			directUpload: { enabled: store.isConfigured(), partSizeBytes: MULTIPART_PART_SIZE_BYTES },
@@ -115,7 +121,9 @@ router.get('/feeds', async (req, res) => {
 	}
 });
 
-router.get('/runs', requireTriage, async (req, res) => {
+// Reading the history is allowed for any signed-in user, like the feed list
+// itself: the raw script log (run-status) and every write stay triage-only.
+router.get('/runs', async (req, res) => {
 	try {
 		// Express uses the "extended" parser: ?feed[contains]=x arrives as an
 		// OBJECT and would go straight into the Prisma where clause. String()
@@ -217,43 +225,6 @@ router.post('/feeds/:feed/uploads/check', requireTriage, async (req, res) => {
 	}
 });
 
-// 0b) Repeated content, but from an older batch: catalogues a new artifact
-// pointing at the object that is ALREADY in the bucket, zero bytes on the
-// wire. It also covers completing a batch where only one of the files changed.
-router.post('/feeds/:feed/uploads/reuse', requireTriage, async (req, res) => {
-	try {
-		const feed = resolveFeedAndFile(req, res);
-		if (!feed) return undefined;
-
-		const fileName = String(req.body?.fileName || '');
-		const sha256 = String(req.body?.sha256 || '');
-		const existing = await catalog.findArtifactByHash(prisma, feed.name, fileName, sha256);
-		if (!existing) {
-			return res.status(404).json({ error: 'No catalogued file with this content', code: 'FEED_HASH_UNKNOWN' });
-		}
-
-		const { batchId, artifacts } = await catalog.registerArtifacts(prisma, {
-			feed: feed.name,
-			batchId: req.body?.batchId || undefined,
-			source: 'manual',
-			uploadedBy: req.user.username,
-			note: req.body?.note ? String(req.body.note).slice(0, 2000) : 'reused: identical content already in storage',
-			files: [{
-				fileName: existing.fileName,
-				objectKey: existing.objectKey,
-				sha256: existing.sha256,
-				sizeBytes: Number(existing.sizeBytes),
-				contentType: existing.contentType,
-			}],
-		});
-
-		res.status(201).json({ batchId, artifacts: artifacts.map(serializeArtifact), reused: true });
-	} catch (error) {
-		console.error('Ingest upload reuse error:', error);
-		res.status(500).json({ error: 'Internal server error' });
-	}
-});
-
 // 1) Opens the session: validates feed/file/size and returns uploadId + key.
 router.post('/feeds/:feed/uploads', requireTriage, async (req, res) => {
 	try {
@@ -330,16 +301,21 @@ router.post('/feeds/:feed/uploads/:uploadId/part', requireTriage, async (req, re
 
 // 3) Closes the multipart upload and catalogues it. The sha256 and the size
 // come from the BUCKET.
+// 3) Finishes the multipart of ONE file. It does NOT catalog: the whole set is
+// registered by the commit below. Registering file by file superseded the
+// previous artifact of each name, so between the first and the last file no
+// batch covered every file, the feed read "no data" on screen, and the next
+// feed-sync removed the symlinks and broke that night's vendor scripts.
 router.post('/feeds/:feed/uploads/:uploadId/complete', requireTriage, async (req, res) => {
 	const session = uploadSessions.get(req.params.uploadId);
 	try {
 		if (!session || session.feed !== req.params.feed) {
 			return res.status(404).json({ error: 'Upload session not found or expired', code: 'UPLOAD_SESSION_GONE' });
 		}
-		// The parts come from the BUCKET, not from the client: reading the ETag
-		// in the browser requires ExposeHeaders in the CORS config (a field the
-		// Spaces panel does not have) and, either way, the storage is what knows
-		// what was really written.
+		// The parts come from the BUCKET, not from the client: reading the ETag in
+		// the browser requires ExposeHeaders in the CORS config (a field the Spaces
+		// panel does not have) and, either way, the storage is what knows what was
+		// really written.
 		const parts = await store.listParts({ key: session.key, uploadId: req.params.uploadId });
 		if (parts.length === 0) {
 			return res.status(409).json({ error: 'No uploaded parts found for this upload', code: 'UPLOAD_EMPTY' });
@@ -351,12 +327,12 @@ router.post('/feeds/:feed/uploads/:uploadId/complete', requireTriage, async (req
 
 		await store.completeMultipartUpload({ key: session.key, uploadId: req.params.uploadId, parts });
 		const head = await store.headObject(session.key);
-
 		const feed = feedsConfig.getFeedByName(session.feed);
-		// The size declared at init does not bind the bytes: the signature of
-		// each part does not limit content-length. So the feed limit is applied
-		// here, over the REAL written size, and the object that went over is
-		// deleted: it neither takes up space nor enters the catalog.
+
+		// The size declared at init does not bind the bytes: the signature of each
+		// part does not limit content-length. The feed limit is applied here, over
+		// the REAL written size, and an oversized object is deleted so it neither
+		// takes up space nor enters the catalog.
 		if (Number(head.sizeBytes) > feed.maxUploadBytes) {
 			await store.deleteObject(session.key).catch(() => {});
 			uploadSessions.delete(req.params.uploadId);
@@ -365,35 +341,97 @@ router.post('/feeds/:feed/uploads/:uploadId/complete', requireTriage, async (req
 				code: 'FEED_FILE_TOO_LARGE',
 			});
 		}
+
+		// Stored on the session so the commit uses what the server verified, not
+		// what the client claims.
+		session.stored = {
+			fileName: session.fileName,
+			objectKey: session.key,
+			sha256,
+			sizeBytes: Number(head.sizeBytes),
+			contentType: session.contentType,
+		};
+		res.json({ uploadId: req.params.uploadId, fileName: session.fileName, sizeBytes: Number(head.sizeBytes) });
+	} catch (error) {
+		console.error('Ingest upload complete error:', error);
+		// The object may already be complete in the bucket, so the session is kept
+		// alive and the client can retry instead of sending everything again.
+		res.status(500).json({ error: 'Internal server error' });
+	}
+});
+
+// 4) Registers the WHOLE set as one batch. Files that did not change are named
+// here by hash, so a batch mixing reused and freshly uploaded files is still
+// complete. Nothing is catalogued until this call succeeds.
+router.post('/feeds/:feed/uploads/commit', requireTriage, async (req, res) => {
+	try {
+		const feed = resolveFeedAndFile(req, res);
+		if (!feed) return undefined;
+
+		const uploadIds = (Array.isArray(req.body?.uploadIds) ? req.body.uploadIds : []).map(String);
+		const reuseList = Array.isArray(req.body?.reuse) ? req.body.reuse : [];
+		const files = [];
+
+		for (const uploadId of uploadIds) {
+			const session = uploadSessions.get(uploadId);
+			if (!session || session.feed !== feed.name || !session.stored) {
+				return res.status(409).json({
+					error: 'One of the uploads is not finished or no longer exists. Start the upload again.',
+					code: 'UPLOAD_SESSION_GONE',
+				});
+			}
+			files.push(session.stored);
+		}
+
+		for (const entry of reuseList) {
+			const fileName = String(entry?.fileName || '');
+			const sha256 = String(entry?.sha256 || '');
+			if (!feed.files.includes(fileName) || !/^[a-f0-9]{64}$/i.test(sha256)) {
+				return res.status(400).json({ error: 'Invalid file name or sha256 in the reuse list' });
+			}
+			const existing = await catalog.findArtifactByHash(prisma, feed.name, fileName, sha256);
+			if (!existing) {
+				return res.status(409).json({ error: `No stored file with that content for ${fileName}`, code: 'FEED_HASH_UNKNOWN' });
+			}
+			files.push({
+				fileName: existing.fileName,
+				objectKey: existing.objectKey,
+				sha256: existing.sha256,
+				sizeBytes: Number(existing.sizeBytes),
+				contentType: existing.contentType,
+			});
+		}
+
+		if (files.length === 0) return res.status(400).json({ error: 'Nothing to commit' });
+
+		const names = files.map((file) => file.fileName);
+		const missing = feed.files.filter((name) => !names.includes(name));
+		if (missing.length > 0) {
+			return res.status(409).json({
+				error: `Feed ${feed.name} needs every file in the same batch. Missing: ${missing.join(', ')}`,
+				code: 'FEED_BATCH_INCOMPLETE',
+			});
+		}
+
 		const { batchId, artifacts } = await catalog.registerArtifacts(prisma, {
 			feed: feed.name,
-			batchId: req.body?.batchId || undefined,
 			source: 'manual',
-			uploadedBy: session.startedBy,
+			uploadedBy: req.user.username,
 			note: req.body?.note ? String(req.body.note).slice(0, 2000) : null,
-			files: [{
-				fileName: session.fileName,
-				objectKey: session.key,
-				sha256,
-				sizeBytes: head.sizeBytes,
-				contentType: session.contentType,
-			}],
+			files,
 		});
 
-		uploadSessions.delete(req.params.uploadId);
+		uploadIds.forEach((uploadId) => uploadSessions.delete(uploadId));
 		const current = await catalog.getCurrentBatch(prisma, feed.name, feed.files);
 		res.status(201).json({
 			batchId,
 			artifacts: artifacts.map(serializeArtifact),
 			isCurrent: current?.batchId === batchId,
-			missingFiles: feed.files.filter((name) => name !== session.fileName && !(current?.artifacts || []).some((a) => a.fileName === name)),
+			reused: reuseList.length,
+			uploaded: uploadIds.length,
 		});
 	} catch (error) {
-		console.error('Ingest upload complete error:', error);
-		if (session) {
-			await store.abortMultipartUpload({ key: session.key, uploadId: req.params.uploadId }).catch(() => {});
-			uploadSessions.delete(req.params.uploadId);
-		}
+		console.error('Ingest upload commit error:', error);
 		res.status(500).json({ error: 'Internal server error' });
 	}
 });
@@ -404,7 +442,15 @@ router.post('/feeds/:feed/uploads/:uploadId/complete', requireTriage, async (req
 router.delete('/feeds/:feed/uploads/:uploadId', requireTriage, async (req, res) => {
 	const session = uploadSessions.get(req.params.uploadId);
 	if (!session || session.feed !== req.params.feed) return res.status(204).end();
-	await store.abortMultipartUpload({ key: session.key, uploadId: req.params.uploadId }).catch(() => {});
+
+	if (session.stored) {
+		// The multipart already finished, so there is a real object sitting in the
+		// bucket with nothing pointing at it. Aborting a finished upload does
+		// nothing, the object has to be deleted by key.
+		await store.deleteObject(session.key).catch(() => {});
+	} else {
+		await store.abortMultipartUpload({ key: session.key, uploadId: req.params.uploadId }).catch(() => {});
+	}
 	uploadSessions.delete(req.params.uploadId);
 	res.status(204).end();
 });
@@ -515,6 +561,22 @@ router.get('/feeds/:feed/run-status', requireTriage, (req, res) => {
 	// (which a future script could print with an auth header), so it is redacted.
 	const { logFile, ...safe } = status;
 	res.json({ ...safe, logTail: redactLogTail(status.logTail) });
+});
+
+// Multer rejects oversized or too many files BEFORE the handler runs, and its
+// error carries no status, so it used to reach the global handler and answer
+// 500 "Internal Server Error" after the whole upload.
+router.use((error, req, res, next) => {
+	if (!(error instanceof multer.MulterError)) return next(error);
+
+	const message = {
+		LIMIT_FILE_SIZE: `File too large for the panel (max ${Math.round(feedsConfig.config.uploadPanelMaxBytes / 1024 / 1024)}MB). Use the CLI for bigger files.`,
+		LIMIT_FILE_COUNT: 'Too many files in one upload.',
+		LIMIT_PART_COUNT: 'Too many parts in one upload.',
+		LIMIT_FIELD_VALUE: 'One of the fields is too long.',
+	}[error.code] || `Upload rejected: ${error.code}`;
+
+	res.status(409).json({ error: message, code: error.code });
 });
 
 module.exports = router;

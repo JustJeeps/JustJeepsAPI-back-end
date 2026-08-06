@@ -11,10 +11,16 @@ function makePrismaStub() {
 	let nextId = 1;
 
 	const matches = (row, where) => {
-		if (where.feed !== undefined && row.feed !== where.feed) return false;
+		// The panel reads every feed in one query, so the stub understands
+		// { in: [...] } as well as a plain value.
+		if (where.feed?.in) {
+			if (!where.feed.in.includes(row.feed)) return false;
+		} else if (where.feed !== undefined && row.feed !== where.feed) return false;
 		if (where.status !== undefined && typeof where.status === 'string' && row.status !== where.status) return false;
+		if (where.status?.not !== undefined && row.status === where.status.not) return false;
 		if (where.batchId !== undefined && row.batchId !== where.batchId) return false;
 		if (where.fileName?.in && !where.fileName.in.includes(row.fileName)) return false;
+		if (where.startedAt?.lt && !(row.startedAt < where.startedAt.lt)) return false;
 		return true;
 	};
 
@@ -51,6 +57,16 @@ function makePrismaStub() {
 			return rows.slice(skip || 0, (skip || 0) + (take || rows.length));
 		},
 		count: async ({ where }) => ingestRuns.filter((row) => matches(row, where)).length,
+		updateMany: async ({ where, data }) => {
+			let count = 0;
+			for (const row of ingestRuns) {
+				if (matches(row, where)) {
+					Object.assign(row, data);
+					count += 1;
+				}
+			}
+			return { count };
+		},
 	};
 
 	return {

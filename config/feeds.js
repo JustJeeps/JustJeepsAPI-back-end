@@ -25,6 +25,14 @@
 // the registry name, found none, and showed "never" next to a feed that had
 // just been ingested.
 //
+// syncCommands: every npm script the daily sync runs for this feed, including
+// the ones that have no button. seedCommand doubles as the Run now allowlist,
+// so without this list a feed like warn-map (hidden button on purpose) was
+// processed every night and still showed "never" on screen.
+//
+// recordsOwnRuns: the script records its own IngestRun with real row counts, so
+// bookkeeping must not add a zero-count row on top of it.
+//
 // seedCommand: npm script that consumes the feed, triggerable by the panel's
 // "Run now" button (POST /api/ingest/feeds/:feed/run) to check the file that
 // was just uploaded without waiting for seed-all. null = no button; use
@@ -39,6 +47,8 @@ const FEED_DEFINITIONS = [
 		label: 'Keystone (FTP)',
 		files: ['Inventory.csv', 'SpecialOrder.csv'],
 		seedCommand: 'seed-keystone-ftp2',
+		syncCommands: ['seed-keystone-ftp2', 'seed-keystone-ftp-codes'],
+		recordsOwnRuns: true,
 		legacyDir: 'keystone_files',
 		staleAfterHours: 36, // fetch runs 2x/day; 36h = missed 2 fetches
 		fetch: 'ftp',
@@ -54,6 +64,8 @@ const FEED_DEFINITIONS = [
 		label: 'Quadratec (CSV + XLSX)',
 		files: ['quadratec_wholesale.csv', 'pricingSheet_quad.xlsx'],
 		seedCommand: ['seed-quadratec', 'seed-quad-inventory'],
+		syncCommands: ['seed-quadratec', 'seed-quad-inventory'],
+		recordsOwnRuns: true,
 		workbookBaseNames: ['quadratec_wholesale', 'pricingSheet_quad'],
 		staleAfterHours: 30 * DAY_HOURS,
 	},
@@ -62,6 +74,7 @@ const FEED_DEFINITIONS = [
 		label: 'CTP inventory (CSV)',
 		files: ['CTPENT_Inventory.csv'],
 		seedCommand: 'seed-ctp',
+		syncCommands: ['seed-ctp'],
 		workbookBaseName: 'CTPENT_Inventory',
 		staleAfterHours: 30 * DAY_HOURS,
 	},
@@ -70,14 +83,18 @@ const FEED_DEFINITIONS = [
 		label: 'KeyParts price file (XLSX)',
 		files: ['KeyParts-price-file.xlsx'],
 		seedCommand: 'seed-keyparts',
+		syncCommands: ['seed-keyparts'],
 		staleAfterHours: 90 * DAY_HOURS,
 	},
 	{
 		name: 'warn-map',
 		label: 'WARN MAP prices (XLSX)',
 		files: ['WARN-MAP.xlsx'],
+		// No button on purpose: this script publishes prices to the live store.
+		// It still runs in the daily sync, so bookkeeping follows it here.
 		seedCommand: null,
 		seedCommandNote: 'Updates prices on the live store, so it only runs in the daily sync',
+		syncCommands: ['update-warn-cad-map-prices'],
 		staleAfterHours: 90 * DAY_HOURS,
 	},
 	{
@@ -85,6 +102,7 @@ const FEED_DEFINITIONS = [
 		label: 'WheelPros inventory (3 CSVs)',
 		files: ['accessoriesInvPriceData.csv', 'tireInvPriceData.csv', 'wheelInvPriceData.csv'],
 		seedCommand: 'seed-wp-inventory',
+		syncCommands: ['seed-wheelPros', 'seed-wp-inventory'],
 		staleAfterHours: 30 * DAY_HOURS,
 	},
 	{
@@ -92,6 +110,7 @@ const FEED_DEFINITIONS = [
 		label: 'Omix price sheet (XLSX)',
 		files: ['omix-excel.xlsx'],
 		seedCommand: 'seed-omix',
+		syncCommands: ['seed-omix', 'seed-omix-inventory'],
 		staleAfterHours: 120 * DAY_HOURS,
 	},
 	{
@@ -99,6 +118,7 @@ const FEED_DEFINITIONS = [
 		label: 'AEV price file (XLSX)',
 		files: ['AEV-price-file.xlsx'],
 		seedCommand: 'seed-aev',
+		syncCommands: ['seed-aev'],
 		staleAfterHours: 365 * DAY_HOURS,
 	},
 ];
@@ -119,6 +139,8 @@ function getFeedDefinitions() {
 			legacyDir: feed.legacyDir || '',
 			ingestFeed: feed.ingestFeed || feed.name,
 			seedCommand: feed.seedCommand || null,
+			syncCommands: feed.syncCommands || (feed.seedCommand ? [].concat(feed.seedCommand) : []),
+			recordsOwnRuns: Boolean(feed.recordsOwnRuns),
 			seedCommandNote: feed.seedCommandNote || null,
 			staleAfterHours: Number.isFinite(override) && override > 0 ? override : feed.staleAfterHours,
 			maxUploadBytes: Math.min(feed.maxUploadBytes || DEFAULT_MAX_UPLOAD_BYTES, uploadPanelMaxBytes),

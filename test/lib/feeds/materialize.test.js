@@ -10,6 +10,10 @@ const { createMaterializer } = require('../../../lib/feeds/materialize');
 
 const sha256 = (content) => crypto.createHash('sha256').update(content).digest('hex');
 
+// The materializer narrates every download; the tests only care about the
+// result, and the noise makes a failure harder to find in the output.
+const SILENT = { log: () => {}, warn: () => {} };
+
 const FEED_DEF = { name: 'ctp', files: ['CTPENT_Inventory.csv'], staleAfterHours: 24 };
 const KEYSTONE_DEF = { name: 'keystone-ftp', files: ['Inventory.csv', 'SpecialOrder.csv'], staleAfterHours: 36 };
 
@@ -50,6 +54,7 @@ function makeFixture({ feedDef = FEED_DEF, contents = { 'CTPENT_Inventory.csv': 
 		feedsConfig,
 		catalog: catalogStub,
 		cacheDir,
+		log: SILENT,
 		now: () => new Date(uploadedAt.getTime() + 60 * 60 * 1000), // 1h after the upload
 	});
 
@@ -96,6 +101,7 @@ test('an old batch is marked stale and requireFresh turns into FEED_STALE', asyn
 		feedsConfig: { getFeedByName: () => FEED_DEF },
 		catalog: { getCurrentBatch: async () => fixture.batch },
 		cacheDir: fixture.cacheDir,
+		log: SILENT,
 		now: () => new Date('2026-08-03T00:00:00Z'), // 48h later (threshold 24h)
 	});
 
