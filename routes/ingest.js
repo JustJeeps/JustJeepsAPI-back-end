@@ -5,6 +5,7 @@
 
 const os = require('os');
 const fs = require('fs');
+const crypto = require('crypto');
 const path = require('path');
 const express = require('express');
 const multer = require('multer');
@@ -55,6 +56,10 @@ const serializeArtifact = (artifact) => ({ ...artifact, sizeBytes: Number(artifa
 
 const runningFeed = (feed) => runner.getStatus(feed)?.status === 'running';
 
+// Partes de 8MB: acima do minimo de 5MB do S3 e pequeno o bastante para o
+// reenvio de uma parte perdida ser barato numa conexao ruim.
+const MULTIPART_PART_SIZE_BYTES = Number(process.env.FEED_MULTIPART_PART_SIZE_BYTES || 8 * 1024 * 1024);
+
 const RUN_STATUSES = ['running', 'success', 'failed', 'skipped-unchanged', 'skipped-locked'];
 
 // Nunca devolver linha que pareca credencial (seed que loga header de auth,
@@ -99,6 +104,9 @@ router.get('/feeds', async (req, res) => {
 			// triage escreve. O painel usa isto para habilitar os botoes — a
 			// validacao real continua em cada rota de escrita.
 			canManage: isTriageUser(req.user.username),
+			// O painel usa isto para decidir entre o upload direto ao bucket
+			// (multipart assinado) e o upload legado via API.
+			directUpload: { enabled: store.isConfigured(), partSizeBytes: MULTIPART_PART_SIZE_BYTES },
 			generatedAt: new Date().toISOString(),
 		});
 	} catch (error) {
@@ -129,6 +137,181 @@ router.get('/runs', requireTriage, async (req, res) => {
 		console.error('Ingest runs route error:', error);
 		res.status(500).json({ error: 'Internal server error' });
 	}
+});
+
+// --- upload direto para o bucket (multipart + URL assinada) -----------------
+//
+// Por que existe: no upload que passa pela API o arquivo inteiro vai para o
+// disco do container (1 vCPU / 2GB) antes de chegar ao bucket. Aqui o navegador
+// fala direto com o Spaces e a API so autoriza e cataloga. De quebra, upload em
+// partes retoma so o pedaco que faltou quando a rede cai.
+//
+// Limites que a API impoe (o navegador NAO escolhe nada disso):
+//   - a key e montada no servidor a partir do feed e do nome canonico;
+//   - o arquivo precisa ser um dos esperados pelo feed;
+//   - o tamanho declarado precisa caber no limite do feed;
+//   - o tamanho catalogado e o do bucket (HeadObject), nao o que o cliente diz.
+
+// Sessoes de upload em andamento: uploadId -> contexto validado no init.
+// Em memoria de proposito — um restart invalida sessoes pendentes, que o
+// proprio Spaces expira depois (nao ha estado que valha persistir).
+const uploadSessions = new Map();
+const UPLOAD_SESSION_TTL_MS = 60 * 60 * 1000;
+
+const pruneSessions = () => {
+	const now = Date.now();
+	for (const [id, session] of uploadSessions) {
+		if (now - session.createdAt > UPLOAD_SESSION_TTL_MS) uploadSessions.delete(id);
+	}
+};
+
+const resolveFeedAndFile = (req, res) => {
+	const feed = feedsConfig.getFeedByName(req.params.feed);
+	if (!feed) {
+		res.status(404).json({ error: `Unknown feed: ${req.params.feed}` });
+		return null;
+	}
+	if (!store.isConfigured()) {
+		res.status(409).json({ error: 'Feed storage is not configured (DO_SPACES_*)', code: 'FEEDS_DISABLED' });
+		return null;
+	}
+	return feed;
+};
+
+// 1) Abre a sessao: valida feed/arquivo/tamanho e devolve uploadId + key.
+router.post('/feeds/:feed/uploads', requireTriage, async (req, res) => {
+	try {
+		const feed = resolveFeedAndFile(req, res);
+		if (!feed) return undefined;
+
+		const fileName = String(req.body?.fileName || '');
+		const sizeBytes = Number(req.body?.sizeBytes || 0);
+
+		if (!feed.files.includes(fileName)) {
+			return res.status(409).json({
+				error: `Unexpected file for feed ${feed.name}: ${fileName}. Expected: ${feed.files.join(', ')}`,
+				code: 'FEED_FILE_MISMATCH',
+			});
+		}
+		if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
+			return res.status(400).json({ error: 'sizeBytes is required' });
+		}
+		if (sizeBytes > feed.maxUploadBytes) {
+			return res.status(409).json({
+				error: `File too large for ${feed.name} (max ${Math.round(feed.maxUploadBytes / 1024 / 1024)}MB)`,
+				code: 'FEED_FILE_TOO_LARGE',
+			});
+		}
+
+		// A key sai daqui: o cliente nunca escolhe caminho no bucket. O sha8 real
+		// so e conhecido no fim, entao a key usa um token aleatorio e o hash vai
+		// para o catalogo (a key permanece unica e imutavel de qualquer forma).
+		const key = store.buildKey({
+			feed: feed.name,
+			fileName,
+			sha256: crypto.randomBytes(16).toString('hex'),
+		});
+		const contentType = CONTENT_TYPES[path.extname(fileName).toLowerCase()] || 'application/octet-stream';
+		const { uploadId } = await store.createMultipartUpload({ key, contentType });
+
+		pruneSessions();
+		uploadSessions.set(uploadId, {
+			feed: feed.name,
+			fileName,
+			key,
+			contentType,
+			sizeBytes,
+			createdAt: Date.now(),
+			startedBy: req.user.username,
+		});
+
+		res.status(201).json({ uploadId, key, partSizeBytes: MULTIPART_PART_SIZE_BYTES });
+	} catch (error) {
+		console.error('Ingest upload init error:', error);
+		res.status(500).json({ error: 'Internal server error' });
+	}
+});
+
+// 2) Assina UMA parte. A assinatura vale so para esta key/uploadId/parte.
+router.post('/feeds/:feed/uploads/:uploadId/part', requireTriage, async (req, res) => {
+	try {
+		const session = uploadSessions.get(req.params.uploadId);
+		if (!session || session.feed !== req.params.feed) {
+			return res.status(404).json({ error: 'Upload session not found or expired', code: 'UPLOAD_SESSION_GONE' });
+		}
+		const partNumber = Number(req.body?.partNumber);
+		if (!Number.isInteger(partNumber) || partNumber < 1 || partNumber > 10000) {
+			return res.status(400).json({ error: 'partNumber must be between 1 and 10000' });
+		}
+		const url = await store.signUploadPart({ key: session.key, uploadId: req.params.uploadId, partNumber });
+		res.json({ url });
+	} catch (error) {
+		console.error('Ingest upload sign error:', error);
+		res.status(500).json({ error: 'Internal server error' });
+	}
+});
+
+// 3) Fecha o multipart e cataloga. O sha256 e o tamanho vem do BUCKET.
+router.post('/feeds/:feed/uploads/:uploadId/complete', requireTriage, async (req, res) => {
+	const session = uploadSessions.get(req.params.uploadId);
+	try {
+		if (!session || session.feed !== req.params.feed) {
+			return res.status(404).json({ error: 'Upload session not found or expired', code: 'UPLOAD_SESSION_GONE' });
+		}
+		const parts = Array.isArray(req.body?.parts) ? req.body.parts : [];
+		if (parts.length === 0) {
+			return res.status(400).json({ error: 'parts is required' });
+		}
+		const sha256 = String(req.body?.sha256 || '');
+		if (!/^[a-f0-9]{64}$/i.test(sha256)) {
+			return res.status(400).json({ error: 'sha256 of the uploaded file is required' });
+		}
+
+		await store.completeMultipartUpload({ key: session.key, uploadId: req.params.uploadId, parts });
+		const head = await store.headObject(session.key);
+
+		const feed = feedsConfig.getFeedByName(session.feed);
+		const { batchId, artifacts } = await catalog.registerArtifacts(prisma, {
+			feed: feed.name,
+			batchId: req.body?.batchId || undefined,
+			source: 'manual',
+			uploadedBy: session.startedBy,
+			note: req.body?.note ? String(req.body.note).slice(0, 2000) : null,
+			files: [{
+				fileName: session.fileName,
+				objectKey: session.key,
+				sha256,
+				sizeBytes: head.sizeBytes,
+				contentType: session.contentType,
+			}],
+		});
+
+		uploadSessions.delete(req.params.uploadId);
+		const current = await catalog.getCurrentBatch(prisma, feed.name, feed.files);
+		res.status(201).json({
+			batchId,
+			artifacts: artifacts.map(serializeArtifact),
+			isCurrent: current?.batchId === batchId,
+			missingFiles: feed.files.filter((name) => name !== session.fileName && !(current?.artifacts || []).some((a) => a.fileName === name)),
+		});
+	} catch (error) {
+		console.error('Ingest upload complete error:', error);
+		if (session) {
+			await store.abortMultipartUpload({ key: session.key, uploadId: req.params.uploadId }).catch(() => {});
+			uploadSessions.delete(req.params.uploadId);
+		}
+		res.status(500).json({ error: 'Internal server error' });
+	}
+});
+
+// Cancelamento explicito (usuario fechou a janela no meio): sem isso as partes
+// ficam ocupando espaco no bucket ate a politica de lifecycle limpar.
+router.delete('/feeds/:feed/uploads/:uploadId', requireTriage, async (req, res) => {
+	const session = uploadSessions.get(req.params.uploadId);
+	if (!session || session.feed !== req.params.feed) return res.status(204).end();
+	await store.abortMultipartUpload({ key: session.key, uploadId: req.params.uploadId }).catch(() => {});
+	uploadSessions.delete(req.params.uploadId);
+	res.status(204).end();
 });
 
 // Upload manual via painel: exige triage e o conjunto COMPLETO de arquivos do
