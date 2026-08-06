@@ -330,9 +330,12 @@ router.post('/feeds/:feed/uploads/:uploadId/complete', requireTriage, async (req
 		if (!session || session.feed !== req.params.feed) {
 			return res.status(404).json({ error: 'Upload session not found or expired', code: 'UPLOAD_SESSION_GONE' });
 		}
-		const parts = Array.isArray(req.body?.parts) ? req.body.parts : [];
+		// As partes vem do BUCKET, nao do cliente: ler o ETag no navegador exige
+		// ExposeHeaders no CORS (campo que o painel do Spaces nao tem) e, de
+		// qualquer forma, quem sabe o que foi realmente gravado e o storage.
+		const parts = await store.listParts({ key: session.key, uploadId: req.params.uploadId });
 		if (parts.length === 0) {
-			return res.status(400).json({ error: 'parts is required' });
+			return res.status(409).json({ error: 'No uploaded parts found for this upload', code: 'UPLOAD_EMPTY' });
 		}
 		const sha256 = String(req.body?.sha256 || '');
 		if (!/^[a-f0-9]{64}$/i.test(sha256)) {
