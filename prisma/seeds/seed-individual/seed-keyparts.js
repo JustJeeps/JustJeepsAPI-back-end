@@ -2,6 +2,10 @@ const keypartsCost = require("../api-calls/keyparts");
 const { USD_TO_CAD_RATE } = require("../../../utils/exchangeRate");
 
 const prisma = require("../../../lib/prisma");
+const { startRun } = require("../../../lib/ingest/ingestRun");
+
+// Name this script records its run under (config/feeds.js -> ingestFeed).
+const FEED = "keyparts";
 
 const VENDOR_ID = 11;
 const COST_MULTIPLIER = USD_TO_CAD_RATE;
@@ -86,7 +90,7 @@ const upsertVendorProductsBatch = async (rows) => {
   ]);
 };
 
-const seedKeyPartsProducts = async () => {
+const importKeyPartsVendorProducts = async () => {
   const startTime = process.hrtime.bigint();
   console.log("🔁 Seeding KeyParts vendor products...");
 
@@ -216,19 +220,34 @@ const seedKeyPartsProducts = async () => {
   const elapsedMs = Number(process.hrtime.bigint() - startTime) / 1e6;
   console.log(`⏱️ Execution time: ${elapsedMs.toFixed(2)} ms`);
 
-  await prisma.$disconnect();
+  // These are PREDICTIONS, not observed rows: created and updated are decided
+  // while building upsertRows, and the batched SQL below does not report back
+  // how many rows it touched. They say what the script intended to write.
+  return {
+    inserted: created,
+    updated,
+    skipped: missingProductCount + duplicateItems.size,
+    sourceRowCount: products.length,
+  };
+};
+
+const seedKeyPartsProducts = async () => {
+  const run = await startRun(FEED, { sourceKind: "xlsx", sourceRef: "KeyParts-price-file.xlsx" });
+
+  try {
+    const { sourceRowCount, ...counts } = await importKeyPartsVendorProducts();
+    await run.finish({ status: "success", counts, sourceRowCount });
+  } catch (error) {
+    console.error(`❌ KeyParts seeding failed: ${error.message || error}`);
+    await run.finish({ status: "failed", error: error.message }).catch(() => {});
+    process.exitCode = 1;
+  } finally {
+    await prisma.$disconnect().catch(() => {});
+  }
 };
 
 if (require.main === module) {
-  seedKeyPartsProducts().catch(async (error) => {
-    console.error(`❌ KeyParts seeding failed: ${error.message || error}`);
-    try {
-      await prisma.$disconnect();
-    } catch (_) {
-      // ignore disconnect errors during failure cleanup
-    }
-    process.exitCode = 1;
-  });
+  seedKeyPartsProducts();
 }
 
 module.exports = seedKeyPartsProducts;

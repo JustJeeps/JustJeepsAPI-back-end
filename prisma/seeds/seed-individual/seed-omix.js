@@ -1,5 +1,9 @@
 const prisma = require("../../../lib/prisma");
 const omixCost = require("../api-calls/omix-excel.js");
+const { startRun } = require("../../../lib/ingest/ingestRun");
+
+// Name this script records its run under (config/feeds.js -> ingestFeed).
+const FEED = "omix";
 
 const VENDOR_ID = 3; // Omix
 const IN_QUERY_CHUNK_SIZE = 1000;
@@ -109,8 +113,7 @@ const upsertVendorProductsBatch = async (rows) => {
 };
 
 // seed Omix products
-const seedOmix = async () => {
-  try {
+const importOmixVendorProducts = async () => {
     const startedAt = Date.now();
     // Call OmixAPI and get the processed responses
     const vendorProductsData = await omixCost();
@@ -159,7 +162,7 @@ const seedOmix = async () => {
 
     if (normalizedRows.length === 0) {
       console.log("No valid Omix rows found to seed.");
-      return;
+      return { inserted: 0, updated: 0, skipped: vendorProductsData.length, sourceRowCount: vendorProductsData.length };
     }
 
     const partNumberLookupSet = new Set();
@@ -287,8 +290,27 @@ const seedOmix = async () => {
       `  Total vendor products updated: ${vendorProductUpdatedCount}\n` +
       `  Elapsed: ${durationSeconds}s`
     );
+
+    // These are PREDICTIONS, not observed rows: both counters are decided while
+    // building upsertRows, and the batched SQL below does not report how many
+    // rows it actually touched. They say what the script intended to write.
+    return {
+      inserted: vendorProductCreatedCount,
+      updated: vendorProductUpdatedCount,
+      skipped: normalizedRows.length - upsertRows.length,
+      sourceRowCount: vendorProductsData.length,
+    };
+};
+
+const seedOmix = async () => {
+  const run = await startRun(FEED, { sourceKind: "xlsx", sourceRef: "omix-excel.xlsx" });
+
+  try {
+    const { sourceRowCount, ...counts } = await importOmixVendorProducts();
+    await run.finish({ status: "success", counts, sourceRowCount });
   } catch (error) {
     console.error("Error seeding vendor products from Omix:", error);
+    await run.finish({ status: "failed", error: error.message }).catch(() => {});
     // Without this, seed-all records success even when the xlsx is missing.
     process.exitCode = 1;
   } finally {

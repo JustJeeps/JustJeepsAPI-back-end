@@ -1,6 +1,13 @@
 const ctpCost = require("../api-calls/ctp");
 
 const prisma = require("../../../lib/prisma");
+const { startRun } = require("../../../lib/ingest/ingestRun");
+
+// Name this script records its run under (config/feeds.js -> ingestFeed). Without
+// it the feeds panel fell back to a bookkeeping row with no counters, and its
+// zeros read as "this script changed nothing" next to a run that had updated
+// hundreds of products.
+const FEED = "ctp";
 
 const runWithConcurrency = async (items, limit, iterator) => {
   const executing = new Set();
@@ -17,7 +24,7 @@ const runWithConcurrency = async (items, limit, iterator) => {
   await Promise.all(executing);
 };
 
-const seedCTPProducts = async () => {
+const importCtpVendorProducts = async () => {
   const startTimeMs = Date.now();
   console.log("🔁 Seeding CTP vendor products...");
 
@@ -144,7 +151,24 @@ const seedCTPProducts = async () => {
   ⚠️ Missing products: ${missing}`);
   console.log(`⏱️ Execution time: ${Date.now() - startTimeMs}ms`);
 
-  await prisma.$disconnect();
+  // Observed, not predicted: created is what createMany reported and updated is
+  // incremented after each update returns.
+  return { inserted: created, updated, skipped: missing, sourceRowCount: products.length };
+};
+
+const seedCTPProducts = async () => {
+  const run = await startRun(FEED, { sourceKind: "csv", sourceRef: "CTPENT_Inventory.csv" });
+
+  try {
+    const { sourceRowCount, ...counts } = await importCtpVendorProducts();
+    await run.finish({ status: "success", counts, sourceRowCount });
+  } catch (error) {
+    console.error("❌ CTP seeding failed:", error);
+    await run.finish({ status: "failed", error: error.message }).catch(() => {});
+    process.exitCode = 1;
+  } finally {
+    await prisma.$disconnect();
+  }
 };
 
 seedCTPProducts();

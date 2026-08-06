@@ -5,6 +5,10 @@ const path = require("path");
 const { parse } = require("csv-parse/sync");
 
 const prisma = require("../../../lib/prisma");
+const { startRun } = require("../../../lib/ingest/ingestRun");
+
+// Name this script records its run under (config/feeds.js -> ingestFeed).
+const FEED = "wheelpros-inventory";
 
 const VENDOR_ID = 5; // WheelPros
 
@@ -213,16 +217,29 @@ async function seedWheelProsInventory() {
 
   const totalSec = (Date.now() - start) / 1000;
   console.log(`seed-wheelPros-inventory total: ${totalSec.toFixed(2)}s`);
+
+  // updated counts ROWS TOUCHED by the UPDATE, and one PartNumber can match
+  // more than one VendorProduct row, so this number can be larger than the
+  // number of rows read from the CSVs.
+  return { updated: totalUpdated, skipped: emptySku, sourceRowCount: totalRows };
 }
 
-seedWheelProsInventory()
-  .catch((err) => {
+async function main() {
+  const run = await startRun(FEED, { sourceKind: "csv", sourceRef: "wheelPros inventory CSVs" });
+
+  try {
+    const { sourceRowCount, ...counts } = await seedWheelProsInventory();
+    await run.finish({ status: "success", counts, sourceRowCount });
+  } catch (err) {
     console.error("❌ seed-wheelPros-inventory failed:", err);
+    await run.finish({ status: "failed", error: err.message }).catch(() => {});
     process.exitCode = 1;
-  })
-  .finally(async () => {
+  } finally {
     await prisma.$disconnect();
-  });
+  }
+}
+
+main();
 
 
 // const fs = require("fs");

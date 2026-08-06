@@ -75,6 +75,7 @@ const FEED_DEFINITIONS = [
 		files: ['CTPENT_Inventory.csv'],
 		seedCommand: 'seed-ctp',
 		syncCommands: ['seed-ctp'],
+		recordsOwnRuns: true,
 		workbookBaseName: 'CTPENT_Inventory',
 		staleAfterHours: 30 * DAY_HOURS,
 	},
@@ -84,6 +85,7 @@ const FEED_DEFINITIONS = [
 		files: ['KeyParts-price-file.xlsx'],
 		seedCommand: 'seed-keyparts',
 		syncCommands: ['seed-keyparts'],
+		recordsOwnRuns: true,
 		staleAfterHours: 90 * DAY_HOURS,
 	},
 	{
@@ -103,6 +105,7 @@ const FEED_DEFINITIONS = [
 		files: ['accessoriesInvPriceData.csv', 'tireInvPriceData.csv', 'wheelInvPriceData.csv'],
 		seedCommand: 'seed-wp-inventory',
 		syncCommands: ['seed-wheelPros', 'seed-wp-inventory'],
+		recordsOwnRuns: true,
 		staleAfterHours: 30 * DAY_HOURS,
 	},
 	{
@@ -111,6 +114,7 @@ const FEED_DEFINITIONS = [
 		files: ['omix-excel.xlsx'],
 		seedCommand: 'seed-omix',
 		syncCommands: ['seed-omix', 'seed-omix-inventory'],
+		recordsOwnRuns: true,
 		staleAfterHours: 120 * DAY_HOURS,
 	},
 	{
