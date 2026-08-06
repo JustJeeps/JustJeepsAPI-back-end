@@ -390,7 +390,32 @@ model IngestRun {
   watermarkFrom   String?
   watermarkTo     String?
   error           String?   @db.Text
+  artifactBatchId String?   // lote de FeedArtifact consumido (proveniencia arquivo->rodada)
 
   @@index([feed, startedAt])
   @@index([feed, status])
+}
+
+// Catalogo dos feeds de vendor no DO Spaces (landing zone imutavel). Cada
+// upload vira um objeto novo no bucket + uma linha aqui; arquivos que chegam
+// juntos compartilham batchId e o lote so e "corrente" quando TODOS os
+// arquivos esperados do feed estao available (atomicidade na leitura —
+// lib/feeds/catalog.js). Nunca apagar linhas: superseded e historico barato.
+model FeedArtifact {
+  id          Int      @id @default(autoincrement())
+  feed        String
+  fileName    String // nome canonico que os seeds esperam, ex. "Inventory.csv"
+  batchId     String // uuid agrupando arquivos do mesmo fetch/upload
+  objectKey   String   @unique
+  sha256      String
+  sizeBytes   BigInt
+  contentType String?
+  source      String // ftp | manual | api | local-refresh
+  uploadedBy  String? // username (cron/CLI rodam fora do auth — sem FK)
+  uploadedAt  DateTime @default(now())
+  status      String   @default("available") // available | superseded | quarantined
+  note        String?  @db.Text
+
+  @@index([feed, fileName, status, uploadedAt])
+  @@index([batchId])
 }

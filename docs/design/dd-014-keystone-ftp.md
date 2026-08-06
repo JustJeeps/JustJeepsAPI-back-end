@@ -173,7 +173,7 @@ flowchart LR
 {
   host: "ftp.ekeystone.com",
   port: 990,
-  user: "S111945",
+  user: process.env.KEYSTONE_FTP_USER,
   password: "****",  // stored in code - should be in env
   secure: "implicit",
   secureOptions: { rejectUnauthorized: false },
@@ -624,7 +624,7 @@ Located in `/prisma/seeds/seed-individual/seed-keystone-ftp-2.js`:
 |-----------|-------|--------|
 | Host | ftp.ekeystone.com | Hardcoded |
 | Port | 990 | Hardcoded |
-| User | S111945 | Hardcoded (should be env) |
+| User | `KEYSTONE_FTP_USER` | Env (secret) |
 | Password | *** | Hardcoded (should be env) |
 | Secure | implicit | TLS required |
 | Timeout | 180000ms | 3 minutes |

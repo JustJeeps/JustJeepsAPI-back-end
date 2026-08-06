@@ -10,9 +10,16 @@ const csv = require("csv-parser");
 const { createWriteStream, statSync } = require("fs");
 
 
-const FTP_HOST = "ftp.ekeystone.com";
-const FTP_USER = "S111945";
-const FTP_PASS = "jwd19sle";
+// Credenciais SEMPRE por env (KEYSTONE_FTP_USER/PASS ja existem como secret no
+// deploy). Ate 2026-08 elas estavam em texto puro aqui — arquivo versionado e
+// embarcado na imagem, ou seja, qualquer clone tinha acesso ao FTP do vendor.
+const FTP_HOST = process.env.KEYSTONE_FTP_HOST || "ftp.ekeystone.com";
+const FTP_USER = process.env.KEYSTONE_FTP_USER || "";
+const FTP_PASS = process.env.KEYSTONE_FTP_PASS || "";
+
+if (!FTP_USER || !FTP_PASS) {
+    throw new Error("KEYSTONE_FTP_USER/KEYSTONE_FTP_PASS ausentes no ambiente");
+}
 
 const REMOTE_FILES = ["Inventory.csv", "SpecialOrder.csv"];
 const LOCAL_DIR = path.join(__dirname, "keystone_files");
@@ -74,7 +81,7 @@ async function downloadFile(remoteFile, localPath) {
                 user: FTP_USER,
                 password: FTP_PASS,
                 secure: "implicit",
-                secureOptions: { rejectUnauthorized: false },
+                secureOptions: { rejectUnauthorized: process.env.KEYSTONE_FTP_TLS_REJECT_UNAUTHORIZED !== "false" },
                 timeout: 180000
             });
 

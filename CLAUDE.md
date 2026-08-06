@@ -114,8 +114,7 @@ node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 - `GET /api/auth/me` - Current user (requires token)
 
 ### Test Users (after `npm run seed-users`)
-- admin / adminpassword
-- johndoe / mypassword1
+Credentials are provisioned per user with `npm run seed-users` and delivered out of band. Never document a real password here.
 
 ## Database
 

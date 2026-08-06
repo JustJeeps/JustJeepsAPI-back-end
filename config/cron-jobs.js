@@ -30,6 +30,11 @@ const skuCostAlertSchedule = process.env.CRON_SKU_COST_ALERT_SCHEDULE || '*/30 *
 const skuCostAlertSku = process.env.SKU_COST_ALERT_SKU || 'TH-635801';
 const cadDisabledUsWeeklyEnabled = process.env.CRON_CAD_US_WEEKLY_ENABLED !== 'false';
 const cadDisabledUsWeeklySchedule = process.env.CRON_CAD_US_WEEKLY_SCHEDULE || '30 6 * * 1';
+// Fetch dos feeds Keystone (FTP -> Spaces): opt-in ate o bucket estar
+// provisionado (DO_SPACES_*). Horario fora da grade */5 do delta e com folga
+// antes do seed-all (mutex global de crons de comando).
+const keystoneFeedFetchEnabled = process.env.CRON_FEED_FETCH_KEYSTONE_ENABLED === 'true';
+const keystoneFeedFetchSchedule = process.env.CRON_FEED_FETCH_KEYSTONE_SCHEDULE || '47 4,16 * * *';
 const testCronEnabled = process.env.CRON_TEST_ENABLED === 'true';
 const testCronSchedule = process.env.CRON_TEST_SCHEDULE || '*/5 * * * *';
 const testCronCommand = process.env.CRON_TEST_COMMAND || 'seed-tdot';
@@ -140,6 +145,14 @@ function getCronJobDefinitions({ includeDisabled = false } = {}) {
 			reportLogFile: 'logs/cad-disabled-us-enabled-weekly.log',
 		},
 		{
+			enabled: keystoneFeedFetchEnabled,
+			schedule: keystoneFeedFetchSchedule,
+			command: 'feed-fetch-keystone',
+			jobName: 'Keystone FTP Feed Fetch',
+			logPrefix: 'Keystone FTP feed fetch',
+			reportLogFile: 'logs/feed-fetch-keystone.log',
+		},
+		{
 			enabled: testCronEnabled,
 			schedule: testCronSchedule,
 			command: testCronCommand,
@@ -244,6 +257,8 @@ module.exports = {
 		skuCostAlertSku,
 		cadDisabledUsWeeklyEnabled,
 		cadDisabledUsWeeklySchedule,
+		keystoneFeedFetchEnabled,
+		keystoneFeedFetchSchedule,
 		testCronEnabled,
 		testCronSchedule,
 		testCronCommand,
