@@ -5913,6 +5913,18 @@ app.listen(PORT, () => {
 	console.log(
 		`Express seems to be listening on port ${PORT} so that's pretty good 👍`
 	);
+
+	// A deploy replaces this container, and anything that was running inside the
+	// old one dies with it, leaving its IngestRun row open forever. Closing them
+	// on boot is the moment we know for certain nothing survived, so the panel
+	// does not report work that is not happening.
+	const staleRuns = require('./lib/feeds/staleRuns');
+	staleRuns
+		.closeStaleRuns(require('./lib/prisma'), { maxAgeMs: staleRuns.BOOT_MAX_AGE_MS })
+		.then((closed) => {
+			if (closed > 0) console.log(`🧹 [feeds] closed ${closed} run(s) interrupted by a restart`);
+		})
+		.catch((error) => console.warn(`[feeds] could not close interrupted runs: ${error.message}`));
 	if (cronEnabled) {
 		for (const definition of getCronJobDefinitions()) {
 			console.log(

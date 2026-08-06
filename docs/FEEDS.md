@@ -44,7 +44,7 @@ So no seed script changes how it reads files. Rules: a feed with no catalogued b
 - Fetch Keystone now: `npm run feed-fetch-keystone` (cron `feed-fetch-keystone` runs it at 4:47 and 16:47 once `CRON_FEED_FETCH_KEYSTONE_ENABLED=true`).
 - Materialize locally: `npm run feed-materialize -- <feed>`.
 - Inspect: `GET /api/ingest/feeds` (current batch, age, stale flag, last runs) and `GET /api/ingest/runs?feed=...`. Stale or missing feeds also show as failures in the daily cron digest email.
-- Kill a bad batch: `lib/feeds/catalog.js quarantineBatch(prisma, batchId, note)` (the previous complete batch does not come back by itself, upload a fixed one).
+- Kill a bad batch: `npm run feed-quarantine -- <feed> [batchId] --note "why"` (no batchId acts on the current batch; `--list` shows the batches of the feed). The feed falls back to the previous complete batch, so run `npm run feed-sync -- <feed>` afterwards to point the legacy paths at it. If no earlier complete batch exists the feed is left with none on purpose: the vendor scripts then fail loudly instead of reading condemned data.
 
 ## Rollout status
 

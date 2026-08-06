@@ -54,7 +54,7 @@ const requireTriage = (req, res, next) => {
 // BigInt (sizeBytes) does not serialize to JSON.
 const serializeArtifact = (artifact) => ({ ...artifact, sizeBytes: Number(artifact.sizeBytes) });
 
-const runningFeed = (feed) => runner.getStatus(feed)?.status === 'running';
+const runningFeed = (feed) => runner.getRun(feed)?.status === 'running';
 
 // 8MB parts: above the 5MB S3 minimum and small enough that resending a lost
 // part stays cheap on a bad connection.
@@ -554,8 +554,8 @@ router.post('/feeds/:feed/run', requireTriage, (req, res) => {
 	}
 });
 
-router.get('/feeds/:feed/run-status', requireTriage, (req, res) => {
-	const status = runner.getStatus(String(req.params.feed));
+router.get('/feeds/:feed/run-status', requireTriage, async (req, res) => {
+	const status = await runner.getStatus(String(req.params.feed));
 	if (!status) return res.status(404).json({ error: 'No run for this feed in the current server session' });
 	// logFile is an internal container path; the log tail carries raw seed output
 	// (which a future script could print with an auth header), so it is redacted.

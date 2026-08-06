@@ -38,12 +38,17 @@ function makeFixture({ seedAllRunning = false, seedAllLockAgeMs = 60_000 } = {})
 		createWriteStream: () => ({}),
 		// mtimeMs is what tells a live lock from one left behind by a restart.
 		statSync: () => ({ size: 5, mtimeMs: Date.now() - seedAllLockAgeMs }),
-		openSync: () => 1,
-		readSync: (fd, buffer) => { buffer.write('done!'); return 5; },
-		closeSync: () => {},
+	};
+	// The log tail is read off the event loop (the panel polls it every 2s).
+	const fsp = {
+		open: async () => ({
+			stat: async () => ({ size: 5 }),
+			read: async (buffer) => { buffer.write('done!'); return { bytesRead: 5 }; },
+			close: async () => {},
+		}),
 	};
 	// now() must follow the clock here: the lock age is measured against it.
-	const runner = createFeedRunner({ spawn, fs, feedsConfig: FEEDS, now: () => Date.now() });
+	const runner = createFeedRunner({ spawn, fs, fsp, feedsConfig: FEEDS, now: () => Date.now() });
 	return { runner, spawned, getChild: () => lastChild };
 }
 
@@ -64,11 +69,11 @@ test('start runs the feed-sync for the feed and then the seedCommand, with a hea
 	assert.strictEqual(record.startedBy, 'ricardo');
 });
 
-test('exit 0 becomes success and exit != 0 becomes failed, with the log tail in the status', () => {
+test('exit 0 becomes success and exit != 0 becomes failed, with the log tail in the status', async () => {
 	const okFixture = makeFixture();
 	okFixture.runner.start('omix');
 	okFixture.getChild().emit('close', 0);
-	const ok = okFixture.runner.getStatus('omix');
+	const ok = await okFixture.runner.getStatus('omix');
 	assert.strictEqual(ok.status, 'success');
 	assert.strictEqual(ok.exitCode, 0);
 	assert.strictEqual(ok.logTail, 'done!');
@@ -77,7 +82,7 @@ test('exit 0 becomes success and exit != 0 becomes failed, with the log tail in 
 	const failFixture = makeFixture();
 	failFixture.runner.start('omix');
 	failFixture.getChild().emit('close', 1);
-	assert.strictEqual(failFixture.runner.getStatus('omix').status, 'failed');
+	assert.strictEqual((await failFixture.runner.getStatus('omix')).status, 'failed');
 });
 
 test('a feed without seedCommand and an unknown feed are rejected', () => {
@@ -105,11 +110,11 @@ test('blocks while seed-all is running (lock file present)', () => {
 	assert.strictEqual(fixture.spawned.length, 0);
 });
 
-test('a spawn error marks it failed and releases the slot', () => {
+test('a spawn error marks it failed and releases the slot', async () => {
 	const fixture = makeFixture();
 	fixture.runner.start('omix');
 	fixture.getChild().emit('error', new Error('spawn ENOENT'));
-	const status = fixture.runner.getStatus('omix');
+	const status = await fixture.runner.getStatus('omix');
 	assert.strictEqual(status.status, 'failed');
 	assert.strictEqual(status.error, 'spawn ENOENT');
 	assert.strictEqual(fixture.runner.isBusy(), false);

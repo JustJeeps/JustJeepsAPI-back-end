@@ -13,6 +13,7 @@
     "feed-upload": "node scripts/feed-upload.js",
     "feed-materialize": "node scripts/feed-materialize.js",
     "feed-sync": "node scripts/feed-sync.js",
+    "feed-quarantine": "node scripts/feed-quarantine.js",
     "rotate-passwords": "node scripts/rotate-user-passwords.js",
     "start": "node server.js",
     "dev": "nodemon server.js",

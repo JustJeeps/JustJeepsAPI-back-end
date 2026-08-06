@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { closeStaleRuns } = require('../../../lib/feeds/staleRuns');
+const { closeStaleRuns, BOOT_MAX_AGE_MS } = require('../../../lib/feeds/staleRuns');
 
 function makePrismaStub(rows) {
 	return {
@@ -54,6 +54,20 @@ test('the cutoff is configurable', async () => {
 	const prisma = makePrismaStub([{ feed: 'ctp', status: 'running', startedAt: hoursAgo(2) }]);
 
 	assert.strictEqual(await closeStaleRuns(prisma, { now: () => NOW, maxAgeMs: 60 * 60 * 1000 }), 1);
+});
+
+test('the boot cutoff clears a run the previous container left behind', async () => {
+	// Scripts die with the container that spawned them, so on boot anything
+	// older than a few minutes is gone. A run that started seconds ago may still
+	// be finishing in the outgoing container and is left alone.
+	const prisma = makePrismaStub([
+		{ feed: 'ctp', status: 'running', startedAt: hoursAgo(0.5) },
+		{ feed: 'quadratec', status: 'running', startedAt: hoursAgo(0.01) },
+	]);
+
+	assert.strictEqual(await closeStaleRuns(prisma, { now: () => NOW, maxAgeMs: BOOT_MAX_AGE_MS }), 1);
+	assert.strictEqual(prisma.rows[0].status, 'failed');
+	assert.strictEqual(prisma.rows[1].status, 'running');
 });
 
 test('without prisma it does nothing instead of throwing', async () => {
