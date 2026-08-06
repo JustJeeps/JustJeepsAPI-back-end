@@ -1,13 +1,13 @@
-// Allowlist de usuarios de triage: quem pode fazer operacoes administrativas
-// que escrevem em producao (subir feed de vendor, disparar o script de um feed
-// pelo painel).
+// Triage user allowlist: who can run administrative operations that write to
+// production (upload a vendor feed, trigger a feed script from the panel).
 //
-// IMPORTANTE: este modulo precisa continuar "puro" — apenas process.env e
-// dados literais (mesma regra do config/cron-jobs.js), para poder ser carregado
-// por testes e scripts de validacao sem subir o servidor.
+// IMPORTANT: this module has to stay "pure", only process.env and literal
+// data (same rule as config/cron-jobs.js), so it can be loaded by tests and
+// validation scripts without booting the server.
 //
-// FEEDS_TRIAGE_USERS e a env propria; REQUESTS_TRIAGE_USERS e aceita como
-// fallback porque ja esta provisionada no deploy com a mesma lista.
+// FEEDS_TRIAGE_USERS is the dedicated env; REQUESTS_TRIAGE_USERS is accepted
+// as a fallback because it is already provisioned in the deploy with the same
+// list.
 
 const triageUsers = (process.env.FEEDS_TRIAGE_USERS || process.env.REQUESTS_TRIAGE_USERS || 'ricardo,rafael')
 	.split(/[,\s]+/)

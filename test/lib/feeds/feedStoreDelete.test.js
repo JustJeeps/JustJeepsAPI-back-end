@@ -25,7 +25,7 @@ function makeS3Stub() {
 	};
 }
 
-test('listParts devolve as partes do bucket ordenadas por numero', async () => {
+test('listParts returns the bucket parts sorted by number', async () => {
 	const s3 = makeS3Stub();
 	const store = createFeedStore({ s3, env: ENV });
 
@@ -36,7 +36,7 @@ test('listParts devolve as partes do bucket ordenadas por numero', async () => {
 	assert.strictEqual(s3.calls[0].name, 'ListPartsCommand');
 });
 
-test('deleteObject remove o objeto (usado quando o upload estoura o limite)', async () => {
+test('deleteObject removes the object (used when the upload exceeds the limit)', async () => {
 	const s3 = makeS3Stub();
 	const store = createFeedStore({ s3, env: ENV });
 

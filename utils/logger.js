@@ -9,10 +9,12 @@ const axiom = process.env.AXIOM_TOKEN
 
 const dataset = process.env.AXIOM_DATASET || "justjeeps-api";
 
-// Campos que NUNCA podem sair daqui em texto puro (o destino e um log externo).
+// Fields that can NEVER leave here in plain text (the destination is a
+// third-party log).
 const SENSITIVE_KEY = /pass|secret|token|authorization|apikey|api_key|credential|cookie/i;
 
-// Mantem o shape do payload (util para depurar) trocando o valor por [REDACTED].
+// Keeps the shape of the payload (useful for debugging) while replacing the
+// value with [REDACTED].
 function redactSensitive(value, depth = 0) {
   if (value === null || value === undefined) return value;
   if (depth > 3) return "[TRUNCATED]";
@@ -135,9 +137,9 @@ const logger = {
       meta.method = req.method;
       meta.path = req.path;
       meta.query = redactSensitive(req.query);
-      // O body ia inteiro para o Axiom: um erro em /api/auth/login mandava a
-      // senha em texto puro para um log de terceiros. Vai so a lista de campos
-      // (para debugar shape) com os sensiveis mascarados.
+      // The whole body used to go to Axiom: an error on /api/auth/login sent
+      // the password in plain text to a third-party log. Now only the field
+      // list goes out (to debug the shape) with the sensitive ones masked.
       meta.body = redactSensitive(req.body);
       meta.userId = req.user?.id;
     }

@@ -1,23 +1,25 @@
-// Fetch dos feeds da Keystone (FTP) para o landing zone no Spaces. Aquisicao
-// PURA: baixa, valida, sobe e cataloga — nao toca em Product/VendorProduct
-// (isso e papel do seed-keystone-ftp2 na proxima rodada do seed-all).
+// Fetch of the Keystone feeds (FTP) into the landing zone in Spaces. PURE
+// acquisition: it downloads, validates, uploads and catalogs, and never
+// touches Product/VendorProduct (that is seed-keystone-ftp2's job in the next
+// seed-all round).
 //
-// Garantias:
-//  - gates de sanidade (tamanho minimo + header VCPN) ANTES de catalogar;
-//  - os DOIS arquivos sobem antes de registrar o lote (upload parcial nao
-//    cataloga nada — o lote anterior continua corrente);
-//  - hashes iguais ao lote corrente => skip sem upload (economiza PUT de
-//    ~460MB) registrado como skipped-unchanged;
-//  - cache local aquecido apos catalogar (o seed-all seguinte nao redownloada).
+// Guarantees:
+//  - sanity gates (minimum size + VCPN header) BEFORE cataloguing;
+//  - BOTH files are uploaded before the batch is registered (a partial upload
+//    catalogs nothing, so the previous batch stays current);
+//  - hashes equal to the current batch => skip without uploading (saves a
+//    ~460MB PUT), recorded as skipped-unchanged;
+//  - local cache warmed after cataloguing (the next seed-all does not
+//    redownload).
 //
-// Dependencias injetadas para testes sem rede/DB.
+// Dependencies are injected for tests without network/DB.
 
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
 const FEED_NAME = 'keystone-ftp';
-const RUN_FEED = 'keystone-ftp-fetch'; // heartbeat separado das rodadas de consumo
+const RUN_FEED = 'keystone-ftp-fetch'; // heartbeat kept separate from the consumption rounds
 
 const sha256File = (filePath) =>
 	new Promise((resolve, reject) => {
@@ -54,9 +56,9 @@ async function runKeystoneFetch({
 		'Inventory.csv': Number(env.KEYSTONE_FTP_MIN_INVENTORY_BYTES || 5 * 1024 * 1024),
 		'SpecialOrder.csv': Number(env.KEYSTONE_FTP_MIN_SPECIALORDER_BYTES || 200 * 1024 * 1024),
 	};
-	// O consumidor (seed-keystone-ftp2) roda com staleStrategy "delete": um
-	// download truncado que passe pelo floor fixo apagaria as linhas ausentes.
-	// Por isso o gate real e comparativo com o lote corrente.
+	// The consumer (seed-keystone-ftp2) runs with staleStrategy "delete": a
+	// truncated download that gets past the fixed floor would erase the missing
+	// rows. That is why the real gate compares against the current batch.
 	const minRatioVsCurrent = Number(env.KEYSTONE_FTP_MIN_SIZE_RATIO || 0.9);
 
 	const run = await prisma.ingestRun.create({
@@ -65,7 +67,7 @@ async function runKeystoneFetch({
 	const finishRun = (data) => prisma.ingestRun.update({ where: { id: run.id }, data: { finishedAt: new Date(), ...data } });
 
 	try {
-		// Scratch novo por execucao; incoming/ inteiro e descartavel.
+		// New scratch dir per execution; the whole incoming/ tree is disposable.
 		const scratchDir = path.join(cacheDir, 'incoming', FEED_NAME, String(Date.now()));
 		fs.rmSync(path.join(cacheDir, 'incoming', FEED_NAME), { recursive: true, force: true });
 		fs.mkdirSync(scratchDir, { recursive: true });
@@ -80,21 +82,21 @@ async function runKeystoneFetch({
 
 			const sizeBytes = fs.statSync(localPath).size;
 			if (sizeBytes < minBytes[fileName]) {
-				throw new Error(`${fileName} tem ${sizeBytes} bytes (< minimo ${minBytes[fileName]}) — download truncado?`);
+				throw new Error(`${fileName} has ${sizeBytes} bytes (< minimum ${minBytes[fileName]}), truncated download?`);
 			}
 			const previousSize = currentSizes.get(fileName);
 			if (previousSize && sizeBytes < previousSize * minRatioVsCurrent) {
 				throw new Error(
-					`${fileName} encolheu para ${sizeBytes} bytes (lote atual tem ${previousSize}, minimo ${Math.round(minRatioVsCurrent * 100)}%) — download truncado?`
+					`${fileName} shrank to ${sizeBytes} bytes (current batch has ${previousSize}, minimum ${Math.round(minRatioVsCurrent * 100)}%), truncated download?`
 				);
 			}
 			if (!firstLine(localPath).includes('VCPN')) {
-				throw new Error(`${fileName} sem coluna VCPN no header — formato inesperado`);
+				throw new Error(`${fileName} has no VCPN column in the header, unexpected format`);
 			}
 			files.push({ fileName, localPath, sizeBytes, sha256: await sha256File(localPath) });
 		}
 
-		// Sem mudanca? Nao sobe ~480MB a toa.
+		// Nothing changed? Do not upload ~480MB for nothing.
 		if (current) {
 			const currentShas = new Map(current.artifacts.map((artifact) => [artifact.fileName, artifact.sha256]));
 			if (files.every((file) => currentShas.get(file.fileName) === file.sha256)) {
@@ -112,10 +114,10 @@ async function runKeystoneFetch({
 			uploaded.push({ fileName: file.fileName, objectKey: key, sha256: file.sha256, sizeBytes: file.sizeBytes, contentType: 'text/csv' });
 		}
 
-		// So aqui o lote vira visivel (os dois uploads ja deram certo).
+		// Only here does the batch become visible (both uploads already succeeded).
 		await catalog.registerArtifacts(prisma, { feed: FEED_NAME, batchId, source: 'ftp', files: uploaded });
 
-		// Aquece o cache para o proximo seed-all (mesmo layout do materializer).
+		// Warms the cache for the next seed-all (same layout as the materializer).
 		const batchDir = path.join(cacheDir, FEED_NAME, batchId);
 		fs.mkdirSync(batchDir, { recursive: true });
 		for (const file of files) {

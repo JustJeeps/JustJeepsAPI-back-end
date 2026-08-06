@@ -10,15 +10,15 @@ const csv = require("csv-parser");
 const { createWriteStream, statSync } = require("fs");
 
 
-// Credenciais SEMPRE por env (KEYSTONE_FTP_USER/PASS ja existem como secret no
-// deploy). Ate 2026-08 elas estavam em texto puro aqui — arquivo versionado e
-// embarcado na imagem, ou seja, qualquer clone tinha acesso ao FTP do vendor.
+// Credentials ALWAYS come from env (KEYSTONE_FTP_USER/PASS already exist as
+// deploy secrets). Until 2026-08 they sat here in plain text, in a versioned
+// file that is baked into the image, so any clone had access to the vendor FTP.
 const FTP_HOST = process.env.KEYSTONE_FTP_HOST || "ftp.ekeystone.com";
 const FTP_USER = process.env.KEYSTONE_FTP_USER || "";
 const FTP_PASS = process.env.KEYSTONE_FTP_PASS || "";
 
 if (!FTP_USER || !FTP_PASS) {
-    throw new Error("KEYSTONE_FTP_USER/KEYSTONE_FTP_PASS ausentes no ambiente");
+    throw new Error("KEYSTONE_FTP_USER/KEYSTONE_FTP_PASS missing from the environment");
 }
 
 const REMOTE_FILES = ["Inventory.csv", "SpecialOrder.csv"];

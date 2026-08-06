@@ -9,7 +9,7 @@ const { createKeystoneFtpClient } = require('../../../lib/feeds/keystoneFtp');
 
 const PEM = '-----BEGIN CERTIFICATE-----\nFAKE\n-----END CERTIFICATE-----\n';
 
-// Client FTP falso: guarda as opcoes do access() para inspecionar a config TLS.
+// Fake FTP client: keeps the access() options so we can inspect the TLS config.
 function makeFtpStub() {
 	const calls = [];
 	class Client {
@@ -18,7 +18,7 @@ function makeFtpStub() {
 		}
 		async access(options) {
 			calls.push(options);
-			throw new Error('parar aqui: so queremos inspecionar o access()');
+			throw new Error('stop here: we only want to inspect access()');
 		}
 		close() {}
 	}
@@ -34,7 +34,7 @@ async function runDownload({ env, store, cacheDir }) {
 	return ftp.calls[0];
 }
 
-test('certificado validado por padrao e opt-out explicito', async () => {
+test('the certificate is validated by default and the opt-out is explicit', async () => {
 	const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ftpca-'));
 	const on = await runDownload({ env: { ...baseEnv, KEYSTONE_FTP_CA_PEM: PEM }, cacheDir });
 	assert.strictEqual(on.secureOptions.rejectUnauthorized, true);
@@ -47,21 +47,21 @@ test('certificado validado por padrao e opt-out explicito', async () => {
 	assert.strictEqual(off.secureOptions.rejectUnauthorized, false);
 });
 
-test('CA vem da env, em PEM ou base64, junto das raizes do sistema', async () => {
+test('the CA comes from the env, as PEM or base64, alongside the system roots', async () => {
 	const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ftpca-'));
 
 	const fromPem = await runDownload({ env: { ...baseEnv, KEYSTONE_FTP_CA_PEM: PEM }, cacheDir });
-	assert.ok(fromPem.secureOptions.ca.includes(PEM), 'PEM da env entra no bundle');
-	assert.ok(fromPem.secureOptions.ca.length > 1, 'raizes do sistema continuam presentes');
+	assert.ok(fromPem.secureOptions.ca.includes(PEM), 'the PEM from the env goes into the bundle');
+	assert.ok(fromPem.secureOptions.ca.length > 1, 'the system roots are still present');
 
 	const fromB64 = await runDownload({
 		env: { ...baseEnv, KEYSTONE_FTP_CA_PEM: Buffer.from(PEM).toString('base64') },
 		cacheDir,
 	});
-	assert.ok(fromB64.secureOptions.ca.includes(PEM), 'base64 e decodificado');
+	assert.ok(fromB64.secureOptions.ca.includes(PEM), 'base64 is decoded');
 });
 
-test('sem env, busca o objeto privado no bucket e guarda em cache', async () => {
+test('without the env, fetches the private object from the bucket and caches it', async () => {
 	const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ftpca-'));
 	const requested = [];
 	const store = {
@@ -75,14 +75,14 @@ test('sem env, busca o objeto privado no bucket e guarda em cache', async () => 
 	const first = await runDownload({ env: { ...baseEnv }, store, cacheDir });
 	assert.deepStrictEqual(requested, ['certs/keystone-ftp-ca.pem']);
 	assert.ok(first.secureOptions.ca.includes(PEM));
-	assert.ok(fs.existsSync(path.join(cacheDir, 'certs', 'keystone-ftp-ca.pem')), 'guardou em cache');
+	assert.ok(fs.existsSync(path.join(cacheDir, 'certs', 'keystone-ftp-ca.pem')), 'cached it');
 
-	// Segunda execucao (processo novo) usa o cache, sem tocar no bucket.
+	// Second run (fresh process) uses the cache without touching the bucket.
 	await runDownload({ env: { ...baseEnv }, store, cacheDir });
-	assert.strictEqual(requested.length, 1, 'cache evita novo download');
+	assert.strictEqual(requested.length, 1, 'the cache avoids another download');
 });
 
-test('sem env e sem bucket, avisa e segue so com as raizes do sistema', async () => {
+test('without the env and without the bucket, warns and continues with the system roots only', async () => {
 	const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ftpca-'));
 	const warnings = [];
 	const originalWarn = console.warn;
@@ -93,5 +93,5 @@ test('sem env e sem bucket, avisa e segue so com as raizes do sistema', async ()
 	} finally {
 		console.warn = originalWarn;
 	}
-	assert.ok(warnings.some((w) => w.includes('CA intermediaria')), 'avisa que a CA nao foi encontrada');
+	assert.ok(warnings.some((w) => w.includes('intermediate CA')), 'warns that the CA was not found');
 });

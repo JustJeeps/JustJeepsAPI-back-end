@@ -99,8 +99,8 @@ function formatCronExitLabel(code, signal) {
 	if (signal) return `signal ${signal}`;
 	return 'unknown exit status';
 }
-// 'admin' removido: conta de teste com senha publicada no repo (rotacionar/desativar em prod)
-// Allowlists por env (default no codigo) — ver config/allowlists.js
+// 'admin' removed: test account whose password was published in the repo (rotate/disable it in prod)
+// Allowlists from env (default in the code), see config/allowlists.js
 const { userAllowlist } = require('./config/allowlists');
 
 const MAGENTO_STATUS_ALLOWED_USERS = userAllowlist('MAGENTO_STATUS_ALLOWED_USERS', 'jerry,tess,jacob,david,rafael,ricardo,paula');
@@ -1169,7 +1169,7 @@ function buildCronJobStatus(definition, historyEntries = null) {
 const authRoutes = require('./routes/auth');
 const { authenticateToken, optionalAuth } = require('./middleware/auth');
 
-// Feeds de vendor no Spaces: catalogo/auditoria, painel e download
+// Vendor feeds in Spaces: catalog/audit trail, panel and download
 const ingestRoutes = require('./routes/ingest');
 const feedRunner = require('./services/feeds/runnerInstance');
 const feedCatalog = require('./lib/feeds/catalog');
@@ -1201,21 +1201,22 @@ function scheduleQuickBooksLookupPreload() {
 	}, quickBooksPreloadDelayMs);
 }
 
-// Atras do proxy do Kamal/Traefik: sem isto req.ip e sempre o IP do proxy, o
-// que quebra o log de auditoria E jogaria a internet inteira no mesmo balde do
-// rate limiter abaixo.
+// Behind the Kamal/Traefik proxy: without this req.ip is always the proxy IP,
+// which breaks the audit log AND would put the whole internet in the same
+// bucket of the rate limiter below.
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 
-// Cabecalhos de seguranca (HSTS, nosniff, frameguard, referrer-policy).
-// CSP fica desligada: a API serve JSON e um /public estatico, e uma CSP mal
-// calibrada aqui nao protege o SPA, que e servido em outro host.
+// Security headers (HSTS, nosniff, frameguard, referrer-policy).
+// CSP stays off: the API serves JSON and a static /public, and a badly tuned
+// CSP here does not protect the SPA, which is served from another host.
 app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: false }));
 
-// Origens permitidas: producao so o dominio do painel. localhost entra apenas
-// fora de producao (dev roda o front local contra esta API). O dominio antigo
-// da DigitalOcean saiu: se aquele app foi destruido, o hostname volta para o
-// pool e outro tenant herdaria um canal cross-origin confiavel.
+// Allowed origins: in production only the panel domain. localhost is added
+// outside production only (dev runs the local front-end against this API). The
+// old DigitalOcean domain was dropped: if that app was destroyed the hostname
+// goes back to the pool and another tenant would inherit a trusted
+// cross-origin channel.
 const corsOrigins = (process.env.CORS_ALLOWED_ORIGINS
   ? process.env.CORS_ALLOWED_ORIGINS.split(/[,\s]+/).filter(Boolean)
   : ['https://pricingtool.justjeeps.com']
@@ -1243,9 +1244,9 @@ app.use((req, res, next) => {
   next();
 });
 
-// Rate limiting. Login e o alvo obvio de forca bruta (bcrypt custa CPU num
-// droplet de 1 vCPU); o limite geral protege o resto da API de abuso.
-// skipSuccessfulRequests: uso normal do painel nao consome a cota do login.
+// Rate limiting. Login is the obvious brute force target (bcrypt costs CPU on
+// a 1 vCPU droplet); the general limit protects the rest of the API from abuse.
+// skipSuccessfulRequests: normal panel usage does not eat the login quota.
 app.use('/api/auth/login', rateLimit({
   windowMs: Number(process.env.RATE_LIMIT_LOGIN_WINDOW_MS || 15 * 60 * 1000),
   limit: Number(process.env.RATE_LIMIT_LOGIN_MAX || 10),
@@ -1312,8 +1313,8 @@ app.get('/', (req, res) =>
 // Protected routes: all other /api/* routes
 app.use('/api', authenticateToken);
 
-// Feeds de vendor: montado APOS o authenticateToken de proposito — mover para
-// antes deixaria upload e "Run now" sem autenticacao.
+// Vendor feeds: mounted AFTER authenticateToken on purpose, moving it before
+// would leave upload and "Run now" without authentication.
 app.use('/api/ingest', ingestRoutes);
 
 // Sample GET route
@@ -1448,9 +1449,9 @@ app.post('/api/reports/purchaser/email', async (req, res) => {
 			return res.status(400).json({ error: 'Missing report or date' });
 		}
 
-		// Fail-closed: sem usuario identificado NAO passa. Antes o check era
-		// "ENABLE_AUTH === 'true' && req.user", entao um deploy com ENABLE_AUTH
-		// errado abria o disparo de e-mail para qualquer anonimo.
+		// Fail-closed: with no identified user the request does NOT pass. The
+		// check used to be "ENABLE_AUTH === 'true' && req.user", so a deploy with
+		// the wrong ENABLE_AUTH opened the email trigger to any anonymous caller.
 		{
 			const username = (req.user?.username || req.user?.firstname || '').toLowerCase();
 			if (!PURCHASER_REPORT_ALLOWED_USERS.has(username)) {
@@ -1481,9 +1482,9 @@ app.post('/api/reports/order-cancellations/daily/email', async (req, res) => {
 		const requestedDate = String(date || '').trim();
 		const reportDate = requestedDate || getDateStringInTimezone(new Date(), cancellationReportTimezone || 'America/Toronto');
 
-		// Fail-closed: sem usuario identificado NAO passa. Antes o check era
-		// "ENABLE_AUTH === 'true' && req.user", entao um deploy com ENABLE_AUTH
-		// errado abria o disparo de e-mail para qualquer anonimo.
+		// Fail-closed: with no identified user the request does NOT pass. The
+		// check used to be "ENABLE_AUTH === 'true' && req.user", so a deploy with
+		// the wrong ENABLE_AUTH opened the email trigger to any anonymous caller.
 		{
 			const username = (req.user?.username || req.user?.firstname || '').toLowerCase();
 			if (!ORDER_CANCELLATION_REPORT_ALLOWED_USERS.has(username)) {
@@ -1518,7 +1519,7 @@ app.post('/api/reports/sku-status/daily/email', async (req, res) => {
 		const requestedDate = String(date || '').trim();
 		const reportDate = requestedDate || getDateStringInTimezone(new Date(), skuStatusReportTimezone || 'America/Toronto');
 
-		// Fail-closed: sem usuario identificado NAO passa (ver rotas de report acima).
+		// Fail-closed: with no identified user the request does NOT pass (see the report routes above).
 		{
 			const username = (req.user?.username || req.user?.firstname || '').toLowerCase();
 			if (!MAGENTO_STATUS_ALLOWED_USERS.has(username)) {
@@ -1554,7 +1555,7 @@ app.post('/api/reports/sku-status/weekly/email', async (req, res) => {
 		const requestedEndDate = String(endDate || '').trim();
 		const reportEndDate = requestedEndDate || getDateStringInTimezone(new Date(), skuStatusWeeklyReportTimezone || 'America/Toronto');
 
-		// Fail-closed: sem usuario identificado NAO passa (ver rotas de report acima).
+		// Fail-closed: with no identified user the request does NOT pass (see the report routes above).
 		{
 			const username = (req.user?.username || req.user?.firstname || '').toLowerCase();
 			if (!MAGENTO_STATUS_ALLOWED_USERS.has(username)) {
@@ -1917,11 +1918,11 @@ app.get('/api/products/export', async (req, res) => {
 });
 
 // Route for downloading specific source files used by seed updates.
-// Fonte preferida: lote corrente no catalogo de feeds (Spaces) — e o arquivo
-// que os seeds realmente consomem. Fallback: arquivo local (vale enquanto o
-// catalogo esta vazio). Nota: a versao antiga servia Inventory.csv para a key
-// keystone-special-order-price; via catalogo o SpecialOrder.csv correto e que
-// e servido.
+// Preferred source: the current batch in the feed catalog (Spaces), which is
+// the file the seeds actually consume. Fallback: the local file (valid while
+// the catalog is empty). Note: the old version served Inventory.csv for the
+// keystone-special-order-price key; through the catalog the correct
+// SpecialOrder.csv is served instead.
 app.get('/api/files/download/:fileKey', async (req, res) => {
 	try {
 		const fileKey = req.params.fileKey;
@@ -1959,15 +1960,15 @@ app.get('/api/files/download/:fileKey', async (req, res) => {
 					const { body, contentLength } = await feedStore.getObjectStream(artifact.objectKey);
 					res.setHeader('Content-Disposition', `attachment; filename="${fileConfig.name}"`);
 					if (contentLength) res.setHeader('Content-Length', contentLength);
-					// pipeline (nao pipe cru): destroi o stream do Spaces se o
-					// cliente abortar e trata erro no meio da transferencia — um
-					// 'error' solto no stream derrubaria o processo.
+					// pipeline (not a raw pipe): it destroys the Spaces stream if
+					// the client aborts and handles an error mid transfer, since a
+					// loose 'error' on the stream would take the process down.
 					return pipeline(body, res, (pipeError) => {
 						if (pipeError) console.warn(`File download stream aborted (${fileKey}):`, pipeError.message);
 					});
 				}
 			} catch (storeError) {
-				console.warn(`Feed store download falhou para ${fileKey}, caindo para o arquivo local:`, storeError.message);
+				console.warn(`Feed store download failed for ${fileKey}, falling back to the local file:`, storeError.message);
 			}
 		}
 
@@ -4968,11 +4969,12 @@ function registerCommandCronJob({
 		const seedProcess = spawn('npm', ['run', command], {
 			cwd: __dirname,
 			stdio: ['ignore', 'pipe', 'pipe'],
-			// Sem shell: com shell:true os args voltam a virar string de shell e
-			// metacaracteres no nome do comando (vem de env/config de cron) seriam
-			// interpretados. npm resolve sozinho no PATH, o shell nao e necessario.
-			// Children de cron são seeds: pool de conexões menor que o da API
-			// (ver ROLE_POOL_DEFAULTS em lib/prisma.js)
+			// No shell: with shell:true the args become a shell string again and
+			// metacharacters in the command name (which comes from the cron
+			// env/config) would be interpreted. npm resolves on its own through
+			// PATH, the shell is not needed.
+			// Cron children are seeds: smaller connection pool than the API
+			// (see ROLE_POOL_DEFAULTS in lib/prisma.js)
 			env: { ...process.env, APP_ROLE: 'seed' },
 		});
 
@@ -5680,9 +5682,9 @@ function registerCronJobs() {
 			markReportCronStarted({ command: cronDigestCommand, startedAt: startedAtIso });
 
 			try {
-				// Linhas de cron + frescor dos feeds de vendor: feed sem lote ou
-				// stale entra como falha e vira o assunto do digest (nada de
-				// silencio — caso seed-omix).
+				// Cron lines + vendor feed freshness: a feed with no batch or a
+				// stale one counts as a failure and drives the digest subject, so
+				// it never goes silent (the seed-omix case).
 				const results = [
 					...buildCronDigestResults({ lookbackHours: 24 }),
 					...(await collectFeedFreshnessResults(prisma, getFeedDefinitions())),
@@ -5882,14 +5884,15 @@ backfillCancelWorkflowHistoryFromFileToDatabase().catch((error) => {
 	});
 });
 
-// Auth ligada sem segredo forte e uma falsa sensacao de seguranca: um
-// JWT_SECRET curto/ausente torna os tokens forjaveis. Falha no boot em vez de
-// subir vulneravel (so quando ENABLE_AUTH=true, para nao quebrar dev sem auth).
+// Auth turned on without a strong secret is a false sense of security: a short
+// or missing JWT_SECRET makes the tokens forgeable. Fail at boot instead of
+// coming up vulnerable (only when ENABLE_AUTH=true, so dev without auth keeps
+// working).
 if (process.env.ENABLE_AUTH === 'true') {
 	const jwtSecret = process.env.JWT_SECRET || '';
 	if (jwtSecret.length < 32) {
-		logger.error?.('JWT_SECRET ausente ou curto demais (<32 chars) com ENABLE_AUTH=true');
-		console.error('❌ JWT_SECRET ausente ou com menos de 32 caracteres. Gere um novo:');
+		logger.error?.('JWT_SECRET missing or too short (<32 chars) with ENABLE_AUTH=true');
+		console.error('❌ JWT_SECRET is missing or shorter than 32 characters. Generate a new one:');
 		console.error('   node -e "console.log(require(\'crypto\').randomBytes(64).toString(\'hex\'))"');
 		process.exit(1);
 	}

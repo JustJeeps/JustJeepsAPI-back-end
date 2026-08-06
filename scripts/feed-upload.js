@@ -1,17 +1,19 @@
 /* eslint-disable no-console */
-// Upload manual de feed para o landing zone no Spaces + catalogo.
-// Uso: npm run feed-upload -- <feed> <arquivo...> [--note "..."] [--by usuario]
-//                             [--as nomeCanonico] [--batch batchId]
-//      npm run feed-upload -- --archive <arquivo...> [--note "..."]
+// Manual feed upload to the landing zone in Spaces + catalog.
+// Usage: npm run feed-upload -- <feed> <file...> [--note "..."] [--by user]
+//                              [--as canonicalName] [--batch batchId]
+//        npm run feed-upload -- --archive <file...> [--note "..."]
 //
-// - O basename de cada arquivo (ou --as, para arquivo unico) precisa ser um
-//   dos nomes canonicos do feed em config/feeds.js.
-// - Feed multi-arquivo: suba todos juntos (um lote) ou complete um lote
-//   parcial existente com --batch <id> — lote incompleto NAO vira corrente.
-// - --archive: preservacao de arquivo SEM leitor (orfaos) sob feeds/_archive/
-//   no bucket; catalogado com feed "_archive", fora do registro e do sync.
-// - E uma escrita intencional em producao (mesmo modelo de confianca dos
-//   seeds): requer DATABASE_URL + DO_SPACES_* no ambiente.
+// - The basename of each file (or --as, for a single file) has to be one of
+//   the canonical names of the feed in config/feeds.js.
+// - Multi-file feed: upload them all together (one batch) or complete an
+//   existing partial batch with --batch <id>; an incomplete batch does NOT
+//   become the current one.
+// - --archive: preserves a file with NO reader (orphans) under feeds/_archive/
+//   in the bucket; catalogued with feed "_archive", outside the registry and
+//   outside the sync.
+// - This is an intentional write to production (same trust model as the
+//   seeds): it requires DATABASE_URL + DO_SPACES_* in the environment.
 
 const os = require('os');
 const path = require('path');
@@ -47,31 +49,31 @@ function parseArgs(argv) {
 async function main() {
 	const args = parseArgs(process.argv.slice(2));
 	if ((!args.feed && !args.archive) || args.files.length === 0) {
-		console.error('Uso: npm run feed-upload -- <feed> <arquivo...> [--note "..."] [--by usuario] [--as nome] [--batch id]');
-		console.error('     npm run feed-upload -- --archive <arquivo...> [--note "..."]');
+		console.error('Usage: npm run feed-upload -- <feed> <file...> [--note "..."] [--by user] [--as name] [--batch id]');
+		console.error('       npm run feed-upload -- --archive <file...> [--note "..."]');
 		process.exitCode = 1;
 		return;
 	}
 
-	// Modo arquivo-morto: qualquer basename, feed sintetico "_archive",
-	// nunca entra no registro nem no feed-sync — so preservacao auditavel.
+	// Archive mode: any basename, synthetic "_archive" feed, never enters the
+	// registry nor the feed-sync, it is only auditable preservation.
 	const feed = args.archive
 		? { name: '_archive', files: null }
 		: feedsConfig.getFeedByName(args.feed);
 	if (!feed) {
-		console.error(`Feed desconhecido: ${args.feed}. Feeds validos: ${feedsConfig.getFeedDefinitions().map((f) => f.name).join(', ')}`);
+		console.error(`Unknown feed: ${args.feed}. Valid feeds: ${feedsConfig.getFeedDefinitions().map((f) => f.name).join(', ')}`);
 		process.exitCode = 1;
 		return;
 	}
 	if (args.as && args.files.length > 1) {
-		console.error('--as so vale para upload de arquivo unico');
+		console.error('--as is only valid for a single file upload');
 		process.exitCode = 1;
 		return;
 	}
 
 	const store = createFeedStore();
 	if (!store.isConfigured()) {
-		console.error('DO_SPACES_* ausentes no ambiente — feed store nao configurado');
+		console.error('DO_SPACES_* missing from the environment: feed store is not configured');
 		process.exitCode = 1;
 		return;
 	}
@@ -79,13 +81,13 @@ async function main() {
 	const uploads = [];
 	for (const filePath of args.files) {
 		if (!fs.existsSync(filePath)) {
-			console.error(`Arquivo nao encontrado: ${filePath}`);
+			console.error(`File not found: ${filePath}`);
 			process.exitCode = 1;
 			return;
 		}
 		const fileName = args.as || path.basename(filePath);
 		if (feed.files && !feed.files.includes(fileName)) {
-			console.error(`"${fileName}" nao e um arquivo esperado do feed ${feed.name} (esperados: ${feed.files.join(', ')})`);
+			console.error(`"${fileName}" is not an expected file of feed ${feed.name} (expected: ${feed.files.join(', ')})`);
 			process.exitCode = 1;
 			return;
 		}
@@ -98,14 +100,14 @@ async function main() {
 		const sizeBytes = fs.statSync(upload.filePath).size;
 		const contentType = CONTENT_TYPES[path.extname(upload.fileName).toLowerCase()] || 'application/octet-stream';
 
-		// Conteudo identico ja no bucket? Nao reenvia (o SpecialOrder tem 460MB).
-		// O objeto e imutavel e enderecado por conteudo: o artefato novo pode
-		// apontar para a mesma key com seguranca.
+		// Identical content already in the bucket? Do not resend it (SpecialOrder
+		// is 460MB). The object is immutable and content addressed: the new
+		// artifact can safely point at the same key.
 		const existing = args.archive
 			? null
 			: await catalog.findArtifactByHash(prisma, feed.name, upload.fileName, sha256);
 		if (existing) {
-			console.log(`♻️  ${upload.fileName} ja esta no bucket com este conteudo (sha ${sha256.slice(0, 8)}) — reaproveitando`);
+			console.log(`♻️  ${upload.fileName} is already in the bucket with this content (sha ${sha256.slice(0, 8)}), reusing it`);
 			files.push({
 				fileName: upload.fileName,
 				objectKey: existing.objectKey,
@@ -117,7 +119,7 @@ async function main() {
 		}
 
 		const key = store.buildKey({ feed: feed.name, fileName: upload.fileName, sha256 });
-		console.log(`⬆️  Subindo ${upload.fileName} (${(sizeBytes / 1024 / 1024).toFixed(1)}MB, sha ${sha256.slice(0, 8)})...`);
+		console.log(`⬆️  Uploading ${upload.fileName} (${(sizeBytes / 1024 / 1024).toFixed(1)}MB, sha ${sha256.slice(0, 8)})...`);
 		await store.putFile({ key, filePath: upload.filePath, contentType, sizeBytes });
 		files.push({ fileName: upload.fileName, objectKey: key, sha256, sizeBytes, contentType });
 	}
@@ -131,26 +133,26 @@ async function main() {
 		files,
 	});
 
-	console.log(`\n✅ Lote ${batchId} catalogado para o feed ${feed.name}:`);
+	console.log(`\n✅ Batch ${batchId} catalogued for feed ${feed.name}:`);
 	for (const artifact of artifacts) {
 		console.log(`   #${artifact.id} ${artifact.fileName} sha ${artifact.sha256.slice(0, 12)} -> ${artifact.objectKey}`);
 	}
 
 	if (args.archive) {
-		console.log('\n📦 Arquivado em feeds/_archive — fora do registro de feeds e do feed-sync.');
+		console.log('\n📦 Archived under feeds/_archive, outside the feed registry and the feed-sync.');
 		return;
 	}
 
 	const missing = feed.files.filter((name) => !files.some((file) => file.fileName === name));
 	if (missing.length > 0 && !args.batch) {
-		console.warn(`\n⚠️  ATENCAO: lote INCOMPLETO — faltam: ${missing.join(', ')}.`);
-		console.warn(`   O feed ${feed.name} NAO vai usar este lote ate voce completa-lo:`);
-		console.warn(`   npm run feed-upload -- ${feed.name} <arquivos> --batch ${batchId}`);
+		console.warn(`\n⚠️  WARNING: INCOMPLETE batch, missing: ${missing.join(', ')}.`);
+		console.warn(`   Feed ${feed.name} will NOT use this batch until you complete it:`);
+		console.warn(`   npm run feed-upload -- ${feed.name} <files> --batch ${batchId}`);
 	} else {
 		const current = await catalog.getCurrentBatch(prisma, feed.name, feed.files);
 		console.log(current && current.batchId === batchId
-			? `\n🎯 Lote ${batchId} agora e o corrente do feed ${feed.name}.`
-			: `\n⚠️  Lote ${batchId} ainda NAO e o corrente (confira arquivos faltantes/quarentena).`);
+			? `\n🎯 Batch ${batchId} is now the current one for feed ${feed.name}.`
+			: `\n⚠️  Batch ${batchId} is still NOT the current one (check for missing files/quarantine).`);
 	}
 }
 

@@ -9,7 +9,7 @@ const { runKeystoneFetch } = require('../../../services/feeds/keystoneFetchServi
 
 const sha256 = (content) => crypto.createHash('sha256').update(content).digest('hex');
 
-// Conteudos pequenos; floors de tamanho reduzidos via env injetada.
+// Small contents; size floors lowered through the injected env.
 const INVENTORY = 'VCPN,Cost,TotalQty\nA1,10,2\n';
 const SPECIAL = 'VCPN,Cost,TotalQty\nB2,20,1\n';
 
@@ -28,7 +28,7 @@ function makeFixture({ ftpContents = { 'Inventory.csv': INVENTORY, 'SpecialOrder
 		puts: [],
 		buildKey: ({ feed, fileName, sha256: sha }) => `feeds/${feed}/${sha.slice(0, 8)}-${fileName}`,
 		putFile: async ({ key, filePath, sizeBytes }) => {
-			if (failUploadOf && key.endsWith(failUploadOf)) throw new Error(`upload de ${key} falhou`);
+			if (failUploadOf && key.endsWith(failUploadOf)) throw new Error(`upload of ${key} failed`);
 			store.puts.push({ key, sizeBytes, exists: fs.existsSync(filePath) });
 		},
 	};
@@ -65,7 +65,7 @@ function makeFixture({ ftpContents = { 'Inventory.csv': INVENTORY, 'SpecialOrder
 	return { ftpClient, store, catalogStub, prisma, runs, registered, cacheDir, env };
 }
 
-test('fetch feliz: baixa os 2, sobe os 2, cataloga 1 lote e aquece o cache', async () => {
+test('happy fetch: downloads both, uploads both, catalogs one batch and warms the cache', async () => {
 	const fixture = makeFixture();
 
 	const result = await runKeystoneFetch({
@@ -84,7 +84,7 @@ test('fetch feliz: baixa os 2, sobe os 2, cataloga 1 lote e aquece o cache', asy
 	assert.strictEqual(fixture.registered[0].files.length, 2);
 	assert.strictEqual(fixture.registered[0].source, 'ftp');
 
-	// Cache aquecido com sentinelas no layout do materializer.
+	// Cache warmed with sentinels in the materializer layout.
 	const batchDir = path.join(fixture.cacheDir, 'keystone-ftp', result.batchId);
 	assert.ok(fs.existsSync(path.join(batchDir, 'Inventory.csv')));
 	assert.ok(fs.existsSync(path.join(batchDir, `.SpecialOrder.csv.${sha256(SPECIAL).slice(0, 8)}.ok`)));
@@ -95,20 +95,20 @@ test('fetch feliz: baixa os 2, sobe os 2, cataloga 1 lote e aquece o cache', asy
 	assert.strictEqual(run.artifactBatchId, result.batchId);
 });
 
-test('arquivo abaixo do tamanho minimo aborta ANTES de subir ou catalogar', async () => {
+test('a file below the minimum size aborts BEFORE uploading or cataloging', async () => {
 	const fixture = makeFixture({ ftpContents: { 'Inventory.csv': 'VCPN\n', 'SpecialOrder.csv': SPECIAL } });
 	fixture.env.KEYSTONE_FTP_MIN_INVENTORY_BYTES = '1000';
 
 	await assert.rejects(
 		runKeystoneFetch({ ftpClient: fixture.ftpClient, store: fixture.store, prisma: fixture.prisma, catalog: fixture.catalogStub, cacheDir: fixture.cacheDir, env: fixture.env }),
-		/download truncado/
+		/truncated download/
 	);
 	assert.strictEqual(fixture.store.puts.length, 0);
 	assert.strictEqual(fixture.registered.length, 0);
 	assert.strictEqual(fixture.runs[0].status, 'failed');
 });
 
-test('header sem VCPN aborta', async () => {
+test('a header without VCPN aborts', async () => {
 	const fixture = makeFixture({ ftpContents: { 'Inventory.csv': 'foo,bar\n1,2\n', 'SpecialOrder.csv': SPECIAL } });
 
 	await assert.rejects(
@@ -118,9 +118,9 @@ test('header sem VCPN aborta', async () => {
 	assert.strictEqual(fixture.registered.length, 0);
 });
 
-test('hashes iguais ao lote corrente viram skip sem nenhum upload', async () => {
+test('hashes equal to the current batch become a skip with no upload at all', async () => {
 	const currentBatch = {
-		batchId: 'batch-atual',
+		batchId: 'current-batch',
 		artifacts: [
 			{ fileName: 'Inventory.csv', sha256: sha256(INVENTORY) },
 			{ fileName: 'SpecialOrder.csv', sha256: sha256(SPECIAL) },
@@ -134,14 +134,15 @@ test('hashes iguais ao lote corrente viram skip sem nenhum upload', async () => 
 	assert.strictEqual(fixture.store.puts.length, 0);
 	assert.strictEqual(fixture.registered.length, 0);
 	assert.strictEqual(fixture.runs[0].status, 'skipped-unchanged');
-	assert.strictEqual(fixture.runs[0].artifactBatchId, 'batch-atual');
+	assert.strictEqual(fixture.runs[0].artifactBatchId, 'current-batch');
 });
 
-test('download que encolhe frente ao lote atual e recusado (truncado passaria pelo floor fixo)', async () => {
-	// Lote atual bem maior: o novo download tem tamanho plausivel pelo floor,
-	// mas e metade do anterior — com staleStrategy delete isso apagaria linhas.
+test('a download that shrinks against the current batch is rejected (a truncated one would pass the fixed floor)', async () => {
+	// The current batch is much bigger: the new download has a size the floor finds
+	// plausible, but it is half of the previous one, and with staleStrategy delete
+	// that would erase rows.
 	const currentBatch = {
-		batchId: 'batch-atual',
+		batchId: 'current-batch',
 		artifacts: [
 			{ fileName: 'Inventory.csv', sha256: 'x'.repeat(64), sizeBytes: 100 },
 			{ fileName: 'SpecialOrder.csv', sha256: 'y'.repeat(64), sizeBytes: 1000 },
@@ -151,20 +152,20 @@ test('download que encolhe frente ao lote atual e recusado (truncado passaria pe
 
 	await assert.rejects(
 		runKeystoneFetch({ ftpClient: fixture.ftpClient, store: fixture.store, prisma: fixture.prisma, catalog: fixture.catalogStub, cacheDir: fixture.cacheDir, env: fixture.env }),
-		/encolheu para/
+		/shrank to/
 	);
 	assert.strictEqual(fixture.store.puts.length, 0);
 	assert.strictEqual(fixture.registered.length, 0);
 });
 
-test('falha no upload do segundo arquivo nao cataloga NADA (lote anterior segue corrente)', async () => {
+test('a failed upload of the second file catalogs NOTHING (the previous batch stays current)', async () => {
 	const fixture = makeFixture({ failUploadOf: 'SpecialOrder.csv' });
 
 	await assert.rejects(
 		runKeystoneFetch({ ftpClient: fixture.ftpClient, store: fixture.store, prisma: fixture.prisma, catalog: fixture.catalogStub, cacheDir: fixture.cacheDir, env: fixture.env }),
-		/upload de .*SpecialOrder\.csv falhou/
+		/upload of .*SpecialOrder\.csv failed/
 	);
-	assert.strictEqual(fixture.store.puts.length, 1, 'Inventory subiu, SpecialOrder falhou');
-	assert.strictEqual(fixture.registered.length, 0, 'catalogo intocado');
+	assert.strictEqual(fixture.store.puts.length, 1, 'Inventory uploaded, SpecialOrder failed');
+	assert.strictEqual(fixture.registered.length, 0, 'catalog untouched');
 	assert.strictEqual(fixture.runs[0].status, 'failed');
 });

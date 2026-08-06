@@ -1,15 +1,15 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-// O logger manda meta para o Axiom (log externo). Um erro em /api/auth/login
-// levava o body inteiro — senha em texto puro — para la.
+// The logger sends meta to Axiom (an external log). An error on /api/auth/login
+// used to carry the whole body over there, plain text password included.
 const logger = require('../../utils/logger');
 
-test('logger existe e expoe apiError', () => {
+test('the logger exists and exposes apiError', () => {
 	assert.strictEqual(typeof logger.apiError, 'function');
 });
 
-test('campos sensiveis do body nao chegam ao destino do log', () => {
+test('sensitive body fields do not reach the log destination', () => {
 	const captured = [];
 	const originalError = console.error;
 	console.error = (...args) => captured.push(args);
@@ -18,16 +18,16 @@ test('campos sensiveis do body nao chegam ao destino do log', () => {
 			method: 'POST',
 			path: '/api/auth/login',
 			query: { token: 'abc123' },
-			body: { username: 'ricardo', password: 'SenhaSuperSecreta', nested: { apiKey: 'k-123' } },
+			body: { username: 'ricardo', password: 'SuperSecretPassword', nested: { apiKey: 'k-123' } },
 		});
 	} finally {
 		console.error = originalError;
 	}
 
 	const serialized = JSON.stringify(captured);
-	assert.ok(!serialized.includes('SenhaSuperSecreta'), 'senha nao pode aparecer no log');
-	assert.ok(!serialized.includes('k-123'), 'apiKey aninhada nao pode aparecer');
-	assert.ok(!serialized.includes('abc123'), 'token de query nao pode aparecer');
-	assert.ok(serialized.includes('[REDACTED]'), 'campos sensiveis viram [REDACTED]');
-	assert.ok(serialized.includes('ricardo'), 'campos nao sensiveis continuam visiveis para depurar');
+	assert.ok(!serialized.includes('SuperSecretPassword'), 'the password must not appear in the log');
+	assert.ok(!serialized.includes('k-123'), 'the nested apiKey must not appear');
+	assert.ok(!serialized.includes('abc123'), 'the query token must not appear');
+	assert.ok(serialized.includes('[REDACTED]'), 'sensitive fields become [REDACTED]');
+	assert.ok(serialized.includes('ricardo'), 'non sensitive fields stay visible for debugging');
 });

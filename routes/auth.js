@@ -8,7 +8,7 @@ require('dotenv').config();
 const router = express.Router();
 const prisma = require('../lib/prisma');
 
-// Criar usuario e operacao administrativa: exige triage (allowlist por env).
+// Creating a user is an administrative operation: requires triage (env allowlist).
 const requireTriage = (req, res, next) => {
   if (!req.user || !isTriageUser(req.user.username)) {
     return res.status(403).json({
@@ -24,8 +24,9 @@ const generateToken = (userId) => {
   return jwt.sign(
     { userId: userId },
     process.env.JWT_SECRET,
-    // algorithm fixado: sem isso o token so depende da lib rejeitar "alg: none"
-    // por padrao — uma troca de versao poderia reabrir confusao de algoritmo.
+    // algorithm pinned: without it the token only relies on the library
+    // rejecting "alg: none" by default, and a version bump could reopen
+    // algorithm confusion.
     { expiresIn: process.env.JWT_EXPIRES_IN || '24h', algorithm: 'HS256' }
   );
 };
@@ -57,9 +58,9 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Find user by username or email (case-insensitive: contas antigas foram
-    // criadas com capitalizacao variada e a allowlist de triage compara em
-    // minusculo — o login precisa resolver para a MESMA conta).
+    // Find user by username or email (case-insensitive: old accounts were
+    // created with mixed capitalization and the triage allowlist compares in
+    // lowercase, so the login has to resolve to the SAME account).
     const user = await prisma.user.findFirst({
       where: {
         OR: [
@@ -111,14 +112,14 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// POST /api/auth/register — criacao de usuario.
+// POST /api/auth/register: user creation.
 //
-// SEGURANCA: esta rota fica montada ANTES do app.use('/api', authenticateToken)
-// do server.js, entao ela precisa exigir o token por conta propria. Enquanto era
-// publica, qualquer pessoa na internet criava conta e passava por todas as rotas
-// protegidas — inclusive escolhendo um username que casava com a allowlist de
-// triage (comparacao case-insensitive), o que dava upload de feed e execucao de
-// script em producao. Agora: precisa de usuario logado E de triage.
+// SECURITY: this route is mounted BEFORE the app.use('/api', authenticateToken)
+// in server.js, so it has to require the token on its own. While it was public,
+// anyone on the internet could create an account and get through every
+// protected route, including picking a username that matched the triage
+// allowlist (case-insensitive comparison), which granted feed uploads and
+// script execution in production. Now it requires a logged in user AND triage.
 router.post('/register', authenticateToken, requireTriage, async (req, res) => {
   try {
     // Check if authentication is enabled
@@ -130,8 +131,8 @@ router.post('/register', authenticateToken, requireTriage, async (req, res) => {
     }
 
     const { email, password, firstname, lastname } = req.body;
-    // Username/e-mail normalizados: a allowlist de triage compara em minusculo,
-    // entao gravar "Ricardo" e "ricardo" como contas diferentes seria um bypass.
+    // Username/email normalized: the triage allowlist compares in lowercase,
+    // so storing "Ricardo" and "ricardo" as different accounts would be a bypass.
     const username = String(req.body.username || '').trim().toLowerCase();
     const normalizedEmail = String(email || '').trim().toLowerCase();
 
@@ -143,8 +144,8 @@ router.post('/register', authenticateToken, requireTriage, async (req, res) => {
       });
     }
 
-    // Colisao case-insensitive tambem e colisao (o banco ainda nao tem indice
-    // unico em username; ver prisma/migrations/*_user_username_unique).
+    // A case-insensitive collision is a collision too (the database still has
+    // no unique index on username; see prisma/migrations/*_user_username_unique).
     const existingUser = await prisma.user.findFirst({
       where: {
         OR: [

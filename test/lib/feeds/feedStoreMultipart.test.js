@@ -26,7 +26,7 @@ function makeS3Stub() {
 	};
 }
 
-test('createMultipartUpload abre o upload no bucket certo, privado', async () => {
+test('createMultipartUpload opens the upload in the right bucket, private', async () => {
 	const s3 = makeS3Stub();
 	const store = createFeedStore({ s3, env: ENV });
 
@@ -40,7 +40,7 @@ test('createMultipartUpload abre o upload no bucket certo, privado', async () =>
 	assert.strictEqual(call.input.ACL, 'private');
 });
 
-test('completeMultipartUpload envia as partes na ordem com ETag e numero', async () => {
+test('completeMultipartUpload sends the parts in order with ETag and number', async () => {
 	const s3 = makeS3Stub();
 	const store = createFeedStore({ s3, env: ENV });
 
@@ -58,7 +58,7 @@ test('completeMultipartUpload envia as partes na ordem com ETag e numero', async
 	]);
 });
 
-test('headObject devolve o tamanho REAL do objeto (nao o que o cliente afirma)', async () => {
+test('headObject returns the REAL object size (not what the client claims)', async () => {
 	const s3 = makeS3Stub();
 	const store = createFeedStore({ s3, env: ENV });
 
@@ -68,7 +68,7 @@ test('headObject devolve o tamanho REAL do objeto (nao o que o cliente afirma)',
 	assert.strictEqual(s3.calls[0].name, 'HeadObjectCommand');
 });
 
-test('abortMultipartUpload cancela o upload pendente', async () => {
+test('abortMultipartUpload cancels the pending upload', async () => {
 	const s3 = makeS3Stub();
 	const store = createFeedStore({ s3, env: ENV });
 
@@ -78,15 +78,15 @@ test('abortMultipartUpload cancela o upload pendente', async () => {
 	assert.strictEqual(s3.calls[0].input.UploadId, 'upload-1');
 });
 
-// Assinatura e calculo LOCAL (sem rede), entao aqui usamos o client real.
-test('signUploadPart gera URL assinada com validade e amarrada a key/parte', async () => {
+// Signing is computed LOCALLY (no network), so here we use the real client.
+test('signUploadPart generates a signed URL with an expiry, bound to the key and part', async () => {
 	const store = createFeedStore({ env: ENV });
 
 	const url = await store.signUploadPart({ key: 'feeds/ctp/x.csv', uploadId: 'upload-1', partNumber: 3 });
 
 	assert.match(url, /^https:\/\//);
-	assert.ok(url.includes('partNumber=3'), 'a URL vale para a parte 3');
-	assert.ok(url.includes('uploadId=upload-1'), 'e para este upload');
-	assert.ok(/X-Amz-Expires=\d+/.test(url), 'tem expiracao');
-	assert.ok(!url.includes('secret'), 'a secret nunca aparece na URL');
+	assert.ok(url.includes('partNumber=3'), 'the URL is valid for part 3');
+	assert.ok(url.includes('uploadId=upload-1'), 'and for this upload');
+	assert.ok(/X-Amz-Expires=\d+/.test(url), 'it has an expiry');
+	assert.ok(!url.includes('secret'), 'the secret never shows up in the URL');
 });

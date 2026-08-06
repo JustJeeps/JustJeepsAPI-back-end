@@ -23,7 +23,7 @@ function typed(code, message) {
 	return error;
 }
 
-test('ensureLink cria symlink, e no-op quando ja aponta certo e troca atomica quando muda', () => {
+test('ensureLink creates the symlink, is a no-op when it already points to the right target and swaps atomically when it changes', () => {
 	const { apiCallsDir, cacheDir } = makeDirs();
 	const target1 = path.join(cacheDir, 'batch-1-Inventory.csv');
 	const target2 = path.join(cacheDir, 'batch-2-Inventory.csv');
@@ -31,32 +31,32 @@ test('ensureLink cria symlink, e no-op quando ja aponta certo e troca atomica qu
 	fs.writeFileSync(target2, 'v2');
 	const linkPath = path.join(apiCallsDir, 'keystone_files', 'Inventory.csv');
 
-	assert.strictEqual(ensureLink(linkPath, target1), true, 'cria');
+	assert.strictEqual(ensureLink(linkPath, target1), true, 'creates');
 	assert.strictEqual(fs.readFileSync(linkPath, 'utf8'), 'v1');
 
 	assert.strictEqual(ensureLink(linkPath, target1), false, 'no-op');
 
-	assert.strictEqual(ensureLink(linkPath, target2), true, 'troca');
+	assert.strictEqual(ensureLink(linkPath, target2), true, 'swaps');
 	assert.strictEqual(fs.readFileSync(linkPath, 'utf8'), 'v2');
 	assert.ok(fs.lstatSync(linkPath).isSymbolicLink());
 });
 
-test('ensureLink substitui arquivo REGULAR pre-existente (baked na imagem)', () => {
+test('ensureLink replaces a pre-existing REGULAR file (baked into the image)', () => {
 	const { apiCallsDir, cacheDir } = makeDirs();
 	const target = path.join(cacheDir, 'CTPENT_Inventory.csv');
-	fs.writeFileSync(target, 'do bucket');
+	fs.writeFileSync(target, 'from the bucket');
 	const linkPath = path.join(apiCallsDir, 'CTPENT_Inventory.csv');
-	fs.writeFileSync(linkPath, 'baked antigo');
+	fs.writeFileSync(linkPath, 'old baked file');
 
 	assert.strictEqual(ensureLink(linkPath, target), true);
 	assert.ok(fs.lstatSync(linkPath).isSymbolicLink());
-	assert.strictEqual(fs.readFileSync(linkPath, 'utf8'), 'do bucket');
+	assert.strictEqual(fs.readFileSync(linkPath, 'utf8'), 'from the bucket');
 });
 
-test('syncAllFeeds: sem lote vira skipped, falha de store vira failed, e um nao bloqueia o outro', async () => {
+test('syncAllFeeds: no batch becomes skipped, a store failure becomes failed, and one does not block the other', async () => {
 	const { apiCallsDir, cacheDir } = makeDirs();
 	const okFile = path.join(cacheDir, 'WARN-MAP.xlsx');
-	fs.writeFileSync(okFile, 'planilha');
+	fs.writeFileSync(okFile, 'spreadsheet');
 
 	const feedsConfig = {
 		getFeedDefinitions: () => [
@@ -70,8 +70,8 @@ test('syncAllFeeds: sem lote vira skipped, falha de store vira failed, e um nao 
 			if (name === 'warn-map') {
 				return { batchId: 'b1', stale: false, files: { 'WARN-MAP.xlsx': okFile } };
 			}
-			if (name === 'omix') throw typed('FEED_NO_ARTIFACT', 'sem lote');
-			throw typed('FEED_STORE_UNAVAILABLE', 'spaces fora');
+			if (name === 'omix') throw typed('FEED_NO_ARTIFACT', 'no batch');
+			throw typed('FEED_STORE_UNAVAILABLE', 'spaces down');
 		},
 	};
 
@@ -81,21 +81,21 @@ test('syncAllFeeds: sem lote vira skipped, falha de store vira failed, e um nao 
 	assert.deepStrictEqual(result.synced.map((s) => s.feed), ['warn-map']);
 	assert.deepStrictEqual(result.skipped.map((s) => s.feed), ['omix']);
 	assert.deepStrictEqual(result.failed.map((s) => s.feed), ['ctp']);
-	assert.strictEqual(fs.readFileSync(path.join(apiCallsDir, 'WARN-MAP.xlsx'), 'utf8'), 'planilha');
-	assert.ok(!fs.existsSync(path.join(apiCallsDir, 'omix-excel.xlsx')), 'skipped nao cria nada');
+	assert.strictEqual(fs.readFileSync(path.join(apiCallsDir, 'WARN-MAP.xlsx'), 'utf8'), 'spreadsheet');
+	assert.ok(!fs.existsSync(path.join(apiCallsDir, 'omix-excel.xlsx')), 'skipped creates nothing');
 });
 
-test('lote em quarentena: link nosso e removido para o seed falhar alto; arquivo comum fica', async () => {
+test('quarantined batch: our link is removed so the seed fails loudly; a plain file stays', async () => {
 	const { apiCallsDir, cacheDir } = makeDirs();
-	const cached = path.join(cacheDir, 'ctp', 'batch-ruim', 'CTPENT_Inventory.csv');
+	const cached = path.join(cacheDir, 'ctp', 'bad-batch', 'CTPENT_Inventory.csv');
 	fs.mkdirSync(path.dirname(cached), { recursive: true });
-	fs.writeFileSync(cached, 'dado condenado');
+	fs.writeFileSync(cached, 'condemned data');
 
-	// ctp aponta para o lote condenado (symlink nosso); aev tem arquivo comum.
+	// ctp points to the condemned batch (our symlink); aev has a plain file.
 	const ctpLink = path.join(apiCallsDir, 'CTPENT_Inventory.csv');
 	fs.symlinkSync(cached, ctpLink);
 	const aevFile = path.join(apiCallsDir, 'AEV-price-file.xlsx');
-	fs.writeFileSync(aevFile, 'planilha da imagem');
+	fs.writeFileSync(aevFile, 'spreadsheet from the image');
 
 	const feedsConfig = {
 		getFeedDefinitions: () => [
@@ -103,17 +103,17 @@ test('lote em quarentena: link nosso e removido para o seed falhar alto; arquivo
 			{ name: 'aev', files: ['AEV-price-file.xlsx'], legacyDir: '' },
 		],
 	};
-	const materializer = { materializeFeed: async () => { throw typed('FEED_NO_ARTIFACT', 'sem lote'); } };
+	const materializer = { materializeFeed: async () => { throw typed('FEED_NO_ARTIFACT', 'no batch'); } };
 	const sync = createLegacySync({ materializer, feedsConfig, apiCallsDir, cacheDir, logger: quietLogger });
 
 	const result = await sync.syncAllFeeds();
 
 	assert.strictEqual(result.skipped.length, 2);
-	assert.ok(!fs.existsSync(ctpLink), 'link para lote em quarentena sai de circulacao');
-	assert.strictEqual(fs.readFileSync(aevFile, 'utf8'), 'planilha da imagem', 'arquivo comum nao e tocado');
+	assert.ok(!fs.existsSync(ctpLink), 'a link to a quarantined batch goes out of circulation');
+	assert.strictEqual(fs.readFileSync(aevFile, 'utf8'), 'spreadsheet from the image', 'a plain file is not touched');
 });
 
-test('syncFeed respeita legacyDir (keystone_files) e reporta changed por arquivo', async () => {
+test('syncFeed respects legacyDir (keystone_files) and reports changed per file', async () => {
 	const { apiCallsDir, cacheDir } = makeDirs();
 	const inv = path.join(cacheDir, 'Inventory.csv');
 	const spec = path.join(cacheDir, 'SpecialOrder.csv');
@@ -138,7 +138,7 @@ test('syncFeed respeita legacyDir (keystone_files) e reporta changed por arquivo
 		'spec'
 	);
 
-	// Segunda rodada com o mesmo lote: nada muda.
+	// Second round with the same batch: nothing changes.
 	const again = await sync.syncFeed(feed);
 	assert.strictEqual(again.links.every((link) => link.changed === false), true);
 });

@@ -3,7 +3,7 @@ const assert = require('node:assert');
 
 const catalog = require('../../../lib/feeds/catalog');
 
-// Stub minimo: findFirst com filtro por feed/fileName/sha256 e ordenacao.
+// Minimal stub: findFirst with a feed/fileName/sha256 filter and ordering.
 function makePrismaStub(rows = []) {
 	return {
 		rows,
@@ -30,29 +30,29 @@ const artifact = (over = {}) => ({
 	...over,
 });
 
-test('encontra artefato com o mesmo conteudo (evita reenviar o arquivo)', async () => {
+test('finds an artifact with the same content (avoids re-uploading the file)', async () => {
 	const prisma = makePrismaStub([artifact()]);
 	const found = await catalog.findArtifactByHash(prisma, 'ctp', 'CTPENT_Inventory.csv', 'a'.repeat(64));
 	assert.strictEqual(found.objectKey, 'feeds/ctp/2026/08/x-CTPENT_Inventory.csv');
 });
 
-test('conteudo diferente, feed diferente ou arquivo diferente nao casam', async () => {
+test('different content, different feed or different file do not match', async () => {
 	const prisma = makePrismaStub([artifact()]);
 	assert.strictEqual(await catalog.findArtifactByHash(prisma, 'ctp', 'CTPENT_Inventory.csv', 'b'.repeat(64)), null);
 	assert.strictEqual(await catalog.findArtifactByHash(prisma, 'omix', 'CTPENT_Inventory.csv', 'a'.repeat(64)), null);
-	assert.strictEqual(await catalog.findArtifactByHash(prisma, 'ctp', 'outro.csv', 'a'.repeat(64)), null);
+	assert.strictEqual(await catalog.findArtifactByHash(prisma, 'ctp', 'other.csv', 'a'.repeat(64)), null);
 });
 
-test('com varias versoes do mesmo conteudo, devolve a mais recente', async () => {
+test('with several versions of the same content, returns the most recent one', async () => {
 	const prisma = makePrismaStub([
-		artifact({ id: 1, objectKey: 'antigo', uploadedAt: new Date('2026-07-01') }),
-		artifact({ id: 2, objectKey: 'recente', uploadedAt: new Date('2026-08-05') }),
+		artifact({ id: 1, objectKey: 'old', uploadedAt: new Date('2026-07-01') }),
+		artifact({ id: 2, objectKey: 'recent', uploadedAt: new Date('2026-08-05') }),
 	]);
 	const found = await catalog.findArtifactByHash(prisma, 'ctp', 'CTPENT_Inventory.csv', 'a'.repeat(64));
-	assert.strictEqual(found.objectKey, 'recente');
+	assert.strictEqual(found.objectKey, 'recent');
 });
 
-test('artefato em quarentena tambem e encontrado (a decisao de reusar e de quem chama)', async () => {
+test('a quarantined artifact is found too (the caller decides whether to reuse it)', async () => {
 	const prisma = makePrismaStub([artifact({ status: 'quarantined' })]);
 	const found = await catalog.findArtifactByHash(prisma, 'ctp', 'CTPENT_Inventory.csv', 'a'.repeat(64));
 	assert.strictEqual(found.status, 'quarantined');

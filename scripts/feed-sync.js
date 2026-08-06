@@ -1,14 +1,15 @@
 /* eslint-disable no-console */
-// Sincroniza os feeds do catalogo/Spaces para os caminhos legados em
-// prisma/seeds/api-calls (symlink -> cache verificado). Roda como stage 0 do
-// seed-all e manualmente:
-//   npm run feed-sync            todos os feeds (modo tolerante)
-//   npm run feed-sync -- <feed>  um feed so (modo ESTRITO)
+// Syncs the feeds from the catalog/Spaces into the legacy paths under
+// prisma/seeds/api-calls (symlink -> verified cache). Runs as stage 0 of
+// seed-all and manually:
+//   npm run feed-sync            every feed (tolerant mode)
+//   npm run feed-sync -- <feed>  a single feed (STRICT mode)
 //
-// Exit codes: 0 = ok. 1 = falha. No modo "todos", feed sem lote e so warning
-// (transicao: o arquivo local existente continua valendo). No modo de um feed
-// so — usado pelo botao "Run now" antes de rodar o seed — feed sem lote e
-// FALHA: quem pediu para rodar aquele feed espera o arquivo do catalogo.
+// Exit codes: 0 = ok. 1 = failure. In "all" mode a feed with no batch is only a
+// warning (transition period: the existing local file still counts). In single
+// feed mode, used by the "Run now" button before running the seed, a feed with
+// no batch is a FAILURE: whoever asked to run that feed expects the file from
+// the catalog.
 
 const prisma = require('../lib/prisma');
 const feedsConfig = require('../config/feeds');
@@ -20,9 +21,9 @@ async function main() {
 	const onlyFeed = process.argv.slice(2).find((arg) => !arg.startsWith('--'));
 	const store = createFeedStore();
 	if (!store.isConfigured()) {
-		const message = 'DO_SPACES_* ausentes — feed store nao configurado';
+		const message = 'DO_SPACES_* missing: feed store is not configured';
 		if (onlyFeed) throw new Error(message);
-		console.warn(`⚠️ [feed-sync] ${message}; sync pulado, seeds usam os arquivos locais existentes`);
+		console.warn(`⚠️ [feed-sync] ${message}; sync skipped, seeds will use the existing local files`);
 		return;
 	}
 
@@ -31,16 +32,16 @@ async function main() {
 
 	if (onlyFeed) {
 		const feed = feedsConfig.getFeedByName(onlyFeed);
-		if (!feed) throw new Error(`Feed desconhecido: ${onlyFeed}`);
-		const result = await sync.syncFeed(feed); // lanca em qualquer falha (modo estrito)
-		console.log(`🔗 [feed-sync] ${feed.name}: lote ${result.batchId}${result.stale ? ' (STALE)' : ''} pronto em api-calls/${feed.legacyDir || '.'}`);
+		if (!feed) throw new Error(`Unknown feed: ${onlyFeed}`);
+		const result = await sync.syncFeed(feed); // throws on any failure (strict mode)
+		console.log(`🔗 [feed-sync] ${feed.name}: batch ${result.batchId}${result.stale ? ' (STALE)' : ''} ready at api-calls/${feed.legacyDir || '.'}`);
 		return;
 	}
 
 	const { synced, skipped, failed } = await sync.syncAllFeeds();
 
 	console.log(
-		`\n📦 [feed-sync] ${synced.length} sincronizado(s), ${skipped.length} sem lote (mantido local), ${failed.length} falha(s)`
+		`\n📦 [feed-sync] ${synced.length} synced, ${skipped.length} with no batch (local file kept), ${failed.length} failure(s)`
 	);
 	if (failed.length > 0) {
 		process.exitCode = 1;

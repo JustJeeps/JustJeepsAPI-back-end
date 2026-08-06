@@ -1,21 +1,24 @@
 /* eslint-disable no-console */
-// Rotaciona senhas de usuarios. Necessario porque senhas de producao ficaram
-// versionadas no git (prisma/seeds/hard-code_data/users_data.js e o commit
-// 806566b^ com seed-new-users.js), entao qualquer clone antigo do repo ainda
-// tem credenciais validas.
+// Rotates user passwords. Needed because production passwords ended up
+// versioned in git (prisma/seeds/hard-code_data/users_data.js and commit
+// 806566b^ with seed-new-users.js), so any old clone of the repo still holds
+// valid credentials.
 //
-// Uso:
-//   npm run rotate-passwords                      # DRY RUN: mostra o que faria
-//   npm run rotate-passwords -- --confirm         # aplica em TODOS os usuarios
+// Usage:
+//   npm run rotate-passwords                      # DRY RUN: shows what it would do
+//   npm run rotate-passwords -- --confirm         # applies to ALL users
 //   npm run rotate-passwords -- --user rafael --confirm
 //   npm run rotate-passwords -- --user admin --disable --confirm
 //
-// Comportamento:
-//   - gera senha aleatoria forte por usuario e grava apenas o hash bcrypt;
-//   - imprime as senhas UMA vez (entregar pelo canal seguro combinado);
-//   - --disable troca a senha por um valor aleatorio NAO impresso, deixando a
-//     conta efetivamente inacessivel (usar para a conta "admin" de teste);
-//   - nao altera mais nada da linha do usuario.
+// Behavior:
+//   - generates a strong random password per user and stores only the bcrypt
+//     hash;
+//   - prints the passwords ONCE (hand them over through the agreed secure
+//     channel);
+//   - --disable replaces the password with a random value that is NOT printed,
+//     leaving the account effectively unreachable (use it for the "admin" test
+//     account);
+//   - nothing else on the user row is changed.
 
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
@@ -42,11 +45,11 @@ async function main() {
 	const users = await prisma.user.findMany({ where, select: { id: true, username: true, email: true } });
 
 	if (users.length === 0) {
-		console.log('Nenhum usuario encontrado para os filtros informados.');
+		console.log('No user matched the given filters.');
 		return;
 	}
 
-	console.log(`${args.confirm ? '🔐 ROTACIONANDO' : '🔎 DRY RUN'} — ${users.length} usuario(s):`);
+	console.log(`${args.confirm ? '🔐 ROTATING' : '🔎 DRY RUN'}: ${users.length} user(s):`);
 	const issued = [];
 
 	for (const user of users) {
@@ -62,20 +65,20 @@ async function main() {
 	}
 
 	if (!args.confirm) {
-		console.log('\nNada foi alterado. Reveja a lista e rode de novo com --confirm.');
+		console.log('\nNothing was changed. Review the list and run again with --confirm.');
 		return;
 	}
 
 	if (args.disable) {
-		console.log('\n🚫 Contas desativadas: a senha nova e aleatoria e NAO foi impressa.');
+		console.log('\n🚫 Accounts disabled: the new password is random and was NOT printed.');
 		return;
 	}
 
-	console.log('\n🔑 Senhas novas (aparecem UMA vez — copie agora e entregue pelo canal seguro):');
+	console.log('\n🔑 New passwords (shown ONCE, copy them now and hand them over through the secure channel):');
 	for (const cred of issued) {
 		console.log(`   ${cred.username.padEnd(12)} ${cred.password}`);
 	}
-	console.log('\nDepois de distribuir, peca para cada pessoa trocar no primeiro acesso.');
+	console.log('\nAfter handing them out, ask each person to change it on first login.');
 }
 
 main()

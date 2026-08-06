@@ -71,9 +71,10 @@ const seedUsers = async () => {
         continue;
       }
 
-      // users_data.js nao tem mais senha (era texto puro versionado). Criacao de
-      // usuario com credencial fica no seed dedicado: npm run seed-users.
-      console.warn(`⚠️  Usuario ${user.username} nao criado aqui — rode "npm run seed-users"`);
+      // users_data.js no longer carries passwords (they were plain text under
+      // version control). Creating a user with a credential belongs to the
+      // dedicated seed: npm run seed-users.
+      console.warn(`⚠️  User ${user.username} not created here, run "npm run seed-users"`);
       continue;
       // console.log(`User "${user.email}" created.`);
     }

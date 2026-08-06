@@ -1,12 +1,13 @@
-// Usuarios do time. As SENHAS NAO FICAM AQUI: este arquivo ja teve senhas de
-// producao em texto puro versionadas no git (e embarcadas na imagem Docker), o
-// que dava login direto na API a quem clonasse o repo.
+// Team users. PASSWORDS DO NOT LIVE HERE: this file once had production
+// passwords in plain text versioned in git (and baked into the Docker image),
+// which gave anyone who cloned the repo a direct login to the API.
 //
-// Cada senha vem de env por usuario:
-//   SEED_USER_PASSWORD_<USERNAME em maiusculo>   ex.: SEED_USER_PASSWORD_JACOB
-// Sem a env, o seed GERA uma senha aleatoria e imprime uma unica vez, para ser
-// entregue pelo canal seguro combinado (ver prisma/seeds/seed-individual/
-// seed-users.js e scripts/rotate-user-passwords.js).
+// Each password comes from a per-user env var:
+//   SEED_USER_PASSWORD_<USERNAME in uppercase>   e.g. SEED_USER_PASSWORD_JACOB
+// Without the env var, the seed GENERATES a random password and prints it a
+// single time, to be handed over through the agreed secure channel (see
+// prisma/seeds/seed-individual/seed-users.js and
+// scripts/rotate-user-passwords.js).
 
 module.exports = [
 	{

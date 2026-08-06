@@ -1,29 +1,29 @@
-// Registro central dos feeds de vendor armazenados no DO Spaces (landing
-// zone). Cada feed lista os arquivos CANONICOS que os seeds esperam — o
-// materializer entrega exatamente esses nomes num diretorio de cache local.
+// Central registry of the vendor feeds stored in DO Spaces (landing zone).
+// Each feed lists the CANONICAL files the seeds expect, and the materializer
+// delivers exactly those names in a local cache directory.
 //
-// IMPORTANTE: este modulo precisa continuar "puro" — apenas process.env e
-// dados literais (mesma regra do config/cron-jobs.js), para que possa ser
-// carregado por testes e scripts de validacao sem subir o servidor.
+// IMPORTANT: this module has to stay "pure", only process.env and literal
+// data (same rule as config/cron-jobs.js), so it can be loaded by tests and
+// validation scripts without booting the server.
 //
-// staleAfterHours: idade do lote a partir da qual o feed aparece como stale
-// (warning no digest/painel; ingest so falha com requireFresh). Feeds de drop
-// manual mudam quando o vendor manda planilha nova — thresholds generosos.
-// Override por env: FEED_STALE_HOURS_<NOME_UPPER_SNAKE> (ex.
+// staleAfterHours: batch age from which the feed shows up as stale (warning
+// in the digest/panel; ingest only fails with requireFresh). Manual drop
+// feeds change when the vendor sends a new spreadsheet, so the thresholds are
+// generous. Env override: FEED_STALE_HOURS_<NAME_UPPER_SNAKE> (e.g.
 // FEED_STALE_HOURS_KEYSTONE_FTP=48).
 //
-// maxUploadBytes limita o upload via painel/API (arquivos maiores — caso
-// SpecialOrder.csv — chegam por fetch FTP ou CLI, nunca pelo painel).
+// maxUploadBytes caps the upload through the panel/API (bigger files, the
+// SpecialOrder.csv case, arrive by FTP fetch or CLI, never by the panel).
 //
-// legacyDir: subdiretorio de prisma/seeds/api-calls onde o feed-sync cria o
-// symlink com o nome canonico — os seeds continuam lendo o caminho de sempre
-// e o arquivo por tras vem do bucket ('' = raiz de api-calls).
+// legacyDir: subdirectory of prisma/seeds/api-calls where feed-sync creates
+// the symlink with the canonical name, so the seeds keep reading the usual
+// path and the file behind it comes from the bucket ('' = api-calls root).
 //
-// seedCommand: npm script que consome o feed, disparavel pelo botao "Run now"
-// do painel (POST /api/ingest/feeds/:feed/run) para conferir o arquivo recem
-// subido sem esperar o seed-all. null = sem botao; usar seedCommandNote para
-// explicar por que (ex.: script que escreve preco na loja ao vivo, que so deve
-// rodar pelo fluxo controlado do seed-all).
+// seedCommand: npm script that consumes the feed, triggerable by the panel's
+// "Run now" button (POST /api/ingest/feeds/:feed/run) to check the file that
+// was just uploaded without waiting for seed-all. null = no button; use
+// seedCommandNote to explain why (e.g. a script that writes prices to the
+// live store, which should only run through the controlled seed-all flow).
 
 const DAY_HOURS = 24;
 
@@ -34,9 +34,9 @@ const FEED_DEFINITIONS = [
 		files: ['Inventory.csv', 'SpecialOrder.csv'],
 		seedCommand: 'seed-keystone-ftp2',
 		legacyDir: 'keystone_files',
-		staleAfterHours: 36, // fetch roda 2x/dia; 36h = perdeu 2 fetches
+		staleAfterHours: 36, // fetch runs 2x/day; 36h = missed 2 fetches
 		fetch: 'ftp',
-		maxUploadBytes: 600 * 1024 * 1024, // so via CLI na pratica (painel corta em uploadPanelMaxBytes)
+		maxUploadBytes: 600 * 1024 * 1024, // CLI only in practice (the panel caps at uploadPanelMaxBytes)
 	},
 	{
 		name: 'quadratec-wholesale',
@@ -101,8 +101,8 @@ const FEED_DEFINITIONS = [
 
 const DEFAULT_MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 
-// Painel/API de upload nunca aceita acima disso, independente do feed —
-// arquivos classe SpecialOrder (460MB) entram por fetch FTP ou CLI.
+// The upload panel/API never accepts more than this, whatever the feed:
+// SpecialOrder-class files (460MB) come in by FTP fetch or CLI.
 const uploadPanelMaxBytes = Number(process.env.FEED_UPLOAD_PANEL_MAX_BYTES || DEFAULT_MAX_UPLOAD_BYTES);
 
 const envStaleKey = (name) => `FEED_STALE_HOURS_${name.toUpperCase().replace(/-/g, '_')}`;
@@ -125,8 +125,8 @@ function getFeedByName(name) {
 	return getFeedDefinitions().find((feed) => feed.name === name) || null;
 }
 
-// Ponte para o resolver central de planilhas (load-workbook.js): baseName do
-// arquivo -> feed correspondente.
+// Bridge to the central workbook resolver (load-workbook.js): file baseName
+// -> matching feed.
 function getFeedByWorkbookBaseName(baseName) {
 	return getFeedDefinitions().find((feed) => feed.workbookBaseName === baseName) || null;
 }

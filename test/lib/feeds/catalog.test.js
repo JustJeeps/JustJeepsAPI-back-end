@@ -3,8 +3,8 @@ const assert = require('node:assert');
 
 const catalog = require('../../../lib/feeds/catalog');
 
-// Stub em memoria do Prisma cobrindo so o que o catalogo usa (mesmo espirito
-// do makePrismaStub de test/lib/requestsDigest.test.js).
+// In-memory Prisma stub covering only what the catalog uses (same spirit as
+// the makePrismaStub in test/lib/requestsDigest.test.js).
 function makePrismaStub() {
 	const feedArtifacts = [];
 	const ingestRuns = [];
@@ -71,7 +71,7 @@ const file = (fileName, extra = {}) => ({
 	...extra,
 });
 
-test('registerArtifacts substitui o lote anterior (supersede) e agrupa por batchId', async () => {
+test('registerArtifacts supersedes the previous batch and groups by batchId', async () => {
 	const prisma = makePrismaStub();
 
 	const first = await catalog.registerArtifacts(prisma, {
@@ -92,7 +92,7 @@ test('registerArtifacts substitui o lote anterior (supersede) e agrupa por batch
 	assert.strictEqual(prisma.feedArtifacts.filter((row) => row.status === 'superseded').length, 2);
 });
 
-test('getCurrentBatch ignora lote incompleto de feed multi-arquivo', async () => {
+test('getCurrentBatch ignores an incomplete batch of a multi-file feed', async () => {
 	const prisma = makePrismaStub();
 
 	const complete = await catalog.registerArtifacts(prisma, {
@@ -100,8 +100,8 @@ test('getCurrentBatch ignora lote incompleto de feed multi-arquivo', async () =>
 		source: 'ftp',
 		files: [file('Inventory.csv'), file('SpecialOrder.csv')],
 	});
-	// Upload parcial posterior: so o Inventory — supersede o Inventory antigo,
-	// mas o lote novo nao cobre SpecialOrder, entao NAO pode virar corrente.
+	// Later partial upload: only Inventory, which supersedes the old Inventory,
+	// but the new batch does not cover SpecialOrder, so it must NOT become current.
 	await catalog.registerArtifacts(prisma, {
 		feed: 'keystone-ftp',
 		source: 'manual',
@@ -109,9 +109,9 @@ test('getCurrentBatch ignora lote incompleto de feed multi-arquivo', async () =>
 	});
 
 	const current = await catalog.getCurrentBatch(prisma, 'keystone-ftp', ['Inventory.csv', 'SpecialOrder.csv']);
-	assert.strictEqual(current, null, 'lote parcial nao cobre todos os arquivos e o completo perdeu o Inventory');
+	assert.strictEqual(current, null, 'the partial batch does not cover every file and the complete one lost its Inventory');
 
-	// Completando o lote parcial com o SpecialOrder no MESMO batch, vira corrente.
+	// Completing the partial batch with SpecialOrder in the SAME batch makes it current.
 	const partialBatchId = prisma.feedArtifacts
 		.filter((row) => row.status === 'available' && row.fileName === 'Inventory.csv')[0].batchId;
 	await catalog.registerArtifacts(prisma, {
@@ -125,21 +125,21 @@ test('getCurrentBatch ignora lote incompleto de feed multi-arquivo', async () =>
 	assert.notStrictEqual(nowCurrent.batchId, complete.batchId);
 });
 
-test('quarantineBatch tira o lote de circulacao e o anterior nao volta sozinho', async () => {
+test('quarantineBatch takes the batch out of circulation and the previous one does not come back on its own', async () => {
 	const prisma = makePrismaStub();
 	await catalog.registerArtifacts(prisma, { feed: 'ctp', source: 'manual', files: [file('CTPENT_Inventory.csv')] });
 	const bad = await catalog.registerArtifacts(prisma, { feed: 'ctp', source: 'manual', files: [file('CTPENT_Inventory.csv')] });
 
-	await catalog.quarantineBatch(prisma, bad.batchId, 'planilha corrompida');
+	await catalog.quarantineBatch(prisma, bad.batchId, 'corrupted spreadsheet');
 
 	const current = await catalog.getCurrentBatch(prisma, 'ctp', ['CTPENT_Inventory.csv']);
-	assert.strictEqual(current, null, 'anterior esta superseded; quarentena nao o reativa');
+	assert.strictEqual(current, null, 'the previous one is superseded; quarantine does not reactivate it');
 	const quarantined = prisma.feedArtifacts.filter((row) => row.status === 'quarantined');
 	assert.strictEqual(quarantined.length, 1);
-	assert.strictEqual(quarantined[0].note, 'planilha corrompida');
+	assert.strictEqual(quarantined[0].note, 'corrupted spreadsheet');
 });
 
-test('listRuns filtra por feed e status com paginacao', async () => {
+test('listRuns filters by feed and status with pagination', async () => {
 	const prisma = makePrismaStub();
 	prisma._pushRun({ feed: 'keystone-ftp', status: 'success' });
 	prisma._pushRun({ feed: 'keystone-ftp', status: 'failed' });
@@ -153,11 +153,11 @@ test('listRuns filtra por feed e status com paginacao', async () => {
 	assert.strictEqual(failed.runs[0].status, 'failed');
 });
 
-test('listFeedStatuses marca stale por idade e sem-lote como stale', async () => {
+test('listFeedStatuses marks stale by age and treats a missing batch as stale', async () => {
 	const prisma = makePrismaStub();
 	const now = new Date('2026-08-05T12:00:00Z');
 	await catalog.registerArtifacts(prisma, { feed: 'ctp', source: 'manual', files: [file('CTPENT_Inventory.csv')] });
-	prisma.feedArtifacts[0].uploadedAt = new Date('2026-08-05T00:00:00Z'); // 12h atras
+	prisma.feedArtifacts[0].uploadedAt = new Date('2026-08-05T00:00:00Z'); // 12h ago
 
 	const defs = [
 		{ name: 'ctp', label: 'CTP', files: ['CTPENT_Inventory.csv'], staleAfterHours: 6, maxUploadBytes: 1, seedCommand: 'seed-ctp' },
@@ -165,11 +165,11 @@ test('listFeedStatuses marca stale por idade e sem-lote como stale', async () =>
 	];
 	const statuses = await catalog.listFeedStatuses(prisma, defs, { now });
 
-	assert.strictEqual(statuses[0].stale, true, '12h > 6h de threshold');
+	assert.strictEqual(statuses[0].stale, true, '12h > 6h threshold');
 	assert.strictEqual(Math.round(statuses[0].ageHours), 12);
 	assert.strictEqual(statuses[1].currentBatch, null);
-	assert.strictEqual(statuses[1].stale, true, 'sem lote = stale');
-	// O painel usa seedCommand para habilitar o botao "Run now".
+	assert.strictEqual(statuses[1].stale, true, 'no batch = stale');
+	// The panel uses seedCommand to enable the "Run now" button.
 	assert.strictEqual(statuses[0].seedCommand, 'seed-ctp');
 	assert.strictEqual(statuses[1].seedCommand, 'seed-omix');
 });

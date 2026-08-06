@@ -28,13 +28,13 @@ function makeS3Stub() {
 	};
 }
 
-test('isConfigured exige endpoint, bucket, key e secret', () => {
+test('isConfigured requires endpoint, bucket, key and secret', () => {
 	assert.strictEqual(createFeedStore({ env: {} }).isConfigured(), false);
 	assert.strictEqual(createFeedStore({ env: { ...ENV_OK, DO_SPACES_SECRET: '' } }).isConfigured(), false);
 	assert.strictEqual(createFeedStore({ env: ENV_OK }).isConfigured(), true);
 });
 
-test('bucket dedicado DO_SPACES_FEEDS_BUCKET tem precedencia sobre o de anexos', () => {
+test('the dedicated DO_SPACES_FEEDS_BUCKET takes precedence over the attachments bucket', () => {
 	assert.strictEqual(createFeedStore({ env: ENV_OK }).bucket(), 'jj-attachments');
 	assert.strictEqual(
 		createFeedStore({ env: { ...ENV_OK, DO_SPACES_FEEDS_BUCKET: 'jj-feeds' } }).bucket(),
@@ -42,7 +42,7 @@ test('bucket dedicado DO_SPACES_FEEDS_BUCKET tem precedencia sobre o de anexos',
 	);
 });
 
-test('buildKey segue feeds/{feed}/{YYYY}/{MM}/{ts}-{sha8}-{fileName}', () => {
+test('buildKey follows feeds/{feed}/{YYYY}/{MM}/{ts}-{sha8}-{fileName}', () => {
 	const store = createFeedStore({ env: ENV_OK });
 	const key = store.buildKey({
 		feed: 'keystone-ftp',
@@ -53,7 +53,7 @@ test('buildKey segue feeds/{feed}/{YYYY}/{MM}/{ts}-{sha8}-{fileName}', () => {
 	assert.strictEqual(key, 'feeds/keystone-ftp/2026/08/20260805T123456Z-abcdef01-Inventory.csv');
 });
 
-test('putFile envia PutObjectCommand com ContentLength, ACL private e stream do arquivo', async () => {
+test('putFile sends PutObjectCommand with ContentLength, private ACL and the file stream', async () => {
 	const s3 = makeS3Stub();
 	const store = createFeedStore({ s3, env: ENV_OK });
 	const tmpFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'feedstore-')), 'a.csv');
@@ -72,7 +72,7 @@ test('putFile envia PutObjectCommand com ContentLength, ACL private e stream do 
 	assert.ok(typeof input.Body.pipe === 'function');
 });
 
-test('getObjectStream e listObjects delegam para o client', async () => {
+test('getObjectStream and listObjects delegate to the client', async () => {
 	const s3 = makeS3Stub();
 	const store = createFeedStore({ s3, env: ENV_OK });
 

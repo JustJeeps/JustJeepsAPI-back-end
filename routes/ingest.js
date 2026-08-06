@@ -1,7 +1,7 @@
-// Rotas HTTP dos feeds de vendor (catalogo + auditoria de ingest). Camada
-// fina sobre lib/feeds/catalog. Regra de negocio violada responde 409 (nunca
-// 403 — o interceptor do front desloga o usuario em 403 de auth), mesmo
-// contrato de routes/requests.js.
+// HTTP routes for the vendor feeds (catalog + ingest audit trail). Thin layer
+// on top of lib/feeds/catalog. A violated business rule answers 409 (never
+// 403: the front-end interceptor logs the user out on an auth 403), same
+// contract as routes/requests.js.
 
 const os = require('os');
 const fs = require('fs');
@@ -27,9 +27,9 @@ const CONTENT_TYPES = {
 	'.xls': 'application/vnd.ms-excel',
 };
 
-// Upload em disco (tmp): planilhas de feed chegam a 34MB — nunca em memoria.
-// Limites de partes tambem sao explicitos: sem eles multer aceita infinitos
-// campos nao-arquivo, todos bufferizados antes do handler rodar.
+// Upload to disk (tmp): feed spreadsheets reach 34MB, never keep them in
+// memory. The part limits are explicit too: without them multer accepts an
+// unlimited number of non-file fields, all buffered before the handler runs.
 const upload = multer({
 	storage: multer.diskStorage({ destination: os.tmpdir() }),
 	limits: {
@@ -41,9 +41,9 @@ const upload = multer({
 	},
 });
 
-// Triage antes de QUALQUER escrita. Como middleware (e nao dentro do handler),
-// roda ANTES do multer: sem isso qualquer usuario autenticado despejava ate
-// 500MB no disco do container e so depois levava 409.
+// Triage before ANY write. As middleware (and not inside the handler) it runs
+// BEFORE multer: without this any authenticated user could dump up to 500MB on
+// the container disk and only then get a 409.
 const requireTriage = (req, res, next) => {
 	if (!isTriageUser(req.user.username)) {
 		return res.status(409).json({ error: 'Only triage users can manage feeds', code: 'TRIAGE_ONLY' });
@@ -51,19 +51,19 @@ const requireTriage = (req, res, next) => {
 	next();
 };
 
-// BigInt (sizeBytes) nao serializa em JSON.
+// BigInt (sizeBytes) does not serialize to JSON.
 const serializeArtifact = (artifact) => ({ ...artifact, sizeBytes: Number(artifact.sizeBytes) });
 
 const runningFeed = (feed) => runner.getStatus(feed)?.status === 'running';
 
-// Partes de 8MB: acima do minimo de 5MB do S3 e pequeno o bastante para o
-// reenvio de uma parte perdida ser barato numa conexao ruim.
+// 8MB parts: above the 5MB S3 minimum and small enough that resending a lost
+// part stays cheap on a bad connection.
 const MULTIPART_PART_SIZE_BYTES = Number(process.env.FEED_MULTIPART_PART_SIZE_BYTES || 8 * 1024 * 1024);
 
 const RUN_STATUSES = ['running', 'success', 'failed', 'skipped-unchanged', 'skipped-locked'];
 
-// Nunca devolver linha que pareca credencial (seed que loga header de auth,
-// connection string do Prisma num erro, etc.).
+// Never return a line that looks like a credential (a seed logging an auth
+// header, a Prisma connection string inside an error, etc.).
 const SECRET_LINE = /(password|passwd|secret|token|api[-_ ]?key|authorization|bearer\s|postgres(ql)?:\/\/|amqp:\/\/)/i;
 const redactLogTail = (tail) => String(tail || '')
 	.split('\n')
@@ -72,7 +72,7 @@ const redactLogTail = (tail) => String(tail || '')
 
 const serializeStatus = (status) => ({
 	...status,
-	// Botao "Run now" do painel: so aparece para feed com script proprio.
+	// Panel "Run now" button: only shows up for a feed with its own script.
 	seedCommand: status.seedCommand,
 	seedCommandNote: status.seedCommandNote,
 	running: runningFeed(status.feed),
@@ -82,7 +82,7 @@ const serializeStatus = (status) => ({
 		: null,
 });
 
-// --- guard: feature exige usuario logado (mesmo contrato de requests) ----------
+// --- guard: feature requires a logged in user (same contract as requests) ------
 router.use((req, res, next) => {
 	if (!req.user) {
 		return res.status(401).json({
@@ -99,13 +99,13 @@ router.get('/feeds', async (req, res) => {
 		res.json({
 			feeds: statuses.map(serializeStatus),
 			storeConfigured: store.isConfigured(),
-			// Quem pode subir arquivo e disparar script. Qualquer usuario logado
-			// LE o painel (frescor dos feeds e informacao util para todos); so
-			// triage escreve. O painel usa isto para habilitar os botoes — a
-			// validacao real continua em cada rota de escrita.
+			// Who can upload a file and trigger a script. Any logged in user can
+			// READ the panel (feed freshness is useful information for everyone);
+			// only triage writes. The panel uses this to enable the buttons, the
+			// real validation still happens in every write route.
 			canManage: isTriageUser(req.user.username),
-			// O painel usa isto para decidir entre o upload direto ao bucket
-			// (multipart assinado) e o upload legado via API.
+			// The panel uses this to choose between the direct upload to the
+			// bucket (signed multipart) and the legacy upload through the API.
 			directUpload: { enabled: store.isConfigured(), partSizeBytes: MULTIPART_PART_SIZE_BYTES },
 			generatedAt: new Date().toISOString(),
 		});
@@ -117,8 +117,9 @@ router.get('/feeds', async (req, res) => {
 
 router.get('/runs', requireTriage, async (req, res) => {
 	try {
-		// Express usa o parser "extended": ?feed[contains]=x chega como OBJETO e
-		// iria direto para o where do Prisma. String() + allowlist fecham isso.
+		// Express uses the "extended" parser: ?feed[contains]=x arrives as an
+		// OBJECT and would go straight into the Prisma where clause. String()
+		// plus an allowlist close that off.
 		const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
 		const offset = Math.max(Number(req.query.offset) || 0, 0);
 		const feedParam = req.query.feed === undefined ? undefined : String(req.query.feed);
@@ -139,22 +140,24 @@ router.get('/runs', requireTriage, async (req, res) => {
 	}
 });
 
-// --- upload direto para o bucket (multipart + URL assinada) -----------------
+// --- direct upload to the bucket (multipart + signed URL) -------------------
 //
-// Por que existe: no upload que passa pela API o arquivo inteiro vai para o
-// disco do container (1 vCPU / 2GB) antes de chegar ao bucket. Aqui o navegador
-// fala direto com o Spaces e a API so autoriza e cataloga. De quebra, upload em
-// partes retoma so o pedaco que faltou quando a rede cai.
+// Why it exists: on the upload that goes through the API the whole file lands
+// on the container disk (1 vCPU / 2GB) before reaching the bucket. Here the
+// browser talks straight to Spaces and the API only authorizes and catalogues.
+// As a bonus, a multipart upload resends only the missing chunk when the
+// network drops.
 //
-// Limites que a API impoe (o navegador NAO escolhe nada disso):
-//   - a key e montada no servidor a partir do feed e do nome canonico;
-//   - o arquivo precisa ser um dos esperados pelo feed;
-//   - o tamanho declarado precisa caber no limite do feed;
-//   - o tamanho catalogado e o do bucket (HeadObject), nao o que o cliente diz.
+// Limits the API enforces (the browser does NOT choose any of this):
+//   - the key is built on the server from the feed and the canonical name;
+//   - the file has to be one of the files the feed expects;
+//   - the declared size has to fit inside the feed limit;
+//   - the catalogued size comes from the bucket (HeadObject), not from what
+//     the client claims.
 
-// Sessoes de upload em andamento: uploadId -> contexto validado no init.
-// Em memoria de proposito — um restart invalida sessoes pendentes, que o
-// proprio Spaces expira depois (nao ha estado que valha persistir).
+// Uploads in flight: uploadId -> context validated at init time.
+// In memory on purpose: a restart invalidates pending sessions, which Spaces
+// itself expires later (there is no state worth persisting).
 const uploadSessions = new Map();
 const UPLOAD_SESSION_TTL_MS = Number(process.env.FEED_UPLOAD_SESSION_TTL_MS || 60 * 60 * 1000);
 
@@ -178,10 +181,11 @@ const resolveFeedAndFile = (req, res) => {
 	return feed;
 };
 
-// 0) Ja temos este conteudo? O navegador manda o sha256 do arquivo ANTES de
-// enviar um byte. Se o hash ja existe para (feed, arquivo), nao ha o que subir:
-// o objeto no bucket e imutavel e identificado pelo conteudo. Isso evita
-// reenviar 460MB so porque alguem clicou de novo no mesmo arquivo.
+// 0) Do we already have this content? The browser sends the sha256 of the file
+// BEFORE uploading a single byte. If the hash already exists for (feed, file),
+// there is nothing to upload: the object in the bucket is immutable and
+// identified by its content. This avoids resending 460MB just because someone
+// picked the same file again.
 router.post('/feeds/:feed/uploads/check', requireTriage, async (req, res) => {
 	try {
 		const feed = resolveFeedAndFile(req, res);
@@ -213,9 +217,9 @@ router.post('/feeds/:feed/uploads/check', requireTriage, async (req, res) => {
 	}
 });
 
-// 0b) Conteudo repetido, mas de um lote antigo: cataloga um artefato novo
-// apontando para o objeto que JA esta no bucket — zero bytes trafegados. Serve
-// tambem para completar um lote onde so um dos arquivos mudou.
+// 0b) Repeated content, but from an older batch: catalogues a new artifact
+// pointing at the object that is ALREADY in the bucket, zero bytes on the
+// wire. It also covers completing a batch where only one of the files changed.
 router.post('/feeds/:feed/uploads/reuse', requireTriage, async (req, res) => {
 	try {
 		const feed = resolveFeedAndFile(req, res);
@@ -250,7 +254,7 @@ router.post('/feeds/:feed/uploads/reuse', requireTriage, async (req, res) => {
 	}
 });
 
-// 1) Abre a sessao: valida feed/arquivo/tamanho e devolve uploadId + key.
+// 1) Opens the session: validates feed/file/size and returns uploadId + key.
 router.post('/feeds/:feed/uploads', requireTriage, async (req, res) => {
 	try {
 		const feed = resolveFeedAndFile(req, res);
@@ -275,9 +279,10 @@ router.post('/feeds/:feed/uploads', requireTriage, async (req, res) => {
 			});
 		}
 
-		// A key sai daqui: o cliente nunca escolhe caminho no bucket. O sha8 real
-		// so e conhecido no fim, entao a key usa um token aleatorio e o hash vai
-		// para o catalogo (a key permanece unica e imutavel de qualquer forma).
+		// The key is built here: the client never chooses a path in the bucket.
+		// The real sha8 is only known at the end, so the key uses a random token
+		// and the hash goes to the catalog (the key stays unique and immutable
+		// either way).
 		const key = store.buildKey({
 			feed: feed.name,
 			fileName,
@@ -304,7 +309,7 @@ router.post('/feeds/:feed/uploads', requireTriage, async (req, res) => {
 	}
 });
 
-// 2) Assina UMA parte. A assinatura vale so para esta key/uploadId/parte.
+// 2) Signs ONE part. The signature is only valid for this key/uploadId/part.
 router.post('/feeds/:feed/uploads/:uploadId/part', requireTriage, async (req, res) => {
 	try {
 		const session = uploadSessions.get(req.params.uploadId);
@@ -323,16 +328,18 @@ router.post('/feeds/:feed/uploads/:uploadId/part', requireTriage, async (req, re
 	}
 });
 
-// 3) Fecha o multipart e cataloga. O sha256 e o tamanho vem do BUCKET.
+// 3) Closes the multipart upload and catalogues it. The sha256 and the size
+// come from the BUCKET.
 router.post('/feeds/:feed/uploads/:uploadId/complete', requireTriage, async (req, res) => {
 	const session = uploadSessions.get(req.params.uploadId);
 	try {
 		if (!session || session.feed !== req.params.feed) {
 			return res.status(404).json({ error: 'Upload session not found or expired', code: 'UPLOAD_SESSION_GONE' });
 		}
-		// As partes vem do BUCKET, nao do cliente: ler o ETag no navegador exige
-		// ExposeHeaders no CORS (campo que o painel do Spaces nao tem) e, de
-		// qualquer forma, quem sabe o que foi realmente gravado e o storage.
+		// The parts come from the BUCKET, not from the client: reading the ETag
+		// in the browser requires ExposeHeaders in the CORS config (a field the
+		// Spaces panel does not have) and, either way, the storage is what knows
+		// what was really written.
 		const parts = await store.listParts({ key: session.key, uploadId: req.params.uploadId });
 		if (parts.length === 0) {
 			return res.status(409).json({ error: 'No uploaded parts found for this upload', code: 'UPLOAD_EMPTY' });
@@ -346,10 +353,10 @@ router.post('/feeds/:feed/uploads/:uploadId/complete', requireTriage, async (req
 		const head = await store.headObject(session.key);
 
 		const feed = feedsConfig.getFeedByName(session.feed);
-		// O tamanho declarado na abertura nao vincula os bytes: a assinatura de
-		// cada parte nao limita content-length. Entao o limite do feed e aplicado
-		// aqui, sobre o tamanho REAL gravado, e o objeto que estourou some — nao
-		// fica ocupando espaco nem entra no catalogo.
+		// The size declared at init does not bind the bytes: the signature of
+		// each part does not limit content-length. So the feed limit is applied
+		// here, over the REAL written size, and the object that went over is
+		// deleted: it neither takes up space nor enters the catalog.
 		if (Number(head.sizeBytes) > feed.maxUploadBytes) {
 			await store.deleteObject(session.key).catch(() => {});
 			uploadSessions.delete(req.params.uploadId);
@@ -391,8 +398,9 @@ router.post('/feeds/:feed/uploads/:uploadId/complete', requireTriage, async (req
 	}
 });
 
-// Cancelamento explicito (usuario fechou a janela no meio): sem isso as partes
-// ficam ocupando espaco no bucket ate a politica de lifecycle limpar.
+// Explicit cancel (the user closed the window halfway through): without this
+// the parts keep taking up space in the bucket until the lifecycle policy
+// cleans them up.
 router.delete('/feeds/:feed/uploads/:uploadId', requireTriage, async (req, res) => {
 	const session = uploadSessions.get(req.params.uploadId);
 	if (!session || session.feed !== req.params.feed) return res.status(204).end();
@@ -401,9 +409,9 @@ router.delete('/feeds/:feed/uploads/:uploadId', requireTriage, async (req, res) 
 	res.status(204).end();
 });
 
-// Upload manual via painel: exige triage e o conjunto COMPLETO de arquivos do
-// feed numa request so (lote parcial nunca vira corrente — a CLI cobre o caso
-// avancado de completar lote com --batch).
+// Manual upload from the panel: requires triage and the COMPLETE set of files
+// of the feed in a single request (a partial batch never becomes current; the
+// CLI covers the advanced case of completing a batch with --batch).
 router.post('/feeds/:feed/upload', requireTriage, upload.array('files', 5), async (req, res) => {
 	const tmpFiles = (req.files || []).map((file) => file.path);
 	const cleanup = () => tmpFiles.forEach((tmpPath) => fs.rmSync(tmpPath, { force: true }));
@@ -422,7 +430,7 @@ router.post('/feeds/:feed/upload', requireTriage, upload.array('files', 5), asyn
 
 		const incoming = (req.files || []).map((file) => ({
 			tmpPath: file.path,
-			// Multer decodifica filename como latin1 — mesmo fix de routes/requests.js.
+			// Multer decodes filename as latin1, same fix as routes/requests.js.
 			fileName: Buffer.from(file.originalname, 'latin1').toString('utf8'),
 			sizeBytes: file.size,
 		}));
@@ -480,9 +488,10 @@ router.post('/feeds/:feed/upload', requireTriage, upload.array('files', 5), asyn
 	}
 });
 
-// "Run now": roda o script daquele feed no servidor para conferir o arquivo
-// recem subido sem esperar o seed-all. Assincrono — o painel acompanha por
-// GET .../run-status. Triage only (o script escreve em VendorProduct de prod).
+// "Run now": runs the script of that feed on the server to check the file that
+// was just uploaded without waiting for seed-all. Asynchronous: the panel
+// follows it through GET .../run-status. Triage only (the script writes to
+// VendorProduct in production).
 router.post('/feeds/:feed/run', requireTriage, (req, res) => {
 	try {
 		const record = runner.start(req.params.feed, { startedBy: req.user.username });
@@ -502,8 +511,8 @@ router.post('/feeds/:feed/run', requireTriage, (req, res) => {
 router.get('/feeds/:feed/run-status', requireTriage, (req, res) => {
 	const status = runner.getStatus(String(req.params.feed));
 	if (!status) return res.status(404).json({ error: 'No run for this feed in the current server session' });
-	// logFile e caminho interno do container; o log tail traz saida crua de seed
-	// (que um script futuro pode imprimir com header de auth): redigido.
+	// logFile is an internal container path; the log tail carries raw seed output
+	// (which a future script could print with an auth header), so it is redacted.
 	const { logFile, ...safe } = status;
 	res.json({ ...safe, logTail: redactLogTail(status.logTail) });
 });

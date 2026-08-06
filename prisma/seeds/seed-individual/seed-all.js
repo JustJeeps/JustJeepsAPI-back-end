@@ -11,10 +11,10 @@ if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
 const vendorSeeds = [
   { main: "seed-quadratec",   dependent: "seed-quad-inventory" },
   { main: "seed-omix",        dependent: "seed-omix-inventory" },
-  // seed-keystone-ftp-codes ja roda no passo 2 (apos seed-allProducts) e seus
-  // inputs nao mudam durante a rodada: seed-keystone-ftp2 so escreve
-  // VendorProduct e os CSVs do FTP nao sao re-baixados aqui. Rodar de novo
-  // como dependente so repetia o custo de memoria/tempo com ~0 updates.
+  // seed-keystone-ftp-codes already runs in step 2 (after seed-allProducts) and
+  // its inputs do not change during the round: seed-keystone-ftp2 only writes
+  // VendorProduct and the FTP CSVs are not re-downloaded here. Running it again
+  // as a dependent only repeated the memory/time cost with ~0 updates.
   { main: "seed-keystone-ftp2" },
   { main: "seed-wheelPros",   dependent: "seed-wp-inventory" },
 ];
@@ -42,7 +42,7 @@ const otherSeeds = [
 
 const RUN_CODES_AFTER_VENDORS = false; // flip to true if you want a final pass
 
-// Heap cap por processo-filho (mesma tabela usada pelo "Run now" do painel):
+// Heap cap per child process (same table used by the panel "Run now"):
 // lib/seeds/childHeap.js
 const { childHeapMbFor } = require("../../../lib/seeds/childHeap");
 

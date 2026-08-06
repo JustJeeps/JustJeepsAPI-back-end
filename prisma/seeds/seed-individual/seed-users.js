@@ -4,16 +4,16 @@ const usersData = require('../hard-code_data/users_data.js');
 
 const prisma = require('../../../lib/prisma');
 
-// Guarda contra rodar sem querer contra producao: este script CRIA usuarios e
-// (antes) resetava senha de quem ja existia. O .env.production fica na maquina
-// do dev ao lado do .env, entao um "npm run seed-users" com o env errado
-// reescrevia as credenciais do time.
+// Guard against running against production by accident: this script CREATES
+// users and (before) reset the password of anyone who already existed. The
+// .env.production file sits on the developer machine next to .env, so an
+// "npm run seed-users" with the wrong env rewrote the team credentials.
 if (process.env.NODE_ENV === 'production' && process.env.ALLOW_PROD_SEED !== '1') {
-  console.error('❌ Recusando rodar com NODE_ENV=production sem ALLOW_PROD_SEED=1');
+  console.error('❌ Refusing to run with NODE_ENV=production without ALLOW_PROD_SEED=1');
   process.exit(1);
 }
 
-// Senha por env (SEED_USER_PASSWORD_<USER>) ou aleatoria — nunca do repositorio.
+// Password from env (SEED_USER_PASSWORD_<USER>) or random, never from the repo.
 const passwordFor = (username) => {
   const fromEnv = process.env[`SEED_USER_PASSWORD_${username.toUpperCase()}`];
   if (fromEnv) return { password: fromEnv, generated: false };
@@ -47,9 +47,10 @@ const seedUsers = async () => {
       });
 
       if (existingUser) {
-        // NUNCA reescrever a senha de quem ja existe: rodar o seed de novo nao
-        // pode derrubar a credencial em uso. Troca de senha e trabalho do
-        // scripts/rotate-user-passwords.js, explicito e com confirmacao.
+        // NEVER rewrite the password of someone who already exists: running the
+        // seed again must not break the credential in use. Changing a password
+        // is the job of scripts/rotate-user-passwords.js, explicit and with a
+        // confirmation step.
         await prisma.user.update({
           where: { id: existingUser.id },
           data: {
@@ -73,7 +74,7 @@ const seedUsers = async () => {
     }
 
     if (generatedCredentials.length > 0) {
-      console.log('\n🔑 Senhas geradas (aparecem UMA vez; entregue pelo canal seguro):');
+      console.log('\n🔑 Generated passwords (shown ONCE; hand them over through the secure channel):');
       for (const cred of generatedCredentials) {
         console.log(`   ${cred.username}: ${cred.password}`);
       }

@@ -50,13 +50,13 @@ function makeFixture({ feedDef = FEED_DEF, contents = { 'CTPENT_Inventory.csv': 
 		feedsConfig,
 		catalog: catalogStub,
 		cacheDir,
-		now: () => new Date(uploadedAt.getTime() + 60 * 60 * 1000), // 1h depois do upload
+		now: () => new Date(uploadedAt.getTime() + 60 * 60 * 1000), // 1h after the upload
 	});
 
 	return { materializer, cacheDir, storeCalls, batch, feedDef, catalogStub };
 }
 
-test('cache miss baixa, verifica sha e grava sentinela; hit nao toca o store', async () => {
+test('a cache miss downloads, verifies the sha and writes the sentinel; a hit does not touch the store', async () => {
 	const fixture = makeFixture();
 
 	const first = await fixture.materializer.materializeFeed('ctp');
@@ -66,37 +66,37 @@ test('cache miss baixa, verifica sha e grava sentinela; hit nao toca o store', a
 	assert.ok(Math.abs(first.ageHours - 1) < 0.01);
 
 	const second = await fixture.materializer.materializeFeed('ctp');
-	assert.strictEqual(fixture.storeCalls.length, 1, 'cache hit nao redownloada');
+	assert.strictEqual(fixture.storeCalls.length, 1, 'a cache hit does not download again');
 	assert.strictEqual(second.dir, first.dir);
 });
 
-test('feed desconhecido e feed sem lote falham com codigo tipado', async () => {
+test('an unknown feed and a feed without a batch fail with a typed code', async () => {
 	const fixture = makeFixture();
-	await assert.rejects(fixture.materializer.materializeFeed('nao-existe'), (error) => error.code === 'FEED_UNKNOWN');
+	await assert.rejects(fixture.materializer.materializeFeed('does-not-exist'), (error) => error.code === 'FEED_UNKNOWN');
 
 	fixture.catalogStub.getCurrentBatch = async () => null;
 	await assert.rejects(fixture.materializer.materializeFeed('ctp'), (error) => error.code === 'FEED_NO_ARTIFACT');
 });
 
-test('download corrompido tenta 2x e falha com FEED_HASH_MISMATCH', async () => {
+test('a corrupted download retries twice and fails with FEED_HASH_MISMATCH', async () => {
 	const fixture = makeFixture({ corruptDownload: true });
 	await assert.rejects(fixture.materializer.materializeFeed('ctp'), (error) => error.code === 'FEED_HASH_MISMATCH');
 	assert.strictEqual(fixture.storeCalls.length, 2);
 	const batchDir = path.join(fixture.cacheDir, 'ctp', 'batch-1');
-	assert.ok(!fs.existsSync(path.join(batchDir, 'CTPENT_Inventory.csv')), 'arquivo corrompido nao fica no cache');
+	assert.ok(!fs.existsSync(path.join(batchDir, 'CTPENT_Inventory.csv')), 'the corrupted file is not kept in the cache');
 });
 
-test('lote velho marca stale e requireFresh vira FEED_STALE', async () => {
+test('an old batch is marked stale and requireFresh turns into FEED_STALE', async () => {
 	const uploadedAt = new Date('2026-08-01T00:00:00Z');
 	const fixture = makeFixture({ uploadedAt });
-	// now = uploadedAt + 1h no fixture; forca idade > threshold com um materializer proprio
+	// now = uploadedAt + 1h in the fixture, so force age > threshold with a dedicated materializer
 	const materializer = createMaterializer({
 		store: { getObjectStream: async () => ({ body: Readable.from([Buffer.from('sku,qty\nA,1\n')]) }) },
 		prisma: {},
 		feedsConfig: { getFeedByName: () => FEED_DEF },
 		catalog: { getCurrentBatch: async () => fixture.batch },
 		cacheDir: fixture.cacheDir,
-		now: () => new Date('2026-08-03T00:00:00Z'), // 48h depois (threshold 24h)
+		now: () => new Date('2026-08-03T00:00:00Z'), // 48h later (threshold 24h)
 	});
 
 	const result = await materializer.materializeFeed('ctp');
@@ -105,26 +105,26 @@ test('lote velho marca stale e requireFresh vira FEED_STALE', async () => {
 	await assert.rejects(materializer.materializeFeed('ctp', { requireFresh: true }), (error) => error.code === 'FEED_STALE');
 });
 
-test('Spaces fora + lote anterior completo em cache degrada com stale, sem lote vira FEED_STORE_UNAVAILABLE', async () => {
+test('Spaces down plus a complete previous batch in cache degrades to stale, no batch turns into FEED_STORE_UNAVAILABLE', async () => {
 	const content = 'sku,qty\nA,1\n';
 	const fixture = makeFixture({ storeError: new Error('ECONNREFUSED') });
 
-	// Sem nada em cache: falha explicita.
+	// Nothing in the cache: explicit failure.
 	await assert.rejects(fixture.materializer.materializeFeed('ctp'), (error) => error.code === 'FEED_STORE_UNAVAILABLE');
 
-	// Pre-popula um lote antigo completo (arquivo + sentinela) e tenta de novo.
+	// Pre-populate a complete old batch (file plus sentinel) and try again.
 	const oldDir = path.join(fixture.cacheDir, 'ctp', 'batch-0');
 	fs.mkdirSync(oldDir, { recursive: true });
 	fs.writeFileSync(path.join(oldDir, 'CTPENT_Inventory.csv'), content);
 	fs.writeFileSync(path.join(oldDir, `.CTPENT_Inventory.csv.${sha256(content).slice(0, 8)}.ok`), sha256(content));
 
 	const result = await fixture.materializer.materializeFeed('ctp');
-	assert.strictEqual(result.stale, true, 'fallback e sempre marcado stale');
+	assert.strictEqual(result.stale, true, 'the fallback is always marked stale');
 	assert.strictEqual(result.batchId, 'batch-0');
 	assert.strictEqual(fs.readFileSync(result.files['CTPENT_Inventory.csv'], 'utf8'), content);
 });
 
-test('feed multi-arquivo materializa todos os arquivos do lote', async () => {
+test('a multi-file feed materializes every file in the batch', async () => {
 	const contents = { 'Inventory.csv': 'a\n1\n', 'SpecialOrder.csv': 'b\n2\n' };
 	const fixture = makeFixture({ feedDef: KEYSTONE_DEF, contents });
 
@@ -134,11 +134,11 @@ test('feed multi-arquivo materializa todos os arquivos do lote', async () => {
 	assert.strictEqual(fixture.storeCalls.length, 2);
 });
 
-test('prune mantem so os N lotes mais recentes', async () => {
+test('prune keeps only the N most recent batches', async () => {
 	const fixture = makeFixture();
 	const feedDir = path.join(fixture.cacheDir, 'ctp');
 
-	// Tres lotes antigos pre-existentes.
+	// Three pre-existing old batches.
 	for (const name of ['old-1', 'old-2', 'old-3']) {
 		fs.mkdirSync(path.join(feedDir, name), { recursive: true });
 	}
@@ -146,6 +146,6 @@ test('prune mantem so os N lotes mais recentes', async () => {
 	await fixture.materializer.materializeFeed('ctp'); // keepBatches default = 2
 
 	const remaining = fs.readdirSync(feedDir).sort();
-	assert.ok(remaining.includes('batch-1'), 'lote corrente sempre fica');
-	assert.strictEqual(remaining.length, 2, `sobram 2 lotes, ficou: ${remaining.join(', ')}`);
+	assert.ok(remaining.includes('batch-1'), 'the current batch always stays');
+	assert.strictEqual(remaining.length, 2, `2 batches should remain, got: ${remaining.join(', ')}`);
 });

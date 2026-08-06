@@ -43,24 +43,24 @@ function makeFixture({ seedAllRunning = false } = {}) {
 	return { runner, spawned, getChild: () => lastChild };
 }
 
-test('start roda feed-sync do feed e depois o seedCommand, com heap cap', () => {
+test('start runs the feed-sync for the feed and then the seedCommand, with a heap cap', () => {
 	const fixture = makeFixture();
 	const record = fixture.runner.start('omix', { startedBy: 'ricardo' });
 
-	// feed-sync ANTES do seed: sem isso o seed leria o symlink antigo e
-	// reportaria sucesso com o arquivo anterior.
+	// feed-sync BEFORE the seed: without it the seed would read the old symlink
+	// and report success with the previous file.
 	assert.strictEqual(fixture.spawned[0].cmd, 'sh');
 	assert.strictEqual(fixture.spawned[0].args[0], '-c');
 	assert.strictEqual(fixture.spawned[0].args[1], 'npm run feed-sync -- omix && npm run seed-omix');
 	assert.strictEqual(fixture.spawned[0].env.APP_ROLE, 'seed');
 	assert.strictEqual(fixture.spawned[0].env.INGEST_TRIGGER, 'manual');
-	// Mesmo teto de heap do seed-all (droplet de 2GB compartilhado com a API).
+	// Same heap cap as seed-all (2GB droplet shared with the API).
 	assert.match(fixture.spawned[0].env.NODE_OPTIONS, /--max-old-space-size=\d+/);
 	assert.strictEqual(record.status, 'running');
 	assert.strictEqual(record.startedBy, 'ricardo');
 });
 
-test('exit 0 vira success e exit != 0 vira failed, com log tail no status', () => {
+test('exit 0 becomes success and exit != 0 becomes failed, with the log tail in the status', () => {
 	const okFixture = makeFixture();
 	okFixture.runner.start('omix');
 	okFixture.getChild().emit('close', 0);
@@ -76,15 +76,15 @@ test('exit 0 vira success e exit != 0 vira failed, com log tail no status', () =
 	assert.strictEqual(failFixture.runner.getStatus('omix').status, 'failed');
 });
 
-test('feed sem seedCommand e feed desconhecido sao recusados', () => {
+test('a feed without seedCommand and an unknown feed are rejected', () => {
 	const fixture = makeFixture();
 	assert.throws(() => fixture.runner.start('warn-map'), (error) =>
 		error.code === 'FEED_RUN_NOT_ALLOWED' && /live store/.test(error.message));
-	assert.throws(() => fixture.runner.start('nao-existe'), (error) => error.code === 'FEED_UNKNOWN');
+	assert.throws(() => fixture.runner.start('does-not-exist'), (error) => error.code === 'FEED_UNKNOWN');
 	assert.strictEqual(fixture.spawned.length, 0);
 });
 
-test('segunda execucao simultanea e recusada ate a primeira terminar', () => {
+test('a second simultaneous run is rejected until the first one finishes', () => {
 	const fixture = makeFixture();
 	fixture.runner.start('omix');
 	assert.throws(() => fixture.runner.start('omix'), (error) => error.code === 'FEED_RUN_BUSY');
@@ -94,14 +94,14 @@ test('segunda execucao simultanea e recusada ate a primeira terminar', () => {
 	assert.strictEqual(fixture.spawned.length, 2);
 });
 
-test('bloqueia enquanto o seed-all esta rodando (lock file presente)', () => {
+test('blocks while seed-all is running (lock file present)', () => {
 	const fixture = makeFixture({ seedAllRunning: true });
 	assert.throws(() => fixture.runner.start('omix'), (error) =>
 		error.code === 'FEED_RUN_BUSY' && /daily vendor sync/i.test(error.message));
 	assert.strictEqual(fixture.spawned.length, 0);
 });
 
-test('erro ao spawnar marca failed e libera o slot', () => {
+test('a spawn error marks it failed and releases the slot', () => {
 	const fixture = makeFixture();
 	fixture.runner.start('omix');
 	fixture.getChild().emit('error', new Error('spawn ENOENT'));
