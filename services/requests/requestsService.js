@@ -9,6 +9,7 @@ const path = require('path');
 const prisma = require('../../lib/prisma');
 const { validateChange } = require('../../lib/requests/transitions');
 const { diffToActivities } = require('../../lib/requests/activity');
+const { resolveArchive } = require('../../lib/requests/archive');
 const storage = require('../storage/requestAttachmentsStorage');
 const trelloService = require('../trello/trelloService');
 const { sendRequestAssignedEmail } = require('../../utils/emailService');
@@ -166,20 +167,15 @@ async function updateRequest({ user, id, patch }) {
 
 	const applied = buildAppliedFields({ current, patch, autoStatus: verdict.autoStatus });
 
-	// Arquivar tira o chamado dos filtros padrao da tela sem apagar nada.
-	// So Completed/Closed podem ser arquivados; desarquivar e sempre permitido.
-	const archivedChanged = patch.archived !== undefined
-		&& Boolean(current.archivedAt) !== patch.archived;
-	if (archivedChanged) {
-		const effectiveStatus = applied.status || current.status;
-		if (patch.archived && !['Completed', 'Closed'].includes(effectiveStatus)) {
-			throw RequestServiceError.conflict(
-				'ARCHIVE_ONLY_DONE',
-				'Only Completed or Closed requests can be archived'
-			);
-		}
-		applied.archivedAt = patch.archived ? new Date() : null;
-	}
+	// Arquivamento: regra pura em lib/requests/archive.
+	const archive = resolveArchive({
+		current,
+		patch,
+		effectiveStatus: applied.status || current.status,
+	});
+	if (!archive.ok) throw RequestServiceError.conflict(archive.error.code, archive.error.message);
+	const archivedChanged = archive.changed;
+	if (archivedChanged) applied.archivedAt = archive.archivedAt;
 
 	const commentBody = String(patch.comment || '').trim();
 
@@ -202,7 +198,7 @@ async function updateRequest({ user, id, patch }) {
 		activities.push({
 			request_id: id,
 			actor_id: user.id,
-			action: patch.archived ? 'archived' : 'unarchived',
+			action: archive.archivedAt ? 'archived' : 'unarchived',
 			field: 'archived',
 		});
 	}
@@ -260,6 +256,10 @@ async function updateRequest({ user, id, patch }) {
 
 // --- trello ---------------------------------------------------------------------
 
+// Requests com criacao de card em voo (trava in-process; producao roda em
+// instancia unica). Evita card duplicado no Trello — ver ensureTrelloCard.
+const trelloCardsInFlight = new Set();
+
 // Codes de negocio do trelloService que viram 409 (toast no front, nunca 500).
 const TRELLO_CONFLICT_CODES = new Set([
 	'TRELLO_NOT_CONFIGURED',
@@ -279,6 +279,13 @@ async function ensureTrelloCard({ user, id }) {
 	if (request.trelloCardId) {
 		throw RequestServiceError.conflict('CARD_EXISTS', 'A Trello card is already linked to this request');
 	}
+	// A criacao demora (rede): sem esta trava o auto-create disparado pela
+	// transicao e o botao "Create card now" leem trelloCardId null ao mesmo
+	// tempo e criam DOIS cards no Trello.
+	if (trelloCardsInFlight.has(id)) {
+		throw RequestServiceError.conflict('CARD_IN_PROGRESS', 'A Trello card is already being created for this request');
+	}
+	trelloCardsInFlight.add(id);
 
 	let card;
 	try {
@@ -288,23 +295,30 @@ async function ensureTrelloCard({ user, id }) {
 			throw RequestServiceError.conflict(error.code, error.message);
 		}
 		throw error;
+	} finally {
+		trelloCardsInFlight.delete(id);
 	}
 
-	await prisma.$transaction([
-		prisma.request.update({
-			where: { id },
-			data: { trelloCardId: card.cardId, trelloCardUrl: card.cardUrl },
-		}),
-		prisma.requestActivity.create({
-			data: {
-				request_id: id,
-				actor_id: user.id,
-				action: 'trello_card_created',
-				field: 'trello',
-				newValue: card.cardUrl,
-			},
-		}),
-	]);
+	// Update condicional: se outro processo gravou primeiro, nao sobrescreve o
+	// card dele (o nosso vira orfao no Trello — logado para reconciliar).
+	const claimed = await prisma.request.updateMany({
+		where: { id, trelloCardId: null },
+		data: { trelloCardId: card.cardId, trelloCardUrl: card.cardUrl },
+	});
+	if (claimed.count === 0) {
+		console.error(`Trello card ${card.cardId} created for request ${id} but another card was already linked; leaving it orphaned in Trello`);
+		return getRequestDetail(id);
+	}
+
+	await prisma.requestActivity.create({
+		data: {
+			request_id: id,
+			actor_id: user.id,
+			action: 'trello_card_created',
+			field: 'trello',
+			newValue: card.cardUrl,
+		},
+	});
 
 	return getRequestDetail(id);
 }

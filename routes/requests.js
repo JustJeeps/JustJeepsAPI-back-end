@@ -64,12 +64,25 @@ const requireEnum = (value, allowed, label) => {
 	return value;
 };
 
+// Ponto unico de entrada dos links: valida o esquema aqui. Sem isso um
+// "javascript:..." salvo num chamado vira XSS armazenado quando outra pessoa
+// clica no link do drawer (React nao bloqueia href em producao).
+const isSafeUrl = (link) => {
+	try {
+		return ['http:', 'https:'].includes(new URL(link).protocol);
+	} catch (error) {
+		return false;
+	}
+};
+
 const parseLinks = (links) => {
 	if (links === undefined) return undefined;
 	if (!Array.isArray(links)) throw RequestServiceError.validation('links must be an array of URLs');
 	const cleaned = links.map((link) => String(link ?? '').trim()).filter(Boolean);
 	if (cleaned.length > 20) throw RequestServiceError.validation('Too many links (max 20)');
 	if (cleaned.some((link) => link.length > 2048)) throw RequestServiceError.validation('Link too long (max 2048 chars)');
+	const invalid = cleaned.find((link) => !isSafeUrl(link));
+	if (invalid) throw RequestServiceError.validation(`Links must start with http:// or https:// (got "${invalid.slice(0, 40)}")`);
 	return cleaned;
 };
 
@@ -187,8 +200,14 @@ const upload = multer({
 	},
 	fileFilter: (req, file, cb) => {
 		const ext = path.extname(file.originalname || '').toLowerCase();
-		if (!ATTACHMENT_ALLOWED_TYPES[ext]) {
+		const allowedTypes = ATTACHMENT_ALLOWED_TYPES[ext];
+		if (!allowedTypes) {
 			return cb(new Error(`File type not allowed: ${ext || '(no extension)'}`));
+		}
+		// O Content-Type do multipart e escolhido pelo cliente: a allowlist do
+		// config so vale se comparar o mimetype declarado, nao so a extensao.
+		if (allowedTypes.length && !allowedTypes.includes(file.mimetype)) {
+			return cb(new Error(`File content type not allowed for ${ext}: ${file.mimetype}`));
 		}
 		cb(null, true);
 	},

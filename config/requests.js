@@ -54,6 +54,10 @@ function isTriageUser(username) {
 	return requestsTriageUsers.includes(String(username || '').toLowerCase());
 }
 
+// Status "concluidos": unicos que podem ser arquivados. Sair deles desarquiva
+// (senao o chamado ficaria ativo porem invisivel nos filtros padrao).
+const DONE_STATUSES = ['Completed', 'Closed'];
+
 // Feature gate (rollout): while the team tests, only these users see and use
 // the requests feature. Release = widen the env (or set it to the whole team).
 const requestsAllowedUsers = (process.env.REQUESTS_ALLOWED_USERS || 'ricardo,admin,tess')
@@ -94,6 +98,7 @@ module.exports = {
 	DEFAULT_PRIORITY,
 	REQUEST_PROJECTS,
 	REQUEST_TYPES,
+	DONE_STATUSES,
 	ATTACHMENT_ALLOWED_TYPES,
 	isTriageUser,
 	isRequestsUser,

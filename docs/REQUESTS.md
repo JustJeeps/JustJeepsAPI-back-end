@@ -46,7 +46,8 @@ State machine in `lib/requests/transitions.js`:
 - Awaiting Client Response, On Hold and Completed require a comment in the same PATCH.
 - Closed can only go back to Assigned (reopen).
 
-- Completed and Closed requests can be **archived** (PATCH `archived: true|false`): they stay saved but disappear from the default screen filters; the "Archived" view shows them. Archiving any other status returns 409 `ARCHIVE_ONLY_DONE`. The board's Done lane has an "Archive all" button.
+- Links must start with `http://` or `https://` (validated in `parseLinks`); attachment uploads check both the extension and the declared content type.
+- Completed and Closed requests can be **archived** (PATCH `archived: true|false`): they stay saved but disappear from the default screen filters; the "Archived" view shows them. Archiving any other status returns 409 `ARCHIVE_ONLY_DONE`. Reopening an archived request (moving it back to an active status) unarchives it automatically, so it never stays active and invisible. The rule lives in `lib/requests/archive.js` (pure, unit tested). The board's Done lane has an "Archive all" button.
 
 The board groups the 8 statuses into 4 lanes: **Requests** (New Request, Estimation, Assigned), **Doing** (Work in Progress), **Blocked** (Awaiting Client Response, On Hold) and **Done** (Completed, Closed). Dropping a card on a lane applies the lane's target status; Blocked and Done ask for the required comment first.
 
