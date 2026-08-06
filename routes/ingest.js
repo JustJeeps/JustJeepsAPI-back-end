@@ -346,6 +346,18 @@ router.post('/feeds/:feed/uploads/:uploadId/complete', requireTriage, async (req
 		const head = await store.headObject(session.key);
 
 		const feed = feedsConfig.getFeedByName(session.feed);
+		// O tamanho declarado na abertura nao vincula os bytes: a assinatura de
+		// cada parte nao limita content-length. Entao o limite do feed e aplicado
+		// aqui, sobre o tamanho REAL gravado, e o objeto que estourou some — nao
+		// fica ocupando espaco nem entra no catalogo.
+		if (Number(head.sizeBytes) > feed.maxUploadBytes) {
+			await store.deleteObject(session.key).catch(() => {});
+			uploadSessions.delete(req.params.uploadId);
+			return res.status(409).json({
+				error: `Uploaded file is larger than allowed for ${feed.name} (${Math.round(head.sizeBytes / 1024 / 1024)}MB > ${Math.round(feed.maxUploadBytes / 1024 / 1024)}MB)`,
+				code: 'FEED_FILE_TOO_LARGE',
+			});
+		}
 		const { batchId, artifacts } = await catalog.registerArtifacts(prisma, {
 			feed: feed.name,
 			batchId: req.body?.batchId || undefined,
