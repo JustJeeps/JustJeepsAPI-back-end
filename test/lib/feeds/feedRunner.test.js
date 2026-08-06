@@ -52,6 +52,15 @@ function makeFixture({ seedAllRunning = false, seedAllLockAgeMs = 60_000 } = {})
 	return { runner, spawned, getChild: () => lastChild };
 }
 
+// Every other test injects stubs for spawn/fs/fsp, so a default parameter that
+// referenced a module the file never imported stayed invisible until the API
+// booted in production and crashed on require. This builds the runner the way
+// services/feeds/runnerInstance.js does, with nothing injected.
+test('the runner builds with no injected dependencies, as production does', () => {
+	assert.doesNotThrow(() => createFeedRunner());
+	assert.doesNotThrow(() => createFeedRunner({}));
+});
+
 test('start runs the feed-sync for the feed and then the seedCommand, with a heap cap', () => {
 	const fixture = makeFixture();
 	const record = fixture.runner.start('omix', { startedBy: 'ricardo' });
