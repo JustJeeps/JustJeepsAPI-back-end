@@ -138,10 +138,15 @@ test('prune keeps only the N most recent batches', async () => {
 	const fixture = makeFixture();
 	const feedDir = path.join(fixture.cacheDir, 'ctp');
 
-	// Three pre-existing old batches.
-	for (const name of ['old-1', 'old-2', 'old-3']) {
-		fs.mkdirSync(path.join(feedDir, name), { recursive: true });
-	}
+	// Three pre-existing old batches. The mtime is set explicitly: directories
+	// created in the same millisecond tie when sorted, which made this test fail
+	// once in a while depending on machine speed.
+	['old-1', 'old-2', 'old-3'].forEach((name, index) => {
+		const dir = path.join(feedDir, name);
+		fs.mkdirSync(dir, { recursive: true });
+		const when = new Date(Date.now() - (index + 1) * 60_000);
+		fs.utimesSync(dir, when, when);
+	});
 
 	await fixture.materializer.materializeFeed('ctp'); // keepBatches default = 2
 

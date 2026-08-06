@@ -61,6 +61,15 @@ async function runKeystoneFetch({
 	// rows. That is why the real gate compares against the current batch.
 	const minRatioVsCurrent = Number(env.KEYSTONE_FTP_MIN_SIZE_RATIO || 0.9);
 
+	// Runs killed mid-flight (a deploy replaces the container) stay as "running"
+	// forever and the panel keeps showing a fetch that is not happening. Only one
+	// fetch runs at a time, so anything still marked running when a new one
+	// starts is an interrupted run.
+	await prisma.ingestRun.updateMany({
+		where: { feed: RUN_FEED, status: 'running' },
+		data: { status: 'failed', finishedAt: new Date(), error: 'Interrupted (process ended before finishing)' },
+	});
+
 	const run = await prisma.ingestRun.create({
 		data: { feed: RUN_FEED, sourceKind: 'ftp', sourceRef: feed.files.join('+') },
 	});

@@ -45,6 +45,17 @@ function makeFixture({ ftpContents = { 'Inventory.csv': INVENTORY, 'SpecialOrder
 	const runs = [];
 	const prisma = {
 		ingestRun: {
+			// Interrupted runs are closed before a new one starts.
+			updateMany: async ({ where, data }) => {
+				let count = 0;
+				for (const run of runs) {
+					if (run.feed === where.feed && run.status === where.status) {
+						Object.assign(run, data);
+						count += 1;
+					}
+				}
+				return { count };
+			},
 			create: async ({ data }) => {
 				const run = { id: runs.length + 1, ...data };
 				runs.push(run);

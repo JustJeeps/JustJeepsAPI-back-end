@@ -19,6 +19,12 @@
 // the symlink with the canonical name, so the seeds keep reading the usual
 // path and the file behind it comes from the bucket ('' = api-calls root).
 //
+// ingestFeed: name the consuming seed uses when it records an IngestRun. It is
+// usually the feed name, but not always: seed-quadratec records both Quadratec
+// files under "quadratec". Without this mapping the panel looked for runs under
+// the registry name, found none, and showed "never" next to a feed that had
+// just been ingested.
+//
 // seedCommand: npm script that consumes the feed, triggerable by the panel's
 // "Run now" button (POST /api/ingest/feeds/:feed/run) to check the file that
 // was just uploaded without waiting for seed-all. null = no button; use
@@ -42,6 +48,7 @@ const FEED_DEFINITIONS = [
 		name: 'quadratec-wholesale',
 		label: 'Quadratec wholesale (CSV)',
 		files: ['quadratec_wholesale.csv'],
+		ingestFeed: 'quadratec',
 		seedCommand: 'seed-quad-inventory',
 		workbookBaseName: 'quadratec_wholesale',
 		staleAfterHours: 30 * DAY_HOURS,
@@ -50,6 +57,7 @@ const FEED_DEFINITIONS = [
 		name: 'quadratec-pricing',
 		label: 'Quadratec pricing sheet (XLSX)',
 		files: ['pricingSheet_quad.xlsx'],
+		ingestFeed: 'quadratec',
 		seedCommand: 'seed-quadratec',
 		staleAfterHours: 60 * DAY_HOURS,
 	},
@@ -113,6 +121,7 @@ function getFeedDefinitions() {
 		return {
 			...feed,
 			legacyDir: feed.legacyDir || '',
+			ingestFeed: feed.ingestFeed || feed.name,
 			seedCommand: feed.seedCommand || null,
 			seedCommandNote: feed.seedCommandNote || null,
 			staleAfterHours: Number.isFinite(override) && override > 0 ? override : feed.staleAfterHours,
