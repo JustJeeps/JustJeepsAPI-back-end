@@ -166,7 +166,7 @@ env:
     REQUESTS_ALLOWED_USERS: "ricardo,admin,tess"
     # Who can close. Usernames are not secret; kept in clear so the value
     # never resolves empty (config/requests.js).
-    REQUESTS_TRIAGE_USERS: "ricardo,rafael"
+    REQUESTS_TRIAGE_USERS: "ricardo,admin,tess"
     REQUESTS_ASSIGNMENT_EMAIL_ENABLED: "true"
     # Requests digest: opt-in (enable after the meeting decides schedule and
     # recipients). Recipients live in REQUESTS_DIGEST_EMAILS (secret).

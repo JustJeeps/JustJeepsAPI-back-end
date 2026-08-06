@@ -45,7 +45,7 @@ const REQUEST_TYPES = [
 
 // Triage: quem pode atribuir/desatribuir e fechar (Closed). Allowlist por
 // username via env (evolucao do padrao de allowlists do server.js:99-110).
-const requestsTriageUsers = (process.env.REQUESTS_TRIAGE_USERS || 'ricardo,rafael')
+const requestsTriageUsers = (process.env.REQUESTS_TRIAGE_USERS || 'ricardo,admin,tess')
 	.split(/[,\s]+/)
 	.map((username) => username.trim().toLowerCase())
 	.filter(Boolean);
