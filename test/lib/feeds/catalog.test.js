@@ -108,6 +108,20 @@ test('registerArtifacts supersedes the previous batch and groups by batchId', as
 	assert.strictEqual(prisma.feedArtifacts.filter((row) => row.status === 'superseded').length, 2);
 });
 
+test('the same file cannot be registered twice in one batch', async () => {
+	const prisma = makePrismaStub();
+
+	await assert.rejects(
+		catalog.registerArtifacts(prisma, {
+			feed: 'ctp',
+			source: 'manual',
+			files: [file('CTPENT_Inventory.csv'), file('CTPENT_Inventory.csv')],
+		}),
+		/more than once/
+	);
+	assert.strictEqual(prisma.feedArtifacts.length, 0, 'nothing is written');
+});
+
 test('getCurrentBatch ignores an incomplete batch of a multi-file feed', async () => {
 	const prisma = makePrismaStub();
 
