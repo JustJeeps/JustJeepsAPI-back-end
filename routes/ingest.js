@@ -66,6 +66,11 @@ router.get('/feeds', async (req, res) => {
 		res.json({
 			feeds: statuses.map(serializeStatus),
 			storeConfigured: store.isConfigured(),
+			// Quem pode subir arquivo e disparar script. Qualquer usuario logado
+			// LE o painel (frescor dos feeds e informacao util para todos); so
+			// triage escreve. O painel usa isto para habilitar os botoes — a
+			// validacao real continua em cada rota de escrita.
+			canManage: isTriageUser(req.user.username),
 			generatedAt: new Date().toISOString(),
 		});
 	} catch (error) {
