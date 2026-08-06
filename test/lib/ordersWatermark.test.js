@@ -3,8 +3,8 @@ const assert = require('node:assert');
 
 const { WATERMARK_KEY, readWatermark, saveWatermark } = require('../../lib/ordersWatermark.js');
 
-// O helper recebe o prisma por parametro, entao o stub entra direto — nenhum
-// contato com o Postgres (o .env local aponta para producao).
+// The helper takes prisma as a parameter, so the stub plugs straight in: no
+// contact with Postgres (the local .env points at production).
 const makePrismaStub = () => {
 	const calls = { findUnique: [], upsert: [] };
 	let row = null;
@@ -26,23 +26,23 @@ const makePrismaStub = () => {
 	};
 };
 
-test('WATERMARK_KEY e a mesma chave lida pelo /api/orders/sync-state', () => {
+test('WATERMARK_KEY is the same key read by /api/orders/sync-state', () => {
 	assert.strictEqual(WATERMARK_KEY, 'orders-delta-watermark');
 });
 
-test('readWatermark retorna null sem estado gravado', async () => {
+test('readWatermark returns null when no state has been stored', async () => {
 	const prisma = makePrismaStub();
 	assert.strictEqual(await readWatermark(prisma), null);
 	assert.deepStrictEqual(prisma.calls.findUnique[0], { where: { key: WATERMARK_KEY } });
 });
 
-test('readWatermark retorna o valor gravado', async () => {
+test('readWatermark returns the stored value', async () => {
 	const prisma = makePrismaStub();
 	prisma.setRow('2026-07-27 18:00:00');
 	assert.strictEqual(await readWatermark(prisma), '2026-07-27 18:00:00');
 });
 
-test('saveWatermark cria a linha com chave e valor corretos', async () => {
+test('saveWatermark creates the row with the correct key and value', async () => {
 	const prisma = makePrismaStub();
 	await saveWatermark(prisma, '2026-07-27 18:05:00');
 	assert.deepStrictEqual(prisma.calls.upsert[0], {
@@ -53,7 +53,7 @@ test('saveWatermark cria a linha com chave e valor corretos', async () => {
 	assert.strictEqual(prisma.getRow().value, '2026-07-27 18:05:00');
 });
 
-test('saveWatermark sobrescreve valor existente (upsert)', async () => {
+test('saveWatermark overwrites an existing value (upsert)', async () => {
 	const prisma = makePrismaStub();
 	prisma.setRow('2026-07-27 17:00:00');
 	await saveWatermark(prisma, '2026-07-27 18:10:00');
