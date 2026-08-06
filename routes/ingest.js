@@ -156,7 +156,7 @@ router.get('/runs', requireTriage, async (req, res) => {
 // Em memoria de proposito — um restart invalida sessoes pendentes, que o
 // proprio Spaces expira depois (nao ha estado que valha persistir).
 const uploadSessions = new Map();
-const UPLOAD_SESSION_TTL_MS = 60 * 60 * 1000;
+const UPLOAD_SESSION_TTL_MS = Number(process.env.FEED_UPLOAD_SESSION_TTL_MS || 60 * 60 * 1000);
 
 const pruneSessions = () => {
 	const now = Date.now();

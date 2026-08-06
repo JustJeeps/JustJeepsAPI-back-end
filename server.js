@@ -100,11 +100,16 @@ function formatCronExitLabel(code, signal) {
 	return 'unknown exit status';
 }
 // 'admin' removido: conta de teste com senha publicada no repo (rotacionar/desativar em prod)
-const MAGENTO_STATUS_ALLOWED_USERS = new Set(['jerry', 'tess', 'jacob', 'david', 'rafael', 'ricardo', 'paula']);
-const ORDER_CANCEL_EXECUTE_ALLOWED_USERS = new Set(['tess', 'jerry', 'jacob', 'paula', 'karoline']);
-const ORDER_CANCEL_DRY_RUN_ALLOWED_USERS = new Set(['tess']);
-const ORDER_CANCEL_MANUAL_REFUND_RESTRICTED_USERS = new Set(['paula']);
-const ORDER_PO_INIT_ALLOWED_USERS = new Set(['tess', 'jerry', 'jacob', 'paula', 'karoline']);
+// Allowlists por env (default no codigo) — ver config/allowlists.js
+const { userAllowlist } = require('./config/allowlists');
+
+const MAGENTO_STATUS_ALLOWED_USERS = userAllowlist('MAGENTO_STATUS_ALLOWED_USERS', 'jerry,tess,jacob,david,rafael,ricardo,paula');
+const ORDER_CANCEL_EXECUTE_ALLOWED_USERS = userAllowlist('ORDER_CANCEL_EXECUTE_ALLOWED_USERS', 'tess,jerry,jacob,paula,karoline');
+const ORDER_CANCEL_DRY_RUN_ALLOWED_USERS = userAllowlist('ORDER_CANCEL_DRY_RUN_ALLOWED_USERS', 'tess');
+const ORDER_CANCEL_MANUAL_REFUND_RESTRICTED_USERS = userAllowlist('ORDER_CANCEL_MANUAL_REFUND_RESTRICTED_USERS', 'paula');
+const ORDER_PO_INIT_ALLOWED_USERS = userAllowlist('ORDER_PO_INIT_ALLOWED_USERS', 'tess,jerry,jacob,paula,karoline');
+const PURCHASER_REPORT_ALLOWED_USERS = userAllowlist('PURCHASER_REPORT_ALLOWED_USERS', 'tess,paula,karoline');
+const ORDER_CANCELLATION_REPORT_ALLOWED_USERS = userAllowlist('ORDER_CANCELLATION_REPORT_ALLOWED_USERS', 'tess,jerry,jacob,paula,karoline');
 const ORDER_CANCEL_PO_INITIALS_BY_USER = Object.freeze({
 	jacob: 'JK',
 	jerry: 'JD',
@@ -1447,9 +1452,8 @@ app.post('/api/reports/purchaser/email', async (req, res) => {
 		// "ENABLE_AUTH === 'true' && req.user", entao um deploy com ENABLE_AUTH
 		// errado abria o disparo de e-mail para qualquer anonimo.
 		{
-			const allowed = ['tess', 'paula', 'karoline'];
 			const username = (req.user?.username || req.user?.firstname || '').toLowerCase();
-			if (!allowed.includes(username)) {
+			if (!PURCHASER_REPORT_ALLOWED_USERS.has(username)) {
 				return res.status(403).json({ error: 'Not authorized to send report' });
 			}
 		}
@@ -1481,9 +1485,8 @@ app.post('/api/reports/order-cancellations/daily/email', async (req, res) => {
 		// "ENABLE_AUTH === 'true' && req.user", entao um deploy com ENABLE_AUTH
 		// errado abria o disparo de e-mail para qualquer anonimo.
 		{
-			const allowed = ['admin', 'tess', 'jerry', 'jacob', 'paula', 'karoline'];
 			const username = (req.user?.username || req.user?.firstname || '').toLowerCase();
-			if (!allowed.includes(username)) {
+			if (!ORDER_CANCELLATION_REPORT_ALLOWED_USERS.has(username)) {
 				return res.status(403).json({ error: 'Not authorized to send cancellation report' });
 			}
 		}

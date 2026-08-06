@@ -146,6 +146,17 @@ env:
     # privado do bucket (nunca no repositorio); alternativa: KEYSTONE_FTP_CA_PEM
     # como secret com o conteudo do PEM.
     KEYSTONE_FTP_CA_OBJECT_KEY: certs/keystone-ftp-ca.pem
+    # Quem pode o que: allowlists por env para nao exigir deploy de codigo
+    # quando alguem entra ou sai do time (o codigo so tem o default).
+    MAGENTO_STATUS_ALLOWED_USERS: "jerry,tess,jacob,david,rafael,ricardo,paula"
+    ORDER_CANCEL_EXECUTE_ALLOWED_USERS: "tess,jerry,jacob,paula,karoline"
+    ORDER_CANCEL_DRY_RUN_ALLOWED_USERS: "tess"
+    ORDER_CANCEL_MANUAL_REFUND_RESTRICTED_USERS: "paula"
+    ORDER_PO_INIT_ALLOWED_USERS: "tess,jerry,jacob,paula,karoline"
+    PURCHASER_REPORT_ALLOWED_USERS: "tess,paula,karoline"
+    ORDER_CANCELLATION_REPORT_ALLOWED_USERS: "tess,jerry,jacob,paula,karoline"
+    # Origens aceitas pelo navegador (CORS da API). localhost so fora de prod.
+    CORS_ALLOWED_ORIGINS: "https://pricingtool.justjeeps.com"
     FEED_CACHE_DIR: /app/feed-cache
     # Quem pode subir feed e usar o botao "Run now" do painel.
     FEEDS_TRIAGE_USERS: "ricardo,rafael"
