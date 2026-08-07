@@ -7,6 +7,11 @@ const ROOT = path.resolve(__dirname, "../../../");
 const logsDir = path.resolve(ROOT, "prisma/seeds/logs");
 if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
 
+// Each step's log also goes to Spaces: these files are append-only and the ones
+// that matter are the failures, which are exactly the ones nobody reads in time.
+const { createLogArchive } = require(path.join(ROOT, "services/logArchive/logArchiveService"));
+const logArchive = createLogArchive();
+
 // sequential pairs
 const vendorSeeds = [
   { main: "seed-quadratec",   dependent: "seed-quad-inventory" },
@@ -178,6 +183,8 @@ function runCommandToLog(cmd) {
 
 async function runCommandSafely(cmd) {
   const startedAt = new Date();
+  // Taken before the run: the step's log file is appended to, never truncated.
+  const logStartOffset = logArchive.currentOffset(path.join(logsDir, `${cmd}.log`));
   let result;
   try {
     result = await runCommandToLog(cmd);
@@ -193,6 +200,19 @@ async function runCommandSafely(cmd) {
   }
 
   // Best effort: the sync never fails because of its own bookkeeping.
+  const archived = await logArchive.archiveRun({
+    filePath: result.logFile,
+    command: cmd,
+    startedAt,
+    status: result.success ? "success" : "failed",
+    source: "seed-all",
+    startOffset: logStartOffset,
+  });
+  if (archived.archived) {
+    result.logArchiveKey = archived.key;
+    console.log(`   ☁️  log archived: ${archived.key}`);
+  }
+
   const feed = findFeedByCommand(cmd);
   if (feed) {
     await recordScriptRun(prisma, {
@@ -284,6 +304,20 @@ async function runCommandSafely(cmd) {
       console.log(`📄 Summary written to prisma/seeds/logs/${path.basename(summaryPath)}`);
     } catch (writeErr) {
       console.error("❌ Failed to write summary file:", writeErr.message);
+    }
+
+    // The summary is the index of the run: which of the 18 steps failed, and
+    // with it the step logs already in the bucket become navigable.
+    const archivedSummary = await logArchive.archiveFile({
+      filePath: summaryPath,
+      command: "seed-all",
+      startedAt: new Date(startTime),
+      status: results.some((r) => !r.success) ? "failed" : "success",
+      source: "seed-all",
+      extension: "summary.json",
+    });
+    if (archivedSummary.archived) {
+      console.log(`☁️  Summary archived to Spaces: ${archivedSummary.key}`);
     }
 
     try {

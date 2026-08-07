@@ -1186,6 +1186,10 @@ const { createFeedStore } = require('./lib/feeds/feedStore');
 const { getFeedDefinitions } = require('./config/feeds');
 const { collectFeedFreshnessResults } = require('./lib/feeds/freshnessReport');
 const feedStore = createFeedStore();
+// Run logs go to Spaces as well as to disk: the files here are append-only and
+// never rotate, and container stdout is lost on every deploy.
+const { createLogArchive } = require('./services/logArchive/logArchiveService');
+const logArchive = createLogArchive({ logger });
 // Requests (internal tickets) + user list for assignee selects
 const requestsRoutes = require('./routes/requests');
 const usersRoutes = require('./routes/users');
@@ -4977,6 +4981,9 @@ function registerCommandCronJob({
 		console.log(`🕐 [CRON] Starting ${jobName} with command "npm run ${command}" on schedule ${schedule} (${cronTimezone})...`);
 
 		const resolvedLogFile = reportLogFile ? path.resolve(__dirname, reportLogFile) : null;
+		// Where this run's output starts. The file is append-only, so the archive
+		// uploads this run's slice instead of re-uploading the whole history.
+		const logStartOffset = logArchive.currentOffset(resolvedLogFile);
 		const logStream = createCronLogWriter({ resolvedLogFile, jobName, command });
 		if (logStream) {
 			logStream.write(`\n${'='.repeat(80)}\n`);
@@ -5042,6 +5049,29 @@ function registerCommandCronJob({
 				logStream,
 				`\n[${new Date().toISOString()}] Finished ${jobName} with ${exitLabel}\n`
 			);
+
+			// After the stream is flushed, so the slice ends with the run's own
+			// closing line. Best effort: a bucket problem never fails the job.
+			const archivedLog = await logArchive.archiveRun({
+				filePath: resolvedLogFile,
+				command,
+				startedAt: new Date(startTime),
+				status: code === 0 ? 'success' : 'failed',
+				source: 'cron',
+				startOffset: logStartOffset,
+			});
+			if (archivedLog.archived) {
+				// The record is merged, so the key survives the status patches
+				// below and the cron panel can point at the archived run.
+				upsertCronJobRecord(command, { lastLogArchiveKey: archivedLog.key });
+				logger.info('Run log archived to Spaces', {
+					jobName,
+					command,
+					key: archivedLog.key,
+					bytes: archivedLog.bytes,
+					truncated: archivedLog.truncated,
+				});
+			}
 
 			if (readSummaryFile) {
 				const summaryFile = path.resolve(__dirname, readSummaryFile);
