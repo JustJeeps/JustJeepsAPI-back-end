@@ -50,7 +50,17 @@ State machine in `lib/requests/transitions.js`:
 - Anyone who opened a request, plus triage, can **archive** it in any status (it disappears from the default screen filters and shows up under the Archived view) and **delete** it. Delete is a soft delete: the request disappears for everyone but nothing is erased — comments, attachments in the bucket and the Trello card stay. Only triage sees the deleted list (`GET /api/requests?deleted=true`) and can restore (`POST /api/requests/:id/restore`). Archiving is an explicit choice: changing the status of an archived request no longer brings it back.
 
 
-The board groups the 8 statuses into 4 lanes: **Requests** (New Request, Estimation, Assigned), **Doing** (Work in Progress), **Blocked** (Awaiting Client Response, On Hold) and **Done** (Completed, Closed). Dropping a card on a lane applies the lane's target status; Blocked and Done ask for the required comment first.
+### The four lanes, in both views
+
+The 8 statuses are shown as 4 lanes: **Requests** (New Request, Estimation, Assigned), **Doing** (Work in Progress), **Blocked** (Awaiting Client Response, On Hold) and **Done** (Completed, Closed). `BOARD_LANES` in `src/features/requests/requestsConstants.js` is the single definition, and **the list groups by the same lanes, with the same names, in the same order**. The list used to group by the 8 raw statuses, so the same data had a different shape depending on the view and the reader had to translate "Estimation" into "Requests" in their head. Inside a lane the exact status is still readable: the coloured dot next to the title carries it as a tooltip, and the card shows it as a tag.
+
+Dropping a card on a lane applies the lane's target status; Blocked and Done ask for the required comment first. An empty lane stays visible in both views, so the flow reads the same whether or not anything is in it.
+
+### Saved views and the trash
+
+The saved views (My requests, Unassigned, All open, Archived, Deleted) are a filter, **not** a change of view mode: opening the trash from the board keeps the board. In the trash the board is read only, because a deleted request is restored rather than moved to another lane, so cards do not drag and the "Move to" select is hidden.
+
+The filters in the bar above stay applied when the trash opens, and they were chosen for a different set of requests, so the usual result is an empty trash that looks broken. When filters are hiding everything, the screen says how many deleted requests exist and that clearing the filters will show them.
 
 Every change writes a `RequestActivity` row (audit trail shown in the drawer).
 
