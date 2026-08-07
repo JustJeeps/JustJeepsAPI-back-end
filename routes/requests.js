@@ -203,8 +203,7 @@ router.post('/:id/trello-card', handle(async (req, res) => {
 router.post('/:id/comments', handle(async (req, res) => {
 	const id = idParam(req);
 	const body = requireText((req.body || {}).body, 'Comment', 20000);
-	const internal = Boolean((req.body || {}).internal);
-	const comment = await requestsService.addComment({ user: req.user, id, body, internal });
+	const comment = await requestsService.addComment({ user: req.user, id, body });
 	res.status(201).json(comment);
 }));
 

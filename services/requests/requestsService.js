@@ -238,7 +238,7 @@ async function updateRequest({ user, id, patch }) {
 		}
 		if (commentBody) {
 			await tx.requestComment.create({
-				data: { request_id: id, author_id: user.id, body: commentBody, internal: false },
+				data: { request_id: id, author_id: user.id, body: commentBody },
 			});
 		}
 		if (activities.length) {
@@ -445,11 +445,15 @@ async function restoreRequest({ user, id }) {
 
 // --- comentarios ----------------------------------------------------------------
 
-async function addComment({ user, id, body, internal }) {
+// Todo comentario e visivel para quem abre o chamado. Existiu uma flag
+// "internal" que prometia esconder do autor e nunca escondeu nada (nenhum
+// filtro na leitura); removida em 2026-08-07 em vez de virar uma promessa
+// falsa sobre quem le o que.
+async function addComment({ user, id, body }) {
 	await loadRequestOrFail(id);
 	return prisma.$transaction(async (tx) => {
 		const comment = await tx.requestComment.create({
-			data: { request_id: id, author_id: user.id, body, internal: Boolean(internal) },
+			data: { request_id: id, author_id: user.id, body },
 			include: { author: { select: USER_SELECT } },
 		});
 		await tx.requestActivity.create({ data: commentActivity(id, user.id) });
