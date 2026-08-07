@@ -1,10 +1,22 @@
 const XLSX = require("xlsx");
+const fs = require("fs");
 const path = require("path");
 
 const omixCost = () => {
   // Step 1: Load Excel file
   // Construct the absolute file path using __dirname and the file name
   const filePath = path.join(__dirname, "omix-excel.xlsx");
+
+  // Say what to do about it. Without this the nightly failure reads
+  // "ENOENT: no such file or directory, open '/app/prisma/seeds/api-calls/
+  // omix-excel.xlsx'", which is a container path nobody can act on, and the
+  // file has been missing for weeks precisely because nothing said how to
+  // put it back.
+  if (!fs.existsSync(filePath)) {
+    throw new Error(
+      "No Omix price sheet available. Upload omix-excel.xlsx in Settings > Imports (Omix price sheet), or run: npm run feed-upload -- omix <file>"
+    );
+  }
 
   // Read the file using the updated file path
   const workbook = XLSX.readFile(filePath);

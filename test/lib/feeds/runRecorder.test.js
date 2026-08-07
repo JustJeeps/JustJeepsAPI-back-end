@@ -66,6 +66,27 @@ test('a script that records its own run is left alone', async () => {
 	assert.strictEqual(prisma.created.length, 0, 'the detailed row stays the last one');
 });
 
+test('a failure the script already filed is not duplicated', async () => {
+	// seed-omix files "no such file ... omix-excel.xlsx" itself. A bookkeeping
+	// row on top would be newer, so the panel would show "Exit code 1" and hide
+	// the only line that says what to do about it.
+	const startedAt = new Date('2026-08-07T11:46:00Z');
+	const prisma = makePrismaStub([
+		{ feed: 'omix', startedAt: new Date('2026-08-07T11:46:02Z'), status: 'failed' },
+	]);
+
+	await recordScriptRun(prisma, {
+		feed: { name: 'omix', ingestFeed: 'omix' },
+		command: 'seed-omix',
+		startedAt,
+		finishedAt: new Date('2026-08-07T11:46:05Z'),
+		status: 'failed',
+		error: 'Exit code 1',
+	});
+
+	assert.strictEqual(prisma.created.length, 0, 'the reason stays the last word');
+});
+
 test('a failure is recorded even when an earlier script of the feed succeeded', async () => {
 	const startedAt = new Date('2026-08-06T12:00:00Z');
 	// Quadratec runs two scripts: the first recorded its own successful run, the
