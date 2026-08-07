@@ -307,7 +307,6 @@ model RequestComment {
   request_id Int
   author_id  Int
   body       String   @db.Text
-  internal   Boolean  @default(false)
   createdAt  DateTime @default(now())
   request    Request  @relation(fields: [request_id], references: [id], onDelete: Cascade)
   author     User     @relation("RequestCommentAuthor", fields: [author_id], references: [id])
