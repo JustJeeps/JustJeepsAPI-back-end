@@ -108,6 +108,42 @@ test('registerArtifacts supersedes the previous batch and groups by batchId', as
 	assert.strictEqual(prisma.feedArtifacts.filter((row) => row.status === 'superseded').length, 2);
 });
 
+test('a batch built from one new file plus a carried forward one is current', async () => {
+	// This is what a partial upload produces: the person had only the CSV, so
+	// the spreadsheet comes from the previous batch pointing at the SAME object.
+	// The result has to be a complete, current batch, otherwise feed-sync would
+	// see no batch and remove the symlinks the vendor scripts read.
+	const prisma = makePrismaStub();
+	const spreadsheet = file('pricingSheet_quad.xlsx');
+
+	const first = await catalog.registerArtifacts(prisma, {
+		feed: 'quadratec',
+		source: 'manual',
+		files: [file('quadratec_wholesale.csv'), spreadsheet],
+	});
+
+	const second = await catalog.registerArtifacts(prisma, {
+		feed: 'quadratec',
+		source: 'manual',
+		files: [
+			file('quadratec_wholesale.csv'),
+			// carried forward verbatim, same object key
+			{ fileName: 'pricingSheet_quad.xlsx', objectKey: spreadsheet.objectKey, sha256: spreadsheet.sha256, sizeBytes: 100 },
+		],
+	});
+
+	assert.notStrictEqual(first.batchId, second.batchId);
+
+	const current = await catalog.getCurrentBatch(prisma, 'quadratec', ['quadratec_wholesale.csv', 'pricingSheet_quad.xlsx']);
+	assert.strictEqual(current.batchId, second.batchId);
+	assert.strictEqual(current.artifacts.length, 2);
+
+	// The kept file still points at the object that was already in the bucket:
+	// nothing was re-uploaded for it.
+	const kept = current.artifacts.find((artifact) => artifact.fileName === 'pricingSheet_quad.xlsx');
+	assert.strictEqual(kept.objectKey, spreadsheet.objectKey);
+});
+
 test('the same file cannot be registered twice in one batch', async () => {
 	const prisma = makePrismaStub();
 

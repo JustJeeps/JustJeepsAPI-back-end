@@ -7,6 +7,10 @@ const { createFeedRunner } = require('../../../lib/feeds/feedRunner');
 const FEEDS = {
 	getFeedByName: (name) => {
 		if (name === 'omix') return { name: 'omix', seedCommand: 'seed-omix' };
+		// Pulled from the vendor by FTP, so it also has a manual fetch.
+		if (name === 'keystone-ftp') {
+			return { name: 'keystone-ftp', seedCommand: 'seed-keystone-ftp2', fetchCommand: 'feed-fetch-keystone' };
+		}
 		// A feed may list several scripts, run in sequence.
 		if (name === 'quadratec') return { name: 'quadratec', seedCommand: ['seed-quadratec', 'seed-quad-inventory'] };
 		if (name === 'warn-map') {
@@ -56,6 +60,24 @@ function makeFixture({ seedAllRunning = false, seedAllLockAgeMs = 60_000 } = {})
 // referenced a module the file never imported stayed invisible until the API
 // booted in production and crashed on require. This builds the runner the way
 // services/feeds/runnerInstance.js does, with nothing injected.
+test('fetch mode runs the vendor fetch alone, without a feed-sync first', () => {
+	// The fetch is what PRODUCES the batch, so syncing before it would sync
+	// nothing (and would fail outright on a feed that has no batch yet).
+	const fixture = makeFixture();
+	const record = fixture.runner.start('keystone-ftp', { startedBy: 'ricardo', mode: 'fetch' });
+
+	assert.strictEqual(fixture.spawned[0].args[1], 'npm run feed-fetch-keystone');
+	assert.strictEqual(record.mode, 'fetch');
+});
+
+test('fetch mode is refused for a feed nobody fetches', () => {
+	const fixture = makeFixture();
+	assert.throws(
+		() => fixture.runner.start('omix', { mode: 'fetch' }),
+		(error) => error.code === 'FEED_RUN_NOT_ALLOWED'
+	);
+});
+
 test('the runner builds with no injected dependencies, as production does', () => {
 	assert.doesNotThrow(() => createFeedRunner());
 	assert.doesNotThrow(() => createFeedRunner({}));

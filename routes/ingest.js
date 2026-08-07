@@ -75,6 +75,7 @@ const serializeStatus = (status) => ({
 	// Panel "Run now" button: only shows up for a feed with its own script.
 	seedCommand: status.seedCommand,
 	seedCommandNote: status.seedCommandNote,
+	fetchCommand: status.fetchCommand,
 	running: runningFeed(status.feed),
 	ageHours: status.ageHours === null ? null : Number(status.ageHours.toFixed(1)),
 	currentBatch: status.currentBatch
@@ -93,9 +94,18 @@ router.use((req, res, next) => {
 	next();
 });
 
+// Feeds carrying personal or financial data (the QuickBooks export) are only
+// listed for the people who can act on them. Uploading and running were
+// already triage only; this keeps the metadata (file names, sizes, who
+// uploaded and when) out of the panel for everyone else.
+const visibleFeedsFor = (username) => {
+	const canManage = isTriageUser(username);
+	return feedsConfig.getFeedDefinitions().filter((feed) => canManage || !feed.restricted);
+};
+
 router.get('/feeds', async (req, res) => {
 	try {
-		const statuses = await catalog.listFeedStatuses(prisma, feedsConfig.getFeedDefinitions());
+		const statuses = await catalog.listFeedStatuses(prisma, visibleFeedsFor(req.user.username));
 		res.json({
 			feeds: statuses.map(serializeStatus),
 			storeConfigured: store.isConfigured(),
@@ -135,8 +145,20 @@ router.get('/runs', async (req, res) => {
 		if (statusParam !== undefined && !RUN_STATUSES.includes(statusParam)) {
 			return res.status(400).json({ error: `Invalid status. Allowed: ${RUN_STATUSES.join(', ')}` });
 		}
+		// Same rule as the listing: a restricted feed's runs are triage only, and
+		// asking for one by name from outside triage answers an empty page rather
+		// than confirming it exists.
+		const visibleFeeds = visibleFeedsFor(req.user.username);
+		const hiddenFeeds = feedsConfig.getFeedDefinitions()
+			.filter((feed) => !visibleFeeds.some((visible) => visible.name === feed.name))
+			.flatMap((feed) => [feed.name, feed.ingestFeed, `${feed.name}-fetch`]);
+		if (feedParam !== undefined && hiddenFeeds.includes(feedParam)) {
+			return res.json({ runs: [], total: 0, limit, offset });
+		}
+
 		const { runs, total } = await catalog.listRuns(prisma, {
 			feed: feedParam,
+			excludeFeeds: hiddenFeeds,
 			status: statusParam,
 			limit,
 			offset,
@@ -404,12 +426,48 @@ router.post('/feeds/:feed/uploads/commit', requireTriage, async (req, res) => {
 
 		if (files.length === 0) return res.status(400).json({ error: 'Nothing to commit' });
 
+		// A file the person did not send is CARRIED FORWARD from the current
+		// batch, so each file of a multi-file feed can be updated on its own.
+		// The vendor does not always send both at the same time (the QuickBooks
+		// exports are taken separately, and Quadratec ships the sheet and the CSV
+		// on their own schedules), and refusing the upload just meant the new
+		// file never arrived. The batch still ends up covering every file, which
+		// is what keeps the feed readable.
 		const names = files.map((file) => file.fileName);
 		const missing = feed.files.filter((name) => !names.includes(name));
+		let carriedForward = [];
+
 		if (missing.length > 0) {
-			return res.status(409).json({
-				error: `Feed ${feed.name} needs every file in the same batch. Missing: ${missing.join(', ')}`,
-				code: 'FEED_BATCH_INCOMPLETE',
+			const current = await catalog.getCurrentBatch(prisma, feed.name, feed.files);
+			if (!current) {
+				return res.status(409).json({
+					error: `Feed ${feed.name} has no previous file to complete the batch with, so this first upload needs all of them. Missing: ${missing.join(', ')}`,
+					code: 'FEED_BATCH_INCOMPLETE',
+				});
+			}
+
+			carriedForward = missing.map((name) => {
+				const previous = current.artifacts.find((artifact) => artifact.fileName === name);
+				return {
+					fileName: previous.fileName,
+					objectKey: previous.objectKey,
+					sha256: previous.sha256,
+					sizeBytes: Number(previous.sizeBytes),
+					contentType: previous.contentType,
+					uploadedAt: previous.uploadedAt,
+				};
+			});
+			files.push(...carriedForward.map(({ uploadedAt, ...file }) => file));
+		}
+
+		for (const name of missing) {
+			const previous = currentBatch.artifacts.find((artifact) => artifact.fileName === name);
+			files.push({
+				fileName: previous.fileName,
+				objectKey: previous.objectKey,
+				sha256: previous.sha256,
+				sizeBytes: Number(previous.sizeBytes),
+				contentType: previous.contentType,
 			});
 		}
 
@@ -429,6 +487,12 @@ router.post('/feeds/:feed/uploads/commit', requireTriage, async (req, res) => {
 			isCurrent: current?.batchId === batchId,
 			reused: reuseList.length,
 			uploaded: uploadIds.length,
+			// So the panel can say WHICH file was kept and from when, instead of
+			// letting someone believe they just refreshed the whole feed.
+			carriedForward: carriedForward.map((file) => ({
+				fileName: file.fileName,
+				uploadedAt: file.uploadedAt,
+			})),
 		});
 	} catch (error) {
 		console.error('Ingest upload commit error:', error);
@@ -489,10 +553,16 @@ router.post('/feeds/:feed/upload', requireTriage, upload.array('files', 5), asyn
 				code: 'FEED_FILE_MISMATCH',
 			});
 		}
+		// Same rule as the direct upload: what is not sent is carried forward
+		// from the current batch, so one file of a multi-file feed can be
+		// refreshed on its own.
 		const missing = feed.files.filter((name) => !names.includes(name));
-		if (missing.length > 0) {
+		const currentBatch = missing.length > 0
+			? await catalog.getCurrentBatch(prisma, feed.name, feed.files)
+			: null;
+		if (missing.length > 0 && !currentBatch) {
 			return res.status(409).json({
-				error: `Feed ${feed.name} requires all files in one upload. Missing: ${missing.join(', ')}`,
+				error: `Feed ${feed.name} has no previous file to complete the batch with, so this first upload needs all of them. Missing: ${missing.join(', ')}`,
 				code: 'FEED_BATCH_INCOMPLETE',
 			});
 		}
@@ -538,6 +608,25 @@ router.post('/feeds/:feed/upload', requireTriage, upload.array('files', 5), asyn
 // was just uploaded without waiting for seed-all. Asynchronous: the panel
 // follows it through GET .../run-status. Triage only (the script writes to
 // VendorProduct in production).
+// Go get the file at the vendor NOW. The schedule (4:47 and 16:47) is a guess
+// about when Keystone publishes, and when it guesses early the run succeeds with
+// the previous day's file and there is no way to ask again until the next window.
+router.post('/feeds/:feed/fetch', requireTriage, (req, res) => {
+	try {
+		const record = runner.start(req.params.feed, { startedBy: req.user.username, mode: 'fetch' });
+		res.status(202).json(record);
+	} catch (error) {
+		if (error.code === 'FEED_UNKNOWN') {
+			return res.status(404).json({ error: error.message, code: error.code });
+		}
+		if (error.code === 'FEED_RUN_NOT_ALLOWED' || error.code === 'FEED_RUN_BUSY') {
+			return res.status(409).json({ error: error.message, code: error.code });
+		}
+		console.error('Ingest fetch route error:', error);
+		res.status(500).json({ error: 'Internal server error' });
+	}
+});
+
 router.post('/feeds/:feed/run', requireTriage, (req, res) => {
 	try {
 		const record = runner.start(req.params.feed, { startedBy: req.user.username });

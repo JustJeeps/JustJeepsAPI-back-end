@@ -10,6 +10,11 @@ const {
   CUSTOMER_CSV_PATH,
   TRANSACTION_CSV_PATH,
 } = require('../../../services/quickbooksCustomerLookup');
+const catalog = require('../../../lib/feeds/catalog');
+const feedsConfig = require('../../../config/feeds');
+
+// The feed the exports arrive through when they are uploaded from the panel.
+const FEED = 'quickbooks';
 
 // Wide rows (42 columns + JSON with up to 25 transactions): small batch so we
 // do not blow past the Postgres bind param limit or the pool of 2 connections.
@@ -28,6 +33,27 @@ function fileFreshness(filePath) {
   return stats.mtime;
 }
 
+// When the exports come from the bucket, the local file is a symlink into the
+// feed cache and its mtime is when we DOWNLOADED it, not when the export was
+// taken. Reading that would make every snapshot look brand new and would quietly
+// disable the staleness alert, which is the whole reason this data is watched.
+// The upload time of the batch is the honest answer; the mtime stays as the
+// fallback for the legacy path (files copied to the inbox by hand).
+async function resolveSourceExportedAt(fallback) {
+  const feed = feedsConfig.getFeedByName(FEED);
+  if (!feed) return fallback;
+
+  try {
+    const batch = await catalog.getCurrentBatch(prisma, feed.name, feed.files);
+    if (!batch) return fallback;
+    console.log(`  source: batch ${batch.batchId} uploaded ${batch.uploadedAt.toISOString()}`);
+    return batch.uploadedAt;
+  } catch (error) {
+    console.warn(`  could not read the feed catalog (${error.message}), using the file dates`);
+    return fallback;
+  }
+}
+
 async function seedQuickBooksCustomers() {
   const startedAt = Date.now();
   console.log('=== Seed QuickBooks Customers ===');
@@ -42,7 +68,8 @@ async function seedQuickBooksCustomers() {
   const customersMtime = fileFreshness(CUSTOMER_CSV_PATH);
   const transactionsMtime = fileFreshness(TRANSACTION_CSV_PATH);
   // The snapshot is only as fresh as the older of the two exports.
-  const sourceExportedAt = customersMtime < transactionsMtime ? customersMtime : transactionsMtime;
+  const oldestMtime = customersMtime < transactionsMtime ? customersMtime : transactionsMtime;
+  const sourceExportedAt = await resolveSourceExportedAt(oldestMtime);
 
   console.log('Parsing CSVs...');
   const customers = loadCustomers(CUSTOMER_CSV_PATH);

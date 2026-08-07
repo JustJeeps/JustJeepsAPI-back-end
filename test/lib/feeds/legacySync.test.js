@@ -53,6 +53,41 @@ test('ensureLink replaces a pre-existing REGULAR file (baked into the image)', (
 	assert.strictEqual(fs.readFileSync(linkPath, 'utf8'), 'from the bucket');
 });
 
+test('an absolute legacyDir links OUTSIDE api-calls', async () => {
+	// The QuickBooks export is read from its own volume, not from api-calls, so
+	// its legacyDir is absolute. path.join would have treated it as relative and
+	// buried the link under api-calls, where nothing would ever read it.
+	const { apiCallsDir, cacheDir } = makeDirs();
+	const inbox = fs.mkdtempSync(path.join(os.tmpdir(), 'qb-inbox-'));
+	const target = path.join(cacheDir, 'customers_qb_desktop.csv');
+	fs.writeFileSync(target, 'Customer,Main Email\n');
+
+	const legacySync = createLegacySync({
+		materializer: {
+			materializeFeed: async () => ({
+				batchId: 'batch-1',
+				stale: false,
+				files: { 'customers_qb_desktop.csv': target },
+			}),
+		},
+		feedsConfig: {
+			getFeedDefinitions: () => [
+				{ name: 'quickbooks', files: ['customers_qb_desktop.csv'], legacyDir: inbox },
+			],
+		},
+		apiCallsDir,
+		cacheDir,
+		logger: quietLogger,
+	});
+
+	const { synced } = await legacySync.syncAllFeeds();
+
+	assert.strictEqual(synced.length, 1);
+	assert.strictEqual(synced[0].links[0].linkPath, path.join(inbox, 'customers_qb_desktop.csv'));
+	assert.strictEqual(fs.readFileSync(path.join(inbox, 'customers_qb_desktop.csv'), 'utf8'), 'Customer,Main Email\n');
+	assert.ok(!fs.existsSync(path.join(apiCallsDir, inbox.replace(/^\//, ''))), 'nothing was created under api-calls');
+});
+
 test('syncAllFeeds: no batch becomes skipped, a store failure becomes failed, and one does not block the other', async () => {
 	const { apiCallsDir, cacheDir } = makeDirs();
 	const okFile = path.join(cacheDir, 'WARN-MAP.xlsx');

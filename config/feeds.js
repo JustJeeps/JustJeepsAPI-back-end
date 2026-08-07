@@ -33,6 +33,13 @@
 // recordsOwnRuns: the script records its own IngestRun with real row counts, so
 // bookkeeping must not add a zero-count row on top of it.
 //
+// fetchCommand: npm script that goes and gets the file at the vendor, exposed as
+// a "Fetch now" button. Only for feeds that are pulled (fetch: 'ftp').
+//
+// restricted: the feed carries personal or financial data, so it is hidden from
+// the panel and the run history for anyone outside the triage list. Uploading
+// and running were already triage only; this closes the metadata as well.
+//
 // seedCommand: npm script that consumes the feed, triggerable by the panel's
 // "Run now" button (POST /api/ingest/feeds/:feed/run) to check the file that
 // was just uploaded without waiting for seed-all. null = no button; use
@@ -52,6 +59,11 @@ const FEED_DEFINITIONS = [
 		legacyDir: 'keystone_files',
 		staleAfterHours: 36, // fetch runs 2x/day; 36h = missed 2 fetches
 		fetch: 'ftp',
+		// Manual trigger for the scheduled fetch (4:47 and 16:47). The schedule is
+		// a guess about when the vendor publishes, and when it guesses wrong the
+		// run succeeds with yesterday's file and there is nothing to do until the
+		// next window.
+		fetchCommand: 'feed-fetch-keystone',
 		maxUploadBytes: 600 * 1024 * 1024, // CLI only in practice (the panel caps at uploadPanelMaxBytes)
 	},
 	{
@@ -118,6 +130,33 @@ const FEED_DEFINITIONS = [
 		staleAfterHours: 120 * DAY_HOURS,
 	},
 	{
+		// Not a vendor price file: the two manual exports from QuickBooks Desktop
+		// that feed the customer lookup used for fraud triage. It lives here for
+		// one reason: refreshing it used to mean scp to the droplet plus a
+		// docker exec inside the container, so it was refreshed exactly once and
+		// then went stale for weeks. Through the panel it is two files dragged
+		// into the browser.
+		//
+		// legacyDir is absolute in production (the inbox volume the lookup reads,
+		// QB_LOOKUP_DATA_DIR=/data/quickbooks-customers), which is why legacySync
+		// resolves instead of joining. Without the env it lands in a folder under
+		// api-calls, which is harmless and inspectable in development.
+		name: 'quickbooks',
+		label: 'QuickBooks customer export (2 CSVs)',
+		files: ['customers_qb_desktop.csv', 'transactions_per_customer.csv'],
+		seedCommand: 'seed-quickbooks-customers',
+		syncCommands: ['seed-quickbooks-customers'],
+		// Read per call (legacyDirEnv), like the staleness overrides: a value
+		// frozen at require time cannot be exercised by a test and drifts from
+		// whatever the container is actually configured with.
+		legacyDir: 'quickbooks',
+		legacyDirEnv: 'QB_LOOKUP_DATA_DIR',
+		restricted: true,
+		// Same threshold the freshness cron warns at (QB_STALE_WARN_DAYS=14), so
+		// the panel and the daily e-mail never disagree about what counts as old.
+		staleAfterHours: 14 * DAY_HOURS,
+	},
+	{
 		name: 'aev',
 		label: 'AEV price file (XLSX)',
 		files: ['AEV-price-file.xlsx'],
@@ -140,11 +179,13 @@ function getFeedDefinitions() {
 		const override = Number(process.env[envStaleKey(feed.name)]);
 		return {
 			...feed,
-			legacyDir: feed.legacyDir || '',
+			legacyDir: (feed.legacyDirEnv ? process.env[feed.legacyDirEnv] : '') || feed.legacyDir || '',
 			ingestFeed: feed.ingestFeed || feed.name,
 			seedCommand: feed.seedCommand || null,
 			syncCommands: feed.syncCommands || (feed.seedCommand ? [].concat(feed.seedCommand) : []),
 			recordsOwnRuns: Boolean(feed.recordsOwnRuns),
+			fetchCommand: feed.fetchCommand || null,
+			restricted: Boolean(feed.restricted),
 			seedCommandNote: feed.seedCommandNote || null,
 			staleAfterHours: Number.isFinite(override) && override > 0 ? override : feed.staleAfterHours,
 			maxUploadBytes: Math.min(feed.maxUploadBytes || DEFAULT_MAX_UPLOAD_BYTES, uploadPanelMaxBytes),
