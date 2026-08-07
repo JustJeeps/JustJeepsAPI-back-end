@@ -272,9 +272,14 @@ model Request {
   // Integracao one-way com Trello (config via painel /settings)
   trelloCardId  String?
   trelloCardUrl String?
-  // Arquivado (2026-08-03): some dos filtros padrao da tela, mas fica salvo.
-  // So chamados Completed/Closed podem ser arquivados (regra no servico).
+  // Arquivado: some dos filtros padrao da tela, mas fica salvo. Autor e triage
+  // arquivam em qualquer status (regra em lib/requests/archive.js).
   archivedAt   DateTime?
+  // Deletado (soft delete, 2026-08-07): some da tela para todo mundo, inclusive
+  // da view Archived, mas NADA e apagado — comentarios, anexos no bucket e card
+  // do Trello ficam intactos. So triage restaura.
+  deletedAt    DateTime?
+  deletedById  Int?
   requester_id Int
   assignee_id  Int?
   createdAt    DateTime            @default(now())
@@ -294,6 +299,7 @@ model Request {
   @@index([createdAt])
   @@index([updatedAt])
   @@index([archivedAt])
+  @@index([deletedAt])
 }
 
 model RequestComment {

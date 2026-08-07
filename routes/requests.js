@@ -16,6 +16,7 @@ const {
 	REQUEST_TYPES,
 	ATTACHMENT_ALLOWED_TYPES,
 	isRequestsUser,
+	isTriageUser,
 	config: requestsConfig,
 } = require('../config/requests');
 
@@ -122,7 +123,7 @@ const parsePatch = (body = {}) => {
 		patch.assigneeIds = patch.assigneeId === null ? [] : [patch.assigneeId];
 	}
 	if (body.comment !== undefined) patch.comment = String(body.comment ?? '');
-	// Arquivar (true) / desarquivar (false). Regra no servico: so Completed/Closed.
+	// Arquivar (true) / desarquivar (false). Regra no servico: autor ou triage.
 	if (body.archived !== undefined) patch.archived = Boolean(body.archived);
 	return patch;
 };
@@ -157,7 +158,12 @@ router.get('/meta', handle(async (req, res) => {
 }));
 
 router.get('/', handle(async (req, res) => {
-	res.json(await requestsService.listRequests());
+	// ?deleted=true = lixeira, restrita a triage (quem pode restaurar).
+	const deleted = req.query.deleted === 'true';
+	if (deleted && !isTriageUser(req.user.username)) {
+		throw RequestServiceError.conflict('TRIAGE_ONLY', 'Only triage users can list deleted requests');
+	}
+	res.json(await requestsService.listRequests({ deleted }));
 }));
 
 router.post('/', handle(async (req, res) => {
@@ -167,7 +173,9 @@ router.post('/', handle(async (req, res) => {
 }));
 
 router.get('/:id', handle(async (req, res) => {
-	res.json(await requestsService.getRequestDetail(idParam(req)));
+	res.json(await requestsService.getRequestDetail(idParam(req), {
+		includeDeleted: isTriageUser(req.user.username),
+	}));
 }));
 
 router.patch('/:id', handle(async (req, res) => {
@@ -177,6 +185,16 @@ router.patch('/:id', handle(async (req, res) => {
 }));
 
 // Cria o card no Trello manualmente ("Create card now" no drawer).
+// Soft delete: some da tela, nada e apagado. Autor ou triage.
+router.delete('/:id', handle(async (req, res) => {
+	await requestsService.softDeleteRequest({ user: req.user, id: idParam(req) });
+	res.status(204).end();
+}));
+
+router.post('/:id/restore', handle(async (req, res) => {
+	res.json(await requestsService.restoreRequest({ user: req.user, id: idParam(req) }));
+}));
+
 router.post('/:id/trello-card', handle(async (req, res) => {
 	const updated = await requestsService.ensureTrelloCard({ user: req.user, id: idParam(req) });
 	res.status(201).json(updated);

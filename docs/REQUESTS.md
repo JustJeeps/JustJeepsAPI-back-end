@@ -47,7 +47,8 @@ State machine in `lib/requests/transitions.js`:
 - Closed can only go back to Assigned (reopen).
 
 - Links must start with `http://` or `https://` (validated in `parseLinks`); attachment uploads check both the extension and the declared content type.
-- Completed and Closed requests can be **archived** (PATCH `archived: true|false`): they stay saved but disappear from the default screen filters; the "Archived" view shows them. Archiving any other status returns 409 `ARCHIVE_ONLY_DONE`. Reopening an archived request (moving it back to an active status) unarchives it automatically, so it never stays active and invisible. The rule lives in `lib/requests/archive.js` (pure, unit tested). The board's Done lane has an "Archive all" button.
+- Anyone who opened a request, plus triage, can **archive** it in any status (it disappears from the default screen filters and shows up under the Archived view) and **delete** it. Delete is a soft delete: the request disappears for everyone but nothing is erased — comments, attachments in the bucket and the Trello card stay. Only triage sees the deleted list (`GET /api/requests?deleted=true`) and can restore (`POST /api/requests/:id/restore`). Archiving is an explicit choice: changing the status of an archived request no longer brings it back.
+
 
 The board groups the 8 statuses into 4 lanes: **Requests** (New Request, Estimation, Assigned), **Doing** (Work in Progress), **Blocked** (Awaiting Client Response, On Hold) and **Done** (Completed, Closed). Dropping a card on a lane applies the lane's target status; Blocked and Done ask for the required comment first.
 

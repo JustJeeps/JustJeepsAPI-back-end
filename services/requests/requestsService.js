@@ -10,6 +10,7 @@ const prisma = require('../../lib/prisma');
 const { validateChange } = require('../../lib/requests/transitions');
 const { diffToActivities } = require('../../lib/requests/activity');
 const { resolveArchive } = require('../../lib/requests/archive');
+const { canManageRequest, canRestoreRequest } = require('../../lib/requests/permissions');
 const storage = require('../storage/requestAttachmentsStorage');
 const trelloService = require('../trello/trelloService');
 const { sendRequestAssignedEmail } = require('../../utils/emailService');
@@ -104,15 +105,22 @@ async function getMeta({ username } = {}) {
 	};
 }
 
-function listRequests() {
-	// Sem filtro server-side: volume baixo, filtros/KPIs/busca sao client-side
-	// (mesmo modelo do CronJobsDashboard).
-	return prisma.request.findMany({ orderBy: { createdAt: 'desc' }, include: LIST_INCLUDE });
+// Sem filtro server-side de dominio: volume baixo, filtros/KPIs/busca sao
+// client-side (mesmo modelo do CronJobsDashboard). O unico corte no banco e o
+// soft delete: deletado nao volta na listagem normal.
+function listRequests({ deleted = false } = {}) {
+	return prisma.request.findMany({
+		where: deleted ? { deletedAt: { not: null } } : { deletedAt: null },
+		orderBy: { createdAt: 'desc' },
+		include: LIST_INCLUDE,
+	});
 }
 
-async function getRequestDetail(id) {
+async function getRequestDetail(id, { includeDeleted = false } = {}) {
 	const request = await prisma.request.findUnique({ where: { id }, include: DETAIL_INCLUDE });
 	if (!request) throw RequestServiceError.notFound();
+	// Deletado responde 404 como se nao existisse; so quem pode restaurar ve.
+	if (request.deletedAt && !includeDeleted) throw RequestServiceError.notFound();
 	return request;
 }
 
@@ -167,12 +175,8 @@ async function updateRequest({ user, id, patch }) {
 
 	const applied = buildAppliedFields({ current, patch, autoStatus: verdict.autoStatus });
 
-	// Arquivamento: regra pura em lib/requests/archive.
-	const archive = resolveArchive({
-		current,
-		patch,
-		effectiveStatus: applied.status || current.status,
-	});
+	// Arquivamento: regra pura em lib/requests/archive (autor ou triage).
+	const archive = resolveArchive({ current, patch, user, isTriage });
 	if (!archive.ok) throw RequestServiceError.conflict(archive.error.code, archive.error.message);
 	const archivedChanged = archive.changed;
 	if (archivedChanged) applied.archivedAt = archive.archivedAt;
@@ -387,6 +391,53 @@ function buildAppliedFields({ current, patch, autoStatus }) {
 	return applied;
 }
 
+// --- soft delete ------------------------------------------------------------------
+
+// Deletar aqui NAO apaga nada: marca o chamado e ele some da tela para todos.
+// Comentarios, anexos no bucket e o card do Trello continuam intactos — foi a
+// escolha de produto justamente para clique errado nao destruir historico.
+async function softDeleteRequest({ user, id }) {
+	const current = await loadRequestOrFail(id);
+	if (current.deletedAt) throw RequestServiceError.notFound();
+
+	const isTriage = isTriageUser(user.username);
+	if (!canManageRequest({ request: current, user, isTriage })) {
+		throw RequestServiceError.conflict(
+			'NOT_OWNER',
+			'Only the person who opened the request or a triage user can delete it'
+		);
+	}
+
+	await prisma.$transaction([
+		prisma.request.update({
+			where: { id },
+			data: { deletedAt: new Date(), deletedById: user.id },
+		}),
+		prisma.requestActivity.create({
+			data: { request_id: id, actor_id: user.id, action: 'deleted', field: 'deleted' },
+		}),
+	]);
+}
+
+// Restaurar e exclusivo de triage: deletar e do autor, desfazer e de quem
+// cuida da fila.
+async function restoreRequest({ user, id }) {
+	const current = await loadRequestOrFail(id);
+	if (!current.deletedAt) throw RequestServiceError.validation('Request is not deleted');
+
+	if (!canRestoreRequest({ isTriage: isTriageUser(user.username) })) {
+		throw RequestServiceError.conflict('TRIAGE_ONLY', 'Only triage users can restore a deleted request');
+	}
+
+	await prisma.$transaction([
+		prisma.request.update({ where: { id }, data: { deletedAt: null, deletedById: null } }),
+		prisma.requestActivity.create({
+			data: { request_id: id, actor_id: user.id, action: 'restored', field: 'deleted' },
+		}),
+	]);
+	return getRequestDetail(id);
+}
+
 // --- comentarios ----------------------------------------------------------------
 
 async function addComment({ user, id, body, internal }) {
@@ -521,6 +572,8 @@ module.exports = {
 	updateRequest,
 	addComment,
 	addAttachments,
+	softDeleteRequest,
+	restoreRequest,
 	getAttachmentDownload,
 	removeAttachment,
 	ensureTrelloCard,
