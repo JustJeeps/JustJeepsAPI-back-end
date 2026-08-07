@@ -476,18 +476,6 @@ router.post('/feeds/:feed/uploads/commit', requireTriage, async (req, res) => {
 			files.push(...carriedForward.map(({ uploadedAt, ...file }) => file));
 		}
 
-		for (const name of missing) {
-			const previous = currentBatch.artifacts.find((artifact) => artifact.fileName === name);
-			files.push({
-				fileName: previous.fileName,
-				objectKey: previous.objectKey,
-				sha256: previous.sha256,
-				sizeBytes: Number(previous.sizeBytes),
-				contentType: previous.contentType,
-				sourceModifiedAt: previous.sourceModifiedAt,
-			});
-		}
-
 		const { batchId, artifacts } = await catalog.registerArtifacts(prisma, {
 			feed: feed.name,
 			source: 'manual',
@@ -602,6 +590,18 @@ router.post('/feeds/:feed/upload', requireTriage, upload.array('files', 5), asyn
 				sizeBytes: file.sizeBytes,
 			});
 			files.push({ fileName: file.fileName, objectKey: key, sha256, sizeBytes: file.sizeBytes, contentType: CONTENT_TYPES[path.extname(file.fileName).toLowerCase()] || null });
+		}
+
+		for (const name of missing) {
+			const previous = currentBatch.artifacts.find((artifact) => artifact.fileName === name);
+			files.push({
+				fileName: previous.fileName,
+				objectKey: previous.objectKey,
+				sha256: previous.sha256,
+				sizeBytes: Number(previous.sizeBytes),
+				contentType: previous.contentType,
+				sourceModifiedAt: previous.sourceModifiedAt,
+			});
 		}
 
 		const { batchId, artifacts } = await catalog.registerArtifacts(prisma, {
