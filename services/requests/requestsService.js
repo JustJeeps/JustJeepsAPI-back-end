@@ -49,9 +49,13 @@ const DETAIL_INCLUDE = {
 
 // --- helpers -----------------------------------------------------------------
 
-async function loadRequestOrFail(id) {
+// Um chamado deletado (soft delete) deixa de existir para o resto do
+// servico: editar, comentar, anexar e criar card no Trello passam por aqui e
+// respondem 404. So o restore carrega deletado, de proposito.
+async function loadRequestOrFail(id, { includeDeleted = false } = {}) {
 	const request = await prisma.request.findUnique({ where: { id } });
 	if (!request) throw RequestServiceError.notFound();
+	if (request.deletedAt && !includeDeleted) throw RequestServiceError.notFound();
 	return request;
 }
 
@@ -279,7 +283,7 @@ async function ensureTrelloCard({ user, id }) {
 		where: { id },
 		include: { requester: { select: USER_SELECT }, assignee: { select: USER_SELECT } },
 	});
-	if (!request) throw RequestServiceError.notFound();
+	if (!request || request.deletedAt) throw RequestServiceError.notFound();
 	if (request.trelloCardId) {
 		throw RequestServiceError.conflict('CARD_EXISTS', 'A Trello card is already linked to this request');
 	}
@@ -398,7 +402,6 @@ function buildAppliedFields({ current, patch, autoStatus }) {
 // escolha de produto justamente para clique errado nao destruir historico.
 async function softDeleteRequest({ user, id }) {
 	const current = await loadRequestOrFail(id);
-	if (current.deletedAt) throw RequestServiceError.notFound();
 
 	const isTriage = isTriageUser(user.username);
 	if (!canManageRequest({ request: current, user, isTriage })) {
@@ -422,12 +425,14 @@ async function softDeleteRequest({ user, id }) {
 // Restaurar e exclusivo de triage: deletar e do autor, desfazer e de quem
 // cuida da fila.
 async function restoreRequest({ user, id }) {
-	const current = await loadRequestOrFail(id);
-	if (!current.deletedAt) throw RequestServiceError.validation('Request is not deleted');
-
+	// Permissao antes do estado: responder "nao esta deletado" para quem nao
+	// pode restaurar entregaria de graca quais ids estao na lixeira.
 	if (!canRestoreRequest({ isTriage: isTriageUser(user.username) })) {
 		throw RequestServiceError.conflict('TRIAGE_ONLY', 'Only triage users can restore a deleted request');
 	}
+
+	const current = await loadRequestOrFail(id, { includeDeleted: true });
+	if (!current.deletedAt) throw RequestServiceError.validation('Request is not deleted');
 
 	await prisma.$transaction([
 		prisma.request.update({ where: { id }, data: { deletedAt: null, deletedById: null } }),
@@ -516,7 +521,7 @@ async function addAttachments({ user, id, files }) {
 
 async function getAttachmentDownload({ id, attachmentId }) {
 	const attachment = await prisma.requestAttachment.findFirst({
-		where: { id: attachmentId, request_id: id },
+		where: { id: attachmentId, request_id: id, request: { deletedAt: null } },
 	});
 	if (!attachment) throw RequestServiceError.notFound('Attachment not found');
 	assertAttachmentsEnabled();
@@ -537,7 +542,7 @@ async function getAttachmentDownload({ id, attachmentId }) {
 
 async function removeAttachment({ user, id, attachmentId }) {
 	const attachment = await prisma.requestAttachment.findFirst({
-		where: { id: attachmentId, request_id: id },
+		where: { id: attachmentId, request_id: id, request: { deletedAt: null } },
 	});
 	if (!attachment) throw RequestServiceError.notFound('Attachment not found');
 
