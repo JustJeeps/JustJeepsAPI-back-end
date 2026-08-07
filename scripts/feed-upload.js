@@ -97,7 +97,11 @@ async function main() {
 	const files = [];
 	for (const upload of uploads) {
 		const sha256 = await hashFile(upload.filePath);
-		const sizeBytes = fs.statSync(upload.filePath).size;
+		const stats = fs.statSync(upload.filePath);
+		const sizeBytes = stats.size;
+		// The date the export actually carries, before it becomes a symlink into
+		// the download cache and loses it.
+		const sourceModifiedAt = stats.mtime;
 		const contentType = CONTENT_TYPES[path.extname(upload.fileName).toLowerCase()] || 'application/octet-stream';
 
 		// Identical content already in the bucket? Do not resend it (SpecialOrder
@@ -114,6 +118,7 @@ async function main() {
 				sha256,
 				sizeBytes: Number(existing.sizeBytes),
 				contentType: existing.contentType || contentType,
+				sourceModifiedAt,
 			});
 			continue;
 		}
@@ -121,7 +126,7 @@ async function main() {
 		const key = store.buildKey({ feed: feed.name, fileName: upload.fileName, sha256 });
 		console.log(`⬆️  Uploading ${upload.fileName} (${(sizeBytes / 1024 / 1024).toFixed(1)}MB, sha ${sha256.slice(0, 8)})...`);
 		await store.putFile({ key, filePath: upload.filePath, contentType, sizeBytes });
-		files.push({ fileName: upload.fileName, objectKey: key, sha256, sizeBytes, contentType });
+		files.push({ fileName: upload.fileName, objectKey: key, sha256, sizeBytes, contentType, sourceModifiedAt });
 	}
 
 	// What was not given is carried forward from the current batch, so a single
@@ -142,6 +147,7 @@ async function main() {
 						sha256: previous.sha256,
 						sizeBytes: Number(previous.sizeBytes),
 						contentType: previous.contentType,
+						sourceModifiedAt: previous.sourceModifiedAt,
 					});
 				}
 			}

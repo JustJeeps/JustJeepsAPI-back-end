@@ -37,8 +37,11 @@ function fileFreshness(filePath) {
 // feed cache and its mtime is when we DOWNLOADED it, not when the export was
 // taken. Reading that would make every snapshot look brand new and would quietly
 // disable the staleness alert, which is the whole reason this data is watched.
-// The upload time of the batch is the honest answer; the mtime stays as the
-// fallback for the legacy path (files copied to the inbox by hand).
+//
+// In order of trust: the date the file carried on the uploader's disk
+// (sourceModifiedAt, captured at upload), then the time the batch was uploaded,
+// then the local mtime for the legacy path where files are copied into the inbox
+// by hand. The snapshot is only as fresh as the OLDER of the two exports.
 async function resolveSourceExportedAt(fallback) {
   const feed = feedsConfig.getFeedByName(FEED);
   if (!feed) return fallback;
@@ -46,7 +49,15 @@ async function resolveSourceExportedAt(fallback) {
   try {
     const batch = await catalog.getCurrentBatch(prisma, feed.name, feed.files);
     if (!batch) return fallback;
-    console.log(`  source: batch ${batch.batchId} uploaded ${batch.uploadedAt.toISOString()}`);
+
+    const sourceDates = batch.artifacts.map((artifact) => artifact.sourceModifiedAt).filter(Boolean);
+    if (sourceDates.length === batch.artifacts.length) {
+      const oldest = sourceDates.reduce((a, b) => (a < b ? a : b));
+      console.log(`  source: batch ${batch.batchId}, exported ${oldest.toISOString()}`);
+      return oldest;
+    }
+
+    console.log(`  source: batch ${batch.batchId} uploaded ${batch.uploadedAt.toISOString()} (no export date recorded)`);
     return batch.uploadedAt;
   } catch (error) {
     console.warn(`  could not read the feed catalog (${error.message}), using the file dates`);

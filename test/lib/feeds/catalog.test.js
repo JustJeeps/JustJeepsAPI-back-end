@@ -144,6 +144,33 @@ test('a batch built from one new file plus a carried forward one is current', as
 	assert.strictEqual(kept.objectKey, spreadsheet.objectKey);
 });
 
+test('the date the file carried at the source is recorded, not just the upload time', async () => {
+	// Freshness is read from this. Our own copy is always "just now", so a file
+	// exported weeks ago and uploaded today has to keep saying weeks ago.
+	const prisma = makePrismaStub();
+	const exportedAt = new Date('2026-07-16T20:09:00Z');
+
+	await catalog.registerArtifacts(prisma, {
+		feed: 'quickbooks',
+		source: 'manual',
+		files: [file('customers_qb_desktop.csv', { sourceModifiedAt: exportedAt })],
+	});
+
+	assert.strictEqual(prisma.feedArtifacts[0].sourceModifiedAt.getTime(), exportedAt.getTime());
+});
+
+test('a file with no source date recorded stores null rather than guessing', async () => {
+	const prisma = makePrismaStub();
+
+	await catalog.registerArtifacts(prisma, {
+		feed: 'ctp',
+		source: 'ftp',
+		files: [file('CTPENT_Inventory.csv')],
+	});
+
+	assert.strictEqual(prisma.feedArtifacts[0].sourceModifiedAt, null);
+});
+
 test('the same file cannot be registered twice in one batch', async () => {
 	const prisma = makePrismaStub();
 

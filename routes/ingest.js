@@ -391,6 +391,20 @@ router.post('/feeds/:feed/uploads/commit', requireTriage, async (req, res) => {
 		if (!feed) return undefined;
 
 		const uploadIds = (Array.isArray(req.body?.uploadIds) ? req.body.uploadIds : []).map(String);
+		// The browser knows when each picked file was last written on the
+		// uploader's disk, which is the closest thing we have to when the export
+		// was actually taken. Ours is always "just now".
+		const sourceDates = req.body?.sourceModifiedAt && typeof req.body.sourceModifiedAt === 'object'
+			? req.body.sourceModifiedAt
+			: {};
+		const sourceDateFor = (fileName) => {
+			const value = Number(sourceDates[fileName]);
+			if (!Number.isFinite(value) || value <= 0) return null;
+			const date = new Date(value);
+			// A clock ahead of ours would make the file look fresher than it can
+			// possibly be; anything absurd is simply ignored.
+			return date > new Date() ? null : date;
+		};
 		const reuseList = Array.isArray(req.body?.reuse) ? req.body.reuse : [];
 		const files = [];
 
@@ -402,7 +416,7 @@ router.post('/feeds/:feed/uploads/commit', requireTriage, async (req, res) => {
 					code: 'UPLOAD_SESSION_GONE',
 				});
 			}
-			files.push(session.stored);
+			files.push({ ...session.stored, sourceModifiedAt: sourceDateFor(session.stored.fileName) });
 		}
 
 		for (const entry of reuseList) {
@@ -421,6 +435,7 @@ router.post('/feeds/:feed/uploads/commit', requireTriage, async (req, res) => {
 				sha256: existing.sha256,
 				sizeBytes: Number(existing.sizeBytes),
 				contentType: existing.contentType,
+				sourceModifiedAt: sourceDateFor(existing.fileName) || existing.sourceModifiedAt,
 			});
 		}
 
@@ -454,6 +469,7 @@ router.post('/feeds/:feed/uploads/commit', requireTriage, async (req, res) => {
 					sha256: previous.sha256,
 					sizeBytes: Number(previous.sizeBytes),
 					contentType: previous.contentType,
+					sourceModifiedAt: previous.sourceModifiedAt,
 					uploadedAt: previous.uploadedAt,
 				};
 			});
@@ -468,6 +484,7 @@ router.post('/feeds/:feed/uploads/commit', requireTriage, async (req, res) => {
 				sha256: previous.sha256,
 				sizeBytes: Number(previous.sizeBytes),
 				contentType: previous.contentType,
+				sourceModifiedAt: previous.sourceModifiedAt,
 			});
 		}
 
