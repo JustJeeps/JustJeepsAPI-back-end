@@ -9,6 +9,10 @@ monitoramento de idade com alerta.
 > **PENDÊNCIA (definir com o time):** dono do export e cadência ainda não
 > definidos. Sugestão da mesa redonda: export semanal. Até lá, o alerta de
 > staleness (14/30 dias) é a rede de segurança.
+>
+> Desde 07/08/2026 a atualização é feita **pelo painel** (Settings → Imports),
+> sem `scp` nem `docker exec`. O atrito do fluxo antigo é a razão de o dado ter
+> ficado 21 dias parado depois do primeiro import.
 
 ## 1. Export no QuickBooks Desktop
 
@@ -26,6 +30,23 @@ e-mail.**
 
 ## 2. Import em produção
 
+### Caminho normal: painel (Settings → Imports)
+
+1. Abrir **Settings → Imports** e achar **QuickBooks customer export (2 CSVs)**.
+   O item só aparece para quem está em `FEEDS_TRIAGE_USERS`: os arquivos têm PII
+   e histórico financeiro, então nem os metadados ficam visíveis para o resto.
+2. **Upload** e arrastar o(s) arquivo(s). **Não precisa ter os dois**: o que não
+   for enviado continua sendo o do lote atual, e o painel diz qual ficou e de
+   quando. O navegador manda os bytes direto para o bucket em partes assinadas.
+3. **Run now** roda o `seed-quickbooks-customers` no servidor e mostra o log ao
+   vivo.
+
+O arquivo fica versionado no bucket com hash, data e autor, e a idade do
+snapshot passa a ser a data do upload (não o mtime, que seria a hora do
+download).
+
+### Alternativa: CLI (arquivo maior que o limite do painel, ou painel fora do ar)
+
 ```bash
 # 1) Copiar os CSVs novos para o inbox no servidor (volume que sobrevive a deploys)
 scp customers_qb_desktop.csv transactions_per_customer.csv \
@@ -34,6 +55,14 @@ scp customers_qb_desktop.csv transactions_per_customer.csv \
 # 2) Rodar o seeder dentro do container em produção
 ssh root@138.197.173.222
 CID=$(docker ps --filter "label=service=justjeeps-api" -q)
+docker exec "$CID" npm run seed-quickbooks-customers
+```
+
+Ou, catalogando no bucket (mesmo efeito do painel, um arquivo por vez se for o caso):
+
+```bash
+docker exec "$CID" npm run feed-upload -- quickbooks /data/quickbooks-customers/customers_qb_desktop.csv
+docker exec "$CID" npm run feed-sync -- quickbooks
 docker exec "$CID" npm run seed-quickbooks-customers
 ```
 
@@ -61,8 +90,13 @@ https://pricingtool.justjeeps.com/quickbooks-customer-lookup.
 ## 4. Monitoramento e alertas
 
 - Cron diário `report-quickbooks-freshness` (09:15 Toronto) checa a idade do
-  snapshot: **> 14 dias** = warning (log Axiom), **> 30 dias** = crítico
-  (log error Axiom + e-mail para `CRON_NOTIFICATION_EMAIL`).
+  snapshot: **> 14 dias** = warning (log Axiom + e-mail com assunto
+  `⚠️ ... (Warning)` e exit code 0), **> 30 dias** = crítico (log error Axiom +
+  e-mail de falha). Até 07/08/2026 o warning ia como "Failed" com exit code 1,
+  enquanto o log do próprio job registrava exit 0 — alarme falso diário.
+- A idade também aparece **na própria tela** do lookup, em faixa amarela acima
+  de 14 dias e vermelha acima de 30, porque dado velho responde "sem histórico"
+  para cliente recorrente e isso é indistinguível de uma resposta correta.
 - Thresholds: `QB_STALE_WARN_DAYS` / `QB_STALE_CRIT_DAYS` (deploy.yml).
 - Ao receber o alerta: rodar o fluxo da seção 2 com um export novo.
 

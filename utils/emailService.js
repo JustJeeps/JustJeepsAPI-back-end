@@ -291,23 +291,22 @@ async function sendCronNotification({ jobName, success, exitCode, error, duratio
  * @param {string} params.duration
  * @param {Array} params.results
  */
-async function sendCronReport({ jobName, success, exitCode, error, duration, results = [] }) {
-  const recipient = String(process.env.CRON_NOTIFICATION_EMAIL || '')
-    .split(/[,\s]+/)
-    .map((email) => email.trim())
-    .filter(Boolean)
-    .join(',');
+// level: 'success' | 'warning' | 'failed'. It exists because a warning is not a
+// failure: the QuickBooks freshness check was mailing "Failed" for a condition
+// its own log recorded as exit code 0, and a daily false alarm is how a real
+// one stops being read. Derived from `success` when the caller does not say,
+// so the other jobs keep behaving exactly as before.
+// Pure: builds what the message says, with no transport involved, so the
+// wording can be tested without stubbing a mail server.
+function buildCronReportMessage({ jobName, success, exitCode, error, duration, results = [], level, now = new Date() }) {
+  const outcome = level || (success ? 'success' : 'failed');
+  const subject = {
+    success: `✅ ${jobName} - Report (All Completed)`,
+    warning: `⚠️ ${jobName} - Report (Warning)`,
+    failed: `❌ ${jobName} - Report (Some Failed)`,
+  }[outcome];
 
-  if (!recipient) {
-    console.warn('⚠️ Cron report skipped: CRON_NOTIFICATION_EMAIL not configured');
-    return { success: false, error: 'No recipients configured' };
-  }
-
-  const subject = success
-    ? `✅ ${jobName} - Report (All Completed)`
-    : `❌ ${jobName} - Report (Some Failed)`;
-
-  const timestamp = new Date().toLocaleString('en-US', {
+  const timestamp = now.toLocaleString('en-US', {
     timeZone: 'America/Toronto',
     dateStyle: 'full',
     timeStyle: 'long'
@@ -319,7 +318,7 @@ async function sendCronReport({ jobName, success, exitCode, error, duration, res
   const formatLine = (r) => {
     const dur = r.durationMs != null ? `${(r.durationMs / 1000).toFixed(1)}s` : 'N/A';
     const log = r.logFile ? `Log: ${r.logFile}` : 'Log: N/A';
-    const status = r.success ? 'SUCCESS' : 'FAILED';
+    const status = r.success ? 'SUCCESS' : outcome === 'warning' ? 'WARNING' : 'FAILED';
     const err = r.error ? ` | Error: ${r.error}` : '';
     const excerpt = r.logExcerpt ? `\n  Recent log lines:\n${String(r.logExcerpt)
       .split(/\r?\n/)
@@ -330,7 +329,7 @@ async function sendCronReport({ jobName, success, exitCode, error, duration, res
 
   const text =
     `Cron Report: ${jobName}\n` +
-    `Status: ${success ? 'Success' : 'Failed'}\n` +
+    `Status: ${{ success: 'Success', warning: 'Warning', failed: 'Failed' }[outcome]}\n` +
     `Timestamp: ${timestamp}\n` +
     `Duration: ${duration || 'N/A'}\n` +
     `Exit Code: ${exitCode ?? 'N/A'}\n` +
@@ -341,17 +340,17 @@ async function sendCronReport({ jobName, success, exitCode, error, duration, res
 
   const renderList = (items) =>
     items.length
-      ? `<ul>${items.map(r => `<li><strong>${r.cmd}</strong> - ${r.success ? 'Success' : 'Failed'} (${r.durationMs != null ? (r.durationMs / 1000).toFixed(1) + 's' : 'N/A'})${r.logFile ? ` <br/><small>${escapeHtml(r.logFile)}</small>` : ''}${r.error ? ` <br/><small style="color:#ff4d4f;">${escapeHtml(r.error)}</small>` : ''}${r.logExcerpt ? ` <details style="margin-top:6px;"><summary style="cursor:pointer;color:#235789;">Recent log lines</summary><pre style="margin-top:8px;padding:10px;background:#f8f9fb;border:1px solid #d9d9d9;border-radius:4px;white-space:pre-wrap;font-size:12px;line-height:1.45;">${escapeHtml(r.logExcerpt)}</pre></details>` : ''}</li>`).join('')}</ul>`
+      ? `<ul>${items.map(r => `<li><strong>${r.cmd}</strong> - ${r.success ? 'Success' : outcome === 'warning' ? 'Warning' : 'Failed'} (${r.durationMs != null ? (r.durationMs / 1000).toFixed(1) + 's' : 'N/A'})${r.logFile ? ` <br/><small>${escapeHtml(r.logFile)}</small>` : ''}${r.error ? ` <br/><small style="color:#ff4d4f;">${escapeHtml(r.error)}</small>` : ''}${r.logExcerpt ? ` <details style="margin-top:6px;"><summary style="cursor:pointer;color:#235789;">Recent log lines</summary><pre style="margin-top:8px;padding:10px;background:#f8f9fb;border:1px solid #d9d9d9;border-radius:4px;white-space:pre-wrap;font-size:12px;line-height:1.45;">${escapeHtml(r.logExcerpt)}</pre></details>` : ''}</li>`).join('')}</ul>`
       : '<p>(none)</p>';
 
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto;">
-      <h2 style="color: ${success ? '#52c41a' : '#ff4d4f'};">
-        ${success ? '✅ Job Completed' : '❌ Job Completed with Failures'}
+      <h2 style="color: ${{ success: '#52c41a', warning: '#faad14', failed: '#ff4d4f' }[outcome]};">
+        ${{ success: '✅ Job Completed', warning: '⚠️ Job Completed with a Warning', failed: '❌ Job Completed with Failures' }[outcome]}
       </h2>
-      <div style="background: ${success ? '#f6ffed' : '#fff2f0'}; border: 1px solid ${success ? '#b7eb8f' : '#ffccc7'}; padding: 16px; border-radius: 4px;">
+      <div style="background: ${{ success: '#f6ffed', warning: '#fffbe6', failed: '#fff2f0' }[outcome]}; border: 1px solid ${{ success: '#b7eb8f', warning: '#ffe58f', failed: '#ffccc7' }[outcome]}; padding: 16px; border-radius: 4px;">
         <h3>${jobName}</h3>
-        <p><strong>Status:</strong> ${success ? 'Success' : 'Failed'}</p>
+        <p><strong>Status:</strong> ${{ success: 'Success', warning: 'Warning', failed: 'Failed' }[outcome]}</p>
         <p><strong>Timestamp:</strong> ${timestamp}</p>
         <p><strong>Duration:</strong> ${duration || 'N/A'}</p>
         <p><strong>Exit Code:</strong> ${exitCode ?? 'N/A'}</p>
@@ -365,6 +364,22 @@ async function sendCronReport({ jobName, success, exitCode, error, duration, res
     </div>
   `;
 
+  return { subject, text, html, outcome };
+}
+
+async function sendCronReport(report) {
+  const recipient = String(process.env.CRON_NOTIFICATION_EMAIL || '')
+    .split(/[,\s]+/)
+    .map((email) => email.trim())
+    .filter(Boolean)
+    .join(',');
+
+  if (!recipient) {
+    console.warn('⚠️ Cron report skipped: CRON_NOTIFICATION_EMAIL not configured');
+    return { success: false, error: 'No recipients configured' };
+  }
+
+  const { subject, text, html } = buildCronReportMessage(report);
   return await sendEmail({ to: recipient, subject, text, html });
 }
 
@@ -923,6 +938,7 @@ module.exports = {
   sendEmail,
   sendCronNotification,
   sendCronReport,
+  buildCronReportMessage,
   sendPurchaserReportEmail,
   sendOrderCancellationDailyReportEmail,
   sendSkuStatusDailyReportEmail,

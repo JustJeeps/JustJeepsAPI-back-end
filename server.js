@@ -5870,17 +5870,23 @@ function registerCronJobs() {
 						logger.error(message, summary);
 					}
 
+					// A warning is not a failure. Above 14 days this used to mail
+					// "Failed" with exit code 1 while the job's own log recorded
+					// exit code 0, and a daily false alarm is how a real one stops
+					// being read. Only past the critical threshold is it a failure.
+					const isCritical = level !== 'warning';
 					await sendCronReport({
 						jobName: qbFreshnessJobName,
 						success: false,
-						exitCode: 1,
+						level: isCritical ? 'failed' : 'warning',
+						exitCode: isCritical ? 1 : 0,
 						error: message,
 						duration: formatDuration(startedAt),
 						results: [{
 							cmd: qbFreshnessCommand,
 							success: false,
 							durationMs: Date.now() - startedAt,
-							error: `${message}. Rode a atualizacao: docs/QUICKBOOKS-DATA-REFRESH.md`,
+							error: `${message}. Upload the new export in Settings > Imports (QuickBooks customer export), or see docs/QUICKBOOKS-DATA-REFRESH.md`,
 						}],
 					});
 				}
