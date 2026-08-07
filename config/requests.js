@@ -54,8 +54,9 @@ function isTriageUser(username) {
 	return requestsTriageUsers.includes(String(username || '').toLowerCase());
 }
 
-// Status "concluidos": unicos que podem ser arquivados. Sair deles desarquiva
-// (senao o chamado ficaria ativo porem invisivel nos filtros padrao).
+// Status "concluidos": usados para a lane Done do board e para esconder da
+// view "All open". NAO controla mais quem pode arquivar — desde 07/08
+// qualquer status e arquivavel pelo autor ou triage (lib/requests/archive.js).
 const DONE_STATUSES = ['Completed', 'Closed'];
 
 // Feature gate (rollout): while the team tests, only these users see and use

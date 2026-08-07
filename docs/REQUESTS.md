@@ -84,4 +84,4 @@ Without them the feature degrades: uploads answer 409 `ATTACHMENTS_DISABLED` and
 
 ## Tests
 
-`npm test` runs `node --test` over `test/` (no database, no network: prisma and axios are injected as stubs). Requests suites: `requestTransitions`, `requestActivity`, `requestsDigest`, `trelloService`, `trelloSettings`, `trelloClient`. CI (`.github/workflows/ci.yml`) runs the same suite plus `prisma validate`.
+`npm test` runs `node --test` over `test/` (no database, no network: prisma and axios are injected as stubs). Requests suites: `requestTransitions`, `requestActivity`, `requestArchive` (archive + permissions), `requestsDigest`, `trelloService`, `trelloSettings`, `trelloClient`. The frontend has its own gates: `npm run lint` (no-undef as an error) and `npm test` (Vitest over the pure predicates). CI (`.github/workflows/ci.yml`) runs the same suite plus `prisma validate`.
