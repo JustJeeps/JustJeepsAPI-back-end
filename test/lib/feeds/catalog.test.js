@@ -171,6 +171,56 @@ test('a file with no source date recorded stores null rather than guessing', asy
 	assert.strictEqual(prisma.feedArtifacts[0].sourceModifiedAt, null);
 });
 
+test('the age of a batch is the age of its data, not of the upload', async () => {
+	// The Omix spreadsheet was exported in March and uploaded in August. Reading
+	// the upload time called a five month old price sheet fresh.
+	const prisma = makePrismaStub();
+	const exportedInMarch = new Date('2026-03-06T12:32:00Z');
+
+	await catalog.registerArtifacts(prisma, {
+		feed: 'omix',
+		source: 'manual',
+		files: [file('omix-excel.xlsx', { sourceModifiedAt: exportedInMarch })],
+	});
+
+	const batch = await catalog.getCurrentBatch(prisma, 'omix', ['omix-excel.xlsx']);
+	assert.strictEqual(batch.dataAsOf.getTime(), exportedInMarch.getTime());
+	assert.notStrictEqual(batch.uploadedAt.getTime(), exportedInMarch.getTime(), 'the upload time is still available');
+});
+
+test('a batch is only as fresh as its oldest file', async () => {
+	// What a partial upload produces: a new CSV next to a spreadsheet carried
+	// forward from months ago.
+	const prisma = makePrismaStub();
+	const old = new Date('2026-03-06T12:32:00Z');
+	const recent = new Date('2026-08-08T09:00:00Z');
+
+	await catalog.registerArtifacts(prisma, {
+		feed: 'quadratec',
+		source: 'manual',
+		files: [
+			file('quadratec_wholesale.csv', { sourceModifiedAt: recent }),
+			file('pricingSheet_quad.xlsx', { sourceModifiedAt: old }),
+		],
+	});
+
+	const batch = await catalog.getCurrentBatch(prisma, 'quadratec', ['quadratec_wholesale.csv', 'pricingSheet_quad.xlsx']);
+	assert.strictEqual(batch.dataAsOf.getTime(), old.getTime());
+});
+
+test('a file with no recorded source date falls back to when it arrived', async () => {
+	const prisma = makePrismaStub();
+
+	await catalog.registerArtifacts(prisma, {
+		feed: 'ctp',
+		source: 'ftp',
+		files: [file('CTPENT_Inventory.csv')],
+	});
+
+	const batch = await catalog.getCurrentBatch(prisma, 'ctp', ['CTPENT_Inventory.csv']);
+	assert.strictEqual(batch.dataAsOf.getTime(), batch.uploadedAt.getTime());
+});
+
 test('the same file cannot be registered twice in one batch', async () => {
 	const prisma = makePrismaStub();
 
