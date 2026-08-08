@@ -13,7 +13,10 @@ const sha256 = (content) => crypto.createHash('sha256').update(content).digest('
 const INVENTORY = 'VCPN,Cost,TotalQty\nA1,10,2\n';
 const SPECIAL = 'VCPN,Cost,TotalQty\nB2,20,1\n';
 
-function makeFixture({ ftpContents = { 'Inventory.csv': INVENTORY, 'SpecialOrder.csv': SPECIAL }, failUploadOf = null, currentBatch = null } = {}) {
+// vendorModifiedAt: the date the file carries AT THE VENDOR (FTP MDTM). It is
+// what tells today's export from yesterday's, since the fetch runs on a
+// schedule that sometimes beats the vendor to publishing.
+function makeFixture({ ftpContents = { 'Inventory.csv': INVENTORY, 'SpecialOrder.csv': SPECIAL }, failUploadOf = null, currentBatch = null, vendorModifiedAt = null } = {}) {
 	const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'feedfetch-'));
 
 	const ftpClient = {
@@ -21,6 +24,7 @@ function makeFixture({ ftpContents = { 'Inventory.csv': INVENTORY, 'SpecialOrder
 		downloadFile: async (remoteFile, localPath) => {
 			ftpClient.downloads.push(remoteFile);
 			fs.writeFileSync(localPath, ftpContents[remoteFile]);
+			return { modifiedAt: vendorModifiedAt };
 		},
 	};
 
@@ -179,4 +183,40 @@ test('a failed upload of the second file catalogs NOTHING (the previous batch st
 	assert.strictEqual(fixture.store.puts.length, 1, 'Inventory uploaded, SpecialOrder failed');
 	assert.strictEqual(fixture.registered.length, 0, 'catalog untouched');
 	assert.strictEqual(fixture.runs[0].status, 'failed');
+});
+
+test('the date the vendor published the file is catalogued with it', async () => {
+	const publishedAt = new Date('2026-08-08T04:12:00Z');
+	const fixture = makeFixture({ vendorModifiedAt: publishedAt });
+
+	await runKeystoneFetch({
+		ftpClient: fixture.ftpClient,
+		store: fixture.store,
+		prisma: fixture.prisma,
+		catalog: fixture.catalogStub,
+		cacheDir: fixture.cacheDir,
+		env: fixture.env,
+	});
+
+	const registered = fixture.registered[0].files;
+	assert.strictEqual(registered.length, 2);
+	for (const file of registered) {
+		assert.strictEqual(file.sourceModifiedAt.getTime(), publishedAt.getTime(), file.fileName);
+	}
+});
+
+test('a vendor that does not answer with a date still catalogues the file', async () => {
+	// Not every FTP server supports MDTM, and losing the date is not a failure.
+	const fixture = makeFixture({ vendorModifiedAt: null });
+
+	await runKeystoneFetch({
+		ftpClient: fixture.ftpClient,
+		store: fixture.store,
+		prisma: fixture.prisma,
+		catalog: fixture.catalogStub,
+		cacheDir: fixture.cacheDir,
+		env: fixture.env,
+	});
+
+	assert.strictEqual(fixture.registered[0].files[0].sourceModifiedAt, null);
 });

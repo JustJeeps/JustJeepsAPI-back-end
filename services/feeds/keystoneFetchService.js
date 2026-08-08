@@ -87,7 +87,7 @@ async function runKeystoneFetch({
 		const files = [];
 		for (const fileName of feed.files) {
 			const localPath = path.join(scratchDir, fileName);
-			await ftpClient.downloadFile(fileName, localPath);
+			const { modifiedAt = null } = (await ftpClient.downloadFile(fileName, localPath)) || {};
 
 			const sizeBytes = fs.statSync(localPath).size;
 			if (sizeBytes < minBytes[fileName]) {
@@ -102,7 +102,9 @@ async function runKeystoneFetch({
 			if (!firstLine(localPath).includes('VCPN')) {
 				throw new Error(`${fileName} has no VCPN column in the header, unexpected format`);
 			}
-			files.push({ fileName, localPath, sizeBytes, sha256: await sha256File(localPath) });
+			// The vendor's own date, so the panel can tell today's export from
+			// yesterday's instead of dating the file by when we fetched it.
+			files.push({ fileName, localPath, sizeBytes, sourceModifiedAt: modifiedAt, sha256: await sha256File(localPath) });
 		}
 
 		// Nothing changed? Do not upload ~480MB for nothing.
@@ -120,7 +122,7 @@ async function runKeystoneFetch({
 		for (const file of files) {
 			const key = store.buildKey({ feed: FEED_NAME, fileName: file.fileName, sha256: file.sha256, at: now() });
 			await store.putFile({ key, filePath: file.localPath, contentType: 'text/csv', sizeBytes: file.sizeBytes });
-			uploaded.push({ fileName: file.fileName, objectKey: key, sha256: file.sha256, sizeBytes: file.sizeBytes, contentType: 'text/csv' });
+			uploaded.push({ fileName: file.fileName, objectKey: key, sha256: file.sha256, sizeBytes: file.sizeBytes, contentType: 'text/csv', sourceModifiedAt: file.sourceModifiedAt });
 		}
 
 		// Only here does the batch become visible (both uploads already succeeded).
