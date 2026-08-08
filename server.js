@@ -2757,6 +2757,31 @@ app.get('/brands', authenticateToken, async (req, res) => {
 
 //* Routes for Orders *\\
 
+const hiddenOrderCustomerEmailPatterns = (process.env.HIDDEN_ORDER_CUSTOMER_EMAIL_PATTERNS || 'denys.yakymov,denisyakimov.dev')
+	.split(',')
+	.map((pattern) => pattern.trim())
+	.filter(Boolean);
+
+function buildVisibleOrdersWhere(extraWhere = {}) {
+	if (hiddenOrderCustomerEmailPatterns.length === 0) {
+		return extraWhere;
+	}
+
+	return {
+		AND: [
+			...(extraWhere.AND || []),
+			{
+				NOT: {
+					OR: hiddenOrderCustomerEmailPatterns.map((pattern) => ({
+						customer_email: { contains: pattern, mode: 'insensitive' },
+					})),
+				},
+			},
+		],
+		...Object.fromEntries(Object.entries(extraWhere).filter(([key]) => key !== 'AND')),
+	};
+}
+
 // Route for getting all orders
 // app.get('/api/orders', async (req, res) => {
 //   try {
@@ -2810,7 +2835,7 @@ app.get('/api/orders', async (req, res) => {
     const dateFilter = req.query.dateFilter || null; // 'today', 'yesterday', 'last7days'
 
     // Build where clause
-    const where = {};
+	const where = buildVisibleOrdersWhere();
 
     // Status filter
     if (status) {
@@ -3256,64 +3281,82 @@ app.get('/api/orders/metrics', async (req, res) => {
       totalCount
     ] = await Promise.all([
       // Not Set Orders
-      prisma.$queryRaw`
-        SELECT COUNT(*) as count FROM "Order"
-        WHERE custom_po_number IS NULL
-        OR custom_po_number = ''
-        OR LOWER(custom_po_number) = 'not set'
-      `.then(result => Number(result[0]?.count || 0)),
+			prisma.order.count({
+				where: buildVisibleOrdersWhere({
+					OR: [
+						{ custom_po_number: null },
+						{ custom_po_number: '' },
+						{ custom_po_number: { equals: 'not set', mode: 'insensitive' } },
+					],
+				}),
+			}),
 
 			// Not Set Orders older than 4 days
-			prisma.$queryRaw`
-				SELECT COUNT(*) as count FROM "Order"
-				WHERE (
-					custom_po_number IS NULL
-					OR custom_po_number = ''
-					OR LOWER(custom_po_number) = 'not set'
-				)
-				AND created_at <= ${fourDaysAgoUtc}
-			`.then(result => Number(result[0]?.count || 0)),
+			prisma.order.count({
+				where: buildVisibleOrdersWhere({
+					AND: [
+						{
+							OR: [
+								{ custom_po_number: null },
+								{ custom_po_number: '' },
+								{ custom_po_number: { equals: 'not set', mode: 'insensitive' } },
+							],
+						},
+						{ created_at: { lte: fourDaysAgoUtc } },
+					],
+				}),
+			}),
 
       // Today's Orders (Toronto timezone)
-      prisma.$queryRaw`
-        SELECT COUNT(*) as count FROM "Order"
-        WHERE created_at >= ${todayRange.start} AND created_at <= ${todayRange.end}
-      `.then(result => Number(result[0]?.count || 0)),
+			prisma.order.count({
+				where: buildVisibleOrdersWhere({
+					created_at: { gte: todayRange.start, lte: todayRange.end },
+				}),
+			}),
 
       // Yesterday's Orders (Toronto timezone)
-      prisma.$queryRaw`
-        SELECT COUNT(*) as count FROM "Order"
-        WHERE created_at >= ${yesterdayRange.start} AND created_at <= ${yesterdayRange.end}
-      `.then(result => Number(result[0]?.count || 0)),
+			prisma.order.count({
+				where: buildVisibleOrdersWhere({
+					created_at: { gte: yesterdayRange.start, lte: yesterdayRange.end },
+				}),
+			}),
 
       // Last 7 Days Orders (Toronto timezone)
-      prisma.$queryRaw`
-        SELECT COUNT(*) as count FROM "Order"
-        WHERE created_at >= ${sevenDaysAgoRange.start}
-      `.then(result => Number(result[0]?.count || 0)),
+			prisma.order.count({
+				where: buildVisibleOrdersWhere({
+					created_at: { gte: sevenDaysAgoRange.start },
+				}),
+			}),
 
       // PM Not Set Orders
-      prisma.$queryRaw`
-        SELECT COUNT(*) as count FROM "Order"
-        WHERE LOWER(custom_po_number) LIKE '%pm%'
-        AND LOWER(custom_po_number) LIKE '%not set%'
-      `.then(result => Number(result[0]?.count || 0)),
+			prisma.order.count({
+				where: buildVisibleOrdersWhere({
+					AND: [
+						{ custom_po_number: { contains: 'pm', mode: 'insensitive' } },
+						{ custom_po_number: { contains: 'not set', mode: 'insensitive' } },
+					],
+				}),
+			}),
 
 			// KD Not Set Orders
-			prisma.$queryRaw`
-				SELECT COUNT(*) as count FROM "Order"
-				WHERE LOWER(custom_po_number) LIKE '%kd%'
-				AND LOWER(custom_po_number) LIKE '%not set%'
-			`.then(result => Number(result[0]?.count || 0)),
+			prisma.order.count({
+				where: buildVisibleOrdersWhere({
+					AND: [
+						{ custom_po_number: { contains: 'kd', mode: 'insensitive' } },
+						{ custom_po_number: { contains: 'not set', mode: 'insensitive' } },
+					],
+				}),
+			}),
 
       // GW Orders
-      prisma.$queryRaw`
-        SELECT COUNT(*) as count FROM "Order"
-        WHERE LOWER(custom_po_number) LIKE '%gw%'
-      `.then(result => Number(result[0]?.count || 0)),
+			prisma.order.count({
+				where: buildVisibleOrdersWhere({
+					custom_po_number: { contains: 'gw', mode: 'insensitive' },
+				}),
+			}),
 
       // Total Orders
-      prisma.order.count(),
+			prisma.order.count({ where: buildVisibleOrdersWhere() }),
     ]);
 
     res.json({

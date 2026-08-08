@@ -74,6 +74,8 @@ function parseArgs(argv) {
       options.websiteAssignmentConcurrency = Number(argv[++i]);
     } else if (arg === '--skip-website-assignment') {
       options.skipWebsiteAssignment = true;
+    } else if (arg === '--sync-website-assignment') {
+      options.skipWebsiteAssignment = false;
     } else if (arg === '--dry-run') {
       options.dryRun = true;
     }
@@ -284,12 +286,20 @@ async function postBasePricesBatch(prices) {
     headers: {
       Authorization: `Bearer ${MAGENTO_CONFIG.token}`,
       'Content-Type': 'application/json',
+      'User-Agent': 'JustJeepsAPI/price-update',
     },
     maxBodyLength: Infinity,
     timeout: MAGENTO_CONFIG.timeout,
   });
 
   return response;
+}
+
+function isAccessDeniedError(error) {
+  const status = error.response?.status;
+  const details = String(error.response?.data || error.message || '').toLowerCase();
+
+  return status === 403 || details.includes('sucuri website firewall') || details.includes('access denied');
 }
 
 function chunk(array, size) {
@@ -317,6 +327,7 @@ function printUsage() {
   console.log('  --batch-size <number>  Prices per Magento request (default: 250)');
   console.log('  --delay-ms <number>    Delay between batches in milliseconds (default: 400)');
   console.log('  --skip-website-assignment  Skip website assignment sync step');
+  console.log('  --sync-website-assignment  Run website assignment sync step even when the npm script skips it');
   console.log('  --website-assignment-concurrency <n>  Workers for website sync (default: 10)');
   console.log('  --dry-run              Print sample payload only, do not send updates');
 }
@@ -416,6 +427,7 @@ async function main() {
       alreadyAssigned: websiteSync.alreadyAssigned,
       missingInMagento: websiteSync.missingInMagento,
       failed: websiteSync.failed,
+      accessDeniedFailures: websiteSync.accessDeniedFailures,
       aborted: websiteSync.aborted,
       abortReason: websiteSync.abortReason,
       elapsedSeconds: websiteSyncElapsedSeconds,
@@ -423,14 +435,20 @@ async function main() {
     if (websiteSync.failedSamples.length > 0) {
       console.log('⚠️ Website assignment failure samples:', websiteSync.failedSamples);
     }
+
+    if (websiteSync.aborted) {
+      throw new Error(websiteSync.abortReason || 'Website assignment sync aborted');
+    }
   }
 
   const batches = chunk(rows, options.batchSize);
   let sent = 0;
   let failedBatches = 0;
+  let aborted = false;
+  let abortReason = null;
   const liveUpdatedSamples = [];
 
-  for (let i = 0; i < batches.length; i++) {
+  for (let i = 0; i < batches.length && !aborted; i++) {
     const prices = batches[i].map((row) => ({
       sku: row.sku,
       store_id: row.store_id,
@@ -453,6 +471,12 @@ async function main() {
       const status = error.response?.status || 'ERR';
       const details = JSON.stringify(error.response?.data || error.message).slice(0, 400);
       console.log(`❌ Batch ${i + 1}/${batches.length} failed | ${status} ${details}`);
+
+      if (isAccessDeniedError(error)) {
+        aborted = true;
+        abortReason = 'Aborted price batches after Magento/Sucuri access denied response. Retry later or lower batch size/delay.';
+        console.log(`🛑 ${abortReason}`);
+      }
     }
 
     if (i + 1 < batches.length && options.delayMs > 0) {
@@ -465,6 +489,10 @@ async function main() {
   console.log(`   - Total prepared: ${rows.length}`);
   console.log(`   - Total sent: ${sent}`);
   console.log(`   - Failed batches: ${failedBatches}`);
+  console.log(`   - Aborted: ${aborted}`);
+  if (abortReason) {
+    console.log(`   - Abort reason: ${abortReason}`);
+  }
   console.log(`   - Elapsed: ${elapsedSeconds}s`);
 
   if (liveUpdatedSamples.length > 0) {

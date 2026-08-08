@@ -86,7 +86,7 @@
     "disable-cad-disabled-us-enabled-daily": "node scripts/disable-cad-disabled-us-enabled.js --concurrency 15 --exclude-sku DOD-DD5166 --file reports/cad-disabled-us-enabled-status-audit-daily.csv --output reports/cad-disabled-us-enabled-disable-daily.csv",
     "cad-disabled-us-enabled-weekly": "node scripts/audit-cad-disabled-us-enabled.js --concurrency 2 --max-requests-per-minute 60 --exclude-sku DOD-DD5166 --output reports/cad-disabled-us-enabled-status-audit-weekly.csv && node scripts/disable-cad-disabled-us-enabled.js --concurrency 15 --exclude-sku DOD-DD5166 --file reports/cad-disabled-us-enabled-status-audit-weekly.csv --output reports/cad-disabled-us-enabled-disable-weekly.csv",
     "disable-products-us-store": "node pricing_update/us_store/disable-products-us-store.js",
-    "update-quadratec-us-store-prices": "node pricing_update/us_store/update-quadratec-only-prices-us-store.js",
+    "update-quadratec-us-store-prices": "node pricing_update/us_store/update-quadratec-only-prices-us-store.js --skip-website-assignment --delay-ms 1500",
     "update-omix-us-store-prices": "node pricing_update/us_store/update-omix-ada-only-prices-us-store.js",
     "update-keyparts-us-store-prices": "node pricing_update/us_store/update-keyparts-only-prices-us-store.js",
     "update-mopar-us-store-prices": "node pricing_update/us_store/update-mopar-prices-us-store.js",

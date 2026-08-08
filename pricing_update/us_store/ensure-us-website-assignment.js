@@ -6,6 +6,7 @@ async function ensureUsWebsiteAssignmentForSkus({
   magentoConfig,
   concurrency = 20,
   abortOnRedirectFailures = 5,
+  abortOnAccessDeniedFailures = 5,
 }) {
   const website = Number(websiteId);
   if (!Number.isInteger(website) || website < 1) {
@@ -35,6 +36,7 @@ async function ensureUsWebsiteAssignmentForSkus({
   const headers = {
     Authorization: `Bearer ${magentoConfig.token}`,
     'Content-Type': 'application/json',
+    'User-Agent': 'JustJeepsAPI/price-update',
   };
 
   let assigned = 0;
@@ -42,10 +44,25 @@ async function ensureUsWebsiteAssignmentForSkus({
   let missingInMagento = 0;
   let failed = 0;
   let redirectFailures = 0;
+  let accessDeniedFailures = 0;
   let abortReason = null;
   const failedSamples = [];
 
   let cursor = 0;
+
+  function isMissingProductError(error) {
+    const status = error.response?.status;
+    const message = String(error.response?.data?.message || error.message || '').toLowerCase();
+
+    return status === 404 || message.includes("product doesn't exist") || message.includes('no such entity');
+  }
+
+  function isAccessDeniedError(error) {
+    const status = error.response?.status;
+    const details = String(error.response?.data || error.message || '').toLowerCase();
+
+    return status === 403 || details.includes('sucuri website firewall') || details.includes('access denied');
+  }
 
   async function worker() {
     while (cursor < total && !abortReason) {
@@ -54,17 +71,6 @@ async function ensureUsWebsiteAssignmentForSkus({
       const encodedSku = encodeURIComponent(sku);
 
       try {
-        const productResponse = await axios.get(
-          `${magentoConfig.baseURL}/products/${encodedSku}?fields=sku,extension_attributes[website_ids]`,
-          { headers, timeout: magentoConfig.timeout, maxRedirects: 5 }
-        );
-
-        const websiteIds = productResponse.data?.extension_attributes?.website_ids || [];
-        if (Array.isArray(websiteIds) && websiteIds.includes(website)) {
-          alreadyAssigned++;
-          continue;
-        }
-
         await axios.post(
           `${magentoConfig.baseURL}/products/${encodedSku}/websites`,
           {
@@ -80,7 +86,7 @@ async function ensureUsWebsiteAssignmentForSkus({
       } catch (error) {
         const status = error.response?.status;
 
-        if (status === 404) {
+        if (isMissingProductError(error)) {
           missingInMagento++;
           continue;
         }
@@ -89,6 +95,13 @@ async function ensureUsWebsiteAssignmentForSkus({
           redirectFailures++;
           if (abortOnRedirectFailures > 0 && redirectFailures >= abortOnRedirectFailures) {
             abortReason = `Aborted website assignment after ${redirectFailures} redirect responses. Check MAGENTO_BASE_URL/M2_BASE_URL_DEFAULT/M2_DEFAULT_BASE_URL and Magento routing.`;
+          }
+        }
+
+        if (isAccessDeniedError(error)) {
+          accessDeniedFailures++;
+          if (abortOnAccessDeniedFailures > 0 && accessDeniedFailures >= abortOnAccessDeniedFailures) {
+            abortReason = `Aborted website assignment after ${accessDeniedFailures} access-denied responses from Magento/Sucuri. Retry later with lower concurrency or skip website assignment for price-only updates.`;
           }
         }
 
@@ -118,6 +131,7 @@ async function ensureUsWebsiteAssignmentForSkus({
     alreadyAssigned,
     missingInMagento,
     failed,
+    accessDeniedFailures,
     aborted: Boolean(abortReason),
     abortReason,
     failedSamples,
