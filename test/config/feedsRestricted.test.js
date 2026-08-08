@@ -40,3 +40,15 @@ test('the quickbooks legacy dir follows QB_LOOKUP_DATA_DIR', () => {
 		else process.env.QB_LOOKUP_DATA_DIR = previous;
 	}
 });
+
+test('each feed alerts on its own rhythm, not on one global idea of old', () => {
+	// Omix is revised about twice a year: alerting sooner would train people to
+	// ignore the digest. Keystone is fetched twice a day, so a day and a half is
+	// already a problem. The age is shown either way; this only decides when it
+	// becomes a complaint.
+	const days = (name) => feedsConfig.getFeedByName(name).staleAfterHours / 24;
+
+	assert.strictEqual(days('omix'), 180);
+	assert.strictEqual(days('keystone-ftp'), 1.5);
+	assert.ok(days('quickbooks') < days('omix'), 'the QuickBooks export is expected far more often');
+});

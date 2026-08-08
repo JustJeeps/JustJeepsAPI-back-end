@@ -127,7 +127,12 @@ const FEED_DEFINITIONS = [
 		seedCommand: 'seed-omix',
 		syncCommands: ['seed-omix', 'seed-omix-inventory'],
 		recordsOwnRuns: true,
-		staleAfterHours: 120 * DAY_HOURS,
+		// The vendor genuinely revises this sheet about twice a year (confirmed
+		// by Ricardo, 2026-08-08), so anything under six months is the normal
+		// rhythm and alerting sooner would just train people to ignore it. The
+		// age is always on screen either way: this threshold decides when it
+		// becomes a complaint, not whether the date is shown.
+		staleAfterHours: 180 * DAY_HOURS,
 	},
 	{
 		// Not a vendor price file: the two manual exports from QuickBooks Desktop
