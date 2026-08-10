@@ -13,6 +13,7 @@ const compression = require('compression');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const cron = require('node-cron');
+const { createCommandGate } = require('./lib/cron/commandGate');
 const { spawn } = require('child_process');
 const logger = require('./utils/logger');
 const {
@@ -138,7 +139,69 @@ const skuStatusHistoryFile = path.resolve(__dirname, 'logs', 'sku-status-change-
 const skuStatusHistoryRetentionDays = Number(process.env.SKU_STATUS_HISTORY_RETENTION_DAYS || 180);
 const quickBooksPreloadEnabled = process.env.QB_LOOKUP_PRELOAD_ON_BOOT !== 'false';
 const quickBooksPreloadDelayMs = Number(process.env.QB_LOOKUP_PRELOAD_DELAY_MS || 60000);
-let activeCommandCronJob = null;
+// One command cron at a time. A blocked run is DEFERRED, not dropped: dropping
+// it is how the Magento attribute sync (02:20) lost three weeks of runs to the
+// orders delta, which fires every five minutes and therefore also at :20.
+// lib/cron/commandGate.js holds the decision and is tested on its own.
+const commandGate = createCommandGate();
+// command -> function that actually starts the run, so the gate can hand the
+// lock to whoever was waiting.
+const commandRunners = new Map();
+
+// Hands the lock to whoever was waiting. A run held up longer than the gate
+// allows is dropped for real, and that has to be LOUD: a silently dropped cron
+// is what let the Magento attribute sync disappear for three weeks.
+function releaseCommandGate(finishedCommand) {
+	const { next, expired } = commandGate.release();
+
+	for (const job of expired) {
+		const waitedMin = Math.round(job.waitedMs / 60000);
+		upsertCronJobRecord(job.command, {
+			lastStatus: 'skipped',
+			lastError: `Dropped after waiting ${waitedMin} min for the queue`,
+		});
+		// A history entry, not just a dashboard field. History is what the daily
+		// digest reads, and it used to be written ONLY when a run finished, so a
+		// run that never started left no trace anywhere: that is how the Magento
+		// attribute sync went missing for three weeks without a single report.
+		recordCronRunHistory({
+			command: job.command,
+			jobName: job.jobName,
+			status: 'skipped',
+			startedAt: new Date(job.requestedAt).toISOString(),
+			finishedAt: new Date().toISOString(),
+			durationMs: 0,
+			durationLabel: '0s',
+			exitCode: null,
+			error: `Never ran: waited ${waitedMin} min behind ${finishedCommand} and was dropped`,
+			failedResults: [],
+		});
+		logger.error('Cron job dropped after waiting too long for its turn', {
+			jobName: job.jobName,
+			command: job.command,
+			waitedMs: job.waitedMs,
+			blockedBy: finishedCommand,
+		});
+		console.log(`❌ [CRON] ${job.jobName} dropped after waiting ${Math.round(job.waitedMs / 60000)} min`);
+	}
+
+	if (!next) return;
+
+	const startNext = commandRunners.get(next.command);
+	if (!startNext) {
+		logger.error('Cron job was queued but has no runner registered', { command: next.command });
+		return;
+	}
+
+	logger.info('Starting the cron job that was waiting for the queue', {
+		jobName: next.jobName,
+		command: next.command,
+		waitedMs: next.waitedMs,
+	});
+	console.log(`▶️ [CRON] Starting ${next.jobName}, which waited ${Math.round(next.waitedMs / 1000)}s for its turn`);
+	// setImmediate: do not start the next one inside the previous one's finally.
+	setImmediate(() => startNext({ waitedMs: next.waitedMs }));
+}
 
 function upsertCronJobRecord(command, patch) {
 	const current = cronJobRegistry.get(command) || { command };
@@ -4957,57 +5020,11 @@ function registerCommandCronJob({
 		command,
 	});
 
-	cron.schedule(schedule, () => {
-		if (isRunning) {
-			upsertCronJobRecord(command, {
-				lastStatus: 'skipped',
-				lastError: 'Previous run still in progress',
-			});
-			logger.warn('Cron job skipped because previous run is still active', {
-				jobName,
-				schedule,
-				command,
-			});
-			console.log(`⏭️ [CRON] Skipping ${jobName}; previous run is still in progress`);
-			return;
-		}
-
-		if (activeCommandCronJob) {
-			const activeJobLabel = activeCommandCronJob.jobName || activeCommandCronJob.command;
-			upsertCronJobRecord(command, {
-				lastStatus: 'skipped',
-				lastError: `Skipped because ${activeJobLabel} is already running`,
-			});
-			logger.warn('Cron job skipped because another command cron job is already active', {
-				jobName,
-				schedule,
-				command,
-				activeJob: activeCommandCronJob,
-			});
-			console.log(`⏭️ [CRON] Skipping ${jobName}; ${activeJobLabel} is already running`);
-			return;
-		}
-
-		// A manual feed run is in progress (panel button): both paths run the
-		// same seeds over the same staging table, so letting this one start
-		// here would truncate the manual run's data midway.
-		if (feedRunner.isBusy()) {
-			upsertCronJobRecord(command, {
-				lastStatus: 'skipped',
-				lastError: 'Skipped because a manual feed run is in progress',
-			});
-			logger.warn('Cron job skipped because a manual feed run is active', { jobName, schedule, command });
-			console.log(`⏭️ [CRON] Skipping ${jobName}; a manual feed run is in progress`);
-			return;
-		}
-
+	// The run itself. Separate from the scheduling decision so the gate can call
+	// it later, when the job that was holding the lock finishes.
+	function startRun({ waitedMs = 0 } = {}) {
 		isRunning = true;
 		const startTime = Date.now();
-		activeCommandCronJob = {
-			command,
-			jobName,
-			startedAt: new Date(startTime).toISOString(),
-		};
 		upsertCronJobRecord(command, {
 			isRunning: true,
 			lastStatus: 'running',
@@ -5256,9 +5273,7 @@ function registerCommandCronJob({
 				}
 			} finally {
 				isRunning = false;
-				if (activeCommandCronJob?.command === command) {
-					activeCommandCronJob = null;
-				}
+				releaseCommandGate(command);
 			}
 		});
 
@@ -5321,11 +5336,54 @@ function registerCommandCronJob({
 				});
 			} finally {
 				isRunning = false;
-				if (activeCommandCronJob?.command === command) {
-					activeCommandCronJob = null;
-				}
+				releaseCommandGate(command);
 			}
 		});
+	}
+
+	commandRunners.set(command, startRun);
+
+	cron.schedule(schedule, () => {
+		// A manual feed run (panel button) runs the same seeds over the same
+		// staging tables, so this must not start on top of it. It is remembered
+		// instead of dropped, and runs when the way is clear.
+		if (feedRunner.isBusy()) {
+			commandGate.defer({ command, jobName });
+			upsertCronJobRecord(command, {
+				lastStatus: 'deferred',
+				lastError: 'Waiting: a manual feed run is in progress',
+			});
+			logger.warn('Cron job deferred because a manual feed run is active', { jobName, schedule, command });
+			console.log(`⏳ [CRON] Deferring ${jobName}; a manual feed run is in progress`);
+			return;
+		}
+
+		const outcome = commandGate.request({ command, jobName });
+
+		if (outcome.decision === 'skipped') {
+			upsertCronJobRecord(command, { lastStatus: 'skipped', lastError: `Skipped: ${outcome.reason}` });
+			logger.warn('Cron job skipped because previous run is still active', { jobName, schedule, command });
+			console.log(`⏭️ [CRON] Skipping ${jobName}; ${outcome.reason}`);
+			return;
+		}
+
+		if (outcome.decision === 'deferred') {
+			const blockedByLabel = outcome.blockedBy.jobName || outcome.blockedBy.command;
+			upsertCronJobRecord(command, {
+				lastStatus: 'deferred',
+				lastError: `Waiting for ${blockedByLabel} to finish`,
+			});
+			logger.warn('Cron job deferred because another command cron job is active', {
+				jobName,
+				schedule,
+				command,
+				blockedBy: outcome.blockedBy,
+			});
+			console.log(`⏳ [CRON] Deferring ${jobName}; ${blockedByLabel} is running, it will start right after`);
+			return;
+		}
+
+		startRun();
 	}, {
 		scheduled: true,
 		timezone: cronTimezone,

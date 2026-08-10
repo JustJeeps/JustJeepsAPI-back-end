@@ -76,7 +76,11 @@ env:
     # job (Rough Country + KeyParts) and "ROUGH" controls magento-attributes-weekly
     # (Omix + AEV + MetalCloak). See getCronJobDefinitions in server.js.
     CRON_MAGENTO_ATTRIBUTES_PRIORITY_ENABLED: "true"
-    CRON_MAGENTO_ATTRIBUTES_PRIORITY_SCHEDULE: "20 2 * * *"
+    # 02:23, not 02:20: the orders delta runs every five minutes, so :20 is a
+    # tick it always wins, and this job was dropped every night from 2026-07-20
+    # to 2026-08-10. The queue now defers instead of dropping, so this is only
+    # to avoid a pointless daily wait.
+    CRON_MAGENTO_ATTRIBUTES_PRIORITY_SCHEDULE: "23 2 * * *"
     CRON_MAGENTO_ATTRIBUTES_ROUGH_ENABLED: "true"
     CRON_MAGENTO_ATTRIBUTES_ROUGH_SCHEDULE: "45 17 * * 0"
     MAGENTO_MAX_SAFE_CONCURRENCY: "1"
