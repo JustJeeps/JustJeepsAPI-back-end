@@ -252,6 +252,8 @@ model User {
   requestActivities  RequestActivity[]   @relation("RequestActivityActor")
   requestAssignments RequestAssignee[]   @relation("RequestAssigneeUser")
   trelloBoard        TrelloUserBoard?    @relation("UserTrelloBoard")
+  sectorMemberships  SectorMember[]      @relation("SectorMemberUser")
+  sectorActivities   SectorActivity[]    @relation("SectorActivityActor")
 }
 
 // ---------------------------------------------------------------------------
@@ -280,6 +282,9 @@ model Request {
   // do Trello ficam intactos. So triage restaura.
   deletedAt    DateTime?
   deletedById  Int?
+  // Setor dono da fila (board por setor, 2026-08-11). Todo chamado pertence a
+  // exatamente um setor; sem setor no payload cai no General (config/sectors.js).
+  sector_id    Int
   requester_id Int
   assignee_id  Int?
   createdAt    DateTime            @default(now())
@@ -288,12 +293,15 @@ model Request {
   // assignee = responsavel PRIMARIO (primeiro da lista): dirige board do
   // Trello, auto-status e KPI de unassigned. A lista completa fica em assignees.
   assignee     User?               @relation("RequestAssignee", fields: [assignee_id], references: [id], onDelete: SetNull)
+  // RESTRICT proposital: setor com chamados nunca e deletado (archive-only).
+  sector       Sector              @relation(fields: [sector_id], references: [id])
   assignees    RequestAssignee[]
   comments     RequestComment[]
   attachments  RequestAttachment[]
   activities   RequestActivity[]
 
   @@index([status])
+  @@index([sector_id])
   @@index([assignee_id])
   @@index([requester_id])
   @@index([createdAt])
@@ -333,7 +341,7 @@ model RequestActivity {
   id         Int      @id @default(autoincrement())
   request_id Int
   actor_id   Int
-  action     String // created|status_change|assignee_change|priority_change|field_update|comment_added|attachment_added|attachment_removed|reopened|archived|unarchived|trello_card_created|trello_card_skipped|trello_card_failed
+  action     String // created|status_change|assignee_change|priority_change|field_update|sector_change|comment_added|attachment_added|attachment_removed|reopened|archived|unarchived|trello_card_created|trello_card_skipped|trello_card_failed|trello_card_moved|trello_card_move_failed
   field      String?
   oldValue   String?
   newValue   String?
@@ -378,6 +386,9 @@ model TrelloSettings {
   updatedAt   DateTime @default(now()) @updatedAt
 }
 
+// APOSENTADO em 2026-08-11 (boards por setor): a resolucao de destino do card
+// passou a usar TrelloSectorBoard. A tabela fica dormente ate a migration de
+// limpeza (Fase 2 do plano de setores) — nao recebe mais escrita pela UI.
 model TrelloUserBoard {
   id        Int      @id @default(autoincrement())
   userId    Int      @unique
@@ -387,6 +398,76 @@ model TrelloUserBoard {
   listName  String
   updatedAt DateTime @default(now()) @updatedAt
   user      User     @relation("UserTrelloBoard", fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// Setores (boards por setor, 2026-08-11): modelo Trello/ClickUp aplicado aos
+// chamados — um board por setor com N participantes, gerenciado pelos admins
+// do proprio setor. Triage global (REQUESTS_TRIAGE_USERS) e o "workspace
+// admin": enxerga e gerencia todos os setores. SectorMember.role e String
+// validada contra config/sectors.js (padrao do repo: sem enums).
+// ---------------------------------------------------------------------------
+
+model Sector {
+  id          Int                @id @default(autoincrement())
+  name        String
+  // Chave estavel para deep-link (?sector=) e para o setor default 'general'.
+  slug        String             @unique
+  color       String?
+  // Setores nunca sao hard-deletados: arquivar tira das listas e bloqueia
+  // chamados novos, mas preserva historico e FKs.
+  archivedAt  DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @default(now()) @updatedAt
+  members     SectorMember[]
+  requests    Request[]
+  trelloBoard TrelloSectorBoard?
+  activities  SectorActivity[]
+}
+
+model SectorMember {
+  id        Int      @id @default(autoincrement())
+  sector_id Int
+  user_id   Int
+  role      String   @default("member") // 'admin' | 'member' — config/sectors.js
+  createdAt DateTime @default(now())
+  sector    Sector   @relation(fields: [sector_id], references: [id], onDelete: Cascade)
+  user      User     @relation("SectorMemberUser", fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([sector_id, user_id])
+  @@index([user_id])
+}
+
+// Mapeamento setor -> board/lista de destino no Trello (substitui o
+// TrelloUserBoard: o card vai para o board do SETOR, nao do assignee).
+model TrelloSectorBoard {
+  id        Int      @id @default(autoincrement())
+  sectorId  Int      @unique
+  boardId   String
+  boardName String
+  listId    String
+  listName  String
+  updatedAt DateTime @default(now()) @updatedAt
+  sector    Sector   @relation(fields: [sectorId], references: [id], onDelete: Cascade)
+}
+
+// Audit de governanca do setor (espelho do RequestActivity): quem criou,
+// renomeou, arquivou, mexeu em membro/papel ou trocou o board do Trello.
+model SectorActivity {
+  id        Int      @id @default(autoincrement())
+  sector_id Int
+  actor_id  Int
+  action    String // created|renamed|archived|unarchived|member_added|member_removed|role_change|trello_board_change
+  field     String?
+  oldValue  String?
+  newValue  String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+  sector    Sector   @relation(fields: [sector_id], references: [id], onDelete: Cascade)
+  actor     User     @relation("SectorActivityActor", fields: [actor_id], references: [id])
+
+  @@index([sector_id])
+  @@index([createdAt])
 }
 
 model PurchaseOrder {

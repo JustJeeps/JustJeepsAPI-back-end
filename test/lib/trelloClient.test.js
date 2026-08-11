@@ -5,8 +5,8 @@ const { createTrelloClient, TRELLO_API_BASE } = require('../../lib/trello/trello
 
 // axios entra por parametro — stub que grava as chamadas, nenhuma rede.
 
-const makeHttpStub = ({ getImpl, postImpl } = {}) => {
-	const calls = { get: [], post: [] };
+const makeHttpStub = ({ getImpl, postImpl, putImpl } = {}) => {
+	const calls = { get: [], post: [], put: [] };
 	return {
 		calls,
 		get: async (url, config) => {
@@ -17,6 +17,11 @@ const makeHttpStub = ({ getImpl, postImpl } = {}) => {
 		post: async (url, body, config) => {
 			calls.post.push({ url, body, config });
 			if (postImpl) return postImpl(url, body, config);
+			return { data: {} };
+		},
+		put: async (url, body, config) => {
+			calls.put.push({ url, body, config });
+			if (putImpl) return putImpl(url, body, config);
 			return { data: {} };
 		},
 	};
@@ -78,6 +83,33 @@ test('createCard envia POST /cards com params e devolve cardId/cardUrl', async (
 	assert.strictEqual(call.config.params.key, 'the-key');
 	// key/token vao em params (nunca interpolados na URL logavel)
 	assert.ok(!call.url.includes('the-key') && !call.url.includes('the-token'));
+});
+
+// Mover card entre boards (2026-08-11, chamado muda de setor): unica operacao
+// de EDICAO permitida na integracao — o resto continua create-only.
+test('moveCard envia PUT /cards/{id} com idBoard/idList em params', async () => {
+	const http = makeHttpStub({
+		putImpl: async () => ({ data: { id: 'card1', shortUrl: 'https://trello.com/c/abc' } }),
+	});
+	const client = createTrelloClient({ http });
+	const card = await client.moveCard(CREDS, { cardId: 'card1', idBoard: 'b2', idList: 'l9' });
+
+	assert.deepStrictEqual(card, { cardId: 'card1', cardUrl: 'https://trello.com/c/abc' });
+	const call = http.calls.put[0];
+	assert.strictEqual(call.url, `${TRELLO_API_BASE}/cards/card1`);
+	assert.strictEqual(call.config.params.idBoard, 'b2');
+	assert.strictEqual(call.config.params.idList, 'l9');
+	assert.strictEqual(call.config.params.key, 'the-key');
+	assert.ok(!call.url.includes('the-key') && !call.url.includes('the-token'));
+});
+
+test('moveCard: 404 vira TRELLO_CARD_NOT_FOUND (card deletado a mao no Trello)', async () => {
+	const http = makeHttpStub({ putImpl: async () => { throw httpError(404); } });
+	const client = createTrelloClient({ http });
+	await assert.rejects(
+		client.moveCard(CREDS, { cardId: 'gone', idBoard: 'b2', idList: 'l9' }),
+		(error) => error.code === 'TRELLO_CARD_NOT_FOUND'
+	);
 });
 
 test('erros HTTP viram codes tipados: 401 auth, 429 rate limit, resto unavailable', async () => {

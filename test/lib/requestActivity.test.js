@@ -80,6 +80,31 @@ test('valores iguais nao geram entrada', () => {
 	assert.deepStrictEqual(entries, []);
 });
 
+test('mudanca de setor vira sector_change com os NOMES dos setores', () => {
+	const entries = diffToActivities({
+		requestId: 1,
+		actorId: 9,
+		current: current({ sector_id: 1 }),
+		applied: { sector_id: 3 },
+		labels: { oldSector: 'General', newSector: 'TI' },
+	});
+	assert.strictEqual(entries.length, 1);
+	assert.strictEqual(entries[0].action, 'sector_change');
+	assert.strictEqual(entries[0].field, 'sector');
+	assert.strictEqual(entries[0].oldValue, 'General');
+	assert.strictEqual(entries[0].newValue, 'TI');
+});
+
+test('setor igual nao gera entrada', () => {
+	const entries = diffToActivities({
+		requestId: 1,
+		actorId: 9,
+		current: current({ sector_id: 3 }),
+		applied: { sector_id: 3 },
+	});
+	assert.deepStrictEqual(entries, []);
+});
+
 test('valores longos sao truncados', () => {
 	const entries = diffToActivities({
 		requestId: 1,
