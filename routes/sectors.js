@@ -56,9 +56,10 @@ router.use((req, res, next) => {
 	next();
 });
 
-// --- leitura do Trello para o mapping (antes de /:id) ---------------------------
-// Triage ou admin de ALGUM setor: e o que o dropdown board->lista da aba
-// Sectors precisa; credenciais em si continuam exclusivas de /api/trello-settings.
+// --- gate de configuracao ------------------------------------------------------
+// Configuracao de setor (membros, mapping do Trello, audit) e para triage ou
+// admin de ALGUM setor — member ve o board de chamados, nao a configuracao
+// (decisao de 2026-08-12). Credenciais seguem exclusivas de /api/trello-settings.
 
 const requireSectorAdmin = async (req, res, next) => {
 	try {
@@ -67,7 +68,7 @@ const requireSectorAdmin = async (req, res, next) => {
 			if (!adminSectors.length) {
 				throw RequestServiceError.conflict(
 					'SECTOR_ADMIN_ONLY',
-					'Only sector admins or triage users can browse Trello boards'
+					'Sector settings are restricted to sector admins and triage users'
 				);
 			}
 		}
@@ -89,8 +90,10 @@ router.get('/trello/boards/:boardId/lists', requireSectorAdmin, handle(async (re
 
 // --- setores -------------------------------------------------------------------
 
-router.get('/', handle(async (req, res) => {
-	res.json(await sectorsService.listSectors());
+// Configuracao: triage recebe todos; admin de setor recebe SO os setores que
+// administra. O catalogo publico (nomes para criar/mover) vive no /meta.
+router.get('/', requireSectorAdmin, handle(async (req, res) => {
+	res.json(await sectorsService.listSectors({ user: req.user }));
 }));
 
 router.post('/', handle(async (req, res) => {

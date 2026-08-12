@@ -87,12 +87,26 @@ const sectorActivityRow = (sectorId, actorId, action, extra = {}) => ({
 
 // --- listagem -----------------------------------------------------------------
 
-// Todos os setores com membros e mapping do Trello. Visibilidade e aberta
-// (decisao: todos veem tudo, so gerenciar e restrito), entao a lista nao
-// filtra por membership. Contagem de chamados exclui deletados.
-async function listSectors() {
+// Catalogo PUBLICO dos setores (nomes para tabs e selects de criar/mover):
+// qualquer requests user pode ver que os setores existem — e o que permite
+// abrir chamado para outro setor. Configuracao (membros, Trello) fica fora.
+async function listSectorCatalog() {
+	return prisma.sector.findMany({
+		select: { id: true, name: true, slug: true, color: true, archivedAt: true },
+		orderBy: [{ createdAt: 'asc' }],
+	});
+}
+
+// Setores com membros e mapping do Trello — isto e CONFIGURACAO (decisao de
+// 2026-08-12: member ve o board de chamados, nao a configuracao). Triage ve
+// todos; os demais recebem apenas os setores dos quais sao ADMIN. O gate de
+// rota (SECTOR_ADMIN_ONLY) barra quem nao e admin de setor nenhum.
+async function listSectors({ user } = {}) {
+	const adminOnly = user && !isTriageUser(user.username);
+	const adminIds = adminOnly ? await adminSectorIdsFor(user.id) : null;
 	const [sectors, counts] = await Promise.all([
 		prisma.sector.findMany({
+			where: adminOnly ? { id: { in: adminIds } } : undefined,
 			include: { members: MEMBERS_INCLUDE, trelloBoard: true },
 			orderBy: [{ createdAt: 'asc' }],
 		}),
@@ -341,6 +355,7 @@ async function getSectorActivity({ user, sectorId }) {
 }
 
 module.exports = {
+	listSectorCatalog,
 	listSectors,
 	getSector,
 	createSector,

@@ -123,7 +123,7 @@ async function getMeta({ user } = {}) {
 	// antigo por compat com o front (RequestTrelloPanel le meta.trello.enabled).
 	const [trelloConfigured, sectors, memberships] = await Promise.all([
 		trelloService.isConfigured(),
-		sectorsService.listSectors(),
+		sectorsService.listSectorCatalog(),
 		user?.id
 			? prisma.sectorMember.findMany({ where: { user_id: user.id }, select: { sector_id: true, role: true } })
 			: [],
@@ -138,25 +138,16 @@ async function getMeta({ user } = {}) {
 		projects: REQUEST_PROJECTS,
 		types: REQUEST_TYPES,
 		triageUsers: requestsConfig.requestsTriageUsers,
-		// Boards por setor: shape enxuto para a UI (tabs, selects, gates
-		// cosmeticos). boardId/listId ficam de fora de proposito — a aba
-		// Sectors busca o mapping completo em /api/sectors.
+		// Boards por setor: so o CATALOGO publico (nomes para tabs e selects de
+		// criar/mover). Membros e mapping do Trello sao CONFIGURACAO — vivem em
+		// /api/sectors, que e restrito aos admins do setor + triage (decisao de
+		// 2026-08-12: member ve o board, nao a configuracao).
 		sectors: sectors.map((sector) => ({
 			id: sector.id,
 			name: sector.name,
 			slug: sector.slug,
 			color: sector.color,
 			archivedAt: sector.archivedAt,
-			members: sector.members.map((member) => ({
-				userId: member.user_id,
-				username: member.user.username,
-				role: member.role,
-			})),
-			trello: {
-				mapped: Boolean(sector.trelloBoard),
-				boardName: sector.trelloBoard?.boardName || null,
-				listName: sector.trelloBoard?.listName || null,
-			},
 		})),
 		myRoles: {
 			adminSectorIds: memberships.filter((entry) => entry.role === 'admin').map((entry) => entry.sector_id),
