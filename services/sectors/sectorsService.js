@@ -59,6 +59,16 @@ async function adminSectorIdsFor(userId) {
 	return rows.map((row) => row.sector_id);
 }
 
+// Ids de TODOS os setores dos quais o usuario e membro (qualquer papel).
+// Base da visibilidade por membership (lib/sectors/visibility.js).
+async function memberSectorIdsFor(userId) {
+	const rows = await prisma.sectorMember.findMany({
+		where: { user_id: userId },
+		select: { sector_id: true },
+	});
+	return rows.map((row) => row.sector_id);
+}
+
 async function findDefaultSector() {
 	const sector = await prisma.sector.findUnique({ where: { slug: DEFAULT_SECTOR_SLUG } });
 	if (!sector) {
@@ -344,5 +354,6 @@ module.exports = {
 	membershipFor,
 	roleForSector,
 	adminSectorIdsFor,
+	memberSectorIdsFor,
 	loadSectorOrFail,
 };

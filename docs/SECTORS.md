@@ -5,7 +5,7 @@ Each company sector has its own board of requests, managed by that sector's admi
 Design source: research on how Trello and ClickUp handle per-department boards (plan `use-o-resarche-para-stateful-rossum.md`). Key choices:
 
 - **Two admin levels.** Triage users (`REQUESTS_TRIAGE_USERS`) are the "workspace admins": they see and manage every sector, no opt-in (Trello policy, not ClickUp's). Sector admins manage only their sector: members, name/color, Trello board mapping, plus close/archive/delete for requests inside it.
-- **Visibility is open.** Every logged-in user sees every sector's requests. Sectors are a management boundary, not a security boundary. Private sectors are a possible future phase, not built.
+- **Visibility follows membership** (changed 2026-08-12; the first cut was "everyone sees everything"). A request is visible to: members of its sector, the person who opened it (you always track your own tickets, even in another sector), anyone assigned to it, and triage. Enforced **server-side** in `listRequests`/`getRequestDetail` and in every mutation (invisible request answers 404, never 409, so ids don't leak). The pure rule lives in `lib/sectors/visibility.js`; the Prisma WHERE mirrors it. Sector **names** stay visible to everyone — anyone can open a request to any sector, that's the point of a ticket system.
 - **Sector creation is triage-only** (anti-sprawl). Triage creates the sector and appoints the first admin; from there the sector runs itself.
 - **Orphan guard.** No change can leave a sector without admins (409 `LAST_ADMIN`). Triage can bypass — the sector becomes triage-managed — and the bypass is recorded in the sector's audit log.
 - **Moving a request between sectors** needs an admin of the **source** sector (or triage). The Trello card moves along to the destination sector's board.
@@ -51,4 +51,4 @@ The Trello read routes live here (not under `/api/trello-settings`) because that
 
 ## Tests
 
-`npm test` — suites `sectorPermissions`, `sectorMembership`, plus the sector cases inside `trelloService`, `trelloSettings`, `trelloClient` and `requestActivity`.
+`npm test` — suites `sectorPermissions`, `sectorMembership`, `sectorVisibility`, plus the sector cases inside `trelloService`, `trelloSettings`, `trelloClient` and `requestActivity`.

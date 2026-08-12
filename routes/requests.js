@@ -175,7 +175,7 @@ router.get('/', handle(async (req, res) => {
 	if (deleted && !isTriageUser(req.user.username)) {
 		throw RequestServiceError.conflict('TRIAGE_ONLY', 'Only triage users can list deleted requests');
 	}
-	res.json(await requestsService.listRequests({ deleted }));
+	res.json(await requestsService.listRequests({ user: req.user, deleted }));
 }));
 
 router.post('/', handle(async (req, res) => {
@@ -187,6 +187,7 @@ router.post('/', handle(async (req, res) => {
 router.get('/:id', handle(async (req, res) => {
 	res.json(await requestsService.getRequestDetail(idParam(req), {
 		includeDeleted: isTriageUser(req.user.username),
+		forUser: req.user,
 	}));
 }));
 
@@ -285,7 +286,7 @@ router.post('/:id/attachments', (req, res) => {
 router.get('/:id/attachments/:attachmentId/download', handle(async (req, res) => {
 	const id = idParam(req);
 	const attachmentId = idParam(req, 'attachmentId');
-	const { attachment, body, contentLength } = await requestsService.getAttachmentDownload({ id, attachmentId });
+	const { attachment, body, contentLength } = await requestsService.getAttachmentDownload({ user: req.user, id, attachmentId });
 
 	res.setHeader('Content-Type', attachment.mimeType || 'application/octet-stream');
 	res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(attachment.originalName)}`);

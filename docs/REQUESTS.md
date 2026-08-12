@@ -23,7 +23,7 @@ All routes require a logged in user (`ENABLE_AUTH=true`). While the team tests t
 | Method | Path | What it does |
 |---|---|---|
 | GET | `/api/requests/meta` | Statuses, priorities, projects, types, triage users, sectors (`meta.sectors`), the caller's sector roles (`meta.myRoles`), attachment limits, `trello.configured` |
-| GET | `/api/requests` | Full list (filters and KPIs are client side) |
+| GET | `/api/requests` | List scoped server-side by visibility: your sectors' requests + the ones you opened + the ones assigned to you (triage sees all). Filters and KPIs stay client side over that list |
 | POST | `/api/requests` | Create (always starts as New Request, unassigned). Optional `sectorId`; without it the request lands in the General sector |
 | GET | `/api/requests/:id` | Detail with comments, attachments, activity |
 | PATCH | `/api/requests/:id` | Update fields, status, assignee, `sectorId` (move between sectors). Accepts `comment` in the same call |

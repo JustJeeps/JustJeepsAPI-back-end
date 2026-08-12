@@ -12,6 +12,7 @@ const { diffToActivities } = require('../../lib/requests/activity');
 const { resolveArchive } = require('../../lib/requests/archive');
 const { canManageRequest, canRestoreRequest } = require('../../lib/requests/permissions');
 const { canMoveRequest } = require('../../lib/sectors/permissions');
+const { canViewRequest } = require('../../lib/sectors/visibility');
 const sectorsService = require('../sectors/sectorsService');
 const storage = require('../storage/requestAttachmentsStorage');
 const trelloService = require('../trello/trelloService');
@@ -63,6 +64,20 @@ async function loadRequestOrFail(id, { includeDeleted = false } = {}) {
 	if (!request) throw RequestServiceError.notFound();
 	if (request.deletedAt && !includeDeleted) throw RequestServiceError.notFound();
 	return request;
+}
+
+// Visibilidade por membership (2026-08-12): chamado invisivel responde 404 —
+// nunca 409, para nao entregar que o id existe. A regra pura vive em
+// lib/sectors/visibility.js; o WHERE de listRequests e o espelho dela.
+async function assertCanViewRequest(user, request) {
+	const isTriage = isTriageUser(user.username);
+	if (isTriage) return;
+	const memberSectorIds = await sectorsService.memberSectorIdsFor(user.id);
+	const assignees = request.assignees
+		|| await prisma.requestAssignee.findMany({ where: { request_id: request.id }, select: { user_id: true } });
+	if (!canViewRequest({ request: { ...request, assignees }, userId: user.id, memberSectorIds, isTriage })) {
+		throw RequestServiceError.notFound();
+	}
 }
 
 // Papel efetivo do ator sobre um chamado: triage global manda em tudo (politica
@@ -157,22 +172,38 @@ async function getMeta({ user } = {}) {
 	};
 }
 
-// Sem filtro server-side de dominio: volume baixo, filtros/KPIs/busca sao
-// client-side (mesmo modelo do CronJobsDashboard). O unico corte no banco e o
-// soft delete: deletado nao volta na listagem normal.
-function listRequests({ deleted = false } = {}) {
+// Filtros/KPIs/busca continuam client-side (volume baixo), mas o recorte de
+// VISIBILIDADE e server-side desde 2026-08-12: setor virou fronteira de
+// seguranca, entao chamado de setor alheio nem chega ao browser. Um usuario
+// ve os chamados dos setores dos quais e membro + os que ele abriu + os que
+// estao atribuidos a ele; triage ve tudo (espelho de lib/sectors/visibility).
+async function listRequests({ user, deleted = false } = {}) {
+	const where = deleted ? { deletedAt: { not: null } } : { deletedAt: null };
+	// Lixeira e triage-only (garantido na rota): sem recorte extra.
+	if (!deleted && user && !isTriageUser(user.username)) {
+		const memberSectorIds = await sectorsService.memberSectorIdsFor(user.id);
+		where.OR = [
+			{ sector_id: { in: memberSectorIds } },
+			{ requester_id: user.id },
+			{ assignees: { some: { user_id: user.id } } },
+		];
+	}
 	return prisma.request.findMany({
-		where: deleted ? { deletedAt: { not: null } } : { deletedAt: null },
+		where,
 		orderBy: { createdAt: 'desc' },
 		include: LIST_INCLUDE,
 	});
 }
 
-async function getRequestDetail(id, { includeDeleted = false } = {}) {
+// forUser: quando presente (rota GET), aplica a visibilidade por membership.
+// Chamadas internas pos-mutacao omitem de proposito — o ator acabou de agir
+// com permissao (ex.: admin da origem movendo para setor que ele nao ve).
+async function getRequestDetail(id, { includeDeleted = false, forUser = null } = {}) {
 	const request = await prisma.request.findUnique({ where: { id }, include: DETAIL_INCLUDE });
 	if (!request) throw RequestServiceError.notFound();
 	// Deletado responde 404 como se nao existisse; so quem pode restaurar ve.
 	if (request.deletedAt && !includeDeleted) throw RequestServiceError.notFound();
+	if (forUser) await assertCanViewRequest(forUser, request);
 	return request;
 }
 
@@ -220,6 +251,8 @@ async function createRequest({ user, input }) {
 // priority?, links?, status?, assigneeId?, comment?, sectorId? }
 async function updateRequest({ user, id, patch }) {
 	const current = await loadRequestOrFail(id);
+	// Invisivel = inexistente (404) antes de qualquer regra de negocio.
+	await assertCanViewRequest(user, current);
 	// effectiveTriage entra na maquina de estados no lugar do isTriage global:
 	// admin do setor ganha Close/arquivo dentro do proprio setor sem que
 	// lib/requests/transitions e archive precisem conhecer setores.
@@ -385,6 +418,7 @@ async function ensureTrelloCard({ user, id }) {
 		},
 	});
 	if (!request || request.deletedAt) throw RequestServiceError.notFound();
+	await assertCanViewRequest(user, request);
 	if (request.trelloCardId) {
 		throw RequestServiceError.conflict('CARD_EXISTS', 'A Trello card is already linked to this request');
 	}
@@ -496,6 +530,7 @@ async function ensureTrelloCardMoved({ user, id, authorized = false }) {
 		include: { requester: { select: USER_SELECT }, sector: { select: SECTOR_SELECT } },
 	});
 	if (!request || request.deletedAt) throw RequestServiceError.notFound();
+	if (!authorized) await assertCanViewRequest(user, request);
 	if (!request.trelloCardId) {
 		throw RequestServiceError.conflict('NO_CARD', 'This request has no Trello card to move');
 	}
@@ -599,6 +634,7 @@ function buildAppliedFields({ current, patch, autoStatus }) {
 // escolha de produto justamente para clique errado nao destruir historico.
 async function softDeleteRequest({ user, id }) {
 	const current = await loadRequestOrFail(id);
+	await assertCanViewRequest(user, current);
 
 	// Triage efetivo: triage global ou admin do setor do chamado.
 	const { effectiveTriage } = await actorContext(user, current.sector_id);
@@ -648,7 +684,8 @@ async function restoreRequest({ user, id }) {
 // filtro na leitura); removida em 2026-08-07 em vez de virar uma promessa
 // falsa sobre quem le o que.
 async function addComment({ user, id, body }) {
-	await loadRequestOrFail(id);
+	const current = await loadRequestOrFail(id);
+	await assertCanViewRequest(user, current);
 	return prisma.$transaction(async (tx) => {
 		const comment = await tx.requestComment.create({
 			data: { request_id: id, author_id: user.id, body },
@@ -673,7 +710,8 @@ function assertAttachmentsEnabled() {
 // files: array do multer (memoryStorage): { originalname, mimetype, size, buffer }
 async function addAttachments({ user, id, files }) {
 	assertAttachmentsEnabled();
-	await loadRequestOrFail(id);
+	const current = await loadRequestOrFail(id);
+	await assertCanViewRequest(user, current);
 
 	const uploaded = [];
 	try {
@@ -721,11 +759,13 @@ async function addAttachments({ user, id, files }) {
 	}
 }
 
-async function getAttachmentDownload({ id, attachmentId }) {
+async function getAttachmentDownload({ user, id, attachmentId }) {
 	const attachment = await prisma.requestAttachment.findFirst({
 		where: { id: attachmentId, request_id: id, request: { deletedAt: null } },
+		include: { request: true },
 	});
 	if (!attachment) throw RequestServiceError.notFound('Attachment not found');
+	if (user) await assertCanViewRequest(user, attachment.request);
 	assertAttachmentsEnabled();
 
 	try {
@@ -745,8 +785,10 @@ async function getAttachmentDownload({ id, attachmentId }) {
 async function removeAttachment({ user, id, attachmentId }) {
 	const attachment = await prisma.requestAttachment.findFirst({
 		where: { id: attachmentId, request_id: id, request: { deletedAt: null } },
+		include: { request: true },
 	});
 	if (!attachment) throw RequestServiceError.notFound('Attachment not found');
+	await assertCanViewRequest(user, attachment.request);
 
 	if (attachment.uploader_id !== user.id && !isTriageUser(user.username)) {
 		throw RequestServiceError.conflict('NOT_OWNER', 'Only the uploader or triage can delete an attachment');
