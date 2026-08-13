@@ -134,16 +134,39 @@ router.delete('/:id/members/:userId', handle(async (req, res) => {
 
 // --- board do Trello do setor ---------------------------------------------------
 
+// boardId/listId sao validados contra a API do Trello e os NOMES derivados de
+// la — strings do cliente nao sao confiadas (revisao de seguranca 2026-08-13:
+// antes o payload era persistido verbatim e usado com a credencial global).
 router.put('/:id/trello-board', handle(async (req, res) => {
+	const sectorId = idParam(req);
+	const boardId = req.body?.boardId ?? null;
+
+	// Permissao ANTES de qualquer chamada ao Trello: quem nao gerencia o setor
+	// nao gasta credencial global nem descobre o shape dos erros de validacao.
+	await sectorsService.loadSectorOrFail(sectorId);
+	await sectorsService.assertCanManageSector(req.user, sectorId);
+
+	if (!boardId) {
+		await sectorsService.saveSectorTrelloBoard({ user: req.user, sectorId, boardId: null });
+		return res.status(204).end();
+	}
+
+	const boards = await trelloSettingsService.listBoards();
+	const board = boards.find((entry) => entry.id === String(boardId).trim());
+	if (!board) throw RequestServiceError.validation('Board not found in the configured Trello account');
+
+	const lists = await trelloSettingsService.listBoardLists(board.id);
+	const list = lists.find((entry) => entry.id === String(req.body?.listId ?? '').trim());
+	if (!list) throw RequestServiceError.validation('List does not belong to the selected board');
+
 	const saved = await sectorsService.saveSectorTrelloBoard({
 		user: req.user,
-		sectorId: idParam(req),
-		boardId: req.body?.boardId ?? null,
-		boardName: req.body?.boardName,
-		listId: req.body?.listId,
-		listName: req.body?.listName,
+		sectorId,
+		boardId: board.id,
+		boardName: board.name,
+		listId: list.id,
+		listName: list.name,
 	});
-	if (!saved) return res.status(204).end();
 	res.json(saved);
 }));
 

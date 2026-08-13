@@ -1,7 +1,11 @@
 -- Setores (boards por setor): Sector, SectorMember, TrelloSectorBoard,
 -- SectorActivity + Request.sector_id. Seed do setor General, backfill de todos
--- os chamados existentes e seed dos usuarios de triage como admins do General
--- (dia um nao pode ser admin-less — guard LAST_ADMIN em lib/sectors/membership.js).
+-- os chamados existentes e TODOS os usuarios atuais como members do General —
+-- a visibilidade passou a ser por membership, e sem esse seed o deploy faria o
+-- acervo historico (100% backfillado no General) sumir para quem nao e triage.
+-- General nasce sem admin de proposito (triage-managed): triage ja gerencia
+-- tudo sem linha em SectorMember, e usernames hardcoded aqui divergiriam do
+-- env REQUESTS_TRIAGE_USERS (seed antigo removido na revisao de 2026-08-13).
 
 -- CreateTable
 CREATE TABLE "Sector" (
@@ -105,10 +109,12 @@ ALTER TABLE "Request" ADD CONSTRAINT "Request_sector_id_fkey" FOREIGN KEY ("sect
 -- CreateIndex
 CREATE INDEX "Request_sector_id_idx" ON "Request"("sector_id");
 
--- Seed: usuarios de triage viram admins do General (mesmo default de
--- REQUESTS_TRIAGE_USERS em config/requests.js)
+-- Seed: TODOS os usuarios atuais viram members do General. Antes da migration
+-- a fila era compartilhada por todo mundo; sem isto, o backfill acima faria os
+-- chamados historicos desaparecerem (404) para qualquer nao-triage no dia do
+-- deploy. Usuarios criados DEPOIS entram em setores via painel Sectors.
 INSERT INTO "SectorMember" ("sector_id", "user_id", "role")
-SELECT s."id", u."id", 'admin'
+SELECT s."id", u."id", 'member'
 FROM "Sector" s, "User" u
-WHERE s."slug" = 'general' AND LOWER(u."username") IN ('ricardo', 'admin', 'tess')
+WHERE s."slug" = 'general'
 ON CONFLICT ("sector_id", "user_id") DO NOTHING;

@@ -40,11 +40,18 @@ Same conventions as Requests: logged-in user required, rollout gate `REQUESTS_AL
 
 The Trello read routes live here (not under `/api/trello-settings`) because that router is triage-gated as a whole: sector admins need the board/list dropdowns, but credentials stay triage-only.
 
+## Accepted risks (security review, 2026-08-13)
+
+- **Any sector admin can list every board/list the org Trello token sees** (`/api/sectors/trello/*`). Needed for the mapping dropdown; accepted for a ~9-person team. Revisit if the Trello account ever holds sensitive boards.
+- **Two sectors may map the same board** (different lists, or even the same list). Deliberate — a small org may want one board with a list per sector. The save path now validates the list belongs to the board and derives names from Trello, so mappings can't be forged, only shared.
+- **Manual "Create card now" needs only visibility** (requester/assignee/member), while moving a card needs sector admin. Kept: it mirrors the pre-sector behavior and the card lands on the request's own sector board.
+- **The requests digest cron is not sector-scoped**: it emails all sectors' request titles to `REQUESTS_DIGEST_EMAILS`. Keep that list triage-only until per-recipient scoping is built.
+
 ## Rules worth knowing
 
 - `SectorMember.role` is a validated string (`admin` | `member`), no Prisma enum — repo convention.
 - **Members see the board, not the configuration** (2026-08-12). Sector configuration — member list, roles, Trello board mapping, rename/archive, audit log — is visible only to that sector's admins and triage. `meta.sectors` carries only the public catalog (id, name, slug, color, archivedAt); the full config comes from `/api/sectors`, which returns each caller only the sectors they admin (triage: all).
-- The **General** sector (`slug: general`) is seeded by the migration, receives every request created without a `sectorId` (older frontend during deploys), and can never be archived (`DEFAULT_SECTOR`).
+- The **General** sector (`slug: general`) is seeded by the migration, receives every request created without a `sectorId` (older frontend during deploys), and can never be archived (`DEFAULT_SECTOR`). The migration seeds **every existing user as a General member** (visibility is membership-based and 100% of the historical queue is backfilled into General — without this, deploy day would hide the whole archive from non-triage users) and **no admins** (General starts triage-managed; hardcoding usernames would drift from `REQUESTS_TRIAGE_USERS`).
 - Archiving a sector requires it to have no active requests (`SECTOR_NOT_EMPTY`) — move or archive them first. Sectors are never hard-deleted.
 - `requestsService.actorContext` computes `effectiveTriage` (global triage OR admin of the request's sector) and feeds it to the existing state machine — `lib/requests/transitions.js` and `lib/requests/archive.js` did not change.
 - Every governance change (create, rename, archive, member add/remove, role change, Trello board change) writes a `SectorActivity` row.

@@ -11,7 +11,7 @@ const { validateChange } = require('../../lib/requests/transitions');
 const { diffToActivities } = require('../../lib/requests/activity');
 const { resolveArchive } = require('../../lib/requests/archive');
 const { canManageRequest, canRestoreRequest } = require('../../lib/requests/permissions');
-const { canMoveRequest } = require('../../lib/sectors/permissions');
+const { canMoveRequest, roleFor } = require('../../lib/sectors/permissions');
 const { canViewRequest } = require('../../lib/sectors/visibility');
 const sectorsService = require('../sectors/sectorsService');
 const storage = require('../storage/requestAttachmentsStorage');
@@ -87,7 +87,9 @@ async function actorContext(user, sectorId) {
 	const isTriage = isTriageUser(user.username);
 	if (isTriage) return { isTriage, isSectorAdmin: false, effectiveTriage: true };
 	const membership = await sectorsService.membershipFor(user.id, sectorId);
-	const isSectorAdmin = membership?.role === 'admin';
+	// roleFor e a fonte unica da interpretacao de SectorMember.role (role suja
+	// no banco degrada para member — nunca escala privilegio).
+	const isSectorAdmin = roleFor({ membership, isTriage: false }) === 'admin';
 	return { isTriage, isSectorAdmin, effectiveTriage: isSectorAdmin };
 }
 
@@ -119,19 +121,24 @@ function notifyAssignee({ request, assignee, assignedBy }) {
 
 async function getMeta({ user } = {}) {
 	const username = user?.username;
+	// /meta e isento do rollout gate na rota (o front precisa de
+	// requestsEnabled para esconder a feature) — entao o catalogo de setores
+	// so sai para quem o gate liberou, senao a lista organizacional vazaria
+	// para usuarios fora do rollout (achado da revisao de seguranca 2026-08-13).
+	const enabled = isRequestsUser(username);
 	// trello.configured vem do banco (painel /settings); enabled mantem o nome
 	// antigo por compat com o front (RequestTrelloPanel le meta.trello.enabled).
 	const [trelloConfigured, sectors, memberships] = await Promise.all([
 		trelloService.isConfigured(),
-		sectorsService.listSectorCatalog(),
-		user?.id
+		enabled ? sectorsService.listSectorCatalog() : [],
+		enabled && user?.id
 			? prisma.sectorMember.findMany({ where: { user_id: user.id }, select: { sector_id: true, role: true } })
 			: [],
 	]);
 	return {
 		// Rollout gate: o front usa isto para mostrar/esconder a feature
 		// (menu + pagina); o back bloqueia de verdade nas demais rotas.
-		requestsEnabled: isRequestsUser(username),
+		requestsEnabled: enabled,
 		statuses: REQUEST_STATUSES,
 		priorities: REQUEST_PRIORITIES,
 		defaultPriority: DEFAULT_PRIORITY,
@@ -176,6 +183,10 @@ async function listRequests({ user, deleted = false } = {}) {
 		where.OR = [
 			{ sector_id: { in: memberSectorIds } },
 			{ requester_id: user.id },
+			// assignee_id cobre linha escrita fora do fluxo normal (script/SQL de
+			// manutencao) sem a RequestAssignee par — espelho FIEL de canViewRequest,
+			// que aceita as duas formas.
+			{ assignee_id: user.id },
 			{ assignees: { some: { user_id: user.id } } },
 		];
 	}
@@ -299,6 +310,23 @@ async function updateRequest({ user, id, patch }) {
 	const archivedChanged = archive.changed;
 	if (archivedChanged) applied.archivedAt = archive.archivedAt;
 
+	// Desarquivar exige que o setor do chamado ainda aceite chamados ativos:
+	// um setor so arquiva sem chamados ATIVOS, entao reativar um chamado dentro
+	// de setor arquivado furaria esse invariante (mesma regra SECTOR_ARCHIVED
+	// de criar/mover). Se o patch tambem move, o destino ja foi validado acima.
+	if (archivedChanged && !archive.archivedAt && !movesSector) {
+		const sector = await prisma.sector.findUnique({
+			where: { id: current.sector_id },
+			select: { archivedAt: true },
+		});
+		if (sector?.archivedAt) {
+			throw RequestServiceError.conflict(
+				'SECTOR_ARCHIVED',
+				'This sector is archived — move the request to an active sector to unarchive it'
+			);
+		}
+	}
+
 	const commentBody = String(patch.comment || '').trim();
 
 	if (!Object.keys(applied).length && !commentBody && !assigneesChanged) {
@@ -399,7 +427,12 @@ const TRELLO_CONFLICT_CODES = new Set([
 	'TRELLO_UNAVAILABLE',
 ]);
 
-async function ensureTrelloCard({ user, id }) {
+// authorized=true pula o check de visibilidade — e o caminho do auto-create
+// disparado pelo proprio updateRequest, onde o ator acabou de agir com
+// permissao. Sem isso, um admin da ORIGEM que move + atribui no mesmo PATCH
+// para um setor que ele nao enxerga derrubaria o auto-create em NOT_FOUND
+// (mesmo racional do authorized de ensureTrelloCardMoved).
+async function ensureTrelloCard({ user, id, authorized = false }) {
 	const request = await prisma.request.findUnique({
 		where: { id },
 		include: {
@@ -409,7 +442,7 @@ async function ensureTrelloCard({ user, id }) {
 		},
 	});
 	if (!request || request.deletedAt) throw RequestServiceError.notFound();
-	await assertCanViewRequest(user, request);
+	if (!authorized) await assertCanViewRequest(user, request);
 	if (request.trelloCardId) {
 		throw RequestServiceError.conflict('CARD_EXISTS', 'A Trello card is already linked to this request');
 	}
@@ -477,7 +510,7 @@ const TRELLO_SILENT_CODES = new Set([
 ]);
 
 function autoCreateTrelloCard({ user, id }) {
-	ensureTrelloCard({ user, id }).catch(async (error) => {
+	ensureTrelloCard({ user, id, authorized: true }).catch(async (error) => {
 		if (TRELLO_SILENT_CODES.has(error.code)) {
 			// Configuracao incompleta: nao sincroniza e nao polui a tela.
 			console.log(`Trello sync skipped for request ${id}: ${error.message}`);
@@ -781,8 +814,11 @@ async function removeAttachment({ user, id, attachmentId }) {
 	if (!attachment) throw RequestServiceError.notFound('Attachment not found');
 	await assertCanViewRequest(user, attachment.request);
 
-	if (attachment.uploader_id !== user.id && !isTriageUser(user.username)) {
-		throw RequestServiceError.conflict('NOT_OWNER', 'Only the uploader or triage can delete an attachment');
+	// Triage efetivo (triage global ou admin do setor do chamado), mesma regra
+	// do soft delete: quem pode apagar o chamado inteiro pode apagar um anexo.
+	const { effectiveTriage } = await actorContext(user, attachment.request.sector_id);
+	if (attachment.uploader_id !== user.id && !effectiveTriage) {
+		throw RequestServiceError.conflict('NOT_OWNER', 'Only the uploader, the sector admins or triage can delete an attachment');
 	}
 
 	await prisma.$transaction([

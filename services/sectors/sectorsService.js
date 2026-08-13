@@ -110,9 +110,12 @@ async function listSectors({ user } = {}) {
 			include: { members: MEMBERS_INCLUDE, trelloBoard: true },
 			orderBy: [{ createdAt: 'asc' }],
 		}),
+		// Conta so chamados ATIVOS (nem deletados nem arquivados) — mesmo
+		// criterio do guard SECTOR_NOT_EMPTY, para o numero na tela nunca
+		// contradizer o que o Archive permite.
 		prisma.request.groupBy({
 			by: ['sector_id'],
-			where: { deletedAt: null },
+			where: { deletedAt: null, archivedAt: null },
 			_count: { _all: true },
 		}),
 	]);
@@ -130,6 +133,19 @@ function cleanSectorName(name) {
 	if (!text) throw RequestServiceError.validation('Sector name is required');
 	if (text.length > SECTOR_NAME_MAX_LENGTH) {
 		throw RequestServiceError.validation(`Sector name is too long (max ${SECTOR_NAME_MAX_LENGTH} chars)`);
+	}
+	return text;
+}
+
+// Cor do setor: hex (#rgb..#rrggbbaa) ou vazio. O valor volta em meta.sectors
+// para TODOS os usuarios e vira estilo inline no front — sem validacao, um
+// objeto no payload viraria 500 do Prisma e uma string qualquer seria
+// distribuida verbatim (mesma classe do XSS em links da revisao de Requests).
+function cleanSectorColor(color) {
+	if (color === undefined || color === null || color === '') return null;
+	const text = String(color).trim().toLowerCase();
+	if (!/^#[0-9a-f]{3,8}$/.test(text)) {
+		throw RequestServiceError.validation('Invalid sector color (expected a hex value like #a855f7)');
 	}
 	return text;
 }
@@ -153,7 +169,7 @@ async function createSector({ user, name, color }) {
 
 	const created = await prisma.$transaction(async (tx) => {
 		const sector = await tx.sector.create({
-			data: { name: cleanName, slug, color: color || null },
+			data: { name: cleanName, slug, color: cleanSectorColor(color) },
 		});
 		await tx.sectorActivity.create({
 			data: sectorActivityRow(sector.id, user.id, 'created', { field: 'name', newValue: cleanName }),
@@ -195,7 +211,7 @@ async function updateSector({ user, sectorId, patch }) {
 	}
 
 	if (patch.color !== undefined) {
-		data.color = patch.color || null;
+		data.color = cleanSectorColor(patch.color);
 	}
 
 	if (patch.archived !== undefined) {
@@ -330,14 +346,21 @@ async function saveSectorTrelloBoard({ user, sectorId, boardId, boardName, listI
 		});
 	}
 
-	const label = (mapping) => (mapping ? `${mapping.boardName} / ${mapping.listName}` : null);
-	await prisma.sectorActivity.create({
-		data: sectorActivityRow(sectorId, user.id, 'trello_board_change', {
-			field: 'trello',
-			oldValue: label(previous),
-			newValue: label(saved),
-		}),
-	});
+	// So audita mudanca real: re-salvar o mesmo mapeamento (ou limpar um setor
+	// ja sem board) nao pode encher o log de "null -> null" — padrao dos outros
+	// mutadores deste arquivo (updateSector/setMember pulam no-ops).
+	const changed = (previous?.boardId ?? null) !== (saved?.boardId ?? null)
+		|| (previous?.listId ?? null) !== (saved?.listId ?? null);
+	if (changed) {
+		const label = (mapping) => (mapping ? `${mapping.boardName} / ${mapping.listName}` : null);
+		await prisma.sectorActivity.create({
+			data: sectorActivityRow(sectorId, user.id, 'trello_board_change', {
+				field: 'trello',
+				oldValue: label(previous),
+				newValue: label(saved),
+			}),
+		});
+	}
 	return saved;
 }
 
@@ -368,6 +391,7 @@ module.exports = {
 	findDefaultSector,
 	membershipFor,
 	roleForSector,
+	assertCanManageSector,
 	adminSectorIdsFor,
 	memberSectorIdsFor,
 	loadSectorOrFail,

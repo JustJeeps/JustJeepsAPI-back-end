@@ -87,3 +87,23 @@ test('mudanca que nao afeta admins nao vem com flag de bypass mesmo por triage',
 	assert.strictEqual(result.ok, true);
 	assert.strictEqual(result.bypassed, undefined);
 });
+
+test('setor ja sem admins (triage-managed): adicionar member por triage NAO e bypass', () => {
+	// Setor recem-criado (zero membros) ou pos-bypass: a mudanca nao remove
+	// admin nenhum, entao o audit nao pode ganhar um lastAdminBypass espurio.
+	const fresh = validateMemberChange({
+		members: [],
+		change: { userId: 5, role: 'member' },
+		actorIsTriage: true,
+	});
+	assert.strictEqual(fresh.ok, true);
+	assert.strictEqual(fresh.bypassed, undefined);
+
+	const orphaned = validateMemberChange({
+		members: members([[2, 'member']]),
+		change: { userId: 2, remove: true },
+		actorIsTriage: true,
+	});
+	assert.strictEqual(orphaned.ok, true);
+	assert.strictEqual(orphaned.bypassed, undefined);
+});
