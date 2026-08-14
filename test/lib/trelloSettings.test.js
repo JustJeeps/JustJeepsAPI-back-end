@@ -8,6 +8,9 @@ const {
 	isConfigured,
 	redactSettings,
 	writeUserBoard,
+	readSectorBoard,
+	listSectorBoards,
+	writeSectorBoard,
 } = require('../../lib/trello/settings.js');
 
 // Prisma entra por parametro — stub direto, nenhum contato com o Postgres
@@ -16,9 +19,11 @@ const {
 const makePrismaStub = () => {
 	let settingsRow = null;
 	const userBoards = new Map();
+	const sectorBoards = new Map();
 	return {
 		get settingsRow() { return settingsRow; },
 		get userBoards() { return userBoards; },
+		get sectorBoards() { return sectorBoards; },
 		trelloSettings: {
 			findUnique: async () => settingsRow,
 			upsert: async ({ create, update }) => {
@@ -35,6 +40,18 @@ const makePrismaStub = () => {
 					? { ...userBoards.get(where.userId), ...update }
 					: { ...create };
 				userBoards.set(where.userId, next);
+				return next;
+			},
+		},
+		trelloSectorBoard: {
+			findUnique: async ({ where }) => sectorBoards.get(where.sectorId) || null,
+			findMany: async () => [...sectorBoards.values()],
+			deleteMany: async ({ where }) => { sectorBoards.delete(where.sectorId); },
+			upsert: async ({ where, create, update }) => {
+				const next = sectorBoards.has(where.sectorId)
+					? { ...sectorBoards.get(where.sectorId), ...update }
+					: { ...create };
+				sectorBoards.set(where.sectorId, next);
 				return next;
 			},
 		},
@@ -97,4 +114,31 @@ test('writeUserBoard faz upsert e boardId null remove o mapeamento', async () =>
 
 	await writeUserBoard(prisma, { userId: 5, boardId: null });
 	assert.strictEqual(prisma.userBoards.has(5), false);
+});
+
+// Boards por setor (2026-08-11): mesmo contrato do trio de user-board, com a
+// chave trocada de userId para sectorId — o card vai para o board do SETOR.
+test('writeSectorBoard faz upsert e boardId null remove o mapeamento', async () => {
+	const prisma = makePrismaStub();
+	await writeSectorBoard(prisma, { sectorId: 3, boardId: 'b1', boardName: 'TI', listId: 'l1', listName: 'To Do' });
+	assert.strictEqual(prisma.sectorBoards.get(3).listId, 'l1');
+
+	await writeSectorBoard(prisma, { sectorId: 3, boardId: 'b1', boardName: 'TI', listId: 'l2', listName: 'Doing' });
+	assert.strictEqual(prisma.sectorBoards.get(3).listId, 'l2');
+
+	await writeSectorBoard(prisma, { sectorId: 3, boardId: null });
+	assert.strictEqual(prisma.sectorBoards.has(3), false);
+});
+
+test('readSectorBoard e listSectorBoards leem pelo sectorId', async () => {
+	const prisma = makePrismaStub();
+	await writeSectorBoard(prisma, { sectorId: 3, boardId: 'b1', boardName: 'TI', listId: 'l1', listName: 'To Do' });
+	await writeSectorBoard(prisma, { sectorId: 4, boardId: 'b2', boardName: 'Vendas', listId: 'l9', listName: 'Inbox' });
+
+	const board = await readSectorBoard(prisma, 3);
+	assert.strictEqual(board.boardId, 'b1');
+	assert.strictEqual(await readSectorBoard(prisma, 99), null);
+
+	const all = await listSectorBoards(prisma);
+	assert.strictEqual(all.length, 2);
 });

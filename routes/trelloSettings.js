@@ -80,25 +80,22 @@ router.get('/boards/:boardId/lists', handle(async (req, res) => {
 	res.json(await trelloSettingsService.listBoardLists(boardId));
 }));
 
-// --- mapeamento usuario -> board/lista -----------------------------------------
+// --- mapeamento usuario -> board/lista (APOSENTADO 2026-08-11) -----------------
+// O destino do card agora e o board do SETOR (TrelloSectorBoard, painel
+// Sectors). O GET fica para o front antigo em cache nao quebrar; o PUT falha
+// ALTO em vez de gravar um mapeamento que nada mais le — sucesso silencioso
+// aqui viraria "mapeei o board e o card nao aparece". Remocao total na
+// migration de limpeza (Fase 2 dos setores).
 
 router.get('/user-boards', handle(async (req, res) => {
 	res.json(await trelloSettingsService.getUserBoards());
 }));
 
-router.put('/user-boards/:userId', handle(async (req, res) => {
-	const userId = Number(req.params.userId);
-	if (!Number.isInteger(userId) || userId <= 0) throw RequestServiceError.validation('Invalid userId');
-
-	const saved = await trelloSettingsService.saveUserBoard({
-		userId,
-		boardId: req.body?.boardId ?? null,
-		boardName: req.body?.boardName,
-		listId: req.body?.listId,
-		listName: req.body?.listName,
-	});
-	if (!saved) return res.status(204).end();
-	res.json(saved);
+router.put('/user-boards/:userId', handle(async () => {
+	throw RequestServiceError.conflict(
+		'USER_BOARDS_RETIRED',
+		'Per-user Trello boards were replaced by per-sector boards — map the board on the sector in Settings > Sectors'
+	);
 }));
 
 module.exports = router;

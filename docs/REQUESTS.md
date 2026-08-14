@@ -6,15 +6,15 @@ Frontend lives in `JustJeepsAPI-front-end/src/features/requests/` (route `/reque
 
 | Layer | File |
 |---|---|
-| Routes (HTTP only) | `routes/requests.js`, `routes/users.js`, `routes/trelloSettings.js` |
-| Service (use cases, data access) | `services/requests/requestsService.js`, `services/trello/trelloSettingsService.js` |
-| Domain rules (pure, tested) | `lib/requests/transitions.js`, `lib/requests/activity.js`, `lib/trello/*` |
-| Constants and limits | `config/requests.js` |
+| Routes (HTTP only) | `routes/requests.js`, `routes/users.js`, `routes/trelloSettings.js`, `routes/sectors.js` |
+| Service (use cases, data access) | `services/requests/requestsService.js`, `services/trello/trelloSettingsService.js`, `services/sectors/sectorsService.js` |
+| Domain rules (pure, tested) | `lib/requests/transitions.js`, `lib/requests/activity.js`, `lib/sectors/*`, `lib/trello/*` |
+| Constants and limits | `config/requests.js`, `config/sectors.js` |
 | Storage (attachments) | `services/storage/requestAttachmentsStorage.js` |
 | Trello client | `services/trello/trelloService.js`, `lib/trello/trelloClient.js` |
 | Email | `utils/emailService.js` (`sendRequestAssignedEmail`, `sendRequestsDigestEmail`) |
 | Digest data | `lib/reports/requestsDigest.js` (cron `report-requests-digest`) |
-| DB models | `prisma/schema.prisma`: `Request`, `RequestComment`, `RequestAttachment`, `RequestActivity`, `TrelloSettings`, `TrelloUserBoard` |
+| DB models | `prisma/schema.prisma`: `Request`, `RequestComment`, `RequestAttachment`, `RequestActivity`, `TrelloSettings`, `Sector`, `SectorMember`, `TrelloSectorBoard`, `SectorActivity` (`TrelloUserBoard` is retired, kept only until the cleanup migration) |
 
 ## API
 
@@ -22,17 +22,19 @@ All routes require a logged in user (`ENABLE_AUTH=true`). While the team tests t
 
 | Method | Path | What it does |
 |---|---|---|
-| GET | `/api/requests/meta` | Statuses, priorities, projects, types, triage users, attachment limits, `trello.configured` |
-| GET | `/api/requests` | Full list (filters and KPIs are client side) |
-| POST | `/api/requests` | Create (always starts as New Request, unassigned) |
+| GET | `/api/requests/meta` | Statuses, priorities, projects, types, triage users, sectors (`meta.sectors`), the caller's sector roles (`meta.myRoles`), attachment limits, `trello.configured` |
+| GET | `/api/requests` | List scoped server-side by visibility: your sectors' requests + the ones you opened + the ones assigned to you (triage sees all). Filters and KPIs stay client side over that list |
+| POST | `/api/requests` | Create (always starts as New Request, unassigned). Optional `sectorId`; without it the request lands in the General sector |
 | GET | `/api/requests/:id` | Detail with comments, attachments, activity |
-| PATCH | `/api/requests/:id` | Update fields, status, assignee. Accepts `comment` in the same call |
+| PATCH | `/api/requests/:id` | Update fields, status, assignee, `sectorId` (move between sectors). Accepts `comment` in the same call |
 | POST | `/api/requests/:id/trello-card` | Create the Trello card manually (fallback button) |
+| POST | `/api/requests/:id/trello-card/move` | Move the existing card to the current sector's board ("Sync card" button) |
 | POST | `/api/requests/:id/comments` | Add comment (`internal` flag supported) |
 | POST | `/api/requests/:id/attachments` | Upload files (multipart `files`) |
 | GET | `/api/requests/:id/attachments/:attachmentId/download` | Authenticated download (stream from the private bucket) |
 | DELETE | `/api/requests/:id/attachments/:attachmentId` | Delete (uploader or triage only) |
 | GET | `/api/users` | Slim user list for assignee selects |
+| * | `/api/sectors...` | Sector management (see `docs/SECTORS.md`) |
 
 ## Workflow rules
 
@@ -66,14 +68,15 @@ Every change writes a `RequestActivity` row (audit trail shown in the drawer).
 
 ## Trello integration
 
-One way only: the Pricing Tool creates a card, nothing syncs back.
+The Pricing Tool creates cards and moves them between boards when a request changes sector. Nothing syncs back from Trello. Moving a card is the only edit the integration ever does.
 
-- Configuration lives **in the database**, set from the gear icon in the navbar (`/settings`, triage users only). There are no `TRELLO_*` environment variables.
-- One global credential (API key + token of the workspace account) plus one board and list **per user**. The admin panel has a Test connection button, a board dropdown loaded from Trello and a list dropdown per board.
-- When a request moves to Assigned, the card is created on the **assignee's** board, in the mapped list. The card name is `REQ-{id} - {title}` and the description links back to the request.
-- **The sync only runs once the setup is complete.** With no credentials, or with an assignee that has no board mapped yet, the request simply does not sync: no card, no entry in the request history (the reason goes to the server log only). A real failure with everything configured (revoked token, Trello down) does show up as `Trello card creation failed` in the history, deduplicated so a repeated failure does not flood it. The manual "Create card now" button always explains the reason, since it is an explicit action. Card creation never blocks the status change.
-- Reassigning after the card exists does not move the card.
-- API endpoints for the panel are under `/api/trello-settings` (triage only, validated on the backend).
+- Configuration lives **in the database**, set from the gear icon in the navbar (`/settings`). There are no `TRELLO_*` environment variables.
+- One global credential (API key + token of the workspace account, triage only) plus one board and list **per sector** (`TrelloSectorBoard`, managed by that sector's admins or triage in the Sectors tab). The old per-user mapping (`TrelloUserBoard`) is retired.
+- When a request moves to Assigned, the card is created on the **sector's** board, in the mapped list. The card name is `REQ-{id} - {title}`, the description includes the sector and links back to the request.
+- When a request moves to another sector and already has a card, the card is **moved** to the destination sector's board (fire and forget, never blocks the move). If the destination sector has no board mapped, the request moves and the card stays — the "Sync card to sector board" button in the drawer moves it later.
+- **The sync only runs once the setup is complete.** With no credentials, or with a sector that has no board mapped yet, the request simply does not sync: no card, no entry in the request history (the reason goes to the server log only). A real failure with everything configured (revoked token, Trello down, card deleted by hand in Trello) shows up as `trello_card_failed` / `trello_card_move_failed` in the history, deduplicated so a repeated failure does not flood it. The manual buttons always explain the reason, since they are explicit actions.
+- Reassigning does not affect the card: the board follows the sector, not the assignee.
+- Credential endpoints stay under `/api/trello-settings` (triage only). Board/list dropdowns for the sector mapping live under `/api/sectors/trello/*` (sector admins or triage).
 
 How the admin gets credentials: create a Power-Up at `trello.com/power-ups/admin` with the workspace account to get the API key. The panel then shows an authorize link that generates the token for that key. The token is stored in the database and never returned in full by the API (only masked).
 

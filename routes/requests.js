@@ -87,6 +87,15 @@ const parseLinks = (links) => {
 	return cleaned;
 };
 
+// sectorId opcional: sem ele o servico usa o setor General (protege a janela
+// de deploy em que o front antigo ainda POSTa sem o campo).
+const parseOptionalSectorId = (value) => {
+	if (value === undefined || value === null) return undefined;
+	const id = parseId(value);
+	if (!id) throw RequestServiceError.validation('Invalid sectorId');
+	return id;
+};
+
 const parseCreateInput = (body = {}) => ({
 	title: requireText(body.title, 'Title', 300),
 	description: requireText(body.description, 'Description', 20000),
@@ -96,6 +105,7 @@ const parseCreateInput = (body = {}) => ({
 		? DEFAULT_PRIORITY
 		: requireEnum(body.priority, REQUEST_PRIORITIES, 'priority'),
 	links: parseLinks(body.links) || [],
+	sectorId: parseOptionalSectorId(body.sectorId),
 });
 
 const parsePatch = (body = {}) => {
@@ -125,6 +135,8 @@ const parsePatch = (body = {}) => {
 	if (body.comment !== undefined) patch.comment = String(body.comment ?? '');
 	// Arquivar (true) / desarquivar (false). Regra no servico: autor ou triage.
 	if (body.archived !== undefined) patch.archived = Boolean(body.archived);
+	// Mover de setor: triage ou admin do setor de ORIGEM (regra no servico).
+	if (body.sectorId !== undefined) patch.sectorId = parseOptionalSectorId(body.sectorId);
 	return patch;
 };
 
@@ -154,7 +166,7 @@ router.use((req, res, next) => {
 // /meta precisa vir antes de /:id.
 
 router.get('/meta', handle(async (req, res) => {
-	res.json(await requestsService.getMeta({ username: req.user.username }));
+	res.json(await requestsService.getMeta({ user: req.user }));
 }));
 
 router.get('/', handle(async (req, res) => {
@@ -163,7 +175,7 @@ router.get('/', handle(async (req, res) => {
 	if (deleted && !isTriageUser(req.user.username)) {
 		throw RequestServiceError.conflict('TRIAGE_ONLY', 'Only triage users can list deleted requests');
 	}
-	res.json(await requestsService.listRequests({ deleted }));
+	res.json(await requestsService.listRequests({ user: req.user, deleted }));
 }));
 
 router.post('/', handle(async (req, res) => {
@@ -175,6 +187,7 @@ router.post('/', handle(async (req, res) => {
 router.get('/:id', handle(async (req, res) => {
 	res.json(await requestsService.getRequestDetail(idParam(req), {
 		includeDeleted: isTriageUser(req.user.username),
+		forUser: req.user,
 	}));
 }));
 
@@ -198,6 +211,13 @@ router.post('/:id/restore', handle(async (req, res) => {
 router.post('/:id/trello-card', handle(async (req, res) => {
 	const updated = await requestsService.ensureTrelloCard({ user: req.user, id: idParam(req) });
 	res.status(201).json(updated);
+}));
+
+// Move o card existente para o board do setor ATUAL ("Sync card to sector
+// board" no drawer) — retry manual do move automatico e o caso de o mapping
+// do setor ser criado depois da mudanca.
+router.post('/:id/trello-card/move', handle(async (req, res) => {
+	res.json(await requestsService.ensureTrelloCardMoved({ user: req.user, id: idParam(req) }));
 }));
 
 router.post('/:id/comments', handle(async (req, res) => {
@@ -266,7 +286,7 @@ router.post('/:id/attachments', (req, res) => {
 router.get('/:id/attachments/:attachmentId/download', handle(async (req, res) => {
 	const id = idParam(req);
 	const attachmentId = idParam(req, 'attachmentId');
-	const { attachment, body, contentLength } = await requestsService.getAttachmentDownload({ id, attachmentId });
+	const { attachment, body, contentLength } = await requestsService.getAttachmentDownload({ user: req.user, id, attachmentId });
 
 	res.setHeader('Content-Type', attachment.mimeType || 'application/octet-stream');
 	res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(attachment.originalName)}`);

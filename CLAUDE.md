@@ -61,6 +61,7 @@ server.js                    # Express app with most routes (monolithic)
 routes/
   ├── auth.js                # Authentication endpoints
   ├── requests.js            # Requests (internal tickets) — see docs/REQUESTS.md
+  ├── sectors.js             # Sectors (boards per sector) — see docs/SECTORS.md
   ├── users.js               # GET /api/users (assignee selects)
   └── trelloSettings.js      # Trello admin panel (triage only)
 middleware/auth.js           # JWT verification & feature flag middleware
@@ -68,7 +69,8 @@ prisma/schema.prisma         # Database schema (the REAL one — package.json "p
                              # WARNING: /schema.prisma at the repo root is STALE, do not use
 config/
   ├── cron-jobs.js           # Central cron definitions (pure: env + literals only)
-  └── requests.js            # Requests constants + triage allowlist
+  ├── requests.js            # Requests constants + triage allowlist
+  └── sectors.js             # Sector roles/default slug (pure)
 lib/
   ├── prisma.js              # Prisma client with role-based pools (APP_ROLE/DB_POOL_*)
   ├── requests/              # Pure domain rules (transitions, activity diff)
@@ -144,7 +146,7 @@ Credentials are provisioned per user with `npm run seed-users` and delivered out
 
 Core models: `Product`, `Order`, `OrderProduct`, `Vendor`, `VendorProduct`, `PurchaseOrder`, `PurchaseOrderLineItem`, `User`, `Competitor`, `CompetitorProduct`
 
-Requests feature models: `Request`, `RequestComment`, `RequestAttachment`, `RequestActivity`, `TrelloSettings`, `TrelloUserBoard` (see `docs/REQUESTS.md`). Other models: `QuickBooksImport`, `QuickBooksCustomer`, `SyncState`, `IngestRun`, `SkuStatusChangeHistory`, `OrderCancellationWorkflowHistory`.
+Requests feature models: `Request`, `RequestComment`, `RequestAttachment`, `RequestActivity`, `TrelloSettings`, `Sector`, `SectorMember`, `TrelloSectorBoard`, `SectorActivity` (see `docs/REQUESTS.md` and `docs/SECTORS.md`; `TrelloUserBoard` is retired, dormant until the cleanup migration). Other models: `QuickBooksImport`, `QuickBooksCustomer`, `SyncState`, `IngestRun`, `SkuStatusChangeHistory`, `OrderCancellationWorkflowHistory`.
 
 Products contain 20,000+ SKUs with multi-vendor support. Schema lives in `prisma/schema.prisma` (~84 migrations; new ones are hand-written SQL folders applied by `migrate deploy` in the container entrypoint — never run `migrate dev` locally, the local `.env` points at the shared production database).
 

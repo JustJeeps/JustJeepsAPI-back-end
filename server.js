@@ -1257,6 +1257,7 @@ const logArchive = createLogArchive({ logger });
 const requestsRoutes = require('./routes/requests');
 const usersRoutes = require('./routes/users');
 const trelloSettingsRoutes = require('./routes/trelloSettings');
+const sectorsRoutes = require('./routes/sectors');
 
 function scheduleQuickBooksLookupPreload() {
 	if (isQuickBooksDbSource()) {
@@ -1399,6 +1400,7 @@ app.use('/api/ingest', ingestRoutes);
 app.use('/api/requests', requestsRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/trello-settings', trelloSettingsRoutes);
+app.use('/api/sectors', sectorsRoutes);
 
 // Sample GET route
 app.get('/api/data', (req, res) =>
