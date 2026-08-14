@@ -122,7 +122,13 @@ router.get('/feeds', async (req, res) => {
 			},
 			// The panel uses this to choose between the direct upload to the
 			// bucket (signed multipart) and the legacy upload through the API.
-			directUpload: { enabled: store.isConfigured(), partSizeBytes: MULTIPART_PART_SIZE_BYTES },
+			// apiFallbackMaxBytes: ceiling of the LEGACY path only (multer/disk);
+			// the signed path is bounded by each feed's own maxUploadBytes.
+			directUpload: {
+				enabled: store.isConfigured(),
+				partSizeBytes: MULTIPART_PART_SIZE_BYTES,
+				apiFallbackMaxBytes: feedsConfig.config.uploadPanelMaxBytes,
+			},
 			generatedAt: new Date().toISOString(),
 		});
 	} catch (error) {

@@ -64,7 +64,7 @@ const FEED_DEFINITIONS = [
 		// run succeeds with yesterday's file and there is nothing to do until the
 		// next window.
 		fetchCommand: 'feed-fetch-keystone',
-		maxUploadBytes: 600 * 1024 * 1024, // CLI only in practice (the panel caps at uploadPanelMaxBytes)
+		maxUploadBytes: 600 * 1024 * 1024, // SpecialOrder.csv chega a 460MB (upload assinado direto ao bucket)
 	},
 	{
 		// One vendor, two files: the wholesale CSV carries inventory and the
@@ -119,6 +119,7 @@ const FEED_DEFINITIONS = [
 		syncCommands: ['seed-wheelPros', 'seed-wp-inventory'],
 		recordsOwnRuns: true,
 		staleAfterHours: 30 * DAY_HOURS,
+		maxUploadBytes: 600 * 1024 * 1024, // os CSVs chegam a ~500MB (upload assinado direto ao bucket)
 	},
 	{
 		name: 'omix',
@@ -173,8 +174,11 @@ const FEED_DEFINITIONS = [
 
 const DEFAULT_MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 
-// The upload panel/API never accepts more than this, whatever the feed:
-// SpecialOrder-class files (460MB) come in by FTP fetch or CLI.
+// Ceiling for the LEGACY upload through the API only (multer buffers the file
+// on the container disk — 1 vCPU / 2GB). The signed multipart upload goes
+// straight from the browser to the bucket and is bounded by each feed's own
+// maxUploadBytes instead; clamping feeds to this value was what blocked the
+// 500MB WheelPros CSVs in the panel (fixed 2026-08-14).
 const uploadPanelMaxBytes = Number(process.env.FEED_UPLOAD_PANEL_MAX_BYTES || DEFAULT_MAX_UPLOAD_BYTES);
 
 const envStaleKey = (name) => `FEED_STALE_HOURS_${name.toUpperCase().replace(/-/g, '_')}`;
@@ -193,7 +197,10 @@ function getFeedDefinitions() {
 			restricted: Boolean(feed.restricted),
 			seedCommandNote: feed.seedCommandNote || null,
 			staleAfterHours: Number.isFinite(override) && override > 0 ? override : feed.staleAfterHours,
-			maxUploadBytes: Math.min(feed.maxUploadBytes || DEFAULT_MAX_UPLOAD_BYTES, uploadPanelMaxBytes),
+			// Limite PROPRIO do feed (caminho assinado + validacao do painel). O
+			// teto do painel NAO clampa aqui — ele vale so para o multer do
+			// caminho legado via API (routes/ingest.js).
+			maxUploadBytes: feed.maxUploadBytes || DEFAULT_MAX_UPLOAD_BYTES,
 		};
 	});
 }
