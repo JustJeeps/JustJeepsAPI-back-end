@@ -12,6 +12,7 @@ const { diffToActivities } = require('../../lib/requests/activity');
 const { resolveArchive } = require('../../lib/requests/archive');
 const { canManageRequest, canRestoreRequest } = require('../../lib/requests/permissions');
 const { canMoveRequest, roleFor } = require('../../lib/sectors/permissions');
+const { findInvalidAssignees } = require('../../lib/sectors/membership');
 const { canViewRequest } = require('../../lib/sectors/visibility');
 const sectorsService = require('../sectors/sectorsService');
 const storage = require('../storage/requestAttachmentsStorage');
@@ -155,6 +156,8 @@ async function getMeta({ user } = {}) {
 			slug: sector.slug,
 			color: sector.color,
 			archivedAt: sector.archivedAt,
+			// So ids: o front filtra o select de assignee pelos membros do setor.
+			memberIds: sector.memberIds,
 		})),
 		myRoles: {
 			adminSectorIds: memberships.filter((entry) => entry.role === 'admin').map((entry) => entry.sector_id),
@@ -299,6 +302,33 @@ async function updateRequest({ user, id, patch }) {
 	const newAssignees = touchesAssignees ? await resolveAssignees(patch.assigneeIds) : undefined;
 	const assigneesChanged = touchesAssignees
 		&& JSON.stringify(currentIds) !== JSON.stringify(patch.assigneeIds);
+
+	// Assignment por setor (2026-08-14): so membros do setor do chamado podem
+	// ser atribuidos (o front filtra as opcoes; quem decide e aqui). Vale o
+	// setor de DESTINO quando o mesmo PATCH move o chamado. Assignees atuais
+	// sao grandfathered — mover de setor nao trava a lista existente.
+	if (touchesAssignees && patch.assigneeIds.length) {
+		const targetSectorId = movesSector ? patch.sectorId : current.sector_id;
+		const sectorMembers = await prisma.sectorMember.findMany({
+			where: { sector_id: targetSectorId },
+			select: { user_id: true },
+		});
+		const invalid = findInvalidAssignees({
+			requestedIds: patch.assigneeIds,
+			memberIds: sectorMembers.map((entry) => entry.user_id),
+			currentIds,
+		});
+		if (invalid.length) {
+			const names = (newAssignees || [])
+				.filter((entry) => invalid.includes(entry.id))
+				.map((entry) => entry.username)
+				.join(', ');
+			throw RequestServiceError.conflict(
+				'ASSIGNEE_NOT_IN_SECTOR',
+				`Only members of the request's sector can be assigned (${names || invalid.join(', ')} is not a member)`
+			);
+		}
+	}
 
 	const applied = buildAppliedFields({ current, patch, autoStatus: verdict.autoStatus });
 	if (movesSector) applied.sector_id = patch.sectorId;

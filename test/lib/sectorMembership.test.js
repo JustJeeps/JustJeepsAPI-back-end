@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { validateMemberChange } = require('../../lib/sectors/membership.js');
+const { validateMemberChange, findInvalidAssignees } = require('../../lib/sectors/membership.js');
 
 // Modulo puro: guard de orfandade (padrao do research Trello/ClickUp — os dois
 // produtos sofrem quando o unico admin de uma area sai). Regra: nenhuma
@@ -86,6 +86,37 @@ test('mudanca que nao afeta admins nao vem com flag de bypass mesmo por triage',
 	});
 	assert.strictEqual(result.ok, true);
 	assert.strictEqual(result.bypassed, undefined);
+});
+
+// Assignment por setor (2026-08-14): so membros do setor do chamado podem ser
+// atribuidos. Assignees ATUAIS sao grandfathered (chamado movido de setor
+// mantem o responsavel sem travar edicoes futuras da lista).
+test('findInvalidAssignees: membro do setor e valido', () => {
+	assert.deepStrictEqual(
+		findInvalidAssignees({ requestedIds: [1, 2], memberIds: [1, 2, 3], currentIds: [] }),
+		[]
+	);
+});
+
+test('findInvalidAssignees: nao-membro e invalido', () => {
+	assert.deepStrictEqual(
+		findInvalidAssignees({ requestedIds: [1, 9], memberIds: [1, 2], currentIds: [] }),
+		[9]
+	);
+});
+
+test('findInvalidAssignees: assignee atual e grandfathered mesmo sem membership', () => {
+	assert.deepStrictEqual(
+		findInvalidAssignees({ requestedIds: [9, 2], memberIds: [2], currentIds: [9] }),
+		[]
+	);
+});
+
+test('findInvalidAssignees: lista vazia (desatribuir) nunca e invalida', () => {
+	assert.deepStrictEqual(
+		findInvalidAssignees({ requestedIds: [], memberIds: [], currentIds: [] }),
+		[]
+	);
 });
 
 test('setor ja sem admins (triage-managed): adicionar member por triage NAO e bypass', () => {

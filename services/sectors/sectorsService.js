@@ -89,12 +89,26 @@ const sectorActivityRow = (sectorId, actorId, action, extra = {}) => ({
 
 // Catalogo PUBLICO dos setores (nomes para tabs e selects de criar/mover):
 // qualquer requests user pode ver que os setores existem — e o que permite
-// abrir chamado para outro setor. Configuracao (membros, Trello) fica fora.
+// abrir chamado para outro setor. memberIds entra no catalogo para o front
+// filtrar o select de ASSIGNEE pelos membros do setor (2026-08-14) — sao so
+// ids (quem trabalha onde ja e visivel no dia a dia do time); papeis e
+// mapping do Trello continuam configuracao restrita em /api/sectors.
 async function listSectorCatalog() {
-	return prisma.sector.findMany({
-		select: { id: true, name: true, slug: true, color: true, archivedAt: true },
+	const sectors = await prisma.sector.findMany({
+		select: {
+			id: true,
+			name: true,
+			slug: true,
+			color: true,
+			archivedAt: true,
+			members: { select: { user_id: true } },
+		},
 		orderBy: [{ createdAt: 'asc' }],
 	});
+	return sectors.map(({ members, ...sector }) => ({
+		...sector,
+		memberIds: members.map((member) => member.user_id),
+	}));
 }
 
 // Setores com membros e mapping do Trello — isto e CONFIGURACAO (decisao de
