@@ -1401,6 +1401,7 @@ app.use('/api/requests', requestsRoutes);
 app.use('/api/users', usersRoutes);
 app.use('/api/trello-settings', trelloSettingsRoutes);
 app.use('/api/sectors', sectorsRoutes);
+app.use('/api/reviews', require('./routes/reviews'));
 
 // Sample GET route
 app.get('/api/data', (req, res) =>

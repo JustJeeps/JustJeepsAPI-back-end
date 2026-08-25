@@ -614,6 +614,7 @@ model IngestRun {
   watermarkTo     String?
   error           String?   @db.Text
   artifactBatchId String?   // lote de FeedArtifact consumido (proveniencia arquivo->rodada)
+  startedBy       String?   // username de quem disparou (painel/CLI); null = cron
 
   @@index([feed, startedAt])
   @@index([feed, status])
@@ -655,3 +656,56 @@ model FeedArtifact {
   @@index([objectKey])
 }
 
+// Import de reviews de produtos para o Magento (docs/REVIEWS-IMPORT.md).
+// Arquivo = job append-only (nunca "batch corrente" como os feeds): cada
+// planilha entra uma unica vez (sha256 unico) e vira linhas com estado de
+// sync individual. Linhas nunca sao deletadas (auditoria de quem/quando).
+model ReviewImportFile {
+  id                Int      @id @default(autoincrement())
+  fileName          String
+  sha256            String   @unique // mesmo arquivo nunca entra 2x (constraint decide, nao check-then-insert)
+  sizeBytes         Int
+  // importing = parse/insercao em andamento (retomavel: re-upload do mesmo
+  // sha continua a insercao, skipDuplicates torna idempotente); ready = ok.
+  status            String   @default("importing")
+  rowCount          Int      @default(0) // linhas de dados na planilha
+  duplicateRowCount Int      @default(0) // linhas puladas por ja existirem (rowHash) — nao viram ReviewImportRow
+  invalidRowCount   Int      @default(0) // linhas rejeitadas no parse — nao viram ReviewImportRow
+  invalidSample     Json? // ate 200 entradas { rowNumber, error } para o operador achar o problema
+  // Staging no DO Spaces (prefixo review-imports/, fora de feeds/): o arquivo
+  // original fica no bucket durante o import e e apagado quando o import
+  // fecha ready — as linhas no banco passam a ser a fonte de verdade.
+  // null = ja apagado (ou Spaces nao configurado no ambiente).
+  objectKey         String?
+  uploadedBy        String // username do JWT, nunca do form
+  uploadedAt        DateTime @default(now())
+  note              String?
+
+  rows ReviewImportRow[]
+}
+
+model ReviewImportRow {
+  id          Int      @id @default(autoincrement())
+  fileId      Int
+  rowNumber   Int // linha na planilha (header = 1), para o operador achar o erro
+  sku         String
+  nickname    String
+  summary     String
+  text        String   @db.Text
+  ratingValue Int
+  reviewDate  String // YYYY-MM-DD (a planilha nao tem hora; o payload manda 12:00:00)
+  rowHash     String   @unique // identidade pelo CONTEUDO, global: a mesma review em duas planilhas so e enviada uma vez
+  // pending -> sending -> synced | failed; failed -> pending apenas por acao
+  // explicita (retry). sending = desfecho DESCONHECIDO: so a verificacao via
+  // GET decide (nunca reenviar as cegas). Linha invalida de parse NAO vira
+  // row — fica em ReviewImportFile.invalidSample.
+  status      String   @default("pending")
+  error       String?  @db.Text
+  syncedAt    DateTime?
+  syncRunId   Int? // IngestRun (feed magento-reviews) que enviou; startedBy do run = quem disparou
+
+  file ReviewImportFile @relation(fields: [fileId], references: [id], onDelete: Restrict)
+
+  @@index([fileId, status])
+  @@index([status, id])
+}

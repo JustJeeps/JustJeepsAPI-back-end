@@ -20,6 +20,7 @@
     "feed-quarantine": "node scripts/feed-quarantine.js",
     "feed-prune": "node scripts/feed-prune.js",
     "feed-prune-apply": "node scripts/feed-prune.js --apply",
+    "reviews-sync": "node scripts/reviews-sync.js",
     "log-archive": "node scripts/log-archive.js",
     "rotate-passwords": "node scripts/rotate-user-passwords.js",
     "start": "node server.js",

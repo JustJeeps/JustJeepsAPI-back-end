@@ -159,6 +159,12 @@ env:
     # Who can do what: allowlists via env so that a code deploy is not needed
     # when someone joins or leaves the team (the code only holds the default).
     MAGENTO_STATUS_ALLOWED_USERS: "jerry,tess,jacob,david,rafael,ricardo,paula"
+    # Import de reviews para o Magento (docs/REVIEWS-IMPORT.md): quem opera a
+    # aba, tamanho do lote (<=100, recomendacao do dev da API) e pausa entre
+    # lotes para nao sobrecarregar a loja.
+    REVIEWS_ALLOWED_USERS: "ricardo,admin,rafael,tess"
+    REVIEWS_SYNC_BATCH_SIZE: "50"
+    REVIEWS_SYNC_BATCH_DELAY_MS: "1000"
     ORDER_CANCEL_EXECUTE_ALLOWED_USERS: "tess,jerry,jacob,paula,karoline"
     ORDER_CANCEL_DRY_RUN_ALLOWED_USERS: "tess"
     ORDER_CANCEL_MANUAL_REFUND_RESTRICTED_USERS: "paula"
@@ -204,6 +210,9 @@ env:
     - REQUESTS_DIGEST_EMAILS
     # Magento
     - MAGENTO_KEY
+    # Token dedicado de reviews (opcional, OPTIONAL no pre-build): so se o dev
+    # emitir um token proprio com o ACL JWA_ProductReviewApi.
+    - MAGENTO_REVIEWS_KEY
     # Keystone
     - KEYSTONE_KEY
     - KEYSTONE_ACCOUNT

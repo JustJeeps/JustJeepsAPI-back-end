@@ -17,6 +17,7 @@ const { createFeedStore } = require('../lib/feeds/feedStore');
 const runner = require('../services/feeds/runnerInstance');
 const { hashFile } = require('../lib/ingest/fileHash');
 const { isTriageUser } = require('../config/triage');
+const { isReviewsUser } = require('../config/reviews');
 
 const router = express.Router();
 const store = createFeedStore();
@@ -158,6 +159,10 @@ router.get('/runs', async (req, res) => {
 		const hiddenFeeds = feedsConfig.getFeedDefinitions()
 			.filter((feed) => !visibleFeeds.some((visible) => visible.name === feed.name))
 			.flatMap((feed) => [feed.name, feed.ingestFeed, `${feed.name}-fetch`]);
+		// magento-reviews vive fora do registry de feeds (e um job, nao um
+		// snapshot) — sem esta linha, qualquer logado leria os runs do sync de
+		// reviews por aqui. Mesmo contrato dos restritos: pagina vazia.
+		if (!isReviewsUser(req.user.username)) hiddenFeeds.push('magento-reviews');
 		if (feedParam !== undefined && hiddenFeeds.includes(feedParam)) {
 			return res.json({ runs: [], total: 0, limit, offset });
 		}
