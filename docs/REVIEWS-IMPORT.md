@@ -73,13 +73,16 @@ npm run reviews-sync -- --file 3 --mark-sending-failed
 | `REVIEWS_MAX_UPLOAD_BYTES` | 10MB | Upload cap (spreadsheet parse runs in memory) |
 | `REVIEWS_MAX_ROWS` | 60000 | Row ceiling (anti XLSX bomb, enforced with `sheetRows`) |
 | `MAGENTO_REVIEWS_KEY` | unset | Optional dedicated token with the `JWA_ProductReviewApi` ACL; falls back to `MAGENTO_KEY` |
-| `MAGENTO_KEY` / `MAGENTO_BASE_URL` / `MAGENTO_TIMEOUT_MS` | existing | Magento client (reviews default base is `https://justjeeps.com`, no www: the www host answers a Sucuri 307) |
+| `MAGENTO_REVIEWS_TIMEOUT_MS` | 120000 | Reviews client timeout. Deliberately NOT the global `MAGENTO_TIMEOUT_MS`: the bulk POST takes ~35s under load, and a short timeout turns every batch into an ambiguous outcome |
+| `MAGENTO_KEY` / `MAGENTO_BASE_URL` | existing | Magento client (reviews default base is `https://justjeeps.com`, no www: the www host answers a Sucuri 307) |
 
-## Production notes (smoke test 2026-08-25)
+## Production notes (2026-08-25, smoke test + first full import)
 
 - The store sits behind the Sucuri WAF: Magento API calls only work from the production droplet IP. Local machines get a 307 challenge, so panel/CLI syncs must run in production.
-- The verification GET returns `{ sku, rating_summary, review_count, reviews: [...] }`; the client unwraps `reviews`.
-- The current `MAGENTO_KEY` integration token is NOT authorized for `JWA_ProductReviewApi::bulk_create` (HTTP 401). The store dev has to grant that ACL resource to the integration, or issue a dedicated token (then set `MAGENTO_REVIEWS_KEY`).
+- The verification GET returns `{ sku, rating_summary, review_count, reviews: [...] }`; the client unwraps `reviews`. Item shape: `{ nickname, summary, text, rating_value (string), created_at }`.
+- The bulk POST behaves badly on a nonexistent SKU: it inserts the rows BEFORE the bad one, then answers a 500 — an ambiguous outcome with a partial write. The verification flow absorbs this (the partially written rows are matched as present and never resent), and a 404 on the verification GET marks the row `PRODUCT_NOT_FOUND` instead of blocking. Do not click Retry failed on `PRODUCT_NOT_FOUND` rows: those SKUs are not in the store's catalog.
+- Under load the bulk POST takes ~35s (measured: 8 batches of 50 in 280s), hence the dedicated 120s timeout.
+- Probing the bulk endpoint with an empty `reviews: []` array answers 401 even with a valid token — an endpoint quirk, not an ACL problem. Never use it as an authorization probe.
 
 ## Evolution notes
 

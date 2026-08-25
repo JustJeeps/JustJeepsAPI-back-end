@@ -36,7 +36,7 @@ test('resolveMagentoBaseUrl: default sem www, corte do /rest/ e barra final', ()
 
 test('getReviewsBySku: URL com encodeURIComponent, Bearer no header e timeout', async () => {
 	const http = makeHttpStub(async () => ({ status: 200, data: [{ nickname: 'A' }] }));
-	const client = createMagentoReviewsClient({ http, env: { ...ENV, MAGENTO_TIMEOUT_MS: '9000' } });
+	const client = createMagentoReviewsClient({ http, env: { ...ENV, MAGENTO_REVIEWS_TIMEOUT_MS: '9000' } });
 
 	const reviews = await client.getReviewsBySku('A B/C');
 
@@ -45,6 +45,13 @@ test('getReviewsBySku: URL com encodeURIComponent, Bearer no header e timeout', 
 	assert.strictEqual(call.url, 'https://www.justjeeps.com/rest/default/V1/products/A%20B%2FC/reviews');
 	assert.strictEqual(call.config.headers.Authorization, 'Bearer secret-token-123');
 	assert.strictEqual(call.config.timeout, 9000);
+});
+
+test('timeout default e 120s (bulk lento em prod) e ignora o MAGENTO_TIMEOUT_MS global', async () => {
+	const http = makeHttpStub(async () => ({ status: 200, data: [] }));
+	const client = createMagentoReviewsClient({ http, env: { ...ENV, MAGENTO_TIMEOUT_MS: '15000' } });
+	await client.getReviewsBySku('X');
+	assert.strictEqual(http.calls[0].config.timeout, 120000);
 });
 
 test('getReviewsBySku desembrulha o shape real de prod { sku, review_count, reviews: [...] }', async () => {
