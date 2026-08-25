@@ -96,6 +96,15 @@ const parseOptionalSectorId = (value) => {
 	return id;
 };
 
+// Lista completa de assignees (primeiro = primario), compartilhada entre
+// criacao e patch. Dedup preservando a ordem do payload.
+const parseAssigneeIds = (value) => {
+	if (!Array.isArray(value)) throw RequestServiceError.validation('assigneeIds must be an array');
+	const ids = value.map(parseId);
+	if (ids.some((id) => id === null)) throw RequestServiceError.validation('Invalid assigneeIds');
+	return [...new Set(ids)];
+};
+
 const parseCreateInput = (body = {}) => ({
 	title: requireText(body.title, 'Title', 300),
 	description: requireText(body.description, 'Description', 20000),
@@ -106,6 +115,7 @@ const parseCreateInput = (body = {}) => ({
 		: requireEnum(body.priority, REQUEST_PRIORITIES, 'priority'),
 	links: parseLinks(body.links) || [],
 	sectorId: parseOptionalSectorId(body.sectorId),
+	assigneeIds: body.assigneeIds === undefined ? [] : parseAssigneeIds(body.assigneeIds),
 });
 
 const parsePatch = (body = {}) => {
@@ -120,10 +130,7 @@ const parsePatch = (body = {}) => {
 	// Multi-assignee: assigneeIds = lista completa (primeiro = primario).
 	// assigneeId (single) segue aceito por compat e vira lista de 0..1.
 	if (body.assigneeIds !== undefined) {
-		if (!Array.isArray(body.assigneeIds)) throw RequestServiceError.validation('assigneeIds must be an array');
-		const ids = body.assigneeIds.map(parseId);
-		if (ids.some((id) => id === null)) throw RequestServiceError.validation('Invalid assigneeIds');
-		patch.assigneeIds = [...new Set(ids)];
+		patch.assigneeIds = parseAssigneeIds(body.assigneeIds);
 		patch.assigneeId = patch.assigneeIds[0] ?? null;
 	} else if (body.assigneeId !== undefined) {
 		patch.assigneeId = body.assigneeId === null ? null : parseId(body.assigneeId);

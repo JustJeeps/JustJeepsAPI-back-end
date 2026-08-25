@@ -24,7 +24,7 @@ All routes require a logged in user (`ENABLE_AUTH=true`). While the team tests t
 |---|---|---|
 | GET | `/api/requests/meta` | Statuses, priorities, projects, types, triage users, sectors (`meta.sectors`), the caller's sector roles (`meta.myRoles`), attachment limits, `trello.configured` |
 | GET | `/api/requests` | List scoped server-side by visibility: your sectors' requests + the ones you opened + the ones assigned to you (triage sees all). Filters and KPIs stay client side over that list |
-| POST | `/api/requests` | Create (always starts as New Request, unassigned). Optional `sectorId`; without it the request lands in the General sector |
+| POST | `/api/requests` | Create. Optional `sectorId`; without it the request lands in the General sector. Non-triage users can only open requests in General or in a sector they are a member of (409 `SECTOR_NOT_MEMBER`); triage can open anywhere. Optional `assigneeIds` (first = primary; every id must be a member of the sector, otherwise 409 `ASSIGNEE_NOT_IN_SECTOR`). With assignees the request starts as Assigned, the Trello card is auto created and each assignee gets the assignment email; without, it starts as New Request, unassigned |
 | GET | `/api/requests/:id` | Detail with comments, attachments, activity |
 | PATCH | `/api/requests/:id` | Update fields, status, assignee, `sectorId` (move between sectors). Accepts `comment` in the same call |
 | POST | `/api/requests/:id/trello-card` | Create the Trello card manually (fallback button) |
@@ -43,7 +43,7 @@ State machine in `lib/requests/transitions.js`:
 - Statuses: New Request, Estimation, Assigned, Work in Progress, Awaiting Client Response, On Hold, Completed, Closed.
 - Anyone can assign or unassign a request (product decision, Aug 2026). Only triage can close. Triage users come from `REQUESTS_TRIAGE_USERS` (default `ricardo,admin,tess`), exposed to the frontend as `meta.triageUsers`.
 - A request can have **multiple assignees** (PATCH `assigneeIds: number[]`; the legacy single `assigneeId` is still accepted). The first id in the list is the **primary** assignee (`Request.assignee_id`): it drives the Trello board, the auto move to Assigned and the Unassigned KPI. The full list lives in `RequestAssignee` and comes back as `assignees` on every request. Every newly added person gets the assignment email.
-- Assigning a New Request auto moves it to Assigned.
+- Assigning a New Request auto moves it to Assigned. Creating a request with `assigneeIds` has the same effect: it is born Assigned (`initialStateFor` in `lib/requests/transitions.js`).
 - Moving to Assigned requires an assignee.
 - Awaiting Client Response, On Hold and Completed require a comment in the same PATCH.
 - Closed can only go back to Assigned (reopen).
@@ -72,7 +72,7 @@ The Pricing Tool creates cards and moves them between boards when a request chan
 
 - Configuration lives **in the database**, set from the gear icon in the navbar (`/settings`). There are no `TRELLO_*` environment variables.
 - One global credential (API key + token of the workspace account, triage only) plus one board and list **per sector** (`TrelloSectorBoard`, managed by that sector's admins or triage in the Sectors tab). The old per-user mapping (`TrelloUserBoard`) is retired.
-- When a request moves to Assigned, the card is created on the **sector's** board, in the mapped list. The card name is `REQ-{id} - {title}`, the description includes the sector and links back to the request.
+- When a request enters Assigned (moved there, or created with assignees), the card is created on the **sector's** board, in the mapped list. The card name is `REQ-{id} - {title}`, the description includes the sector and links back to the request.
 - When a request moves to another sector and already has a card, the card is **moved** to the destination sector's board (fire and forget, never blocks the move). If the destination sector has no board mapped, the request moves and the card stays — the "Sync card to sector board" button in the drawer moves it later.
 - **The sync only runs once the setup is complete.** With no credentials, or with a sector that has no board mapped yet, the request simply does not sync: no card, no entry in the request history (the reason goes to the server log only). A real failure with everything configured (revoked token, Trello down, card deleted by hand in Trello) shows up as `trello_card_failed` / `trello_card_move_failed` in the history, deduplicated so a repeated failure does not flood it. The manual buttons always explain the reason, since they are explicit actions.
 - Reassigning does not affect the card: the board follows the sector, not the assignee.

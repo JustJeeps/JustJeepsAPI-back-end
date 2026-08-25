@@ -7,11 +7,12 @@ const crypto = require('crypto');
 const path = require('path');
 
 const prisma = require('../../lib/prisma');
-const { validateChange } = require('../../lib/requests/transitions');
+const { validateChange, initialStateFor } = require('../../lib/requests/transitions');
 const { diffToActivities } = require('../../lib/requests/activity');
 const { resolveArchive } = require('../../lib/requests/archive');
 const { canManageRequest, canRestoreRequest } = require('../../lib/requests/permissions');
-const { canMoveRequest, roleFor } = require('../../lib/sectors/permissions');
+const { canCreateRequestInSector, canMoveRequest, roleFor } = require('../../lib/sectors/permissions');
+const { DEFAULT_SECTOR_SLUG } = require('../../config/sectors');
 const { findInvalidAssignees } = require('../../lib/sectors/membership');
 const { canViewRequest } = require('../../lib/sectors/visibility');
 const sectorsService = require('../sectors/sectorsService');
@@ -102,6 +103,33 @@ async function resolveAssignees(ids) {
 	if (users.length !== ids.length) throw RequestServiceError.validation('Assignee user not found');
 	const byId = new Map(users.map((entry) => [entry.id, entry]));
 	return ids.map((id) => byId.get(id));
+}
+
+// Assignment por setor (2026-08-14): so membros do setor podem ser atribuidos
+// (o front filtra as opcoes; quem decide e aqui). currentIds = assignees ja
+// gravados, grandfathered — mover de setor nao trava a lista existente; na
+// criacao a lista e vazia. assignees: usuarios ja resolvidos, para a mensagem.
+async function assertAssigneesInSector({ sectorId, assigneeIds, currentIds = [], assignees = [] }) {
+	if (!assigneeIds.length) return;
+	const sectorMembers = await prisma.sectorMember.findMany({
+		where: { sector_id: sectorId },
+		select: { user_id: true },
+	});
+	const invalid = findInvalidAssignees({
+		requestedIds: assigneeIds,
+		memberIds: sectorMembers.map((entry) => entry.user_id),
+		currentIds,
+	});
+	if (invalid.length) {
+		const names = assignees
+			.filter((entry) => invalid.includes(entry.id))
+			.map((entry) => entry.username)
+			.join(', ');
+		throw RequestServiceError.conflict(
+			'ASSIGNEE_NOT_IN_SECTOR',
+			`Only members of the request's sector can be assigned (${names || invalid.join(', ')} is not a member)`
+		);
+	}
 }
 
 const commentActivity = (requestId, actorId) => ({
@@ -227,15 +255,46 @@ async function resolveSectorForCreate(sectorId) {
 }
 
 // input ja validado na rota: { title, description, project, type, priority,
-// links, sectorId? }. Todo chamado nasce New Request + Unassigned (RF03),
-// independente do payload.
+// links, sectorId?, assigneeIds }. Sem assignees o chamado nasce New Request +
+// Unassigned (RF03); com assignees (membros do setor, primeiro = primario)
+// nasce Assigned — mesmo efeito de atribuir via PATCH logo apos criar.
 async function createRequest({ user, input }) {
-	const { sectorId, ...fields } = input;
+	const { sectorId, assigneeIds = [], ...fields } = input;
 	const sector = await resolveSectorForCreate(sectorId);
+	// Abrir chamado (2026-08-21): triage em qualquer setor; nao-triage so no
+	// General ou em setor do qual e membro (o front esconde os demais; quem
+	// decide e aqui). Admin de setor e membro dele — a regra o cobre.
+	const isTriage = isTriageUser(user.username);
+	const membership = isTriage ? null : await sectorsService.membershipFor(user.id, sector.id);
+	const canCreate = canCreateRequestInSector({
+		isTriage,
+		isDefaultSector: sector.slug === DEFAULT_SECTOR_SLUG,
+		isMember: Boolean(membership),
+	});
+	if (!canCreate) {
+		throw RequestServiceError.conflict(
+			'SECTOR_NOT_MEMBER',
+			'You can only open requests in General or in a sector you are a member of'
+		);
+	}
+	const assignees = await resolveAssignees(assigneeIds);
+	await assertAssigneesInSector({ sectorId: sector.id, assigneeIds, assignees });
+	const initial = initialStateFor({ assigneeIds });
 	const created = await prisma.$transaction(async (tx) => {
 		const request = await tx.request.create({
-			data: { ...fields, sector_id: sector.id, requester_id: user.id },
+			data: {
+				...fields,
+				sector_id: sector.id,
+				requester_id: user.id,
+				status: initial.status,
+				assignee_id: initial.assigneeId,
+			},
 		});
+		if (assigneeIds.length) {
+			await tx.requestAssignee.createMany({
+				data: assigneeIds.map((userId) => ({ request_id: request.id, user_id: userId })),
+			});
+		}
 		await tx.requestActivity.create({
 			data: {
 				request_id: request.id,
@@ -245,9 +304,30 @@ async function createRequest({ user, input }) {
 				newValue: request.status,
 			},
 		});
+		if (assignees.length) {
+			await tx.requestActivity.create({
+				data: {
+					request_id: request.id,
+					actor_id: user.id,
+					action: 'assignee_change',
+					field: 'assignee',
+					oldValue: null,
+					newValue: assignees.map((entry) => entry.username).join(', '),
+				},
+			});
+		}
 		return request;
 	});
-	return prisma.request.findUnique({ where: { id: created.id }, include: LIST_INCLUDE });
+	const full = await prisma.request.findUnique({ where: { id: created.id }, include: LIST_INCLUDE });
+	for (const assignee of assignees) {
+		notifyAssignee({ request: full, assignee, assignedBy: user });
+	}
+	// Nascer Assigned dispara o card do setor no Trello (fire-and-forget, mesmo
+	// gatilho do updateRequest — sem isso o chamado ficaria Assigned sem card).
+	if (initial.status === 'Assigned') {
+		autoCreateTrelloCard({ user, id: created.id });
+	}
+	return full;
 }
 
 // --- update / transicoes --------------------------------------------------------
@@ -303,31 +383,15 @@ async function updateRequest({ user, id, patch }) {
 	const assigneesChanged = touchesAssignees
 		&& JSON.stringify(currentIds) !== JSON.stringify(patch.assigneeIds);
 
-	// Assignment por setor (2026-08-14): so membros do setor do chamado podem
-	// ser atribuidos (o front filtra as opcoes; quem decide e aqui). Vale o
-	// setor de DESTINO quando o mesmo PATCH move o chamado. Assignees atuais
-	// sao grandfathered — mover de setor nao trava a lista existente.
-	if (touchesAssignees && patch.assigneeIds.length) {
-		const targetSectorId = movesSector ? patch.sectorId : current.sector_id;
-		const sectorMembers = await prisma.sectorMember.findMany({
-			where: { sector_id: targetSectorId },
-			select: { user_id: true },
-		});
-		const invalid = findInvalidAssignees({
-			requestedIds: patch.assigneeIds,
-			memberIds: sectorMembers.map((entry) => entry.user_id),
+	// Assignment por setor: vale o setor de DESTINO quando o mesmo PATCH move
+	// o chamado (regra e mensagem no helper assertAssigneesInSector).
+	if (touchesAssignees) {
+		await assertAssigneesInSector({
+			sectorId: movesSector ? patch.sectorId : current.sector_id,
+			assigneeIds: patch.assigneeIds,
 			currentIds,
+			assignees: newAssignees || [],
 		});
-		if (invalid.length) {
-			const names = (newAssignees || [])
-				.filter((entry) => invalid.includes(entry.id))
-				.map((entry) => entry.username)
-				.join(', ');
-			throw RequestServiceError.conflict(
-				'ASSIGNEE_NOT_IN_SECTOR',
-				`Only members of the request's sector can be assigned (${names || invalid.join(', ')} is not a member)`
-			);
-		}
 	}
 
 	const applied = buildAppliedFields({ current, patch, autoStatus: verdict.autoStatus });

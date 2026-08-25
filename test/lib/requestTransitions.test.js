@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { validateChange } = require('../../lib/requests/transitions.js');
+const { validateChange, initialStateFor } = require('../../lib/requests/transitions.js');
 
 // Modulo puro: recebe o estado atual + patch + flag de triage e devolve
 // { ok, autoStatus?, error? } — nenhum contato com o Postgres (o .env local
@@ -235,4 +235,35 @@ test('erro sempre traz mensagem legivel', () => {
 	assert.strictEqual(result.ok, false);
 	assert.strictEqual(typeof result.error.message, 'string');
 	assert.ok(result.error.message.length > 0);
+});
+
+// Estado inicial na criacao: espelho do autoStatus — nascer com assignee e
+// nascer Assigned (mesma regra de atribuir em New Request via PATCH).
+
+test('criar sem assignees nasce New Request desatribuido', () => {
+	assert.deepStrictEqual(initialStateFor({ assigneeIds: [] }), {
+		status: 'New Request',
+		assigneeId: null,
+	});
+});
+
+test('criar sem input nasce New Request desatribuido', () => {
+	assert.deepStrictEqual(initialStateFor(), {
+		status: 'New Request',
+		assigneeId: null,
+	});
+});
+
+test('criar com um assignee nasce Assigned com ele como primario', () => {
+	assert.deepStrictEqual(initialStateFor({ assigneeIds: [7] }), {
+		status: 'Assigned',
+		assigneeId: 7,
+	});
+});
+
+test('criar com varios assignees nasce Assigned com o primeiro como primario', () => {
+	assert.deepStrictEqual(initialStateFor({ assigneeIds: [7, 9] }), {
+		status: 'Assigned',
+		assigneeId: 7,
+	});
 });

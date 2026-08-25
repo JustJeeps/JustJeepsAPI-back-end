@@ -25,21 +25,28 @@ const COMMENT_REQUIRED_STATUSES = ['Awaiting Client Response', 'On Hold', 'Compl
 const REQUEST_PRIORITIES = ['Urgent', 'High', 'Normal', 'Low'];
 const DEFAULT_PRIORITY = 'Normal';
 
+// Listas revisadas em 2026-08-21 (draft aprovado com a Tess). A validacao so
+// vale para escritas novas: chamados antigos mantem os valores anteriores
+// ("Just Jeeps — US Website", "Website Issue", ...) e continuam legiveis.
 const REQUEST_PROJECTS = [
-	'Just Jeeps — US Website',
-	'Just Jeeps — CA Website',
+	'Just Jeeps — Canadian Website',
+	'Just Jeeps — U.S. Website',
+	'Just Jeeps — Both Websites',
+	'Magento Backend',
 	'Pricing Tool',
-	'Magento / Backend',
+	'PO Tool',
+	'Helpdesk Ticket System',
 	'Integrations',
-	'Internal / Other',
+	'Other',
 ];
 
 const REQUEST_TYPES = [
-	'Website Issue',
-	'Product / Data Issue',
-	'Improvement / Suggestion',
-	'Investigation / Test',
-	'Access / Configuration',
+	'Fix an Issue / Something Not Working',
+	'Product Information / Image / Fitment Correction',
+	'Pricing Update',
+	'Change / Improvement Request',
+	'Investigation / Testing',
+	'Access / Settings Change',
 	'Other',
 ];
 

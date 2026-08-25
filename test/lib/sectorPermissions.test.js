@@ -5,6 +5,7 @@ const {
 	roleFor,
 	canManageSector,
 	canCreateSector,
+	canCreateRequestInSector,
 	canMoveRequest,
 	slugify,
 } = require('../../lib/sectors/permissions.js');
@@ -49,6 +50,37 @@ test('canManageSector: triage e admin gerenciam, member e null nao', () => {
 test('canCreateSector: so triage cria setores (anti-sprawl)', () => {
 	assert.strictEqual(canCreateSector({ isTriage: true }), true);
 	assert.strictEqual(canCreateSector({ isTriage: false }), false);
+});
+
+// Abrir chamado num setor (2026-08-21): triage abre em qualquer um; nao-triage
+// so no General (catch-all) ou em setor do qual e membro.
+
+test('canCreateRequestInSector: triage abre em qualquer setor', () => {
+	assert.strictEqual(
+		canCreateRequestInSector({ isTriage: true, isDefaultSector: false, isMember: false }),
+		true
+	);
+});
+
+test('canCreateRequestInSector: nao-triage abre no General mesmo sem membership', () => {
+	assert.strictEqual(
+		canCreateRequestInSector({ isTriage: false, isDefaultSector: true, isMember: false }),
+		true
+	);
+});
+
+test('canCreateRequestInSector: nao-triage abre em setor do qual e membro', () => {
+	assert.strictEqual(
+		canCreateRequestInSector({ isTriage: false, isDefaultSector: false, isMember: true }),
+		true
+	);
+});
+
+test('canCreateRequestInSector: nao-triage NAO abre em setor alheio', () => {
+	assert.strictEqual(
+		canCreateRequestInSector({ isTriage: false, isDefaultSector: false, isMember: false }),
+		false
+	);
 });
 
 test('canMoveRequest: triage ou admin do setor de ORIGEM', () => {
