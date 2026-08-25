@@ -82,3 +82,32 @@ test('getObjectStream and listObjects delegate to the client', async () => {
 	assert.deepStrictEqual(s3.calls.map((call) => call.name), ['GetObjectCommand', 'ListObjectsV2Command']);
 	assert.deepStrictEqual(objects, [{ key: 'feeds/x/a.csv', size: 10, lastModified: new Date('2026-08-01') }]);
 });
+
+test('listObjects paginates past IsTruncated until the listing is complete', async () => {
+	const calls = [];
+	const pages = [
+		{
+			Contents: [{ Key: 'feeds/x/a.csv', Size: 1, LastModified: new Date('2026-08-01') }],
+			IsTruncated: true,
+			NextContinuationToken: 'token-2',
+		},
+		{
+			Contents: [{ Key: 'feeds/x/b.csv', Size: 2, LastModified: new Date('2026-08-02') }],
+			IsTruncated: false,
+		},
+	];
+	const s3 = {
+		send: async (command) => {
+			calls.push({ name: command.constructor.name, input: command.input });
+			return pages[calls.length - 1];
+		},
+	};
+	const store = createFeedStore({ s3, env: ENV_OK });
+
+	const objects = await store.listObjects('feeds/x/');
+
+	assert.strictEqual(calls.length, 2);
+	assert.strictEqual(calls[0].input.ContinuationToken, undefined);
+	assert.strictEqual(calls[1].input.ContinuationToken, 'token-2');
+	assert.deepStrictEqual(objects.map((object) => object.key), ['feeds/x/a.csv', 'feeds/x/b.csv']);
+});

@@ -35,6 +35,11 @@ const cadDisabledUsWeeklySchedule = process.env.CRON_CAD_US_WEEKLY_SCHEDULE || '
 // before seed-all (global mutex across command crons).
 const keystoneFeedFetchEnabled = process.env.CRON_FEED_FETCH_KEYSTONE_ENABLED === 'true';
 const keystoneFeedFetchSchedule = process.env.CRON_FEED_FETCH_KEYSTONE_SCHEDULE || '47 4,16 * * *';
+// Feeds retention prune (Spaces): opt-in, mesma razao do fetch acima. 6:17
+// fica fora da grade */5 do delta, depois do fetch das 4:47 e antes do
+// seed-all das 7:32 (e o commandGate serializa de qualquer forma).
+const feedsPruneEnabled = process.env.CRON_FEEDS_PRUNE_ENABLED === 'true';
+const feedsPruneSchedule = process.env.CRON_FEEDS_PRUNE_SCHEDULE || '17 6 * * *';
 const testCronEnabled = process.env.CRON_TEST_ENABLED === 'true';
 const testCronSchedule = process.env.CRON_TEST_SCHEDULE || '*/5 * * * *';
 const testCronCommand = process.env.CRON_TEST_COMMAND || 'seed-tdot';
@@ -158,6 +163,14 @@ function getCronJobDefinitions({ includeDisabled = false } = {}) {
 			reportLogFile: 'logs/feed-fetch-keystone.log',
 		},
 		{
+			enabled: feedsPruneEnabled,
+			schedule: feedsPruneSchedule,
+			command: 'feed-prune-apply',
+			jobName: 'Feeds Retention Prune',
+			logPrefix: 'Feeds retention prune',
+			reportLogFile: 'logs/feed-prune.log',
+		},
+		{
 			enabled: testCronEnabled,
 			schedule: testCronSchedule,
 			command: testCronCommand,
@@ -273,6 +286,8 @@ module.exports = {
 		cadDisabledUsWeeklySchedule,
 		keystoneFeedFetchEnabled,
 		keystoneFeedFetchSchedule,
+		feedsPruneEnabled,
+		feedsPruneSchedule,
 		testCronEnabled,
 		testCronSchedule,
 		testCronCommand,

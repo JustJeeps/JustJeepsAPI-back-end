@@ -647,10 +647,11 @@ model FeedArtifact {
   // passa a ser servido do bucket: o arquivo vira symlink pro cache e o mtime
   // vira a hora do download.
   sourceModifiedAt DateTime?
-  status      String   @default("available") // available | superseded | quarantined
+  status      String   @default("available") // available | superseded | quarantined | purged (objeto podado do bucket pela retencao)
   note        String?  @db.Text
 
   @@index([feed, fileName, status, uploadedAt])
   @@index([batchId])
   @@index([objectKey])
 }
+

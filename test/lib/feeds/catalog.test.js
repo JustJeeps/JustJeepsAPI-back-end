@@ -18,6 +18,7 @@ function makePrismaStub() {
 		} else if (where.feed !== undefined && row.feed !== where.feed) return false;
 		if (where.status !== undefined && typeof where.status === 'string' && row.status !== where.status) return false;
 		if (where.status?.not !== undefined && row.status === where.status.not) return false;
+		if (where.status?.notIn !== undefined && where.status.notIn.includes(row.status)) return false;
 		if (where.batchId !== undefined && row.batchId !== where.batchId) return false;
 		if (where.fileName?.in && !where.fileName.in.includes(row.fileName)) return false;
 		if (where.startedAt?.lt && !(row.startedAt < where.startedAt.lt)) return false;
@@ -280,6 +281,21 @@ test('quarantineBatch takes the batch out of circulation and the previous one do
 	const quarantined = prisma.feedArtifacts.filter((row) => row.status === 'quarantined');
 	assert.strictEqual(quarantined.length, 1);
 	assert.strictEqual(quarantined[0].note, 'corrupted spreadsheet');
+});
+
+test('quarantineBatch leaves purged rows purged (their object is gone from the bucket)', async () => {
+	const prisma = makePrismaStub();
+	const batch = await catalog.registerArtifacts(prisma, {
+		feed: 'keystone-ftp',
+		source: 'ftp',
+		files: [file('Inventory.csv'), file('SpecialOrder.csv')],
+	});
+	prisma.feedArtifacts.find((row) => row.fileName === 'Inventory.csv').status = 'purged';
+
+	await catalog.quarantineBatch(prisma, batch.batchId, 'bad batch');
+
+	const statuses = prisma.feedArtifacts.map((row) => row.status).sort();
+	assert.deepStrictEqual(statuses, ['purged', 'quarantined']);
 });
 
 test('listRuns filters by feed and status with pagination', async () => {

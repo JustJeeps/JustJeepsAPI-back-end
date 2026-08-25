@@ -1,6 +1,6 @@
 # Vendor Feeds on DigitalOcean Spaces
 
-Vendor price and inventory files (CSV/XLSX) live in a private DigitalOcean Spaces bucket instead of being baked into the Docker image. Every upload becomes a new immutable object. A Postgres catalog (`FeedArtifact`) records what exists, its SHA-256, who uploaded it and when. Seeds read the latest complete batch through a local cache.
+Vendor price and inventory files (CSV/XLSX) live in a private DigitalOcean Spaces bucket instead of being baked into the Docker image. Every upload becomes a new immutable object (never overwritten in place). A Postgres catalog (`FeedArtifact`) records what exists, its SHA-256, who uploaded it and when. Seeds read the latest complete batch through a local cache. A daily retention job keeps only the 2 newest versions of each feed file in the bucket (see Retention below).
 
 ## Why
 
@@ -44,7 +44,22 @@ So no seed script changes how it reads files. Rules: a feed with no catalogued b
 - Fetch Keystone now: `npm run feed-fetch-keystone` (cron `feed-fetch-keystone` runs it at 4:47 and 16:47 once `CRON_FEED_FETCH_KEYSTONE_ENABLED=true`).
 - Materialize locally: `npm run feed-materialize -- <feed>`.
 - Inspect: `GET /api/ingest/feeds` (current batch, age, stale flag, last runs) and `GET /api/ingest/runs?feed=...`. Stale or missing feeds also show as failures in the daily cron digest email.
-- Kill a bad batch: `npm run feed-quarantine -- <feed> [batchId] --note "why"` (no batchId acts on the current batch; `--list` shows the batches of the feed). The feed falls back to the previous complete batch, so run `npm run feed-sync -- <feed>` afterwards to point the legacy paths at it. If no earlier complete batch exists the feed is left with none on purpose: the vendor scripts then fail loudly instead of reading condemned data.
+- Kill a bad batch: `npm run feed-quarantine -- <feed> [batchId] --note "why"` (no batchId acts on the current batch; `--list` shows the batches of the feed). Quarantine does NOT reactivate the previous batch on its own — the earlier rows are `superseded`, so the feed is left with no current batch and the vendor scripts fail loudly instead of reading condemned data. To recover, re-upload a good file (identical bytes reuse the stored object, so re-committing the previous version is cheap), then run `npm run feed-sync -- <feed>`.
+- Prune old versions: `npm run feed-prune` (dry-run) / `npm run feed-prune -- --apply` (see Retention below).
+
+## Retention
+
+The bucket does not keep history forever: the `feed-prune-apply` cron (opt-in `CRON_FEEDS_PRUNE_ENABLED`, default schedule 6:17) keeps the **2 newest versions of each feed file** and deletes the rest. The rule lives in `lib/feeds/retention.js` (pure) and is executed by `scripts/feed-prune.js`, whose default is always a dry-run — deletion requires the explicit `--apply` flag (`npm run feed-prune-apply`). Tune with `FEED_PRUNE_KEEP_VERSIONS` and `FEED_PRUNE_GRACE_HOURS` (or `--keep` / `--grace-hours`).
+
+Protection is computed from the **catalog**, never from object age — `objectKey` is reused across rows (carry-forward and hash dedupe), so a current artifact can point at a months-old object:
+
+- every key referenced by an `available` or `quarantined` row (any feed, including legacy names) is untouchable;
+- the ranking keeps the `keepVersions` newest DISTINCT keys per (feed, fileName) over `available|superseded` rows;
+- objects newer than the grace window (default 24h) are never deleted — a signed upload exists in the bucket before its commit catalogs it;
+- a feed with no `available` row at all is report-only (protects against a diverging catalog);
+- only `feeds/<name>/` prefixes for feeds in `config/feeds.js` are eligible: `feeds/_archive/`, legacy prefixes (`quadratec-pricing`, `quadratec-wholesale`), `logs/`, `certs/` and request attachments are never touched.
+
+Rows whose object is deleted are marked `status: purged` (before the delete, so hash dedupe stops offering the dying key). `FeedArtifact` rows are still never deleted.
 
 ## Rollout status
 

@@ -145,6 +145,11 @@ env:
     # (426), so byte-level resume plus generous retries.
     CRON_FEED_FETCH_KEYSTONE_ENABLED: "true"
     CRON_FEED_FETCH_KEYSTONE_SCHEDULE: "47 4,16 * * *"
+    # Feeds retention: keeps the 2 newest versions of each feed file in Spaces
+    # and deletes the rest (catalog-protected; see scripts/feed-prune.js).
+    # 6:17 sits after the 4:47 fetch and before seed-all at 7:32.
+    CRON_FEEDS_PRUNE_ENABLED: "true"
+    CRON_FEEDS_PRUNE_SCHEDULE: "17 6 * * *"
     KEYSTONE_FTP_MAX_ATTEMPTS: "12"
     # Keystone FTPS intermediate CA: the server only sends the leaf, so Node
     # needs the intermediate to build the chain. It lives in a private directory
