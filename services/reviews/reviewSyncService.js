@@ -61,8 +61,9 @@ function createReviewSyncService({
 		throw lastError;
 	}
 
-	// Fase 1: recuperacao global das 'sending' orfas.
-	async function recoverSendingRows() {
+	// Fase 1: recuperacao global das 'sending' orfas. Muta counts direto para
+	// o run reportar o que JA foi recuperado mesmo quando a fase aborta.
+	async function recoverSendingRows(counts) {
 		const sendingRows = await prisma.reviewImportRow.findMany({
 			where: { status: 'sending' },
 			orderBy: { id: 'asc' },
@@ -88,6 +89,17 @@ function createReviewSyncService({
 					{ maxRetries: RECOVERY_GET_ATTEMPTS }
 				);
 			} catch (error) {
+				// 404 = o PRODUTO nao existe na loja: resposta definitiva (a
+				// review nao pode ter sido gravada nem podera ser). Vira failed
+				// em vez de bloquear — senao 4 linhas de SKU aposentado seguram
+				// a fila inteira como refem (aconteceu em 2026-08-25).
+				if (error.code === 'MAGENTO_NOT_FOUND') {
+					await prisma.reviewImportRow.updateMany({
+						where: { id: { in: bySku.get(sku).map((row) => row.id) }, status: 'sending' },
+						data: { status: 'failed', error: 'PRODUCT_NOT_FOUND (sku does not exist in Magento)' },
+					});
+					return;
+				}
 				blockedSkus.push(sku);
 				return;
 			}
@@ -99,6 +111,7 @@ function createReviewSyncService({
 						data: { status: 'synced', syncedAt: now() },
 					});
 					recovered += 1;
+					counts.updated += 1;
 				} else if (verdict === 'absent') {
 					await prisma.reviewImportRow.updateMany({
 						where: { id: row.id, status: 'sending' },
@@ -157,8 +170,7 @@ function createReviewSyncService({
 	}
 
 	async function executeSync(run, fileId, counts) {
-		const recovery = await recoverSendingRows();
-		counts.updated = recovery.recovered; // recuperadas contam como "updated" no IngestRun
+		await recoverSendingRows(counts); // recuperadas contam como "updated" no IngestRun
 		await sendPendingRows(run, fileId, counts);
 	}
 

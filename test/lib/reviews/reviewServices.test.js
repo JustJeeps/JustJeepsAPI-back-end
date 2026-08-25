@@ -394,6 +394,32 @@ test('recuperacao bloqueada (GET falhou): nada e enviado, linhas ficam sending, 
 	assert.strictEqual(lockState.held, false);
 });
 
+test('recuperacao: GET 404 (produto inexistente) marca as linhas failed e o run SEGUE', async () => {
+	const prisma = makePrismaStub();
+	const file = await seedFile(prisma, ['GONE-1', 'SKU-OK']);
+	prisma.rows[0].status = 'sending'; // produto nao existe na loja
+	const { service, finishes, magentoCalls } = makeSyncHarness(prisma, {
+		get: (sku) => {
+			if (sku === 'GONE-1') {
+				const error = new Error("product doesn't exist");
+				error.code = 'MAGENTO_NOT_FOUND';
+				error.outcomeKnown = true;
+				throw error;
+			}
+			return [];
+		},
+	});
+
+	const { done } = await service.startSync({ user: USER, fileId: file.id });
+	await done;
+
+	assert.strictEqual(prisma.rows[0].status, 'failed');
+	assert.match(prisma.rows[0].error, /PRODUCT_NOT_FOUND/);
+	assert.strictEqual(prisma.rows[1].status, 'synced'); // a fila NAO ficou refem
+	assert.strictEqual(finishes[0].status, 'success');
+	assert.deepStrictEqual(magentoCalls.posts[0].map((review) => review.sku), ['SKU-OK']);
+});
+
 test('shape ilegivel na verificacao tambem bloqueia (nunca assume ausente)', async () => {
 	const prisma = makePrismaStub();
 	const file = await seedFile(prisma, ['SKU-A']);

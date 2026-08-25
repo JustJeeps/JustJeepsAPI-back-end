@@ -82,6 +82,18 @@ test('mapa de erros: 401 -> AUTH_FAILED com desfecho conhecido', async () => {
 	});
 });
 
+test('mapa de erros: 404 -> MAGENTO_NOT_FOUND conhecido (produto inexistente e resposta definitiva)', async () => {
+	const client = createMagentoReviewsClient({
+		http: failWith({ response: { status: 404, data: { message: "The product that was requested doesn't exist." } } }),
+		env: ENV,
+	});
+	await assert.rejects(client.getReviewsBySku('GONE-1'), (error) => {
+		assert.strictEqual(error.code, 'MAGENTO_NOT_FOUND');
+		assert.strictEqual(error.outcomeKnown, true);
+		return true;
+	});
+});
+
 test('mapa de erros: 429 -> RATE_LIMITED conhecido; 400 -> BAD_REQUEST conhecido', async () => {
 	const c429 = createMagentoReviewsClient({ http: failWith({ response: { status: 429 } }), env: ENV });
 	await assert.rejects(c429.postReviewsBulk([]), (error) => error.code === 'MAGENTO_RATE_LIMITED' && error.outcomeKnown === true);
