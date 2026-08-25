@@ -199,7 +199,26 @@ function createReviewImportService({
 		};
 	}
 
-	return { uploadFile, listFiles };
+	// Todos os erros de um arquivo, para o botao "Copy errors" do painel:
+	// linhas failed completas (nao a amostra de 10) + as invalidas do parse.
+	async function getFileErrors(fileId) {
+		const file = await prisma.reviewImportFile.findUnique({ where: { id: fileId } });
+		if (!file) throw ReviewsServiceError.notFound();
+		const failed = await prisma.reviewImportRow.findMany({
+			where: { fileId, status: 'failed' },
+			orderBy: { rowNumber: 'asc' },
+			take: 1000,
+			select: { rowNumber: true, sku: true, nickname: true, error: true },
+		});
+		return {
+			fileName: file.fileName,
+			failed,
+			invalidSample: Array.isArray(file.invalidSample) ? file.invalidSample : [],
+			invalidRowCount: file.invalidRowCount,
+		};
+	}
+
+	return { uploadFile, listFiles, getFileErrors };
 }
 
 module.exports = { createReviewImportService, FEED };

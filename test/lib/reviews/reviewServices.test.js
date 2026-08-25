@@ -58,6 +58,7 @@ function makePrismaStub() {
 			findMany: async ({ where, orderBy, take, select } = {}) => {
 				let found = rows.filter((row) => matchesRow(row, where));
 				if (orderBy?.id === 'asc') found = found.sort((a, b) => a.id - b.id);
+				if (orderBy?.rowNumber === 'asc') found = found.sort((a, b) => a.rowNumber - b.rowNumber);
 				if (take) found = found.slice(0, take);
 				if (select) {
 					return found.map((row) => Object.fromEntries(Object.keys(select).map((key) => [key, row[key]])));
@@ -255,6 +256,28 @@ test('listFiles agrega contadores por status e amostra de erros so quando ha fal
 	assert.strictEqual(listing.files[0].errorSamples.length, 1);
 	assert.strictEqual(listing.files[0].errorSamples[0].error, 'MAGENTO_BAD_REQUEST');
 	assert.strictEqual(listing.running, false);
+});
+
+test('getFileErrors devolve as failed completas (ordenadas) + invalidas do parse; 404 sem arquivo', async () => {
+	const prisma = makePrismaStub();
+	const service = makeImportService(prisma, sheetOf(sheetRow('SKU-1'), sheetRow('SKU-2')));
+	const { file } = await service.uploadFile({ user: USER, file: FILE_INPUT });
+	prisma.files[0].invalidSample = [{ rowNumber: 9, error: 'invalid date' }];
+	prisma.files[0].invalidRowCount = 1;
+	prisma.rows[1].status = 'failed';
+	prisma.rows[1].error = 'PRODUCT_NOT_FOUND (sku does not exist in Magento)';
+	prisma.rows[0].status = 'failed';
+	prisma.rows[0].error = 'MAGENTO_BAD_REQUEST';
+
+	const errors = await service.getFileErrors(file.id);
+
+	assert.strictEqual(errors.fileName, 'reviews.xlsx');
+	assert.deepStrictEqual(errors.failed.map((row) => row.rowNumber), [2, 3]);
+	assert.strictEqual(errors.failed[1].error, 'PRODUCT_NOT_FOUND (sku does not exist in Magento)');
+	assert.deepStrictEqual(errors.invalidSample, [{ rowNumber: 9, error: 'invalid date' }]);
+	assert.strictEqual(errors.invalidRowCount, 1);
+
+	await assert.rejects(service.getFileErrors(999), (error) => error.httpStatus === 404);
 });
 
 // ---------------------------------------------------------------------------

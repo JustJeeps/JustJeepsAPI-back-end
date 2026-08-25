@@ -148,6 +148,10 @@ const idParam = (req) => {
 	return id;
 };
 
+router.get('/files/:id/errors', handle(async (req, res) => {
+	res.json(await importService.getFileErrors(idParam(req)));
+}));
+
 router.post('/files/:id/sync', handle(async (req, res) => {
 	const { runId } = await syncService.startSync({ user: req.user, fileId: idParam(req) });
 	res.status(202).json({ runId });
