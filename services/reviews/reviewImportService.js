@@ -1,6 +1,11 @@
 // Upload e listagem do import de reviews (docs/REVIEWS-IMPORT.md). Camada
 // unica de I/O do lado "aquisicao": rota fina -> este servico -> libs puras
 // de lib/reviews. Dependencias injetaveis para os testes rodarem sem banco.
+//
+// Autorizacao: o gate mora no router (isReviewsUser, 409 fora da allowlist) e
+// o modelo e COMPARTILHADO de proposito — arquivo importado nao tem dono,
+// qualquer operador da allowlist ve/sincroniza/copia erros de todos (uploadedBy
+// e auditoria, nao posse). Nao adicionar escopo por usuario aqui.
 
 const crypto = require('crypto');
 const { parseReviewRows, reviewRowHash, chunkRows } = require('../../lib/reviews/reviewRows');
