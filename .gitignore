@@ -70,6 +70,7 @@ prisma/seeds/seed-individual/orders_all.json
 
 # Keep the folder, but don't commit vendor dumps
 prisma/seeds/api-calls/**
+!prisma/seeds/api-calls/magento-ordersUpdatedSince.js
 !prisma/seeds/api-calls/keystone_files/
 
 # Allow only small sample/test files (optional - delete if you don't need)

@@ -2,12 +2,14 @@
 FROM node:20-slim AS deps
 WORKDIR /app
 COPY package*.json ./
+COPY vendor ./vendor
 RUN npm ci --only=production
 
 # Stage 2: All Dependencies (including dev for nodemon)
 FROM node:20-slim AS deps-dev
 WORKDIR /app
 COPY package*.json ./
+COPY vendor ./vendor
 RUN npm ci
 
 # Stage 3: Build with Prisma (for development)
