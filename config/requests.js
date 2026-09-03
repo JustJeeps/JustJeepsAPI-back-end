@@ -61,6 +61,17 @@ function isTriageUser(username) {
 	return requestsTriageUsers.includes(String(username || '').toLowerCase());
 }
 
+// Atribuicao de responsavel: por decisao atual, somente estes usuarios podem
+// definir/remover assignees (default: tess).
+const requestsAssigneeManagers = (process.env.REQUESTS_ASSIGNEE_MANAGERS || 'tess')
+	.split(/[,\s]+/)
+	.map((username) => username.trim().toLowerCase())
+	.filter(Boolean);
+
+function canAssignRequestAssignees(username) {
+	return requestsAssigneeManagers.includes(String(username || '').toLowerCase());
+}
+
 // Status "concluidos": usados para a lane Done do board e para esconder da
 // view "All open". NAO controla mais quem pode arquivar — desde 07/08
 // qualquer status e arquivavel pelo autor ou triage (lib/requests/archive.js).
@@ -110,9 +121,11 @@ module.exports = {
 	ATTACHMENT_ALLOWED_TYPES,
 	isTriageUser,
 	isRequestsUser,
+	canAssignRequestAssignees,
 	config: {
 		requestsTriageUsers,
 		requestsAllowedUsers,
+		requestsAssigneeManagers,
 		attachmentsMaxFileSizeBytes,
 		attachmentsMaxFilesPerUpload,
 	},

@@ -15,7 +15,6 @@ const {
 	REQUEST_PROJECTS,
 	REQUEST_TYPES,
 	ATTACHMENT_ALLOWED_TYPES,
-	isRequestsUser,
 	isTriageUser,
 	config: requestsConfig,
 } = require('../config/requests');
@@ -116,6 +115,7 @@ const parseCreateInput = (body = {}) => ({
 	links: parseLinks(body.links) || [],
 	sectorId: parseOptionalSectorId(body.sectorId),
 	assigneeIds: body.assigneeIds === undefined ? [] : parseAssigneeIds(body.assigneeIds),
+	followerIds: body.followerIds === undefined ? [] : parseAssigneeIds(body.followerIds),
 });
 
 const parsePatch = (body = {}) => {
@@ -139,6 +139,9 @@ const parsePatch = (body = {}) => {
 		}
 		patch.assigneeIds = patch.assigneeId === null ? [] : [patch.assigneeId];
 	}
+	if (body.followerIds !== undefined) {
+		patch.followerIds = parseAssigneeIds(body.followerIds);
+	}
 	if (body.comment !== undefined) patch.comment = String(body.comment ?? '');
 	// Arquivar (true) / desarquivar (false). Regra no servico: autor ou triage.
 	if (body.archived !== undefined) patch.archived = Boolean(body.archived);
@@ -155,15 +158,6 @@ router.use((req, res, next) => {
 		return res.status(401).json({
 			error: 'Access token required',
 			message: 'The requests feature requires authentication (ENABLE_AUTH=true)',
-		});
-	}
-	// Rollout gate: durante o teste a feature so existe para REQUESTS_ALLOWED_USERS.
-	// /meta fica aberto (e o que conta ao front se o usuario ve a feature, e a
-	// aba Trello do /settings depende de meta.triageUsers para outros usuarios).
-	if (req.path !== '/meta' && !isRequestsUser(req.user.username)) {
-		return res.status(409).json({
-			error: 'The requests feature is not enabled for your user yet',
-			code: 'REQUESTS_RESTRICTED',
 		});
 	}
 	next();

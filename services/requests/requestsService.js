@@ -27,7 +27,7 @@ const {
 	REQUEST_TYPES,
 	ATTACHMENT_ALLOWED_TYPES,
 	isTriageUser,
-	isRequestsUser,
+	canAssignRequestAssignees,
 	config: requestsConfig,
 } = require('../../config/requests');
 const { RequestServiceError } = require('./errors');
@@ -37,11 +37,13 @@ const USER_SELECT = { id: true, username: true, email: true, firstname: true, la
 const SECTOR_SELECT = { id: true, name: true, slug: true, color: true, archivedAt: true };
 
 const ASSIGNEES_INCLUDE = { include: { user: { select: USER_SELECT } }, orderBy: { id: 'asc' } };
+const FOLLOWERS_INCLUDE = { include: { user: { select: USER_SELECT } }, orderBy: { id: 'asc' } };
 
 const LIST_INCLUDE = {
 	requester: { select: USER_SELECT },
 	assignee: { select: USER_SELECT },
 	assignees: ASSIGNEES_INCLUDE,
+	followers: FOLLOWERS_INCLUDE,
 	sector: { select: SECTOR_SELECT },
 	_count: { select: { comments: true, attachments: true } },
 };
@@ -50,6 +52,7 @@ const DETAIL_INCLUDE = {
 	requester: { select: USER_SELECT },
 	assignee: { select: USER_SELECT },
 	assignees: ASSIGNEES_INCLUDE,
+	followers: FOLLOWERS_INCLUDE,
 	sector: { select: SECTOR_SELECT },
 	comments: { include: { author: { select: USER_SELECT } }, orderBy: { createdAt: 'asc' } },
 	attachments: { include: { uploader: { select: USER_SELECT } }, orderBy: { createdAt: 'asc' } },
@@ -77,7 +80,9 @@ async function assertCanViewRequest(user, request) {
 	const memberSectorIds = await sectorsService.memberSectorIdsFor(user.id);
 	const assignees = request.assignees
 		|| await prisma.requestAssignee.findMany({ where: { request_id: request.id }, select: { user_id: true } });
-	if (!canViewRequest({ request: { ...request, assignees }, userId: user.id, memberSectorIds, isTriage })) {
+	const followers = request.followers
+		|| await prisma.requestFollower.findMany({ where: { request_id: request.id }, select: { user_id: true } });
+	if (!canViewRequest({ request: { ...request, assignees, followers }, userId: user.id, memberSectorIds, isTriage })) {
 		throw RequestServiceError.notFound();
 	}
 }
@@ -103,6 +108,20 @@ async function resolveAssignees(ids) {
 	if (users.length !== ids.length) throw RequestServiceError.validation('Assignee user not found');
 	const byId = new Map(users.map((entry) => [entry.id, entry]));
 	return ids.map((id) => byId.get(id));
+}
+
+async function resolveFollowers(ids) {
+	if (!ids.length) return [];
+	const users = await prisma.user.findMany({ where: { id: { in: ids } }, select: USER_SELECT });
+	if (users.length !== ids.length) throw RequestServiceError.validation('Follower user not found');
+	const byId = new Map(users.map((entry) => [entry.id, entry]));
+	return ids.map((id) => byId.get(id));
+}
+
+function canManageFollowers({ user, request, currentAssigneeIds = [] }) {
+	if (!user || !request) return false;
+	if (request.requester_id === user.id) return true;
+	return currentAssigneeIds.includes(user.id);
 }
 
 // Assignment por setor (2026-08-14): so membros do setor podem ser atribuidos
@@ -149,12 +168,8 @@ function notifyAssignee({ request, assignee, assignedBy }) {
 // --- meta / listagem ----------------------------------------------------------
 
 async function getMeta({ user } = {}) {
-	const username = user?.username;
-	// /meta e isento do rollout gate na rota (o front precisa de
-	// requestsEnabled para esconder a feature) — entao o catalogo de setores
-	// so sai para quem o gate liberou, senao a lista organizacional vazaria
-	// para usuarios fora do rollout (achado da revisao de seguranca 2026-08-13).
-	const enabled = isRequestsUser(username);
+	// A feature de requests esta liberada para todos os usuarios autenticados.
+	const enabled = true;
 	// trello.configured vem do banco (painel /settings); enabled mantem o nome
 	// antigo por compat com o front (RequestTrelloPanel le meta.trello.enabled).
 	const [trelloConfigured, sectors, memberships] = await Promise.all([
@@ -191,6 +206,10 @@ async function getMeta({ user } = {}) {
 			adminSectorIds: memberships.filter((entry) => entry.role === 'admin').map((entry) => entry.sector_id),
 			memberSectorIds: memberships.map((entry) => entry.sector_id),
 		},
+		permissions: {
+			canAssignAssignees: canAssignRequestAssignees(user?.username),
+			assigneeManagers: requestsConfig.requestsAssigneeManagers,
+		},
 		attachments: {
 			enabled: storage.isConfigured(),
 			maxFileSizeBytes: requestsConfig.attachmentsMaxFileSizeBytes,
@@ -204,21 +223,20 @@ async function getMeta({ user } = {}) {
 // Filtros/KPIs/busca continuam client-side (volume baixo), mas o recorte de
 // VISIBILIDADE e server-side desde 2026-08-12: setor virou fronteira de
 // seguranca, entao chamado de setor alheio nem chega ao browser. Um usuario
-// ve os chamados dos setores dos quais e membro + os que ele abriu + os que
-// estao atribuidos a ele; triage ve tudo (espelho de lib/sectors/visibility).
+	// ve os chamados que abriu + os que estao atribuidos + os que segue; triage
+	// ve tudo (espelho de lib/sectors/visibility).
 async function listRequests({ user, deleted = false } = {}) {
 	const where = deleted ? { deletedAt: { not: null } } : { deletedAt: null };
 	// Lixeira e triage-only (garantido na rota): sem recorte extra.
 	if (!deleted && user && !isTriageUser(user.username)) {
-		const memberSectorIds = await sectorsService.memberSectorIdsFor(user.id);
 		where.OR = [
-			{ sector_id: { in: memberSectorIds } },
 			{ requester_id: user.id },
 			// assignee_id cobre linha escrita fora do fluxo normal (script/SQL de
 			// manutencao) sem a RequestAssignee par — espelho FIEL de canViewRequest,
 			// que aceita as duas formas.
 			{ assignee_id: user.id },
 			{ assignees: { some: { user_id: user.id } } },
+			{ followers: { some: { user_id: user.id } } },
 		];
 	}
 	return prisma.request.findMany({
@@ -255,11 +273,11 @@ async function resolveSectorForCreate(sectorId) {
 }
 
 // input ja validado na rota: { title, description, project, type, priority,
-// links, sectorId?, assigneeIds }. Sem assignees o chamado nasce New Request +
+// links, sectorId?, assigneeIds, followerIds }. Sem assignees o chamado nasce New Request +
 // Unassigned (RF03); com assignees (membros do setor, primeiro = primario)
 // nasce Assigned — mesmo efeito de atribuir via PATCH logo apos criar.
 async function createRequest({ user, input }) {
-	const { sectorId, assigneeIds = [], ...fields } = input;
+	const { sectorId, assigneeIds = [], followerIds = [], ...fields } = input;
 	const sector = await resolveSectorForCreate(sectorId);
 	// Abrir chamado (2026-08-21): triage em qualquer setor; nao-triage so no
 	// General ou em setor do qual e membro (o front esconde os demais; quem
@@ -277,7 +295,14 @@ async function createRequest({ user, input }) {
 			'You can only open requests in General or in a sector you are a member of'
 		);
 	}
+	if (assigneeIds.length && !canAssignRequestAssignees(user.username)) {
+		throw RequestServiceError.conflict(
+			'ASSIGNEE_MANAGER_ONLY',
+			'Only Tess can assign or unassign request owners right now'
+		);
+	}
 	const assignees = await resolveAssignees(assigneeIds);
+	const followers = await resolveFollowers(followerIds);
 	await assertAssigneesInSector({ sectorId: sector.id, assigneeIds, assignees });
 	const initial = initialStateFor({ assigneeIds });
 	const created = await prisma.$transaction(async (tx) => {
@@ -293,6 +318,11 @@ async function createRequest({ user, input }) {
 		if (assigneeIds.length) {
 			await tx.requestAssignee.createMany({
 				data: assigneeIds.map((userId) => ({ request_id: request.id, user_id: userId })),
+			});
+		}
+		if (followerIds.length) {
+			await tx.requestFollower.createMany({
+				data: followerIds.map((userId) => ({ request_id: request.id, user_id: userId })),
 			});
 		}
 		await tx.requestActivity.create({
@@ -313,6 +343,18 @@ async function createRequest({ user, input }) {
 					field: 'assignee',
 					oldValue: null,
 					newValue: assignees.map((entry) => entry.username).join(', '),
+				},
+			});
+		}
+		if (followers.length) {
+			await tx.requestActivity.create({
+				data: {
+					request_id: request.id,
+					actor_id: user.id,
+					action: 'follower_change',
+					field: 'followers',
+					oldValue: null,
+					newValue: followers.map((entry) => entry.username).join(', '),
 				},
 			});
 		}
@@ -371,6 +413,12 @@ async function updateRequest({ user, id, patch }) {
 	// Multi-assignee: patch.assigneeIds = lista completa; assignee_id (coluna)
 	// guarda o primario (primeiro da lista) e dirige Trello/auto-status/KPIs.
 	const touchesAssignees = patch.assigneeIds !== undefined;
+	if (touchesAssignees && !canAssignRequestAssignees(user.username)) {
+		throw RequestServiceError.conflict(
+			'ASSIGNEE_MANAGER_ONLY',
+			'Only Tess can assign or unassign request owners right now'
+		);
+	}
 	const currentAssignees = touchesAssignees
 		? await prisma.requestAssignee.findMany({
 			where: { request_id: id },
@@ -382,6 +430,26 @@ async function updateRequest({ user, id, patch }) {
 	const newAssignees = touchesAssignees ? await resolveAssignees(patch.assigneeIds) : undefined;
 	const assigneesChanged = touchesAssignees
 		&& JSON.stringify(currentIds) !== JSON.stringify(patch.assigneeIds);
+
+	const touchesFollowers = patch.followerIds !== undefined;
+	const currentFollowers = touchesFollowers
+		? await prisma.requestFollower.findMany({
+			where: { request_id: id },
+			include: { user: { select: USER_SELECT } },
+			orderBy: { id: 'asc' },
+		})
+		: [];
+	const currentFollowerIds = currentFollowers.map((entry) => entry.user_id);
+	const newFollowers = touchesFollowers ? await resolveFollowers(patch.followerIds) : undefined;
+	const followersChanged = touchesFollowers
+		&& JSON.stringify(currentFollowerIds) !== JSON.stringify(patch.followerIds);
+
+	if (followersChanged && !canManageFollowers({ user, request: current, currentAssigneeIds: currentIds })) {
+		throw RequestServiceError.conflict(
+			'FOLLOWERS_FORBIDDEN',
+			'Only the requester or a current assignee can manage followers'
+		);
+	}
 
 	// Assignment por setor: vale o setor de DESTINO quando o mesmo PATCH move
 	// o chamado (regra e mensagem no helper assertAssigneesInSector).
@@ -423,13 +491,16 @@ async function updateRequest({ user, id, patch }) {
 
 	const commentBody = String(patch.comment || '').trim();
 
-	if (!Object.keys(applied).length && !commentBody && !assigneesChanged) {
+	if (!Object.keys(applied).length && !commentBody && !assigneesChanged && !followersChanged) {
 		throw RequestServiceError.validation('Nothing to update');
 	}
 
 	const assigneeLabel = (list) => (list.length ? list.map((entry) => entry.username).join(', ') : null);
 	const oldLabel = assigneeLabel(currentAssignees.map((entry) => entry.user));
 	const newLabel = newAssignees ? assigneeLabel(newAssignees) : null;
+	const followerLabel = (list) => (list.length ? list.map((entry) => entry.username).join(', ') : null);
+	const oldFollowersLabel = followerLabel(currentFollowers.map((entry) => entry.user));
+	const newFollowersLabel = newFollowers ? followerLabel(newFollowers) : null;
 
 	const activities = diffToActivities({
 		requestId: id,
@@ -458,6 +529,16 @@ async function updateRequest({ user, id, patch }) {
 			newValue: newLabel,
 		});
 	}
+	if (followersChanged) {
+		activities.push({
+			request_id: id,
+			actor_id: user.id,
+			action: 'follower_change',
+			field: 'followers',
+			oldValue: oldFollowersLabel,
+			newValue: newFollowersLabel,
+		});
+	}
 	if (commentBody) activities.push(commentActivity(id, user.id));
 
 	await prisma.$transaction(async (tx) => {
@@ -469,6 +550,14 @@ async function updateRequest({ user, id, patch }) {
 			if (patch.assigneeIds.length) {
 				await tx.requestAssignee.createMany({
 					data: patch.assigneeIds.map((userId) => ({ request_id: id, user_id: userId })),
+				});
+			}
+		}
+		if (followersChanged) {
+			await tx.requestFollower.deleteMany({ where: { request_id: id } });
+			if (patch.followerIds.length) {
+				await tx.requestFollower.createMany({
+					data: patch.followerIds.map((userId) => ({ request_id: id, user_id: userId })),
 				});
 			}
 		}

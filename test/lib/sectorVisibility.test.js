@@ -3,16 +3,15 @@ const assert = require('node:assert');
 
 const { canViewRequest } = require('../../lib/sectors/visibility.js');
 
-// Visibilidade por membership (decisao de 2026-08-12, substitui o "todos veem
-// tudo"): um chamado e visivel para membros do setor dele, para quem o abriu
-// (acompanha o proprio chamado em setor alheio), para quem esta atribuido e
-// para triage. Modulo puro — o WHERE do service e o espelho disto.
+// Visibilidade por ownership/follow (decisao de 2026-08-31): um chamado e
+// visivel para triage, requester, assignees e followers.
 
 const request = (overrides = {}) => ({
 	id: 1,
 	sector_id: 3,
 	requester_id: 99,
 	assignees: [],
+	followers: [],
 	...overrides,
 });
 
@@ -23,10 +22,10 @@ test('triage ve qualquer chamado', () => {
 	);
 });
 
-test('membro do setor ve os chamados do setor', () => {
+test('membro do setor sem follow NAO ve o chamado', () => {
 	assert.strictEqual(
 		canViewRequest({ request: request(), userId: 50, memberSectorIds: [3], isTriage: false }),
-		true
+		false
 	);
 });
 
@@ -56,6 +55,14 @@ test('assignee via assignee_id (linha primaria) tambem conta', () => {
 	const primary = request({ assignee_id: 50, assignees: undefined });
 	assert.strictEqual(
 		canViewRequest({ request: primary, userId: 50, memberSectorIds: [], isTriage: false }),
+		true
+	);
+});
+
+test('follower ve o chamado mesmo fora do setor', () => {
+	const followed = request({ followers: [{ user_id: 50 }] });
+	assert.strictEqual(
+		canViewRequest({ request: followed, userId: 50, memberSectorIds: [], isTriage: false }),
 		true
 	);
 });
