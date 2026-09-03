@@ -63,13 +63,21 @@ function isTriageUser(username) {
 
 // Atribuicao de responsavel: por decisao atual, somente estes usuarios podem
 // definir/remover assignees (default: tess).
-const requestsAssigneeManagers = (process.env.REQUESTS_ASSIGNEE_MANAGERS || 'tess')
+const requestsAssigneeManagers = (process.env.REQUESTS_ASSIGNEE_MANAGERS || 'tess,tsantos')
 	.split(/[,\s]+/)
 	.map((username) => username.trim().toLowerCase())
 	.filter(Boolean);
 
-function canAssignRequestAssignees(username) {
-	return requestsAssigneeManagers.includes(String(username || '').toLowerCase());
+function canAssignRequestAssignees(userOrUsername) {
+	if (!userOrUsername) return false;
+	const username = typeof userOrUsername === 'string'
+		? String(userOrUsername || '').toLowerCase()
+		: String(userOrUsername.username || '').toLowerCase();
+	const emailLocalPart = typeof userOrUsername === 'string'
+		? ''
+		: String(userOrUsername.email || '').split('@')[0].toLowerCase();
+	return requestsAssigneeManagers.includes(username)
+		|| (emailLocalPart && requestsAssigneeManagers.includes(emailLocalPart));
 }
 
 // Status "concluidos": usados para a lane Done do board e para esconder da

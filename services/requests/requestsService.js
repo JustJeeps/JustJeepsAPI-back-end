@@ -207,7 +207,7 @@ async function getMeta({ user } = {}) {
 			memberSectorIds: memberships.map((entry) => entry.sector_id),
 		},
 		permissions: {
-			canAssignAssignees: canAssignRequestAssignees(user?.username),
+			canAssignAssignees: canAssignRequestAssignees(user),
 			assigneeManagers: requestsConfig.requestsAssigneeManagers,
 		},
 		attachments: {
@@ -295,7 +295,7 @@ async function createRequest({ user, input }) {
 			'You can only open requests in General or in a sector you are a member of'
 		);
 	}
-	if (assigneeIds.length && !canAssignRequestAssignees(user.username)) {
+	if (assigneeIds.length && !canAssignRequestAssignees(user)) {
 		throw RequestServiceError.conflict(
 			'ASSIGNEE_MANAGER_ONLY',
 			'Only Tess can assign or unassign request owners right now'
@@ -413,7 +413,7 @@ async function updateRequest({ user, id, patch }) {
 	// Multi-assignee: patch.assigneeIds = lista completa; assignee_id (coluna)
 	// guarda o primario (primeiro da lista) e dirige Trello/auto-status/KPIs.
 	const touchesAssignees = patch.assigneeIds !== undefined;
-	if (touchesAssignees && !canAssignRequestAssignees(user.username)) {
+	if (touchesAssignees && !canAssignRequestAssignees(user)) {
 		throw RequestServiceError.conflict(
 			'ASSIGNEE_MANAGER_ONLY',
 			'Only Tess can assign or unassign request owners right now'
