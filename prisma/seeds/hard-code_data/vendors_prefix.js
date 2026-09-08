@@ -2628,9 +2628,10 @@ module.exports = [
   {
     jj_prefix: "MEY",
     brand_name: "Meyer Products",
-    vendors: "Meyer, Keystone",
+    vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "M1G",
     meyer_code: "MPR",
+    quadratec_code: "Meyer Products",
     partsEngine_code: "-vp-meyer-products-306.aspx",
     ctp_code: "MEYER PRODUCTS LLC",
     keystone_code_site: "MYR",
