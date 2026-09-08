@@ -66,8 +66,11 @@ const qbFreshnessReportTimezone = process.env.CRON_QB_FRESHNESS_REPORT_TIMEZONE 
 // Requests digest (internal tickets): opt-in until the meeting decides the
 // schedule and recipients (both are 100% env-driven).
 const requestsDigestEnabled = process.env.CRON_REQUESTS_DIGEST_ENABLED === 'true';
-const requestsDigestSchedule = process.env.CRON_REQUESTS_DIGEST_SCHEDULE || '0 8 * * 1-5';
+const requestsDigestSchedule = process.env.CRON_REQUESTS_DIGEST_SCHEDULE || '0 8 * * *';
 const requestsDigestTimezone = process.env.CRON_REQUESTS_DIGEST_TIMEZONE || cronTimezone;
+const requestsWeeklyStatusEnabled = process.env.CRON_REQUESTS_WEEKLY_STATUS_ENABLED === 'true';
+const requestsWeeklyStatusSchedule = process.env.CRON_REQUESTS_WEEKLY_STATUS_SCHEDULE || '15 8 * * 1';
+const requestsWeeklyStatusTimezone = process.env.CRON_REQUESTS_WEEKLY_STATUS_TIMEZONE || requestsDigestTimezone;
 // QuickBooks snapshot age thresholds (days). The lookup feeds fraud triage:
 // stale data silently degrades the decision.
 const qbStaleWarnDays = Number(process.env.QB_STALE_WARN_DAYS || 14);
@@ -242,10 +245,19 @@ function getReportCronJobDefinitions({ includeDisabled = false } = {}) {
 			enabled: requestsDigestEnabled,
 			schedule: requestsDigestSchedule,
 			command: 'report-requests-digest',
-			jobName: 'Requests Digest',
-			logPrefix: 'Requests digest',
+			jobName: 'Daily Requests New Tickets Report',
+			logPrefix: 'Daily requests new tickets report',
 			reportLogFile: 'logs/report-requests-digest.log',
 			timezone: requestsDigestTimezone,
+		},
+		{
+			enabled: requestsWeeklyStatusEnabled,
+			schedule: requestsWeeklyStatusSchedule,
+			command: 'report-requests-status-weekly',
+			jobName: 'Weekly Requests Status Report',
+			logPrefix: 'Weekly requests status report',
+			reportLogFile: 'logs/report-requests-status-weekly.log',
+			timezone: requestsWeeklyStatusTimezone,
 		},
 	].filter((job) => includeDisabled || job.enabled !== false);
 }
@@ -312,6 +324,9 @@ module.exports = {
 		requestsDigestEnabled,
 		requestsDigestSchedule,
 		requestsDigestTimezone,
+		requestsWeeklyStatusEnabled,
+		requestsWeeklyStatusSchedule,
+		requestsWeeklyStatusTimezone,
 		qbStaleWarnDays,
 		qbStaleCritDays,
 		cronChildTimeoutMs,

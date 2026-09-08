@@ -797,42 +797,44 @@ async function sendSkuStatusWeeklyReportEmail({ reportDate, summary, rows, timeZ
 }
 
 /**
- * Digest periodico de Requests (chamados internos): novas solicitacoes e
- * atualizacoes desde o ultimo envio + retrato de unassigned e aging.
+ * Daily Requests report (support tickets): only new requests since the last
+ * watermark window. This keeps the daily message focused and short.
  * @param {Object} params
  * @param {Object} params.digest - retorno de collectRequestsDigestData
  * @param {string} params.timeZone
  */
 async function sendRequestsDigestEmail({ digest, timeZone = 'America/Toronto' }) {
-  const recipients = String(process.env.REQUESTS_DIGEST_EMAILS || process.env.CRON_NOTIFICATION_EMAIL || '')
+  const recipients = String(process.env.REQUESTS_DAILY_NEW_EMAILS || process.env.REQUESTS_DIGEST_EMAILS || process.env.CRON_NOTIFICATION_EMAIL || '')
     .split(/[,\s]+/)
     .map((email) => email.trim())
     .filter(Boolean)
     .join(',');
 
   if (!recipients) {
-    console.warn('⚠️ Requests digest skipped: REQUESTS_DIGEST_EMAILS/CRON_NOTIFICATION_EMAIL not configured');
+    console.warn('⚠️ Requests daily report skipped: REQUESTS_DAILY_NEW_EMAILS/REQUESTS_DIGEST_EMAILS/CRON_NOTIFICATION_EMAIL not configured');
     return { success: false, error: 'No recipients configured' };
   }
 
-  const { newRequests, updates, unassigned, aging, windowStart, now } = digest;
+  const { newRequests, windowStart, now } = digest;
   const appUrl = String(process.env.PRICING_TOOL_URL || 'https://pricingtool.justjeeps.com').replace(/\/+$/, '');
   const dateLabel = now.toLocaleDateString('en-US', { timeZone, dateStyle: 'medium' });
   const sinceLabel = windowStart.toLocaleString('en-US', { timeZone, dateStyle: 'medium', timeStyle: 'short' });
 
-  const subject = `📋 Requests Digest — ${dateLabel}: ${newRequests.length} new, ${updates.length} updates, ${unassigned.length} unassigned`;
+  const subject = `📥 Daily Support Tickets — ${dateLabel}: ${newRequests.length} new`;
 
   const personLabel = (user) => (user ? (user.firstname || user.username) : 'Unassigned');
+  const formatTime = (value) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleString('en-US', { timeZone, dateStyle: 'medium', timeStyle: 'short' });
+  };
   const requestLine = (request) =>
-    `REQ-${request.id} [${request.status}] ${request.title} (${request.project} · ${request.priority} · requester ${personLabel(request.requester)} · assignee ${personLabel(request.assignee)})`;
+    `REQ-${request.id} [${request.status}] ${request.title} (${request.project} · ${request.priority} · requester ${personLabel(request.requester)} · assignee ${personLabel(request.assignee)} · created ${formatTime(request.createdAt)})`;
 
   const text =
-    `Requests digest since ${sinceLabel}\n\n` +
-    `NEW (${newRequests.length}):\n${newRequests.map(requestLine).join('\n') || 'none'}\n\n` +
-    `UPDATES (${updates.length}):\n${updates.map((a) => `REQ-${a.request.id} ${a.action}${a.newValue ? ` -> ${a.newValue}` : ''} by ${personLabel(a.actor)}`).join('\n') || 'none'}\n\n` +
-    `UNASSIGNED OPEN (${unassigned.length}):\n${unassigned.map(requestLine).join('\n') || 'none'}\n\n` +
-    `AGING > 7 DAYS (${aging.length}):\n${aging.map(requestLine).join('\n') || 'none'}\n\n` +
-    `Open the Requests board: ${appUrl}/requests`;
+    `Daily support tickets report since ${sinceLabel}\n\n` +
+    `NEW REQUESTS (${newRequests.length}):\n${newRequests.map(requestLine).join('\n') || 'none'}\n\n` +
+    `Open the support tickets page: ${appUrl}/requests`;
 
   const requestRow = (request) => `
     <tr>
@@ -841,8 +843,11 @@ async function sendRequestsDigestEmail({ digest, timeZone = 'America/Toronto' })
       </td>
       <td style="padding:6px 10px;border:1px solid #e8e8e8;">${escapeHtml(request.title)}</td>
       <td style="padding:6px 10px;border:1px solid #e8e8e8;white-space:nowrap;">${escapeHtml(request.status)}</td>
+      <td style="padding:6px 10px;border:1px solid #e8e8e8;white-space:nowrap;">${escapeHtml(request.project || '')}</td>
       <td style="padding:6px 10px;border:1px solid #e8e8e8;white-space:nowrap;">${escapeHtml(request.priority)}</td>
+      <td style="padding:6px 10px;border:1px solid #e8e8e8;white-space:nowrap;">${escapeHtml(personLabel(request.requester))}</td>
       <td style="padding:6px 10px;border:1px solid #e8e8e8;white-space:nowrap;">${escapeHtml(personLabel(request.assignee))}</td>
+      <td style="padding:6px 10px;border:1px solid #e8e8e8;white-space:nowrap;">${escapeHtml(formatTime(request.createdAt))}</td>
     </tr>`;
 
   const requestTable = (rows) => rows.length
@@ -851,30 +856,138 @@ async function sendRequestsDigestEmail({ digest, timeZone = 'America/Toronto' })
           <th style="text-align:left;padding:6px 10px;background:#f8f4ef;border:1px solid #e8e8e8;">ID</th>
           <th style="text-align:left;padding:6px 10px;background:#f8f4ef;border:1px solid #e8e8e8;">Title</th>
           <th style="text-align:left;padding:6px 10px;background:#f8f4ef;border:1px solid #e8e8e8;">Status</th>
+          <th style="text-align:left;padding:6px 10px;background:#f8f4ef;border:1px solid #e8e8e8;">Project</th>
           <th style="text-align:left;padding:6px 10px;background:#f8f4ef;border:1px solid #e8e8e8;">Priority</th>
+          <th style="text-align:left;padding:6px 10px;background:#f8f4ef;border:1px solid #e8e8e8;">Requester</th>
           <th style="text-align:left;padding:6px 10px;background:#f8f4ef;border:1px solid #e8e8e8;">Assignee</th>
+          <th style="text-align:left;padding:6px 10px;background:#f8f4ef;border:1px solid #e8e8e8;">Created</th>
         </tr>${rows.map(requestRow).join('')}</table>`
     : '<p style="color:#5b6676;margin:4px 0 0;">None.</p>';
 
-  const updatesList = updates.length
-    ? `<ul style="margin:4px 0 0;padding-left:18px;font-size:13px;line-height:1.7;">${
-        updates.map((activity) => `<li><a href="${escapeHtml(`${appUrl}/requests?open=${activity.request.id}`)}" style="color:#235789;">REQ-${activity.request.id}</a> — ${escapeHtml(activity.action.replace(/_/g, ' '))}${activity.newValue ? ` → ${escapeHtml(activity.newValue)}` : ''} <span style="color:#5b6676;">by ${escapeHtml(personLabel(activity.actor))}</span></li>`).join('')
-      }</ul>`
-    : '<p style="color:#5b6676;margin:4px 0 0;">None.</p>';
-
-  const section = (title, body) => `
-    <h3 style="margin:18px 0 6px;color:#1c2430;font-size:15px;">${escapeHtml(title)}</h3>${body}`;
-
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 720px; margin: 0 auto;">
-      <h2 style="color:#1c2430;">📋 Requests Digest — ${escapeHtml(dateLabel)}</h2>
-      <p style="color:#5b6676;">Changes since ${escapeHtml(sinceLabel)} (${timeZone}).</p>
-      ${section(`New requests (${newRequests.length})`, requestTable(newRequests))}
-      ${section(`Updates (${updates.length})`, updatesList)}
-      ${section(`Unassigned open (${unassigned.length})`, requestTable(unassigned))}
-      ${section(`Aging > 7 days (${aging.length})`, requestTable(aging))}
+      <h2 style="color:#1c2430;">📥 Daily Support Tickets — ${escapeHtml(dateLabel)}</h2>
+      <p style="color:#5b6676;">New requests since ${escapeHtml(sinceLabel)} (${timeZone}).</p>
+      <h3 style="margin:18px 0 6px;color:#1c2430;font-size:15px;">New requests (${newRequests.length})</h3>
+      ${requestTable(newRequests)}
       <p style="margin-top:22px;">
-        <a href="${escapeHtml(`${appUrl}/requests`)}" style="color:#235789;font-weight:600;">Open the Requests board</a>
+        <a href="${escapeHtml(`${appUrl}/requests`)}" style="color:#235789;font-weight:600;">Open the support tickets page</a>
+      </p>
+    </div>
+  `;
+
+  return await sendEmail({ to: recipients, subject, text, html });
+}
+
+/**
+ * Weekly Requests status report: full support-ticket snapshot with current
+ * status for every non-deleted request.
+ * @param {Object} params
+ * @param {Object} params.summary - retorno de collectRequestsWeeklyStatusData
+ * @param {string} params.timeZone
+ */
+async function sendRequestsWeeklyStatusEmail({ summary, timeZone = 'America/Toronto' }) {
+  const recipients = String(process.env.REQUESTS_WEEKLY_STATUS_EMAILS || process.env.REQUESTS_DAILY_NEW_EMAILS || process.env.REQUESTS_DIGEST_EMAILS || process.env.CRON_NOTIFICATION_EMAIL || '')
+    .split(/[,\s]+/)
+    .map((email) => email.trim())
+    .filter(Boolean)
+    .join(',');
+
+  if (!recipients) {
+    console.warn('⚠️ Requests weekly status skipped: REQUESTS_WEEKLY_STATUS_EMAILS/REQUESTS_DAILY_NEW_EMAILS/REQUESTS_DIGEST_EMAILS/CRON_NOTIFICATION_EMAIL not configured');
+    return { success: false, error: 'No recipients configured' };
+  }
+
+  const appUrl = String(process.env.PRICING_TOOL_URL || 'https://pricingtool.justjeeps.com').replace(/\/+$/, '');
+  const now = summary?.now || new Date();
+  const dateLabel = now.toLocaleDateString('en-US', { timeZone, dateStyle: 'medium' });
+  const timestampLabel = now.toLocaleString('en-US', { timeZone, dateStyle: 'medium', timeStyle: 'short' });
+
+  const safeRequests = Array.isArray(summary?.requests) ? summary.requests : [];
+  const safeCountsByStatus = summary?.countsByStatus || {};
+  const subject = `📊 Weekly Support Ticket Status — ${dateLabel}: ${safeRequests.length} total`;
+
+  const personLabel = (user) => (user ? (user.firstname || user.username) : 'Unassigned');
+  const formatTime = (value) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleString('en-US', { timeZone, dateStyle: 'medium', timeStyle: 'short' });
+  };
+
+  const statusSummaryLine = Object.entries(safeCountsByStatus)
+    .sort((left, right) => String(left[0]).localeCompare(String(right[0])))
+    .map(([status, count]) => `${status}: ${count}`)
+    .join(' | ') || 'none';
+
+  const text =
+    `Weekly support ticket status snapshot (${timestampLabel})\n\n` +
+    `Total requests: ${summary?.total || safeRequests.length}\n` +
+    `Open requests: ${summary?.openCount || 0}\n` +
+    `Closed requests: ${summary?.closedCount || 0}\n` +
+    `Archived requests: ${summary?.archivedCount || 0}\n` +
+    `Status summary: ${statusSummaryLine}\n\n` +
+    `ALL REQUESTS:\n` +
+    `${safeRequests.map((request) => `REQ-${request.id} [${request.status}] ${request.title} (sector ${request?.sector?.name || '-'} · assignee ${personLabel(request.assignee)} · requester ${personLabel(request.requester)} · updated ${formatTime(request.updatedAt)}${request.archivedAt ? ' · archived' : ''})`).join('\n') || 'none'}\n\n` +
+    `Open the support tickets page: ${appUrl}/requests`;
+
+  const summaryTable = Object.entries(safeCountsByStatus)
+    .sort((left, right) => String(left[0]).localeCompare(String(right[0])))
+    .map(([status, count]) => `
+      <tr>
+        <td style="padding:6px 10px;border:1px solid #e8e8e8;">${escapeHtml(status)}</td>
+        <td style="padding:6px 10px;border:1px solid #e8e8e8;white-space:nowrap;text-align:right;">${escapeHtml(count)}</td>
+      </tr>
+    `)
+    .join('');
+
+  const requestsTable = safeRequests.length
+    ? `<table style="border-collapse:collapse;font-size:13px;width:100%;">
+        <tr>
+          <th style="text-align:left;padding:6px 10px;background:#f8f4ef;border:1px solid #e8e8e8;">ID</th>
+          <th style="text-align:left;padding:6px 10px;background:#f8f4ef;border:1px solid #e8e8e8;">Title</th>
+          <th style="text-align:left;padding:6px 10px;background:#f8f4ef;border:1px solid #e8e8e8;">Status</th>
+          <th style="text-align:left;padding:6px 10px;background:#f8f4ef;border:1px solid #e8e8e8;">Sector</th>
+          <th style="text-align:left;padding:6px 10px;background:#f8f4ef;border:1px solid #e8e8e8;">Assignee</th>
+          <th style="text-align:left;padding:6px 10px;background:#f8f4ef;border:1px solid #e8e8e8;">Requester</th>
+          <th style="text-align:left;padding:6px 10px;background:#f8f4ef;border:1px solid #e8e8e8;">Updated</th>
+          <th style="text-align:left;padding:6px 10px;background:#f8f4ef;border:1px solid #e8e8e8;">Archived</th>
+        </tr>
+        ${safeRequests.map((request) => `
+          <tr>
+            <td style="padding:6px 10px;border:1px solid #e8e8e8;white-space:nowrap;"><a href="${escapeHtml(`${appUrl}/requests?open=${request.id}`)}" style="color:#235789;font-weight:600;">REQ-${request.id}</a></td>
+            <td style="padding:6px 10px;border:1px solid #e8e8e8;">${escapeHtml(request.title || '')}</td>
+            <td style="padding:6px 10px;border:1px solid #e8e8e8;white-space:nowrap;">${escapeHtml(request.status || '')}</td>
+            <td style="padding:6px 10px;border:1px solid #e8e8e8;white-space:nowrap;">${escapeHtml(request?.sector?.name || '')}</td>
+            <td style="padding:6px 10px;border:1px solid #e8e8e8;white-space:nowrap;">${escapeHtml(personLabel(request.assignee))}</td>
+            <td style="padding:6px 10px;border:1px solid #e8e8e8;white-space:nowrap;">${escapeHtml(personLabel(request.requester))}</td>
+            <td style="padding:6px 10px;border:1px solid #e8e8e8;white-space:nowrap;">${escapeHtml(formatTime(request.updatedAt))}</td>
+            <td style="padding:6px 10px;border:1px solid #e8e8e8;white-space:nowrap;">${request.archivedAt ? 'Yes' : 'No'}</td>
+          </tr>
+        `).join('')}
+      </table>`
+    : '<p style="color:#5b6676;margin:4px 0 0;">None.</p>';
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto;">
+      <h2 style="color:#1c2430;">📊 Weekly Support Ticket Status — ${escapeHtml(dateLabel)}</h2>
+      <p style="color:#5b6676;">Snapshot generated at ${escapeHtml(timestampLabel)} (${timeZone}).</p>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin:12px 0 8px;">
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:10px 12px;min-width:130px;"><div style="font-size:12px;color:#1e3a8a;">Total</div><div style="font-size:22px;font-weight:700;color:#1d4ed8;">${Number(summary?.total || safeRequests.length)}</div></div>
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:10px 12px;min-width:130px;"><div style="font-size:12px;color:#166534;">Open</div><div style="font-size:22px;font-weight:700;color:#15803d;">${Number(summary?.openCount || 0)}</div></div>
+        <div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:6px;padding:10px 12px;min-width:130px;"><div style="font-size:12px;color:#334155;">Closed</div><div style="font-size:22px;font-weight:700;color:#0f172a;">${Number(summary?.closedCount || 0)}</div></div>
+        <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;padding:10px 12px;min-width:130px;"><div style="font-size:12px;color:#9a3412;">Archived</div><div style="font-size:22px;font-weight:700;color:#c2410c;">${Number(summary?.archivedCount || 0)}</div></div>
+      </div>
+
+      <h3 style="margin:18px 0 6px;color:#1c2430;font-size:15px;">By status</h3>
+      ${summaryTable
+        ? `<table style="border-collapse:collapse;font-size:13px;width:320px;max-width:100%;">${summaryTable}</table>`
+        : '<p style="color:#5b6676;margin:4px 0 0;">None.</p>'}
+
+      <h3 style="margin:18px 0 6px;color:#1c2430;font-size:15px;">All requests (${safeRequests.length})</h3>
+      ${requestsTable}
+
+      <p style="margin-top:22px;">
+        <a href="${escapeHtml(`${appUrl}/requests`)}" style="color:#235789;font-weight:600;">Open the support tickets page</a>
       </p>
     </div>
   `;
@@ -944,5 +1057,6 @@ module.exports = {
   sendSkuStatusDailyReportEmail,
   sendSkuStatusWeeklyReportEmail,
   sendRequestAssignedEmail,
-  sendRequestsDigestEmail
+  sendRequestsDigestEmail,
+  sendRequestsWeeklyStatusEmail
 };

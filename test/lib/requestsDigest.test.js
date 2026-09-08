@@ -6,6 +6,7 @@ const {
 	readDigestWatermark,
 	saveDigestWatermark,
 	collectRequestsDigestData,
+	collectRequestsWeeklyStatusData,
 } = require('../../lib/reports/requestsDigest.js');
 
 // Prisma entra por parametro — stub direto, nenhum contato com o Postgres
@@ -75,4 +76,39 @@ test('collect devolve as quatro secoes e consulta pelas datas certas', async () 
 	const activityArgs = prisma.calls.activityFindMany[0];
 	assert.strictEqual(activityArgs.where.createdAt.gt.getTime(), since.getTime());
 	assert.deepStrictEqual(activityArgs.where.action, { not: 'created' });
+});
+
+test('weekly status snapshot exclui deleted e agrega contagens por status', async () => {
+	const calls = [];
+	const requests = [
+		{ id: 1, status: 'New Request', archivedAt: null, deletedAt: null },
+		{ id: 2, status: 'Work in Progress', archivedAt: null, deletedAt: null },
+		{ id: 3, status: 'Closed', archivedAt: null, deletedAt: null },
+		{ id: 4, status: 'Closed', archivedAt: '2026-08-01T00:00:00.000Z', deletedAt: null },
+	];
+
+	const prisma = {
+		request: {
+			findMany: async (args) => {
+				calls.push(args);
+				return requests;
+			},
+		},
+	};
+
+	const now = new Date('2026-08-02T12:00:00.000Z');
+	const summary = await collectRequestsWeeklyStatusData(prisma, { now });
+
+	assert.strictEqual(calls.length, 1);
+	assert.deepStrictEqual(calls[0].where, { deletedAt: null });
+	assert.strictEqual(summary.now.getTime(), now.getTime());
+	assert.strictEqual(summary.total, 4);
+	assert.strictEqual(summary.closedCount, 2);
+	assert.strictEqual(summary.openCount, 2);
+	assert.strictEqual(summary.archivedCount, 1);
+	assert.deepStrictEqual(summary.countsByStatus, {
+		'New Request': 1,
+		'Work in Progress': 1,
+		Closed: 2,
+	});
 });

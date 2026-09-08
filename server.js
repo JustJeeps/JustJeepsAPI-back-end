@@ -24,6 +24,7 @@ const {
 	sendSkuStatusDailyReportEmail,
 	sendSkuStatusWeeklyReportEmail,
 	sendRequestsDigestEmail,
+	sendRequestsWeeklyStatusEmail,
 } = require('./utils/emailService');
 const prisma = require('./lib/prisma');
 const { getDateStringInTimezone, getTrailingDateStringsInTimezone } = require('./lib/reports/dates');
@@ -31,6 +32,7 @@ const {
 	readDigestWatermark: readRequestsDigestWatermark,
 	saveDigestWatermark: saveRequestsDigestWatermark,
 	collectRequestsDigestData,
+	collectRequestsWeeklyStatusData,
 } = require('./lib/reports/requestsDigest');
 const {
 	loadDataIfNeeded: loadQuickBooksLookupData,
@@ -97,12 +99,16 @@ const {
 		requestsDigestEnabled,
 		requestsDigestSchedule,
 		requestsDigestTimezone,
+		requestsWeeklyStatusEnabled,
+		requestsWeeklyStatusSchedule,
+		requestsWeeklyStatusTimezone,
 		qbStaleWarnDays,
 		qbStaleCritDays,
 		cronChildTimeoutMs,
 		cronChildKillGraceMs,
 	},
 } = require('./config/cron-jobs');
+const { isRequestsUser } = require('./config/requests');
 
 function formatCronExitLabel(code, signal) {
 	if (typeof code === 'number') return `exit code ${code}`;
@@ -739,6 +745,26 @@ async function sendDailyCancellationReportEmailForDate(dateStr, options = {}) {
 
 	return {
 		report,
+		delivery,
+	};
+}
+
+async function sendRequestsWeeklyStatusReportEmail(options = {}) {
+	const reportTimezone = options.timeZone || requestsWeeklyStatusTimezone || requestsDigestTimezone || 'America/Toronto';
+	const now = options.now instanceof Date ? options.now : new Date();
+	const summary = await collectRequestsWeeklyStatusData(prisma, { now });
+
+	const delivery = await sendRequestsWeeklyStatusEmail({
+		summary,
+		timeZone: reportTimezone,
+	});
+
+	if (!delivery?.success) {
+		throw new Error(delivery?.error || delivery?.message || 'Failed to send weekly requests status report email');
+	}
+
+	return {
+		report: summary,
 		delivery,
 	};
 }
@@ -1669,6 +1695,67 @@ app.post('/api/reports/sku-status/weekly/email', async (req, res) => {
 			requestedEndDate: req.body?.endDate || null,
 		});
 		return res.status(500).json({ error: 'Failed to send weekly SKU status report email' });
+	}
+});
+
+app.post('/api/reports/requests/daily-new/email', async (req, res) => {
+	try {
+		const username = (req.user?.username || req.user?.firstname || '').toLowerCase();
+		if (!isRequestsUser(username)) {
+			return res.status(403).json({ error: 'Not authorized to send requests report' });
+		}
+
+		const now = new Date();
+		const since = await readRequestsDigestWatermark(prisma);
+		const digest = await collectRequestsDigestData(prisma, { since, now });
+		const result = await sendRequestsDigestEmail({ digest, timeZone: requestsDigestTimezone });
+		if (!result?.success) {
+			throw new Error(result?.error || result?.message || 'Daily requests report email failed');
+		}
+
+		await saveRequestsDigestWatermark(prisma, now);
+
+		return res.json({
+			success: true,
+			reportDate: getDateStringInTimezone(now, requestsDigestTimezone || 'America/Toronto'),
+			newRequests: digest.newRequests.length,
+			recipients: process.env.REQUESTS_DAILY_NEW_EMAILS || process.env.REQUESTS_DIGEST_EMAILS || process.env.CRON_NOTIFICATION_EMAIL || '',
+		});
+	} catch (error) {
+		logger.error('Failed to send daily requests new tickets report email', {
+			error: error.message,
+		});
+		return res.status(500).json({ error: 'Failed to send daily requests report email' });
+	}
+});
+
+app.post('/api/reports/requests/weekly-status/email', async (req, res) => {
+	try {
+		const username = (req.user?.username || req.user?.firstname || '').toLowerCase();
+		if (!isRequestsUser(username)) {
+			return res.status(403).json({ error: 'Not authorized to send requests report' });
+		}
+
+		const result = await sendRequestsWeeklyStatusReportEmail({
+			timeZone: requestsWeeklyStatusTimezone,
+			now: new Date(),
+		});
+
+		return res.json({
+			success: true,
+			reportDate: getDateStringInTimezone(result.report.now, requestsWeeklyStatusTimezone || 'America/Toronto'),
+			total: result.report.total,
+			openCount: result.report.openCount,
+			closedCount: result.report.closedCount,
+			archivedCount: result.report.archivedCount,
+			countsByStatus: result.report.countsByStatus,
+			recipients: process.env.REQUESTS_WEEKLY_STATUS_EMAILS || process.env.REQUESTS_DAILY_NEW_EMAILS || process.env.REQUESTS_DIGEST_EMAILS || process.env.CRON_NOTIFICATION_EMAIL || '',
+		});
+	} catch (error) {
+		logger.error('Failed to send weekly requests status report email', {
+			error: error.message,
+		});
+		return res.status(500).json({ error: 'Failed to send weekly requests status report email' });
 	}
 });
 
@@ -6032,9 +6119,9 @@ function registerCronJobs() {
 
 	if (requestsDigestEnabled) {
 		const requestsDigestCommand = 'report-requests-digest';
-		const requestsDigestJobName = 'Requests Digest';
+		const requestsDigestJobName = 'Daily Requests New Tickets Report';
 		let requestsDigestRunning = false;
-		logger.info('Registering requests digest cron job', {
+		logger.info('Registering daily requests new tickets report cron job', {
 			schedule: requestsDigestSchedule,
 			timezone: requestsDigestTimezone,
 		});
@@ -6045,7 +6132,7 @@ function registerCronJobs() {
 					command: requestsDigestCommand,
 					message: 'Previous run still in progress',
 				});
-				logger.warn('Requests digest skipped because previous run is still in progress');
+				logger.warn('Daily requests new tickets report skipped because previous run is still in progress');
 				return;
 			}
 
@@ -6067,9 +6154,6 @@ function registerCronJobs() {
 
 				const summary = {
 					newRequests: digest.newRequests.length,
-					updates: digest.updates.length,
-					unassigned: digest.unassigned.length,
-					aging: digest.aging.length,
 				};
 				markReportCronFinished({
 					command: requestsDigestCommand,
@@ -6081,7 +6165,7 @@ function registerCronJobs() {
 					status: 'success',
 					summary,
 				});
-				logger.info('Requests digest email sent', { ...summary, duration: formatDuration(startedAt) });
+				logger.info('Daily requests new tickets report email sent', { ...summary, duration: formatDuration(startedAt) });
 			} catch (error) {
 				markReportCronFinished({
 					command: requestsDigestCommand,
@@ -6093,7 +6177,7 @@ function registerCronJobs() {
 					status: 'failed',
 					error: error.message,
 				});
-				logger.error('Failed to send requests digest email', {
+				logger.error('Failed to send daily requests new tickets report email', {
 					error: error.message,
 					duration: formatDuration(startedAt),
 				});
@@ -6105,7 +6189,83 @@ function registerCronJobs() {
 			timezone: requestsDigestTimezone,
 		});
 	} else {
-		logger.info('Requests digest cron job disabled via CRON_REQUESTS_DIGEST_ENABLED (opt-in)');
+		logger.info('Daily requests new tickets report cron job disabled via CRON_REQUESTS_DIGEST_ENABLED (opt-in)');
+	}
+
+	if (requestsWeeklyStatusEnabled) {
+		const requestsWeeklyStatusCommand = 'report-requests-status-weekly';
+		const requestsWeeklyStatusJobName = 'Weekly Requests Status Report';
+		let requestsWeeklyStatusRunning = false;
+		logger.info('Registering weekly requests status report cron job', {
+			schedule: requestsWeeklyStatusSchedule,
+			timezone: requestsWeeklyStatusTimezone,
+		});
+
+		cron.schedule(requestsWeeklyStatusSchedule, async () => {
+			if (requestsWeeklyStatusRunning) {
+				markReportCronSkipped({
+					command: requestsWeeklyStatusCommand,
+					message: 'Previous run still in progress',
+				});
+				logger.warn('Weekly requests status report skipped because previous run is still in progress');
+				return;
+			}
+
+			requestsWeeklyStatusRunning = true;
+			const startedAt = Date.now();
+			const startedAtIso = new Date(startedAt).toISOString();
+			markReportCronStarted({ command: requestsWeeklyStatusCommand, startedAt: startedAtIso });
+
+			try {
+				const result = await sendRequestsWeeklyStatusReportEmail({
+					timeZone: requestsWeeklyStatusTimezone,
+					now: new Date(),
+				});
+				const summary = {
+					total: result.report.total,
+					openCount: result.report.openCount,
+					closedCount: result.report.closedCount,
+					archivedCount: result.report.archivedCount,
+				};
+
+				markReportCronFinished({
+					command: requestsWeeklyStatusCommand,
+					jobName: requestsWeeklyStatusJobName,
+					startedAt: startedAtIso,
+					finishedAt: new Date().toISOString(),
+					durationMs: Date.now() - startedAt,
+					durationLabel: formatDuration(startedAt),
+					status: 'success',
+					summary,
+				});
+				logger.info('Weekly requests status report email sent', {
+					...summary,
+					duration: formatDuration(startedAt),
+				});
+			} catch (error) {
+				markReportCronFinished({
+					command: requestsWeeklyStatusCommand,
+					jobName: requestsWeeklyStatusJobName,
+					startedAt: startedAtIso,
+					finishedAt: new Date().toISOString(),
+					durationMs: Date.now() - startedAt,
+					durationLabel: formatDuration(startedAt),
+					status: 'failed',
+					error: error.message,
+				});
+				logger.error('Failed to send weekly requests status report email', {
+					error: error.message,
+					duration: formatDuration(startedAt),
+				});
+			} finally {
+				requestsWeeklyStatusRunning = false;
+			}
+		}, {
+			scheduled: true,
+			timezone: requestsWeeklyStatusTimezone,
+		});
+	} else {
+		logger.info('Weekly requests status report cron job disabled via CRON_REQUESTS_WEEKLY_STATUS_ENABLED (opt-in)');
 	}
 }
 
@@ -6183,6 +6343,16 @@ app.listen(PORT, () => {
 		if (cronDigestEnabled) {
 			console.log(
 				`🕐 [CRON] Daily cron activity digest scheduled for ${cronDigestSchedule} (${cronDigestTimezone})`
+			);
+		}
+		if (requestsDigestEnabled) {
+			console.log(
+				`🕐 [CRON] Daily requests new tickets report scheduled for ${requestsDigestSchedule} (${requestsDigestTimezone})`
+			);
+		}
+		if (requestsWeeklyStatusEnabled) {
+			console.log(
+				`🕐 [CRON] Weekly requests status report scheduled for ${requestsWeeklyStatusSchedule} (${requestsWeeklyStatusTimezone})`
 			);
 		}
 	} else {
