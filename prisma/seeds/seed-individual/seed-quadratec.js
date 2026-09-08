@@ -16,6 +16,9 @@ const FEED = "quadratec";
 // database (a truncated export must never turn into a mass delete through
 // stale-delete).
 const MIN_RATIO = Number(process.env.QUADRATEC_MIN_RATIO || 0.5);
+const FORCE_REMAP =
+  process.env.QUADRATEC_FORCE_REMAP === "1" ||
+  process.env.QUADRATEC_FORCE_REMAP === "true";
 
 function round2(n) {
   return Math.round(n * 100) / 100;
@@ -291,9 +294,15 @@ async function seedQuadratecStaged() {
     });
 
     if (await isUnchanged(FEED, sourceHash)) {
-      console.log("⏭️  Source identical to the last successful run: nothing to do.");
-      await run.finish({ status: "skipped-unchanged", counts: { skipped: 1 } });
-      return;
+      if (!FORCE_REMAP) {
+        console.log("⏭️  Source identical to the last successful run: nothing to do.");
+        await run.finish({ status: "skipped-unchanged", counts: { skipped: 1 } });
+        return;
+      }
+
+      console.log(
+        "♻️ Source hash unchanged, but QUADRATEC_FORCE_REMAP is enabled. Rebuilding product mappings."
+      );
     }
 
     const { rowsToInsert, rawCount } = await buildQuadratecRows();
