@@ -179,7 +179,9 @@ const buildKeystoneBrandCodeLookup = async () => {
 
     await new Promise((resolve, reject) => {
       fs.createReadStream(filePath)
-        .pipe(csv())
+        // A broken line (odd quotes) makes csv-parser buffer the rest of the
+        // file; fail in seconds instead of dying by OOM (2026-09-09).
+        .pipe(csv({ maxRowBytes: 1024 * 1024 }))
         .on("data", (row) => {
           fileSummary.parsed += 1;
 

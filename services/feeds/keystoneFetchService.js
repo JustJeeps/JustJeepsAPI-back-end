@@ -4,7 +4,8 @@
 // seed-all round).
 //
 // Guarantees:
-//  - sanity gates (minimum size + VCPN header) BEFORE cataloguing;
+//  - sanity gates (minimum size + VCPN header + quote parity on every line)
+//    BEFORE cataloguing;
 //  - BOTH files are uploaded before the batch is registered (a partial upload
 //    catalogs nothing, so the previous batch stays current);
 //  - hashes equal to the current batch => skip without uploading (saves a
@@ -17,6 +18,8 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+
+const { checkCsvQuoteParity } = require('../../lib/feeds/csvIntegrity');
 
 const FEED_NAME = 'keystone-ftp';
 const RUN_FEED = 'keystone-ftp-fetch'; // heartbeat kept separate from the consumption rounds
@@ -101,6 +104,17 @@ async function runKeystoneFetch({
 			}
 			if (!firstLine(localPath).includes('VCPN')) {
 				throw new Error(`${fileName} has no VCPN column in the header, unexpected format`);
+			}
+			// A byte resume that stitched two records together keeps the size and
+			// the header but leaves a line with an odd number of quotes; every
+			// csv-parser downstream then buffers the rest of the file until the
+			// process dies (2026-09-09). Rejecting here keeps the previous batch
+			// current, so the next seed-all reads a whole file.
+			const parity = await checkCsvQuoteParity(localPath);
+			if (parity.oddQuoteLines > 0) {
+				throw new Error(
+					`${fileName} has ${parity.oddQuoteLines} line(s) with an odd number of quotes (first at line ${parity.firstOddQuoteLine}), corrupted download?`
+				);
 			}
 			// The vendor's own date, so the panel can tell today's export from
 			// yesterday's instead of dating the file by when we fetched it.

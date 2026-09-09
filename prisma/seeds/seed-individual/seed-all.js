@@ -50,6 +50,7 @@ const RUN_CODES_AFTER_VENDORS = false; // flip to true if you want a final pass
 // Heap cap per child process (same table used by the panel "Run now"):
 // lib/seeds/childHeap.js
 const { childHeapMbFor } = require("../../../lib/seeds/childHeap");
+const { describeChildExit } = require("../../../lib/seeds/exitStatus");
 // Vendor scripts that do not record an IngestRun of their own would leave the
 // feeds panel showing "never" the morning after a sync that worked.
 const prisma = require("../../../lib/prisma");
@@ -163,9 +164,7 @@ function runCommandToLog(cmd) {
         return finalize({ cmd, success: true, code, logFile, durationMs });
       }
 
-      const errorText = (code === 134 || signal === "SIGABRT")
-        ? `V8 heap OOM (exceeded --max-old-space-size=${childHeapMbFor(cmd)}MB)`
-        : signal ? `Signal ${signal}` : `Exit code ${code}`;
+      const errorText = describeChildExit({ code, signal, heapMb: childHeapMbFor(cmd) });
       console.log(`❌ Failed: ${cmd} @ ${formatDateTime(finishedAt)} (${durationText}) (see prisma/seeds/logs/${path.basename(logFile)})`);
       return finalize({ cmd, success: false, code, logFile, durationMs, error: errorText });
     });

@@ -34,8 +34,9 @@ So no seed script changes how it reads files. Rules: a feed with no catalogued b
 - `lib/feeds/feedStore.js` - S3 client factory (injectable, MinIO-friendly via `DO_SPACES_FORCE_PATH_STYLE`)
 - `lib/feeds/catalog.js` - register/getCurrentBatch/quarantine/listing (prisma injected)
 - `lib/feeds/materialize.js` - downloads the current batch into `FEED_CACHE_DIR` with sha verification and sentinel files; typed failures (`FEED_NO_ARTIFACT`, `FEED_HASH_MISMATCH`, `FEED_STALE`, `FEED_STORE_UNAVAILABLE`); falls back to the last intact cached batch if Spaces is down (marked stale, never silent)
-- `lib/feeds/keystoneFtp.js` - FTPS client, credentials from `KEYSTONE_FTP_USER/PASS` env
-- `services/feeds/keystoneFetchService.js` - download, sanity gates, upload both files, then catalog
+- `lib/feeds/keystoneFtp.js` - FTPS client, credentials from `KEYSTONE_FTP_USER/PASS` env; byte resume waits for the previous write stream to close before measuring the file, and the final size is checked against the vendor's `SIZE` (a mismatch discards the download)
+- `lib/feeds/csvIntegrity.js` - streaming quote-parity check (a line with an odd number of quotes means a stitched download; csv-parser would buffer the rest of the file until OOM)
+- `services/feeds/keystoneFetchService.js` - download, sanity gates (minimum size, size vs current batch, VCPN header, quote parity), upload both files, then catalog
 
 ## How to
 

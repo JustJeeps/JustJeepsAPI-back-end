@@ -220,3 +220,18 @@ test('a vendor that does not answer with a date still catalogues the file', asyn
 
 	assert.strictEqual(fixture.registered[0].files[0].sourceModifiedAt, null);
 });
+
+test('a file with a line of odd quotes aborts BEFORE uploading or cataloging', async () => {
+	// 2026-09-09: same size as the current batch, same header, but one line
+	// stitched by a bad resume. Every downstream CSV reader choked on it.
+	const broken = 'VCPN,Desc,Cost\n"A1","ok",1\n"B2","CUSTOM FIT",9.0IN",759.18\n"C3","ok",3\n';
+	const fixture = makeFixture({ ftpContents: { 'Inventory.csv': INVENTORY, 'SpecialOrder.csv': broken } });
+
+	await assert.rejects(
+		runKeystoneFetch({ ftpClient: fixture.ftpClient, store: fixture.store, prisma: fixture.prisma, catalog: fixture.catalogStub, cacheDir: fixture.cacheDir, env: fixture.env }),
+		/SpecialOrder\.csv has 1 line\(s\) with an odd number of quotes \(first at line 3\)/
+	);
+	assert.strictEqual(fixture.store.puts.length, 0, 'nothing uploaded');
+	assert.strictEqual(fixture.registered.length, 0, 'nothing catalogued');
+	assert.strictEqual(fixture.runs[0].status, 'failed');
+});
