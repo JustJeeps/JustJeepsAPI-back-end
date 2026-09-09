@@ -3179,6 +3179,8 @@ app.get('/api/orders', async (req, res) => {
 					{ NOT: { custom_po_number: { contains: 'kd', mode: 'insensitive' } } },
 					{ NOT: { custom_po_number: { contains: 'jd', mode: 'insensitive' } } },
 					{ NOT: { custom_po_number: { contains: 'jk', mode: 'insensitive' } } },
+					{ NOT: { custom_po_number: { contains: 'affirm', mode: 'insensitive' } } },
+					{ NOT: { custom_po_number: { contains: 'emt', mode: 'insensitive' } } },
 				],
 			},
 		];
@@ -3442,6 +3444,8 @@ app.get('/api/orders/metrics', async (req, res) => {
 					{ NOT: { custom_po_number: { contains: 'kd', mode: 'insensitive' } } },
 					{ NOT: { custom_po_number: { contains: 'jd', mode: 'insensitive' } } },
 					{ NOT: { custom_po_number: { contains: 'jk', mode: 'insensitive' } } },
+					{ NOT: { custom_po_number: { contains: 'affirm', mode: 'insensitive' } } },
+					{ NOT: { custom_po_number: { contains: 'emt', mode: 'insensitive' } } },
 				],
 			},
 		];
