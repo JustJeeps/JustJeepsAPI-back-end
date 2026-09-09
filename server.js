@@ -3168,22 +3168,32 @@ app.get('/api/orders', async (req, res) => {
 			.replace('T', ' ')
 			.substring(0, 19);
 
+		const notSetBaseOr = [
+			{ custom_po_number: null },
+			{ custom_po_number: '' },
+			{ custom_po_number: { equals: 'not set', mode: 'insensitive' } },
+			{
+				AND: [
+					{ custom_po_number: { contains: 'not set', mode: 'insensitive' } },
+					{ NOT: { custom_po_number: { contains: 'pm', mode: 'insensitive' } } },
+					{ NOT: { custom_po_number: { contains: 'kd', mode: 'insensitive' } } },
+					{ NOT: { custom_po_number: { contains: 'jd', mode: 'insensitive' } } },
+					{ NOT: { custom_po_number: { contains: 'jk', mode: 'insensitive' } } },
+				],
+			},
+		];
+
 		// PO Status filter (preserve existing AND conditions from date filter)
     if (poStatus === 'not_set') {
-      where.OR = [
-        { custom_po_number: null },
-        { custom_po_number: '' },
-        { custom_po_number: { equals: 'not set', mode: 'insensitive' } },
-      ];
+			where.AND = [
+				...(where.AND || []),
+				{ OR: notSetBaseOr },
+			];
 		} else if (poStatus === 'not_set_4days') {
 			where.AND = [
 				...(where.AND || []),
 				{
-					OR: [
-						{ custom_po_number: null },
-						{ custom_po_number: '' },
-						{ custom_po_number: { equals: 'not set', mode: 'insensitive' } },
-					],
+					OR: notSetBaseOr,
 				},
 				{ created_at: { lte: fourDaysAgoUtc } },
 			];
@@ -3421,6 +3431,21 @@ app.get('/api/orders/metrics', async (req, res) => {
 			.replace('T', ' ')
 			.substring(0, 19);
 
+		const notSetBaseOr = [
+			{ custom_po_number: null },
+			{ custom_po_number: '' },
+			{ custom_po_number: { equals: 'not set', mode: 'insensitive' } },
+			{
+				AND: [
+					{ custom_po_number: { contains: 'not set', mode: 'insensitive' } },
+					{ NOT: { custom_po_number: { contains: 'pm', mode: 'insensitive' } } },
+					{ NOT: { custom_po_number: { contains: 'kd', mode: 'insensitive' } } },
+					{ NOT: { custom_po_number: { contains: 'jd', mode: 'insensitive' } } },
+					{ NOT: { custom_po_number: { contains: 'jk', mode: 'insensitive' } } },
+				],
+			},
+		];
+
     // Run all counts in parallel for performance
     const [
       notSetCount,
@@ -3436,11 +3461,7 @@ app.get('/api/orders/metrics', async (req, res) => {
       // Not Set Orders
 			prisma.order.count({
 				where: buildVisibleOrdersWhere({
-					OR: [
-						{ custom_po_number: null },
-						{ custom_po_number: '' },
-						{ custom_po_number: { equals: 'not set', mode: 'insensitive' } },
-					],
+					OR: notSetBaseOr,
 				}),
 			}),
 
@@ -3449,11 +3470,7 @@ app.get('/api/orders/metrics', async (req, res) => {
 				where: buildVisibleOrdersWhere({
 					AND: [
 						{
-							OR: [
-								{ custom_po_number: null },
-								{ custom_po_number: '' },
-								{ custom_po_number: { equals: 'not set', mode: 'insensitive' } },
-							],
+							OR: notSetBaseOr,
 						},
 						{ created_at: { lte: fourDaysAgoUtc } },
 					],
