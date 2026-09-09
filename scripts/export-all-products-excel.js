@@ -5,6 +5,8 @@ require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 const ExcelJS = require('exceljs');
 const prisma = require('../lib/prisma');
 
+const includeAllBrands = process.argv.includes('--all-brands');
+
 const EXCLUDED_VENDORS = [
   'Curt',
   'AEV',
@@ -55,9 +57,13 @@ async function run() {
           endsWith: '-',
         },
       },
-      vendors: {
-        notIn: EXCLUDED_VENDORS,
-      },
+      ...(includeAllBrands
+        ? {}
+        : {
+            vendors: {
+              notIn: EXCLUDED_VENDORS,
+            },
+          }),
     },
     select: {
       sku: true,
