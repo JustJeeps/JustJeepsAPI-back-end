@@ -1120,61 +1120,7 @@ function buildCronDigestResults({ lookbackHours = 24 } = {}) {
 		}];
 	}
 
-	const summaries = new Map();
-
-	for (const entry of entries) {
-		const key = entry.command || 'unknown';
-		const current = summaries.get(key) || {
-			command: key,
-			jobName: entry.jobName || key,
-			total: 0,
-			success: 0,
-			failed: 0,
-			skipped: 0,
-			interrupted: 0,
-			durationMs: 0,
-			errors: [],
-		};
-
-		current.total += 1;
-		if (entry.status === 'success') current.success += 1;
-		else if (entry.status === 'skipped') current.skipped += 1;
-		else if (entry.status === 'interrupted') current.interrupted += 1;
-		else current.failed += 1;
-
-		if (Number.isFinite(entry.durationMs)) {
-			current.durationMs += entry.durationMs;
-		}
-
-		if (entry.error) {
-			current.errors.push(entry.error);
-		}
-
-		summaries.set(key, current);
-	}
-
-	return Array.from(summaries.values())
-		.sort((left, right) => left.jobName.localeCompare(right.jobName))
-		.map((summary) => {
-			const hasFailures = summary.failed > 0 || summary.interrupted > 0;
-			const statusLine = [
-				`${summary.success} succeeded`,
-				`${summary.failed} failed`,
-				`${summary.skipped} skipped`,
-				`${summary.interrupted} interrupted`,
-			].join(', ');
-
-			return {
-				cmd: `${summary.jobName} (${summary.total} runs)`,
-				success: !hasFailures,
-				durationMs: summary.durationMs || null,
-				logFile: null,
-				error: hasFailures
-					? summary.errors.slice(0, 3).join(' | ') || 'One or more runs did not complete successfully'
-					: null,
-				logExcerpt: statusLine,
-			};
-		});
+	return summarizeCronDigestEntries(entries);
 }
 
 function deriveCronArtifacts({ reportLogFile, readSummaryFile }) {
@@ -1274,6 +1220,7 @@ const feedCatalog = require('./lib/feeds/catalog');
 const { createFeedStore } = require('./lib/feeds/feedStore');
 const { getFeedDefinitions } = require('./config/feeds');
 const { collectFeedFreshnessResults } = require('./lib/feeds/freshnessReport');
+const { summarizeCronDigestEntries } = require('./lib/reports/cronDigest');
 const feedStore = createFeedStore();
 // Run logs go to Spaces as well as to disk: the files here are append-only and
 // never rotate, and container stdout is lost on every deploy.
