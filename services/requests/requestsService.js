@@ -576,6 +576,7 @@ async function updateRequest({ user, id, patch }) {
 		});
 	}
 	if (commentBody) activities.push(commentActivity(id, user.id));
+	let createdComment = null;
 
 	await prisma.$transaction(async (tx) => {
 		if (Object.keys(applied).length) {
@@ -598,8 +599,9 @@ async function updateRequest({ user, id, patch }) {
 			}
 		}
 		if (commentBody) {
-			await tx.requestComment.create({
+			createdComment = await tx.requestComment.create({
 				data: { request_id: id, author_id: user.id, body: commentBody },
+				include: { author: { select: USER_SELECT } },
 			});
 		}
 		if (activities.length) {
@@ -632,7 +634,12 @@ async function updateRequest({ user, id, patch }) {
 		autoMoveTrelloCard({ user, id });
 	}
 
-	return getRequestDetail(id);
+	const detail = await getRequestDetail(id);
+	if (createdComment) {
+		notifyCommentParticipants({ request: detail, comment: createdComment, actor: user });
+	}
+
+	return detail;
 }
 
 // --- trello ---------------------------------------------------------------------
