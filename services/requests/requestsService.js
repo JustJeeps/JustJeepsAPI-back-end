@@ -441,6 +441,7 @@ async function updateRequest({ user, id, patch }) {
 	// Multi-assignee: patch.assigneeIds = lista completa; assignee_id (coluna)
 	// guarda o primario (primeiro da lista) e dirige Trello/auto-status/KPIs.
 	const touchesAssignees = patch.assigneeIds !== undefined;
+	const touchesFollowers = patch.followerIds !== undefined;
 	if (touchesAssignees && !canAssignRequestAssignees(user)) {
 		throw RequestServiceError.conflict(
 			'ASSIGNEE_MANAGER_ONLY',
@@ -463,7 +464,6 @@ async function updateRequest({ user, id, patch }) {
 	const assigneesChanged = touchesAssignees
 		&& JSON.stringify(currentIds) !== JSON.stringify(patch.assigneeIds);
 
-	const touchesFollowers = patch.followerIds !== undefined;
 	const currentFollowers = touchesFollowers
 		? await prisma.requestFollower.findMany({
 			where: { request_id: id },
