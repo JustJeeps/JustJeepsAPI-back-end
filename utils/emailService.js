@@ -1014,16 +1014,91 @@ async function sendRequestAssignedEmail({ request, assignee, assignedBy }) {
   const assignedByName = assignedBy?.firstname || assignedBy?.username || 'Triage';
   const appUrl = String(process.env.PRICING_TOOL_URL || 'https://pricingtool.justjeeps.com').replace(/\/+$/, '');
   const requestUrl = `${appUrl}/requests?open=${request.id}`;
+  const statusLabel = String(request?.status || 'New Request');
+  const description = String(request?.description || '').trim();
+  const comments = Array.isArray(request?.comments) ? request.comments : [];
+  const attachments = Array.isArray(request?.attachments) ? request.attachments : [];
+  const commentPreview = comments.slice(-5);
+  const attachmentPreview = attachments.slice(-10);
+
+  const formatTime = (value) => {
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return '';
+    return parsed.toLocaleString('en-US', {
+      timeZone: 'America/Toronto',
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+  };
+
+  const formatSize = (sizeBytes) => {
+    const bytes = Number(sizeBytes);
+    if (!Number.isFinite(bytes) || bytes < 0) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    const kb = bytes / 1024;
+    if (kb < 1024) return `${kb.toFixed(1)} KB`;
+    return `${(kb / 1024).toFixed(2)} MB`;
+  };
+
+  const commentAuthor = (comment) => comment?.author?.firstname || comment?.author?.username || 'Unknown';
+  const sanitizeTextLine = (value) => String(value || '').replace(/\s+/g, ' ').trim();
 
   const subject = `📌 ${requestRef} assigned to you — ${request.title}`;
+
+  const commentText = commentPreview.length
+    ? commentPreview
+      .map((comment, index) => {
+        const label = `${index + 1}. ${commentAuthor(comment)}${formatTime(comment.createdAt) ? ` (${formatTime(comment.createdAt)})` : ''}`;
+        const body = sanitizeTextLine(comment.body);
+        return `${label}: ${body || '(empty)'}`;
+      })
+      .join('\n')
+    : 'none';
+
+  const attachmentText = attachmentPreview.length
+    ? attachmentPreview
+      .map((attachment, index) => {
+        const label = `${index + 1}. ${attachment.originalName || '(unnamed file)'}`;
+        const parts = [
+          formatSize(attachment.sizeBytes),
+          attachment?.uploader?.firstname || attachment?.uploader?.username || '',
+          formatTime(attachment.createdAt),
+        ].filter(Boolean);
+        return parts.length ? `${label} (${parts.join(' | ')})` : label;
+      })
+      .join('\n')
+    : 'none';
 
   const text =
     `${requestRef} was assigned to you by ${assignedByName}.\n\n` +
     `Title: ${request.title}\n` +
+    `Status: ${statusLabel}\n` +
     `Project: ${request.project}\n` +
     `Type: ${request.type}\n` +
     `Priority: ${request.priority}\n\n` +
+    `Description:\n${description || '(none)'}\n\n` +
+    `Comments (${comments.length}${comments.length > commentPreview.length ? `, latest ${commentPreview.length}` : ''}):\n${commentText}\n\n` +
+    `Attachments (${attachments.length}${attachments.length > attachmentPreview.length ? `, latest ${attachmentPreview.length}` : ''}):\n${attachmentText}\n\n` +
     `Open it in the Pricing Tool: ${requestUrl}`;
+
+  const commentsHtml = commentPreview.length
+    ? `<ul style="margin:6px 0 0;padding-left:18px;">${commentPreview.map((comment) => {
+      const when = formatTime(comment.createdAt);
+      const who = commentAuthor(comment);
+      return `<li style="margin:4px 0;"><strong>${escapeHtml(who)}</strong>${when ? ` <span style="color:#5b6676;">(${escapeHtml(when)})</span>` : ''}<br/>${escapeHtml(sanitizeTextLine(comment.body) || '(empty)')}</li>`;
+    }).join('')}</ul>`
+    : '<p style="margin:6px 0 0;color:#5b6676;">None.</p>';
+
+  const attachmentsHtml = attachmentPreview.length
+    ? `<ul style="margin:6px 0 0;padding-left:18px;">${attachmentPreview.map((attachment) => {
+      const parts = [
+        formatSize(attachment.sizeBytes),
+        attachment?.uploader?.firstname || attachment?.uploader?.username || '',
+        formatTime(attachment.createdAt),
+      ].filter(Boolean);
+      return `<li style="margin:4px 0;"><strong>${escapeHtml(attachment.originalName || '(unnamed file)')}</strong>${parts.length ? ` <span style="color:#5b6676;">(${escapeHtml(parts.join(' | '))})</span>` : ''}</li>`;
+    }).join('')}</ul>`
+    : '<p style="margin:6px 0 0;color:#5b6676;">None.</p>';
 
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -1031,9 +1106,15 @@ async function sendRequestAssignedEmail({ request, assignee, assignedBy }) {
       <div style="background:#f8f9fb; border:1px solid #d9d9d9; padding:20px; border-radius:4px;">
         <h3 style="margin-top:0;">${escapeHtml(request.title)}</h3>
         <p><strong>Assigned by:</strong> ${escapeHtml(assignedByName)}</p>
+        <p><strong>Status:</strong> ${escapeHtml(statusLabel)}</p>
         <p><strong>Project:</strong> ${escapeHtml(request.project)}</p>
         <p><strong>Type:</strong> ${escapeHtml(request.type)}</p>
         <p><strong>Priority:</strong> ${escapeHtml(request.priority)}</p>
+        <p><strong>Description:</strong><br/>${escapeHtml(description || '(none)')}</p>
+        <p style="margin-bottom:4px;"><strong>Comments (${comments.length})${comments.length > commentPreview.length ? ` — latest ${commentPreview.length}` : ''}:</strong></p>
+        ${commentsHtml}
+        <p style="margin:12px 0 4px;"><strong>Attachments (${attachments.length})${attachments.length > attachmentPreview.length ? ` — latest ${attachmentPreview.length}` : ''}:</strong></p>
+        ${attachmentsHtml}
       </div>
       <p style="margin-top:20px;">
         <a href="${escapeHtml(requestUrl)}" style="color:#235789;font-weight:600;">Open ${escapeHtml(requestRef)} in the Pricing Tool</a>

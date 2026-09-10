@@ -3432,6 +3432,12 @@ module.exports = [
     partsEngine_code: "-vp-redarc-2132.aspx",
 
   },
+    {
+    jj_prefix: "RED",
+    brand_name: "RedRock",
+    vendors: "Extreme Terrain",
+
+  },
   {
     jj_prefix: "RES",
     brand_name: "RES-Q",

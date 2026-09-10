@@ -361,8 +361,9 @@ async function createRequest({ user, input }) {
 		return request;
 	});
 	const full = await prisma.request.findUnique({ where: { id: created.id }, include: LIST_INCLUDE });
+	const assignmentEmailRequest = await prisma.request.findUnique({ where: { id: created.id }, include: DETAIL_INCLUDE });
 	for (const assignee of assignees) {
-		notifyAssignee({ request: full, assignee, assignedBy: user });
+		notifyAssignee({ request: assignmentEmailRequest || full, assignee, assignedBy: user });
 	}
 	// Nascer Assigned dispara o card do setor no Trello (fire-and-forget, mesmo
 	// gatilho do updateRequest — sem isso o chamado ficaria Assigned sem card).
@@ -573,8 +574,13 @@ async function updateRequest({ user, id, patch }) {
 
 	// E-mail de atribuicao para cada pessoa RECEM-adicionada a lista.
 	if (newAssignees) {
+		const assignmentEmailRequest = await prisma.request.findUnique({ where: { id }, include: DETAIL_INCLUDE });
 		for (const added of newAssignees.filter((entry) => !currentIds.includes(entry.id))) {
-			notifyAssignee({ request: { ...current, ...applied, id }, assignee: added, assignedBy: user });
+			notifyAssignee({
+				request: assignmentEmailRequest || { ...current, ...applied, id },
+				assignee: added,
+				assignedBy: user,
+			});
 		}
 	}
 
