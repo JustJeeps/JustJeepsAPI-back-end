@@ -18,7 +18,7 @@ const { canViewRequest } = require('../../lib/sectors/visibility');
 const sectorsService = require('../sectors/sectorsService');
 const storage = require('../storage/requestAttachmentsStorage');
 const trelloService = require('../trello/trelloService');
-const { sendRequestAssignedEmail, sendRequestCommentEmail } = require('../../utils/emailService');
+const { sendRequestAssignedEmail, sendRequestCommentEmail, sendRequestClosedCommentEmail } = require('../../utils/emailService');
 const {
 	REQUEST_STATUSES,
 	REQUEST_PRIORITIES,
@@ -167,7 +167,7 @@ function notifyAssignee({ request, assignee, assignedBy }) {
 	});
 }
 
-function notifyCommentParticipants({ request, comment, actor }) {
+function notifyCommentParticipants({ request, comment, actor, notificationType = 'comment' }) {
 	if (process.env.REQUESTS_COMMENT_EMAIL_ENABLED === 'false') return;
 
 	const candidates = [
@@ -185,7 +185,10 @@ function notifyCommentParticipants({ request, comment, actor }) {
 	}
 
 	for (const recipient of byEmail.values()) {
-		sendRequestCommentEmail({ request, comment, recipient, actor }).catch((error) => {
+		const sender = notificationType === 'closed-with-comment'
+			? sendRequestClosedCommentEmail
+			: sendRequestCommentEmail;
+		sender({ request, comment, recipient, actor }).catch((error) => {
 			console.error('Request comment email error:', error.message);
 		});
 	}
@@ -636,7 +639,13 @@ async function updateRequest({ user, id, patch }) {
 
 	const detail = await getRequestDetail(id);
 	if (createdComment) {
-		notifyCommentParticipants({ request: detail, comment: createdComment, actor: user });
+		const closedWithComment = applied.status === 'Closed' && current.status !== 'Closed';
+		notifyCommentParticipants({
+			request: detail,
+			comment: createdComment,
+			actor: user,
+			notificationType: closedWithComment ? 'closed-with-comment' : 'comment',
+		});
 	}
 
 	return detail;
