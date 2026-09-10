@@ -2513,9 +2513,9 @@ module.exports = [
   {
     jj_prefix: "MST",
     brand_name: "MasterTop",
-    vendors: "Quadratec",
+    vendors: "Quadratec, Keystone, Meyer",
     keystone_code: "MTP",
-    meyer_code: "",
+    meyer_code: "MAT",
     quadratec_code: "MasterTop",
   },
   {
