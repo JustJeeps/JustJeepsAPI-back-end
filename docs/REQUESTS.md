@@ -93,6 +93,7 @@ Without them the feature degrades: uploads answer 409 `ATTACHMENTS_DISABLED` and
 ## Email
 
 - Assignment email: sent to the assignee when a request is assigned. Kill switch `REQUESTS_ASSIGNMENT_EMAIL_ENABLED=false`.
+- Comment notification email: sent on each new comment to the requester, all followers and all assignees (deduped), excluding the user who posted the comment. Kill switch `REQUESTS_COMMENT_EMAIL_ENABLED=false`.
 - Daily new requests email: cron `report-requests-digest`, opt in via `CRON_REQUESTS_DIGEST_ENABLED=true`. Recipients from `REQUESTS_DAILY_NEW_EMAILS` (fallback `REQUESTS_DIGEST_EMAILS`, then `CRON_NOTIFICATION_EMAIL`). Uses a watermark in `SyncState` under `requests-digest-last-run` so only requests created since the previous successful send are included.
 - Weekly status snapshot email: cron `report-requests-status-weekly`, opt in via `CRON_REQUESTS_WEEKLY_STATUS_ENABLED=true`. Recipients from `REQUESTS_WEEKLY_STATUS_EMAILS` (fallback `REQUESTS_DAILY_NEW_EMAILS`, `REQUESTS_DIGEST_EMAILS`, then `CRON_NOTIFICATION_EMAIL`). Includes all non-deleted requests with current status, assignee/requester, and archived flag.
 - Manual triggers (authenticated requests users): `POST /api/reports/requests/daily-new/email` and `POST /api/reports/requests/weekly-status/email`.

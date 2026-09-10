@@ -183,6 +183,7 @@ env:
     # never resolves empty (config/requests.js).
     REQUESTS_TRIAGE_USERS: "ricardo,admin,tess"
     REQUESTS_ASSIGNMENT_EMAIL_ENABLED: "true"
+    REQUESTS_COMMENT_EMAIL_ENABLED: "true"
     # Daily support tickets report (new requests only): opt-in.
     # Recipients live in REQUESTS_DAILY_NEW_EMAILS (or REQUESTS_DIGEST_EMAILS)
     # under secret env.

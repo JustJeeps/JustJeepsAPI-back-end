@@ -18,7 +18,7 @@ const { canViewRequest } = require('../../lib/sectors/visibility');
 const sectorsService = require('../sectors/sectorsService');
 const storage = require('../storage/requestAttachmentsStorage');
 const trelloService = require('../trello/trelloService');
-const { sendRequestAssignedEmail } = require('../../utils/emailService');
+const { sendRequestAssignedEmail, sendRequestCommentEmail } = require('../../utils/emailService');
 const {
 	REQUEST_STATUSES,
 	REQUEST_PRIORITIES,
@@ -118,9 +118,11 @@ async function resolveFollowers(ids) {
 	return ids.map((id) => byId.get(id));
 }
 
-function canManageFollowers({ user, request, currentAssigneeIds = [] }) {
+function canManageFollowers({ user, request, currentAssigneeIds = [], isTriage = false }) {
 	if (!user || !request) return false;
+	if (isTriage) return true;
 	if (request.requester_id === user.id) return true;
+	if (request.assignee_id === user.id) return true;
 	return currentAssigneeIds.includes(user.id);
 }
 
@@ -163,6 +165,31 @@ function notifyAssignee({ request, assignee, assignedBy }) {
 	sendRequestAssignedEmail({ request, assignee, assignedBy }).catch((error) => {
 		console.error('Request assignment email error:', error.message);
 	});
+}
+
+function notifyCommentParticipants({ request, comment, actor }) {
+	if (process.env.REQUESTS_COMMENT_EMAIL_ENABLED === 'false') return;
+
+	const candidates = [
+		request?.requester,
+		...(Array.isArray(request?.followers) ? request.followers.map((entry) => entry.user) : []),
+		...(Array.isArray(request?.assignees) ? request.assignees.map((entry) => entry.user) : []),
+	];
+
+	const byEmail = new Map();
+	for (const user of candidates) {
+		if (!user || !user.email) continue;
+		if (user.id === actor?.id) continue;
+		const key = String(user.email).trim().toLowerCase();
+		if (!key || byEmail.has(key)) continue;
+		byEmail.set(key, user);
+	}
+
+	for (const recipient of byEmail.values()) {
+		sendRequestCommentEmail({ request, comment, recipient, actor }).catch((error) => {
+			console.error('Request comment email error:', error.message);
+		});
+	}
 }
 
 // --- meta / listagem ----------------------------------------------------------
@@ -420,14 +447,18 @@ async function updateRequest({ user, id, patch }) {
 			'Only Tess can assign or unassign request owners right now'
 		);
 	}
-	const currentAssignees = touchesAssignees
+	const currentAssignees = (touchesAssignees || touchesFollowers)
 		? await prisma.requestAssignee.findMany({
 			where: { request_id: id },
 			include: { user: { select: USER_SELECT } },
 			orderBy: { id: 'asc' },
 		})
 		: [];
-	const currentIds = currentAssignees.map((entry) => entry.user_id);
+	const currentIds = (() => {
+		const ids = currentAssignees.map((entry) => entry.user_id);
+		if (current.assignee_id && !ids.includes(current.assignee_id)) ids.push(current.assignee_id);
+		return ids;
+	})();
 	const newAssignees = touchesAssignees ? await resolveAssignees(patch.assigneeIds) : undefined;
 	const assigneesChanged = touchesAssignees
 		&& JSON.stringify(currentIds) !== JSON.stringify(patch.assigneeIds);
@@ -445,10 +476,15 @@ async function updateRequest({ user, id, patch }) {
 	const followersChanged = touchesFollowers
 		&& JSON.stringify(currentFollowerIds) !== JSON.stringify(patch.followerIds);
 
-	if (followersChanged && !canManageFollowers({ user, request: current, currentAssigneeIds: currentIds })) {
+	if (followersChanged && !canManageFollowers({
+		user,
+		request: current,
+		currentAssigneeIds: currentIds,
+		isTriage: effectiveTriage,
+	})) {
 		throw RequestServiceError.conflict(
 			'FOLLOWERS_FORBIDDEN',
-			'Only the requester or a current assignee can manage followers'
+			'Only triage, the requester, or a current assignee can manage followers'
 		);
 	}
 
@@ -899,7 +935,7 @@ async function restoreRequest({ user, id }) {
 async function addComment({ user, id, body }) {
 	const current = await loadRequestOrFail(id);
 	await assertCanViewRequest(user, current);
-	return prisma.$transaction(async (tx) => {
+	const comment = await prisma.$transaction(async (tx) => {
 		const comment = await tx.requestComment.create({
 			data: { request_id: id, author_id: user.id, body },
 			include: { author: { select: USER_SELECT } },
@@ -907,6 +943,13 @@ async function addComment({ user, id, body }) {
 		await tx.requestActivity.create({ data: commentActivity(id, user.id) });
 		return comment;
 	});
+
+	const requestForEmail = await prisma.request.findUnique({ where: { id }, include: DETAIL_INCLUDE });
+	if (requestForEmail) {
+		notifyCommentParticipants({ request: requestForEmail, comment, actor: user });
+	}
+
+	return comment;
 }
 
 // --- anexos ----------------------------------------------------------------------

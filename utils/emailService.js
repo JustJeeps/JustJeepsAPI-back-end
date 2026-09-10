@@ -1125,6 +1125,68 @@ async function sendRequestAssignedEmail({ request, assignee, assignedBy }) {
   return await sendEmail({ to: recipient, subject, text, html });
 }
 
+/**
+ * Notifica participantes de um chamado quando um novo comentario e adicionado.
+ * Destinatario = requester/followers/assignees (sem o autor do comentario).
+ * @param {Object} params
+ * @param {Object} params.request - Request detalhado
+ * @param {Object} params.comment - comentario criado
+ * @param {Object} params.recipient - usuario destinatario
+ * @param {Object} params.actor - usuario que comentou
+ */
+async function sendRequestCommentEmail({ request, comment, recipient, actor }) {
+  const to = String(recipient?.email || '').trim();
+  if (!to) {
+    return { success: false, error: 'Recipient has no email' };
+  }
+
+  const requestRef = `REQ-${request.id}`;
+  const appUrl = String(process.env.PRICING_TOOL_URL || 'https://pricingtool.justjeeps.com').replace(/\/+$/, '');
+  const requestUrl = `${appUrl}/requests?open=${request.id}`;
+  const authorName = comment?.author?.firstname || comment?.author?.username || actor?.firstname || actor?.username || 'A teammate';
+  const recipientName = recipient?.firstname || recipient?.username || 'there';
+  const commentBody = String(comment?.body || '').trim();
+  const statusLabel = String(request?.status || 'New Request');
+  const timestamp = new Date(comment?.createdAt || Date.now()).toLocaleString('en-US', {
+    timeZone: 'America/Toronto',
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+
+  const subject = `💬 New comment on ${requestRef} — ${request.title}`;
+  const text =
+    `Hi ${recipientName},\n\n` +
+    `${authorName} added a new comment on ${requestRef}.\n\n` +
+    `Title: ${request.title}\n` +
+    `Status: ${statusLabel}\n` +
+    `Project: ${request.project}\n` +
+    `Priority: ${request.priority}\n` +
+    `When: ${timestamp}\n\n` +
+    `Comment:\n${commentBody || '(empty)'}\n\n` +
+    `Open it in the Pricing Tool: ${requestUrl}`;
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto;">
+      <h2 style="color:#1c2430;">💬 New comment on ${escapeHtml(requestRef)}</h2>
+      <p>Hi ${escapeHtml(recipientName)}, ${escapeHtml(authorName)} added a new comment.</p>
+      <div style="background:#f8f9fb; border:1px solid #d9d9d9; padding:20px; border-radius:4px;">
+        <h3 style="margin-top:0;">${escapeHtml(request.title)}</h3>
+        <p><strong>Status:</strong> ${escapeHtml(statusLabel)}</p>
+        <p><strong>Project:</strong> ${escapeHtml(request.project || '')}</p>
+        <p><strong>Priority:</strong> ${escapeHtml(request.priority || '')}</p>
+        <p><strong>When:</strong> ${escapeHtml(timestamp)}</p>
+        <p style="margin-bottom:6px;"><strong>Comment:</strong></p>
+        <div style="white-space:pre-wrap;background:#ffffff;border:1px solid #e5e7eb;border-radius:4px;padding:10px;">${escapeHtml(commentBody || '(empty)')}</div>
+      </div>
+      <p style="margin-top:18px;">
+        <a href="${escapeHtml(requestUrl)}" style="color:#235789;font-weight:600;">Open ${escapeHtml(requestRef)} in the Pricing Tool</a>
+      </p>
+    </div>
+  `;
+
+  return await sendEmail({ to, subject, text, html });
+}
+
 module.exports = {
   createTransporter,
   getEmailProvider,
@@ -1138,6 +1200,7 @@ module.exports = {
   sendSkuStatusDailyReportEmail,
   sendSkuStatusWeeklyReportEmail,
   sendRequestAssignedEmail,
+  sendRequestCommentEmail,
   sendRequestsDigestEmail,
   sendRequestsWeeklyStatusEmail
 };
