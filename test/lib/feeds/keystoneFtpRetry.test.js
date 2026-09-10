@@ -53,6 +53,8 @@ function makeFtpStub(plan) {
 	return { attempts, module: { Client, enterPassiveModeIPv4: () => {} } };
 }
 
+const quietLog = { log() {}, warn() {}, error() {} };
+
 function makeClient({ plan, env = {}, sleep, now }) {
 	const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ftpretry-'));
 	const ftp = makeFtpStub(plan);
@@ -67,6 +69,7 @@ function makeClient({ plan, env = {}, sleep, now }) {
 		cacheDir,
 		sleep,
 		now,
+		log: quietLog,
 	});
 	return { client, ftp, localPath: path.join(cacheDir, 'SpecialOrder.csv') };
 }

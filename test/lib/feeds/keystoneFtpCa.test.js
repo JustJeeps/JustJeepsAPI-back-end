@@ -27,9 +27,11 @@ function makeFtpStub() {
 
 const baseEnv = { KEYSTONE_FTP_USER: 'u', KEYSTONE_FTP_PASS: 'p', KEYSTONE_FTP_MAX_ATTEMPTS: '1' };
 
-async function runDownload({ env, store, cacheDir }) {
+const quietLog = { log() {}, warn() {}, error() {} };
+
+async function runDownload({ env, store, cacheDir, log = quietLog }) {
 	const ftp = makeFtpStub();
-	const client = createKeystoneFtpClient({ ftp: ftp.module, env, store, cacheDir });
+	const client = createKeystoneFtpClient({ ftp: ftp.module, env, store, cacheDir, log });
 	await client.downloadFile('Inventory.csv', path.join(cacheDir, 'out.csv')).catch(() => {});
 	return ftp.calls[0];
 }
@@ -85,13 +87,8 @@ test('without the env, fetches the private object from the bucket and caches it'
 test('without the env and without the bucket, warns and continues with the system roots only', async () => {
 	const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ftpca-'));
 	const warnings = [];
-	const originalWarn = console.warn;
-	console.warn = (msg) => warnings.push(String(msg));
-	try {
-		const call = await runDownload({ env: { ...baseEnv }, store: { isConfigured: () => false }, cacheDir });
-		assert.strictEqual(call.secureOptions.ca, undefined);
-	} finally {
-		console.warn = originalWarn;
-	}
+	const log = { ...quietLog, warn: (msg) => warnings.push(String(msg)) };
+	const call = await runDownload({ env: { ...baseEnv }, store: { isConfigured: () => false }, cacheDir, log });
+	assert.strictEqual(call.secureOptions.ca, undefined);
 	assert.ok(warnings.some((w) => w.includes('intermediate CA')), 'warns that the CA was not found');
 });
