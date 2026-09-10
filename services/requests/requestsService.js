@@ -179,7 +179,6 @@ function notifyCommentParticipants({ request, comment, actor }) {
 	const byEmail = new Map();
 	for (const user of candidates) {
 		if (!user || !user.email) continue;
-		if (user.id === actor?.id) continue;
 		const key = String(user.email).trim().toLowerCase();
 		if (!key || byEmail.has(key)) continue;
 		byEmail.set(key, user);
