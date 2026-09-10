@@ -1146,6 +1146,7 @@ async function sendRequestCommentEmail({ request, comment, recipient, actor }) {
   const authorName = comment?.author?.firstname || comment?.author?.username || actor?.firstname || actor?.username || 'A teammate';
   const recipientName = recipient?.firstname || recipient?.username || 'there';
   const commentBody = String(comment?.body || '').trim();
+  const description = String(request?.description || '').trim();
   const statusLabel = String(request?.status || 'New Request');
   const timestamp = new Date(comment?.createdAt || Date.now()).toLocaleString('en-US', {
     timeZone: 'America/Toronto',
@@ -1161,6 +1162,7 @@ async function sendRequestCommentEmail({ request, comment, recipient, actor }) {
     `Status: ${statusLabel}\n` +
     `Project: ${request.project}\n` +
     `Priority: ${request.priority}\n` +
+    `Description: ${description || '(none)'}\n` +
     `When: ${timestamp}\n\n` +
     `Comment:\n${commentBody || '(empty)'}\n\n` +
     `Open it in the Pricing Tool: ${requestUrl}`;
@@ -1174,6 +1176,7 @@ async function sendRequestCommentEmail({ request, comment, recipient, actor }) {
         <p><strong>Status:</strong> ${escapeHtml(statusLabel)}</p>
         <p><strong>Project:</strong> ${escapeHtml(request.project || '')}</p>
         <p><strong>Priority:</strong> ${escapeHtml(request.priority || '')}</p>
+        <p><strong>Description:</strong><br/>${escapeHtml(description || '(none)')}</p>
         <p><strong>When:</strong> ${escapeHtml(timestamp)}</p>
         <p style="margin-bottom:6px;"><strong>Comment:</strong></p>
         <div style="white-space:pre-wrap;background:#ffffff;border:1px solid #e5e7eb;border-radius:4px;padding:10px;">${escapeHtml(commentBody || '(empty)')}</div>
