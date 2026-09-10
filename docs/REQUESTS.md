@@ -41,7 +41,7 @@ All routes require a logged in user (`ENABLE_AUTH=true`). While the team tests t
 State machine in `lib/requests/transitions.js`:
 
 - Statuses: New Request, Estimation, Assigned, Work in Progress, Awaiting Client Response, On Hold, Completed, Closed.
-- Anyone can assign or unassign a request (product decision, Aug 2026). Only triage can close. Triage users come from `REQUESTS_TRIAGE_USERS` (default `ricardo,admin,tess`), exposed to the frontend as `meta.triageUsers`.
+- Only assignee managers can assign or unassign a request (`REQUESTS_ASSIGNEE_MANAGERS`; default `tess,tsantos`, now including `rafael` in deploy config). Only triage can close. Triage users come from `REQUESTS_TRIAGE_USERS` (default `ricardo,admin,tess`), exposed to the frontend as `meta.triageUsers`.
 - A request can have **multiple assignees** (PATCH `assigneeIds: number[]`; the legacy single `assigneeId` is still accepted). The first id in the list is the **primary** assignee (`Request.assignee_id`): it drives the Trello board, the auto move to Assigned and the Unassigned KPI. The full list lives in `RequestAssignee` and comes back as `assignees` on every request. Every newly added person gets the assignment email.
 - Assigning a New Request auto moves it to Assigned. Creating a request with `assigneeIds` has the same effect: it is born Assigned (`initialStateFor` in `lib/requests/transitions.js`).
 - Moving to Assigned requires an assignee.
