@@ -1,5 +1,6 @@
 const prisma = require("../../../lib/prisma");
 const getOrdersUpdatedSince = require("../api-calls/magento-ordersUpdatedSince.js");
+const { describeHttpError } = require("../../../lib/magento/describeHttpError.js");
 const { processOrder } = require("./seed-orders.js");
 const { acquireOrderSyncLock, releaseOrderSyncLock, orderSyncLockLost } = require("../../../lib/orderSyncLock.js");
 const { readWatermark, saveWatermark } = require("../../../lib/ordersWatermark.js");
@@ -89,7 +90,7 @@ const seedOrdersDelta = async (options = {}) => {
               processed += 1;
             } catch (error) {
               failed += 1;
-              console.error(`[seed-orders-delta] Error processing order ${orderData?.entity_id}:`, error);
+              console.error(`[seed-orders-delta] Error processing order ${orderData?.entity_id}:`, describeHttpError(error));
             }
           })
         );
@@ -130,7 +131,8 @@ const seedOrdersDelta = async (options = {}) => {
 
     return { processed, failed, totalCount: totalCount ?? 0 };
   } catch (error) {
-    console.error("[seed-orders-delta] Error during delta sync:", error);
+    // describeHttpError: never log the AxiosError whole (it carries the bearer token).
+    console.error("[seed-orders-delta] Error during delta sync:", describeHttpError(error));
     if (onProgress) {
       onProgress({
         total: 0,

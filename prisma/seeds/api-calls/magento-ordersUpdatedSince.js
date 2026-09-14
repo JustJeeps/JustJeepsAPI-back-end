@@ -1,7 +1,11 @@
 const axios = require("axios");
 
 const MAGENTO_API_BASE = process.env.MAGENTO_API_BASE || "https://www.justjeeps.com/rest/V1";
-const MAX_RETRIES = Number(process.env.SEED_ORDERS_DELTA_MAX_RETRIES) || 3;
+// 5 retries with 2s, 4s, 6s, 8s, 10s between them (~30s in total, well inside
+// the 5-minute slot). The old 3 x 0.5s could not ride out anything longer
+// than 3 seconds, so a Magento blip meant one failure e-mail per run.
+const MAX_RETRIES = Number(process.env.SEED_ORDERS_DELTA_MAX_RETRIES) || 5;
+const RETRY_DELAY_MS = Number(process.env.SEED_ORDERS_DELTA_RETRY_DELAY_MS) || 2000;
 
 const FIELDS =
   "items[created_at,updated_at,status,customer_email,customer_firstname,customer_lastname,billing_address,entity_id,grand_total,subtotal,base_subtotal,tax_amount,discount_amount,increment_id,order_currency_code,total_qty_ordered,base_total_due,coupon_code,shipping_description,shipping_amount,freight_shipping,maxmind_data,items[base_total_due,name,sku,order_id,base_price,base_price_incl_tax,discount_amount,discount_invoiced,discount_percent,original_price,price,price_incl_tax,product_id,qty_ordered],extension_attributes[amasty_order_attributes,weltpixel_fraud_score,maxmind_data,shipping_assignments,payment_additional_info,mageworx_giftcards_amount,base_mageworx_giftcards_amount]]";
@@ -50,7 +54,7 @@ async function getOrdersUpdatedSince(sinceUtc, options = {}) {
         throw error;
       }
 
-      const waitMs = 500 * attempt;
+      const waitMs = RETRY_DELAY_MS * attempt;
       console.warn(
         `[magento-ordersUpdatedSince] Retrying page ${currentPage} in ${waitMs}ms (attempt ${attempt}/${MAX_RETRIES}, status=${status || "n/a"})`
       );

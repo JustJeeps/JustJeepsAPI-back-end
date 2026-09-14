@@ -1,4 +1,5 @@
 const axios = require("axios");
+const { describeHttpError } = require("../../../lib/magento/describeHttpError.js");
 const prisma = require("../../../lib/prisma");
 const magentoRecentOrders = require("../api-calls/magento-recentOrders.js");
 
@@ -381,7 +382,7 @@ const seedOrders = async (
           } catch (error) {
             console.error(
               `Error processing order ${orderData?.entity_id}:`,
-              error
+              describeHttpError(error)
             );
           }
         })
@@ -401,13 +402,18 @@ const seedOrders = async (
       onProgress({ total: totalOrders, processed: orderCount, status: "done" });
     }
   } catch (error) {
-    console.error("Error during seeding:", error);
+    // describeHttpError: never log the AxiosError whole (it carries the bearer token).
+    console.error("Error during seeding:", describeHttpError(error));
     const durationMs = Date.now() - startedAt;
     console.log(`[seed-orders] Failed after ${durationMs}ms (${(durationMs / 1000).toFixed(2)}s)`);
 
     if (onProgress) {
       onProgress({ total: 0, processed: 0, status: "error", error: error?.message || "Seed failed" });
     }
+    // Callers (server.js routes) keep the no-throw contract; the cron entry
+    // point below turns this into a non-zero exit so a Magento outage is
+    // reported instead of archived as a success (2026-09-13).
+    return { failed: true, error: error?.message || "Seed failed" };
   }
 };
 
@@ -418,7 +424,9 @@ module.exports.processOrder = processOrder;
 // Runs only when executed directly (npm run seed-orders)
 // Does not run when imported by another file (server.js)
 if (require.main === module) {
-  seedOrders();
+  seedOrders().then((result) => {
+    if (result?.failed) process.exitCode = 1;
+  });
 }
 
 
