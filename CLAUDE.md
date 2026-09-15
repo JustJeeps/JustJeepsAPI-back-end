@@ -74,6 +74,7 @@ config/
 lib/
   ├── prisma.js              # Prisma client with role-based pools (APP_ROLE/DB_POOL_*)
   ├── requests/              # Pure domain rules (transitions, activity diff)
+  ├── orders/                # Orders rules (open-orders flag; prisma injected, tested)
   ├── trello/                # Trello client + settings persistence (injectable, tested)
   ├── reports/               # Digest data collectors
   └── ingest/                # CSV/feed ingest framework

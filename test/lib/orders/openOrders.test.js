@@ -124,3 +124,9 @@ test('attachOpenOrdersSameCustomer does not mutate the input orders', () => {
 	attachOpenOrdersSameCustomer(orders, { 'a@x.com': [{ entity_id: 1 }] });
 	assert.strictEqual('open_orders_same_customer' in orders[0], false);
 });
+
+test('fetchOpenOrdersByCustomer requires wrapWhere so no caller skips buildVisibleOrdersWhere', async () => {
+	const prisma = makePrismaStub();
+	await assert.rejects(() => fetchOpenOrdersByCustomer(prisma, ['a@x.com']), TypeError);
+	assert.strictEqual(prisma.calls.findMany.length, 0);
+});
