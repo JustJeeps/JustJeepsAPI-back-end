@@ -27,6 +27,7 @@ const {
 	sendRequestsWeeklyStatusEmail,
 } = require('./utils/emailService');
 const prisma = require('./lib/prisma');
+const { buildPoNotSetOr, fetchOpenOrdersByCustomer, attachOpenOrdersSameCustomer } = require('./lib/orders/openOrders');
 const { getDateStringInTimezone, getTrailingDateStringsInTimezone } = require('./lib/reports/dates');
 const {
 	readDigestWatermark: readRequestsDigestWatermark,
@@ -3115,22 +3116,7 @@ app.get('/api/orders', async (req, res) => {
 			.replace('T', ' ')
 			.substring(0, 19);
 
-		const notSetBaseOr = [
-			{ custom_po_number: null },
-			{ custom_po_number: '' },
-			{ custom_po_number: { equals: 'not set', mode: 'insensitive' } },
-			{
-				AND: [
-					{ custom_po_number: { contains: 'not set', mode: 'insensitive' } },
-					{ NOT: { custom_po_number: { contains: 'pm', mode: 'insensitive' } } },
-					{ NOT: { custom_po_number: { contains: 'kd', mode: 'insensitive' } } },
-					{ NOT: { custom_po_number: { contains: 'jd', mode: 'insensitive' } } },
-					{ NOT: { custom_po_number: { contains: 'jk', mode: 'insensitive' } } },
-					{ NOT: { custom_po_number: { contains: 'affirm', mode: 'insensitive' } } },
-					{ NOT: { custom_po_number: { contains: 'emt', mode: 'insensitive' } } },
-				],
-			},
-		];
+		const notSetBaseOr = buildPoNotSetOr();
 
 		// PO Status filter (preserve existing AND conditions from date filter)
     if (poStatus === 'not_set') {
@@ -3291,15 +3277,12 @@ app.get('/api/orders', async (req, res) => {
 			}),
 			prisma.order.count({ where }),
 		]);
-		// Debug: print the first order to check for custom_ship_status and custom_order_note
-		if (orders && orders.length) {
-			console.log('First order from DB:', orders[0]);
-		} else {
-			console.log('No orders returned from DB');
-		}
+		// "N OPEN ORDERS" flag: other open orders of the same customers on this page.
+		const pageEmails = [...new Set(orders.map((order) => order.customer_email).filter(Boolean))];
+		const openOrdersByEmail = await fetchOpenOrdersByCustomer(prisma, pageEmails, buildVisibleOrdersWhere);
 
 		res.json({
-			data: orders,
+			data: attachOpenOrdersSameCustomer(orders, openOrdersByEmail),
 			pagination: {
 				page,
 				limit,
@@ -3380,22 +3363,7 @@ app.get('/api/orders/metrics', async (req, res) => {
 			.replace('T', ' ')
 			.substring(0, 19);
 
-		const notSetBaseOr = [
-			{ custom_po_number: null },
-			{ custom_po_number: '' },
-			{ custom_po_number: { equals: 'not set', mode: 'insensitive' } },
-			{
-				AND: [
-					{ custom_po_number: { contains: 'not set', mode: 'insensitive' } },
-					{ NOT: { custom_po_number: { contains: 'pm', mode: 'insensitive' } } },
-					{ NOT: { custom_po_number: { contains: 'kd', mode: 'insensitive' } } },
-					{ NOT: { custom_po_number: { contains: 'jd', mode: 'insensitive' } } },
-					{ NOT: { custom_po_number: { contains: 'jk', mode: 'insensitive' } } },
-					{ NOT: { custom_po_number: { contains: 'affirm', mode: 'insensitive' } } },
-					{ NOT: { custom_po_number: { contains: 'emt', mode: 'insensitive' } } },
-				],
-			},
-		];
+		const notSetBaseOr = buildPoNotSetOr();
 
     // Run all counts in parallel for performance
     const [

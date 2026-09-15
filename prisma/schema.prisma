@@ -59,6 +59,7 @@ model Order {
   purchaseOrder         PurchaseOrder[]
 
   @@index([created_at])
+  @@index([customer_email])
 }
 
 model OrderProduct {
