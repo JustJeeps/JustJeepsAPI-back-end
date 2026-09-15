@@ -9,7 +9,7 @@ const parseNumber = (value) => {
 const RoughCountryCost = async () => {
   try {
     // Step 1: Download Excel file from URL
-    const url = "https://feeds.roughcountry.com/jobber_pc3.xlsx";
+    const url = "https://feeds.roughcountry.com/jobber_ca2.xlsx";
     const response = await axios({
       url: url,
       method: 'GET',
@@ -38,7 +38,7 @@ const RoughCountryCost = async () => {
         SKU: obj["sku"],
         AVAILABILITY: obj["availability"],
         TN_STOCK: obj["TN_Stock"],
-        MAP: obj["cnd_map"],
+        MAP: parseNumber(obj["cnd_map"]),
         PRICE: parseNumber(obj["price"]),
         SALE_PRICE: parseNumber(obj["sale_price"]),
         COST: parseNumber(obj["cost"]), // Ensure to convert to number if needed

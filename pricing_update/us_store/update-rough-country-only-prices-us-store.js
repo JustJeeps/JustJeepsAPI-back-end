@@ -5,6 +5,7 @@ const dotenv = require('dotenv');
 const prisma = require('../../lib/prisma');
 const { ensureUsWebsiteAssignmentForSkus } = require('./ensure-us-website-assignment');
 const roughCountryFeed = require('../../prisma/seeds/api-calls/roughCountry-excel');
+const { USD_TO_CAD_RATE } = require('../../utils/exchangeRate');
 
 dotenv.config();
 
@@ -89,11 +90,14 @@ async function getFeedMap() {
     const vendorSku = String(row?.SKU || '').trim();
     if (!vendorSku) continue;
 
+    const retailCad = Number.isFinite(Number(row?.PRICE))
+      ? Number(row?.PRICE)
+      : Number(row?.SALE_PRICE);
+    const costCad = Number(row?.COST);
+
     map.set(vendorSku, {
-      retailPrice: Number.isFinite(Number(row?.PRICE))
-        ? Number(row?.PRICE)
-        : Number(row?.SALE_PRICE),
-      costUsd: Number(row?.COST),
+      retailUsd: Number.isFinite(retailCad) ? retailCad / USD_TO_CAD_RATE : null,
+      costUsd: Number.isFinite(costCad) ? costCad / USD_TO_CAD_RATE : null,
     });
   }
 
@@ -153,7 +157,7 @@ async function getRoughCountryPriceRows(brandName, limit = null) {
     }
 
     const feedData = feedMap.get(feedSku);
-    const retailUsd = Number(feedData.retailPrice);
+    const retailUsd = Number(feedData.retailUsd);
     const costUsd = Number(feedData.costUsd);
 
     if (!Number.isFinite(retailUsd) || retailUsd <= 0) {
@@ -233,7 +237,7 @@ function chunk(array, size) {
 
 function printUsage() {
   console.log('Update Magento US store base prices for products where brand is Rough Country.');
-  console.log('MAP/retail source: price from Rough Country feed (fallback: sale_price).');
+  console.log('MAP/retail source: CAD price from Rough Country feed (fallback: sale_price), converted to USD.');
   console.log('Formula: price = roundUpToPoint95(retail / 0.85).');
   console.log('This keeps post-promo price (15% off) at or above MAP/retail.');
   console.log('Final margin report: ((price * 0.85) - cost_usd) / cost_usd');

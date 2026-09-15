@@ -186,21 +186,27 @@ const seedRoughCountry = async () => {
           invalidCostCount += 1;
           continue;
         }
-        const rawRetailPrice = Number.isFinite(Number(data["PRICE"]))
-          ? Number(data["PRICE"])
-          : Number(data["SALE_PRICE"]);
+        const rawMapValue = Number(data["MAP"]);
+        const hasMapValue = Number.isFinite(rawMapValue);
+        const rawRetailPrice = hasMapValue
+          ? rawMapValue
+          : (Number.isFinite(Number(data["PRICE"]))
+            ? Number(data["PRICE"])
+            : Number(data["SALE_PRICE"]));
         const hasRetailPrice = Number.isFinite(rawRetailPrice) && rawRetailPrice > 0;
-        if (!hasRetailPrice && ((data["PRICE"] != null && data["PRICE"] !== "") || (data["SALE_PRICE"] != null && data["SALE_PRICE"] !== ""))) {
+        if (!hasRetailPrice && ((data["MAP"] != null && data["MAP"] !== "") || (data["PRICE"] != null && data["PRICE"] !== "") || (data["SALE_PRICE"] != null && data["SALE_PRICE"] !== ""))) {
           invalidRetailPriceCount += 1;
         }
-        const vendorCost = rawCost * USD_TO_CAD_RATE;
+        const vendorCost = rawCost;
+        const vendorCostUsd = rawCost / USD_TO_CAD_RATE;
+        const vendorRetailPriceUsd = hasRetailPrice
+          ? rawRetailPrice / USD_TO_CAD_RATE
+          : null;
         const vendorInventoryString = data["AVAILABILITY"];
         const rawInventory = Number(data["TN_STOCK"]);
         const vendorInventory = Number.isFinite(rawInventory)
           ? rawInventory
           : null;
-        const rawMapValue = Number(data["MAP"]);
-        const hasMapValue = Number.isFinite(rawMapValue);
         if (!hasMapValue && data["MAP"] != null && data["MAP"] !== "") {
           invalidMapCount += 1;
         }
@@ -226,8 +232,10 @@ const seedRoughCountry = async () => {
         rowsToUpsert.push({
           vendor_sku: vendorSku,
           vendor_cost: vendorCost,
-          vendor_cost_usd: rawCost,
-          vendor_retail_price_usd: hasRetailPrice ? rawRetailPrice : null,
+          vendor_cost_usd: Number.isFinite(vendorCostUsd) ? vendorCostUsd : null,
+          vendor_retail_price_usd: Number.isFinite(vendorRetailPriceUsd)
+            ? vendorRetailPriceUsd
+            : null,
           vendor_inventory_string: vendorInventoryString,
           vendor_inventory: vendorInventory,
           product_sku: product.sku,
