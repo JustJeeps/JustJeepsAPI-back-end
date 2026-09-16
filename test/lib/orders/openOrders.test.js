@@ -63,12 +63,12 @@ test('buildPoNotSetOr returns a fresh array each call (callers spread it into wh
 	assert.notStrictEqual(buildPoNotSetOr(), buildPoNotSetOr());
 });
 
-test('buildOpenOrdersWhere: PO not set, and status null or not closed', () => {
+// Open = status not closed, regardless of the PO (decided 2026-09-16: with the
+// PO condition only 21 orders were open in the whole store and the tag never
+// showed). The PO rule stays exported for the poStatus filters only.
+test('buildOpenOrdersWhere: status null or not closed, no PO condition', () => {
 	assert.deepStrictEqual(buildOpenOrdersWhere(), {
-		AND: [
-			{ OR: EXPECTED_PO_NOT_SET_OR },
-			{ OR: [{ status: null }, { status: { notIn: ['complete', 'closed', 'canceled'] } }] },
-		],
+		OR: [{ status: null }, { status: { notIn: ['complete', 'closed', 'canceled'] } }],
 	});
 });
 
@@ -100,7 +100,7 @@ test('isSameCustomer matches on email (case-insensitive) or on phone (any format
 test('fetchOpenOrders reads every open order through wrapWhere, newest first, with email and phone', async () => {
 	const rows = [open(3, '200070900', 'a@x.com', '416-555-0100'), open(1, '200070846', 'b@x.com', null)];
 	const prisma = makePrismaStub(rows);
-	const wrapWhere = (w) => ({ AND: [...w.AND, { customer_email: { not: { contains: 'hidden' } } }] });
+	const wrapWhere = (w) => ({ AND: [w, { customer_email: { not: { contains: 'hidden' } } }] });
 
 	const result = await fetchOpenOrders(prisma, wrapWhere);
 
