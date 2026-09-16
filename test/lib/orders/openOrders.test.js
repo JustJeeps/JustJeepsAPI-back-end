@@ -5,12 +5,15 @@ const {
 	CLOSED_ORDER_STATUSES,
 	buildPoNotSetOr,
 	buildOpenOrdersWhere,
-	fetchOpenOrdersByCustomer,
+	normalizeEmail,
+	normalizePhone,
+	isSameCustomer,
+	fetchOpenOrders,
 	attachOpenOrdersSameCustomer,
 } = require('../../../lib/orders/openOrders.js');
 
 // Feature: "N OPEN ORDERS" tag on the Orders screen (asked by the purchasing
-// team, 2026-09-15). "Open" = PO still not set AND Magento status not closed.
+// team, 2026-09-15). Same customer = same email OR same phone (2026-09-16).
 // The prisma client is injected: the local .env points at production Postgres.
 
 // Snapshot of the array that lived inline in server.js (poStatus filters).
@@ -45,6 +48,9 @@ const makePrismaStub = (rows = []) => {
 	};
 };
 
+const open = (entity_id, increment_id, customer_email, shipping_telephone, created_at = '2026-09-14 10:00:00') =>
+	({ entity_id, increment_id, customer_email, shipping_telephone, created_at });
+
 test('CLOSED_ORDER_STATUSES lists the three Magento terminal statuses', () => {
 	assert.deepStrictEqual(CLOSED_ORDER_STATUSES, ['complete', 'closed', 'canceled']);
 });
@@ -57,76 +63,87 @@ test('buildPoNotSetOr returns a fresh array each call (callers spread it into wh
 	assert.notStrictEqual(buildPoNotSetOr(), buildPoNotSetOr());
 });
 
-test('buildOpenOrdersWhere restricts to the emails, PO not set, and status null or not closed', () => {
-	const where = buildOpenOrdersWhere(['a@x.com', 'b@x.com']);
-	assert.deepStrictEqual(where, {
+test('buildOpenOrdersWhere: PO not set, and status null or not closed', () => {
+	assert.deepStrictEqual(buildOpenOrdersWhere(), {
 		AND: [
-			{ customer_email: { in: ['a@x.com', 'b@x.com'] } },
 			{ OR: EXPECTED_PO_NOT_SET_OR },
 			{ OR: [{ status: null }, { status: { notIn: ['complete', 'closed', 'canceled'] } }] },
 		],
 	});
 });
 
-test('fetchOpenOrdersByCustomer skips the query when there are no emails', async () => {
-	const prisma = makePrismaStub();
-	const result = await fetchOpenOrdersByCustomer(prisma, [], (w) => w);
-	assert.deepStrictEqual(result, {});
-	assert.strictEqual(prisma.calls.findMany.length, 0);
+test('normalizeEmail lowercases and trims; empty becomes null', () => {
+	assert.strictEqual(normalizeEmail('  Sarah.M@Example.com '), 'sarah.m@example.com');
+	assert.strictEqual(normalizeEmail(''), null);
+	assert.strictEqual(normalizeEmail(null), null);
 });
 
-test('fetchOpenOrdersByCustomer groups open orders by email, newest first, through wrapWhere', async () => {
-	const prisma = makePrismaStub([
-		{ entity_id: 3, increment_id: '200070900', created_at: '2026-09-14 10:00:00', customer_email: 'a@x.com' },
-		{ entity_id: 1, increment_id: '200070846', created_at: '2026-09-10 10:00:00', customer_email: 'a@x.com' },
-		{ entity_id: 2, increment_id: '200070850', created_at: '2026-09-11 10:00:00', customer_email: 'b@x.com' },
-	]);
+test('normalizePhone keeps digits only, drops the North American leading 1, ignores short values', () => {
+	assert.strictEqual(normalizePhone('(416) 555-0100'), '4165550100');
+	assert.strictEqual(normalizePhone('+1 416 555 0100'), '4165550100');
+	assert.strictEqual(normalizePhone('1-416-555-0100'), '4165550100');
+	assert.strictEqual(normalizePhone('555-0100'), '5550100');
+	assert.strictEqual(normalizePhone('12345'), null);
+	assert.strictEqual(normalizePhone(''), null);
+	assert.strictEqual(normalizePhone(null), null);
+});
+
+test('isSameCustomer matches on email (case-insensitive) or on phone (any format)', () => {
+	const a = open(1, '1', 'A@x.com', '416-555-0100');
+	assert.strictEqual(isSameCustomer(a, open(2, '2', 'a@x.com', null)), true);
+	assert.strictEqual(isSameCustomer(a, open(3, '3', 'other@x.com', '(416) 555 0100')), true);
+	assert.strictEqual(isSameCustomer(a, open(4, '4', 'other@x.com', '416-555-0199')), false);
+	assert.strictEqual(isSameCustomer(open(5, '5', '', ''), open(6, '6', '', '')), false);
+	assert.strictEqual(isSameCustomer(open(7, '7', null, '12345'), open(8, '8', null, '12345')), false);
+});
+
+test('fetchOpenOrders reads every open order through wrapWhere, newest first, with email and phone', async () => {
+	const rows = [open(3, '200070900', 'a@x.com', '416-555-0100'), open(1, '200070846', 'b@x.com', null)];
+	const prisma = makePrismaStub(rows);
 	const wrapWhere = (w) => ({ AND: [...w.AND, { customer_email: { not: { contains: 'hidden' } } }] });
 
-	const result = await fetchOpenOrdersByCustomer(prisma, ['a@x.com', 'b@x.com'], wrapWhere);
+	const result = await fetchOpenOrders(prisma, wrapWhere);
 
-	assert.deepStrictEqual(result, {
-		'a@x.com': [
-			{ entity_id: 3, increment_id: '200070900', created_at: '2026-09-14 10:00:00' },
-			{ entity_id: 1, increment_id: '200070846', created_at: '2026-09-10 10:00:00' },
-		],
-		'b@x.com': [
-			{ entity_id: 2, increment_id: '200070850', created_at: '2026-09-11 10:00:00' },
-		],
-	});
-
+	assert.deepStrictEqual(result, rows);
 	const args = prisma.calls.findMany[0];
-	assert.deepStrictEqual(args.where, wrapWhere(buildOpenOrdersWhere(['a@x.com', 'b@x.com'])));
-	assert.deepStrictEqual(args.select, { entity_id: true, increment_id: true, created_at: true, customer_email: true });
+	assert.deepStrictEqual(args.where, wrapWhere(buildOpenOrdersWhere()));
+	assert.deepStrictEqual(args.select, { entity_id: true, increment_id: true, created_at: true, customer_email: true, shipping_telephone: true });
 	assert.deepStrictEqual(args.orderBy, { created_at: 'desc' });
 });
 
-test('attachOpenOrdersSameCustomer adds the list per order and [] when the customer has none', () => {
-	const orders = [
-		{ entity_id: 1, customer_email: 'a@x.com' },
-		{ entity_id: 9, customer_email: 'nobody@x.com' },
-		{ entity_id: 7, customer_email: null },
+test('fetchOpenOrders requires wrapWhere so no caller skips buildVisibleOrdersWhere', async () => {
+	const prisma = makePrismaStub();
+	await assert.rejects(() => fetchOpenOrders(prisma), TypeError);
+	assert.strictEqual(prisma.calls.findMany.length, 0);
+});
+
+test('attachOpenOrdersSameCustomer lists the open orders sharing email or phone with each row, itself included', () => {
+	const openOrders = [
+		open(3, '200070900', 'sarah@x.com', '416-555-0100'),
+		open(2, '200070850', 'other@x.com', '(416) 555-0100'), // same phone, other email
+		open(1, '200070846', 'SARAH@x.com', null), // same email, other case
+		open(9, '200070999', 'nobody@x.com', '905-555-0000'),
 	];
-	const byEmail = { 'a@x.com': [{ entity_id: 1 }, { entity_id: 3 }] };
+	const orders = [
+		{ entity_id: 3, customer_email: 'sarah@x.com', shipping_telephone: '416-555-0100' },
+		{ entity_id: 50, customer_email: 'closed@x.com', shipping_telephone: '' },
+		{ entity_id: 51, customer_email: null, shipping_telephone: null },
+	];
 
-	const result = attachOpenOrdersSameCustomer(orders, byEmail);
+	const result = attachOpenOrdersSameCustomer(orders, openOrders);
 
-	assert.deepStrictEqual(result.map((o) => o.open_orders_same_customer), [
-		[{ entity_id: 1 }, { entity_id: 3 }],
-		[],
-		[],
+	assert.deepStrictEqual(result[0].open_orders_same_customer, [
+		{ entity_id: 3, increment_id: '200070900', created_at: '2026-09-14 10:00:00' },
+		{ entity_id: 2, increment_id: '200070850', created_at: '2026-09-14 10:00:00' },
+		{ entity_id: 1, increment_id: '200070846', created_at: '2026-09-14 10:00:00' },
 	]);
-	assert.strictEqual(result[0].entity_id, 1);
+	assert.deepStrictEqual(result[1].open_orders_same_customer, []);
+	assert.deepStrictEqual(result[2].open_orders_same_customer, []);
+	assert.strictEqual(result[0].entity_id, 3);
 });
 
 test('attachOpenOrdersSameCustomer does not mutate the input orders', () => {
-	const orders = [{ entity_id: 1, customer_email: 'a@x.com' }];
-	attachOpenOrdersSameCustomer(orders, { 'a@x.com': [{ entity_id: 1 }] });
+	const orders = [{ entity_id: 1, customer_email: 'a@x.com', shipping_telephone: null }];
+	attachOpenOrdersSameCustomer(orders, [open(1, '1', 'a@x.com', null)]);
 	assert.strictEqual('open_orders_same_customer' in orders[0], false);
-});
-
-test('fetchOpenOrdersByCustomer requires wrapWhere so no caller skips buildVisibleOrdersWhere', async () => {
-	const prisma = makePrismaStub();
-	await assert.rejects(() => fetchOpenOrdersByCustomer(prisma, ['a@x.com']), TypeError);
-	assert.strictEqual(prisma.calls.findMany.length, 0);
 });

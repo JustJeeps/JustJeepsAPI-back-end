@@ -27,7 +27,7 @@ const {
 	sendRequestsWeeklyStatusEmail,
 } = require('./utils/emailService');
 const prisma = require('./lib/prisma');
-const { buildPoNotSetOr, fetchOpenOrdersByCustomer, attachOpenOrdersSameCustomer } = require('./lib/orders/openOrders');
+const { buildPoNotSetOr, fetchOpenOrders, attachOpenOrdersSameCustomer } = require('./lib/orders/openOrders');
 const { getDateStringInTimezone, getTrailingDateStringsInTimezone } = require('./lib/reports/dates');
 const {
 	readDigestWatermark: readRequestsDigestWatermark,
@@ -3277,12 +3277,11 @@ app.get('/api/orders', async (req, res) => {
 			}),
 			prisma.order.count({ where }),
 		]);
-		// "N OPEN ORDERS" flag: other open orders of the same customers on this page.
-		const pageEmails = [...new Set(orders.map((order) => order.customer_email).filter(Boolean))];
-		const openOrdersByEmail = await fetchOpenOrdersByCustomer(prisma, pageEmails, buildVisibleOrdersWhere);
+		// "N OPEN ORDERS" flag: open orders of the same customer (email or phone) for each row.
+		const openOrders = orders.length ? await fetchOpenOrders(prisma, buildVisibleOrdersWhere) : [];
 
 		res.json({
-			data: attachOpenOrdersSameCustomer(orders, openOrdersByEmail),
+			data: attachOpenOrdersSameCustomer(orders, openOrders),
 			pagination: {
 				page,
 				limit,
