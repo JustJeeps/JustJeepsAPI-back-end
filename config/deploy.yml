@@ -165,12 +165,12 @@ env:
     REVIEWS_ALLOWED_USERS: "ricardo,admin,rafael,tess"
     REVIEWS_SYNC_BATCH_SIZE: "50"
     REVIEWS_SYNC_BATCH_DELAY_MS: "1000"
-    ORDER_CANCEL_EXECUTE_ALLOWED_USERS: "tess,jerry,jacob,paula,karoline"
-    ORDER_CANCEL_DRY_RUN_ALLOWED_USERS: "tess"
+    ORDER_CANCEL_EXECUTE_ALLOWED_USERS: "tess,jerry,jacob,paula,karoline,ricardo"
+    ORDER_CANCEL_DRY_RUN_ALLOWED_USERS: "tess,ricardo"
     ORDER_CANCEL_MANUAL_REFUND_RESTRICTED_USERS: "paula"
-    ORDER_PO_INIT_ALLOWED_USERS: "tess,jerry,jacob,paula,karoline"
-    PURCHASER_REPORT_ALLOWED_USERS: "tess,paula,karoline"
-    ORDER_CANCELLATION_REPORT_ALLOWED_USERS: "tess,jerry,jacob,paula,karoline"
+    ORDER_PO_INIT_ALLOWED_USERS: "tess,jerry,jacob,paula,karoline,ricardo"
+    PURCHASER_REPORT_ALLOWED_USERS: "tess,paula,karoline,ricardo"
+    ORDER_CANCELLATION_REPORT_ALLOWED_USERS: "tess,jerry,jacob,paula,karoline,ricardo"
     # Origins accepted by the browser (API CORS). localhost only outside prod.
     CORS_ALLOWED_ORIGINS: "https://pricingtool.justjeeps.com"
     FEED_CACHE_DIR: /app/feed-cache
@@ -183,7 +183,7 @@ env:
     # never resolves empty (config/requests.js).
     REQUESTS_TRIAGE_USERS: "ricardo,admin,tess"
     # Who can assign/unassign request owners.
-    REQUESTS_ASSIGNEE_MANAGERS: "tess,tsantos,rafael"
+    REQUESTS_ASSIGNEE_MANAGERS: "tess,tsantos,rafael,ricardo"
     REQUESTS_ASSIGNMENT_EMAIL_ENABLED: "true"
     REQUESTS_COMMENT_EMAIL_ENABLED: "true"
     # Daily support tickets report (new requests only): opt-in.
