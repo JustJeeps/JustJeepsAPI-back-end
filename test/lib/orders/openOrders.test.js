@@ -63,13 +63,36 @@ test('buildPoNotSetOr returns a fresh array each call (callers spread it into wh
 	assert.notStrictEqual(buildPoNotSetOr(), buildPoNotSetOr());
 });
 
-// Open = status not closed, regardless of the PO (decided 2026-09-16: with the
-// PO condition only 21 orders were open in the whole store and the tag never
-// showed). The PO rule stays exported for the poStatus filters only.
-test('buildOpenOrdersWhere: status null or not closed, no PO condition', () => {
-	assert.deepStrictEqual(buildOpenOrdersWhere(), {
-		OR: [{ status: null }, { status: { notIn: ['complete', 'closed', 'canceled'] } }],
+// Open is decided by OUR ship status when it has a value; Magento's status only
+// when ours is empty (decided 2026-09-16). The PO rule stays exported for the
+// poStatus filters only. The SQL is a pre-filter; isOpenOrder is the rule.
+test('buildOpenOrdersWhere: ship status not done, or empty ship status with Magento not closed', () => {
+	const where = buildOpenOrdersWhere();
+	assert.deepStrictEqual(Object.keys(where), ['OR']);
+	assert.strictEqual(where.OR.length, 2);
+	assert.deepStrictEqual(where.OR[0], {
+		AND: [
+			{ custom_ship_status: { not: null } },
+			{ custom_ship_status: { notIn: ['', 'Please select...'] } },
+			{ NOT: { custom_ship_status: { in: DONE_SHIP_STATUSES, mode: 'insensitive' } } },
+		],
 	});
+	assert.deepStrictEqual(where.OR[1], {
+		AND: [
+			{ OR: [{ custom_ship_status: null }, { custom_ship_status: { in: ['', 'Please select...'] } }] },
+			{ OR: [{ status: null }, { status: { notIn: ['complete', 'closed', 'canceled'] } }] },
+		],
+	});
+});
+
+test('isOpenOrder: our ship status decides; Magento only when ours is empty', () => {
+	assert.strictEqual(isOpenOrder({ status: 'processing', custom_ship_status: 'Shipping - Drop Shipped' }), false);
+	assert.strictEqual(isOpenOrder({ status: 'complete', custom_ship_status: 'Shipping - Ready To Ship' }), true);
+	assert.strictEqual(isOpenOrder({ status: 'processing', custom_ship_status: 'Captured Waiting For Parts' }), true);
+	assert.strictEqual(isOpenOrder({ status: 'processing', custom_ship_status: '' }), true);
+	assert.strictEqual(isOpenOrder({ status: 'complete', custom_ship_status: '' }), false);
+	assert.strictEqual(isOpenOrder({ status: 'complete', custom_ship_status: 'Please select...' }), false);
+	assert.strictEqual(isOpenOrder({ status: null, custom_ship_status: null }), true);
 });
 
 test('normalizeEmail lowercases and trims; empty becomes null', () => {
@@ -107,7 +130,7 @@ test('fetchOpenOrders reads every open order through wrapWhere, newest first, wi
 	assert.deepStrictEqual(result, rows);
 	const args = prisma.calls.findMany[0];
 	assert.deepStrictEqual(args.where, wrapWhere(buildOpenOrdersWhere()));
-	assert.deepStrictEqual(args.select, { entity_id: true, increment_id: true, created_at: true, customer_email: true, shipping_telephone: true });
+	assert.deepStrictEqual(args.select, { entity_id: true, increment_id: true, created_at: true, customer_email: true, shipping_telephone: true, status: true, custom_ship_status: true });
 	assert.deepStrictEqual(args.orderBy, { created_at: 'desc' });
 });
 
@@ -146,4 +169,83 @@ test('attachOpenOrdersSameCustomer does not mutate the input orders', () => {
 	const orders = [{ entity_id: 1, customer_email: 'a@x.com', shipping_telephone: null }];
 	attachOpenOrdersSameCustomer(orders, [open(1, '1', 'a@x.com', null)]);
 	assert.strictEqual('open_orders_same_customer' in orders[0], false);
+});
+
+// 2026-09-16, second revision: the team tracks progress in custom_ship_status
+// (Magento never closes drop-shipped orders: 1,077 "processing" orders were
+// already Drop Shipped). Closed = Magento status closed OR ship status done.
+// When the two sides disagree the API says so and the screen shows a warning.
+const { DONE_SHIP_STATUSES, isShipStatusDone, isMagentoStatusClosed, isOpenOrder, getStatusDivergence } = require('../../../lib/orders/openOrders.js');
+
+test('DONE_SHIP_STATUSES lists the ship statuses the team uses as finished', () => {
+	assert.deepStrictEqual(DONE_SHIP_STATUSES, [
+		'Shipping - Drop Shipped',
+		'Shipping - Shipped',
+		'Pick up - Picked Up',
+		'Completely Done',
+		'Cancelled',
+		'Returned',
+	]);
+});
+
+test('isShipStatusDone ignores case and spaces, and partial shipments stay open', () => {
+	assert.strictEqual(isShipStatusDone('Shipping - Drop Shipped'), true);
+	assert.strictEqual(isShipStatusDone('  shipping - shipped '), true);
+	assert.strictEqual(isShipStatusDone('Shipping - Partially Shipped'), false);
+	assert.strictEqual(isShipStatusDone('Captured Waiting For Parts'), false);
+	assert.strictEqual(isShipStatusDone(''), false);
+	assert.strictEqual(isShipStatusDone(null), false);
+});
+
+test('isMagentoStatusClosed: complete, closed, canceled; null counts as open', () => {
+	assert.strictEqual(isMagentoStatusClosed('complete'), true);
+	assert.strictEqual(isMagentoStatusClosed('Canceled'), true);
+	assert.strictEqual(isMagentoStatusClosed('processing'), false);
+	assert.strictEqual(isMagentoStatusClosed(null), false);
+});
+
+test('getStatusDivergence: Magento still open but our ship status says done', () => {
+	assert.deepStrictEqual(
+		getStatusDivergence({ status: 'processing', custom_ship_status: 'Shipping - Drop Shipped' }),
+		{ magento_status: 'processing', ship_status: 'Shipping - Drop Shipped' }
+	);
+});
+
+test('getStatusDivergence: Magento closed but our ship status says still in progress', () => {
+	assert.deepStrictEqual(
+		getStatusDivergence({ status: 'complete', custom_ship_status: 'Shipping - Ready To Ship' }),
+		{ magento_status: 'complete', ship_status: 'Shipping - Ready To Ship' }
+	);
+});
+
+test('getStatusDivergence is null when both sides agree or our side has no value', () => {
+	assert.strictEqual(getStatusDivergence({ status: 'processing', custom_ship_status: 'Captured Waiting For Parts' }), null);
+	assert.strictEqual(getStatusDivergence({ status: 'complete', custom_ship_status: 'Shipping - Shipped' }), null);
+	assert.strictEqual(getStatusDivergence({ status: 'complete', custom_ship_status: '' }), null);
+	assert.strictEqual(getStatusDivergence({ status: 'complete', custom_ship_status: 'Please select...' }), null);
+	assert.strictEqual(getStatusDivergence({ status: 'processing', custom_ship_status: null }), null);
+});
+
+test('fetchOpenOrders keeps only rows that isOpenOrder accepts, whatever the SQL returned', async () => {
+	const rows = [
+		{ ...open(4, '200070997', 'j@x.com', '604-555-5375'), status: 'processing', custom_ship_status: '' },
+		{ ...open(3, '200067648', 'j@x.com', '604-555-5375'), status: 'processing', custom_ship_status: 'Shipping - Drop Shipped' },
+		{ ...open(2, '200060000', 'k@x.com', null), status: 'complete', custom_ship_status: 'Shipping - Ready To Ship' },
+		{ ...open(1, '200050000', 'k@x.com', null), status: 'complete', custom_ship_status: '' },
+	];
+	const prisma = makePrismaStub(rows);
+	const result = await fetchOpenOrders(prisma, (w) => w);
+	assert.deepStrictEqual(result.map((r) => r.increment_id), ['200070997', '200060000']);
+	assert.strictEqual(prisma.calls.findMany[0].select.custom_ship_status, true);
+	assert.strictEqual(prisma.calls.findMany[0].select.status, true);
+});
+
+test('attachOpenOrdersSameCustomer also adds status_divergence per row', () => {
+	const orders = [
+		{ entity_id: 2, customer_email: 'j@x.com', shipping_telephone: null, status: 'processing', custom_ship_status: 'Shipping - Drop Shipped' },
+		{ entity_id: 3, customer_email: 'j@x.com', shipping_telephone: null, status: 'processing', custom_ship_status: '' },
+	];
+	const result = attachOpenOrdersSameCustomer(orders, []);
+	assert.deepStrictEqual(result[0].status_divergence, { magento_status: 'processing', ship_status: 'Shipping - Drop Shipped' });
+	assert.strictEqual(result[1].status_divergence, null);
 });
