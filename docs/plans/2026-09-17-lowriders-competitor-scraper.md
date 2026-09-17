@@ -10,6 +10,8 @@
 
 **Spec:** `docs/design/dd-018-lowriders-competitor-scraper.md` (read it first; research in `docs/design/dd-018-research-scraping-approaches.md`).
 
+> **Status (2026-09-17): executed.** All tasks landed on `feature/lowriders-competitor-scraper`. The final review changed two details after this plan was written: the stale-delete floor now compares `matched` against the rows already stored for the competitor (`existingCount`, a `competitorProduct.count` before the upsert) instead of the previous IngestRun's write counts, and `LOWRIDERS_MIN_MATCHED` lives in `env.clear`. DD-018 is the source of truth.
+
 ## Global Constraints
 
 - Git: use `/opt/homebrew/bin/git` (the `/usr/bin/git` shim is blocked by the Xcode licence prompt). Work in a worktree on branch `feature/lowriders-competitor-scraper` created from `main`; `main` has unrelated uncommitted edits in `config/cron-jobs.js`, `.env.example`, `lib/feeds/*`, `routes/ingest.js` that must not be committed here. Run `npm ci` in the worktree.
