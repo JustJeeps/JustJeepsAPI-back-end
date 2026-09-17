@@ -335,7 +335,7 @@ WHERE cp.competitor_id = $1
   );
 ```
 
-`$2` is the JSON array of every `competitorSku` seen in this run (about 7,700 strings).
+`$2` is the JSON array of every `competitor_sku` written in this run (matched items only, about 7,700 strings). Rows for parts that are listed but no longer match one of our products are removed too, because a row we cannot match is a row we cannot trust.
 
 ### 9.4 Competitor row
 
