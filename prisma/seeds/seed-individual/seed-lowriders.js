@@ -62,14 +62,16 @@ async function main() {
 		const result = await ingestLowriders({ prisma, payload, thresholds: config.thresholds, logger, dryRun });
 
 		status = 'success';
-		await run.finish({ status, counts: result.counts, sourceRowCount: payload.items.length });
+		await run.finish({ status, counts: result.counts, sourceRowCount: payload.items.length }).catch((err) => {
+			logger.warn(`[lowriders] could not record the run outcome: ${err.message}`);
+		});
 		await archiveSnapshot(snapshotPath, startedAt, status);
 		logger.info(`[lowriders] run ${run.id} finished: matched=${result.matched} matchRate=${result.matchRate.toFixed(3)} inserted=${result.counts.inserted} updated=${result.counts.updated} deleted=${result.counts.deleted} skipped=${result.counts.skipped}${dryRun ? ' (dry-run, nothing written)' : ''}`);
 		process.exitCode = 0;
 	} catch (err) {
 		const detail = err instanceof LowridersCollectError ? err.failures.map((f) => f.code).join(',') : err.code || err.message;
 		logger.error(`[lowriders] run ${run.id} FAILED: ${err.message}`);
-		await run.finish({ status: 'failed', error: detail });
+		await run.finish({ status: 'failed', error: detail }).catch(() => {});
 		process.exitCode = 1;
 	}
 }
