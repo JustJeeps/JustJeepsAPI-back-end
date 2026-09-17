@@ -74,11 +74,11 @@ function loadRcProducts(prisma) {
 	});
 }
 
-// Last successful run with real writes. A success with zero writes is a dry
-// run or a broken run, not a baseline.
+// Last successful run with real writes. The query skips zero-write successes
+// such as dry runs; the post-check is a belt-and-braces guard.
 async function loadPreviousMatched(prisma) {
 	const last = await prisma.ingestRun.findFirst({
-		where: { feed: FEED, status: 'success' },
+		where: { feed: FEED, status: 'success', OR: [{ rowsInserted: { gt: 0 } }, { rowsUpdated: { gt: 0 } }] },
 		orderBy: { id: 'desc' },
 		select: { rowsInserted: true, rowsUpdated: true },
 	});

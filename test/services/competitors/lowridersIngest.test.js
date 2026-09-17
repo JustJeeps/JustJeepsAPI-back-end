@@ -17,15 +17,17 @@ function payloadOf(items) {
 function makePrisma({ competitor = { id: 5, name: 'Lowriders' }, products = [], lastRun = null, staleCount = 3, deleteCount = 4 } = {}) {
 	const raw = [];
 	const created = [];
+	const ingestRunQueries = [];
 	return {
 		raw,
 		created,
+		ingestRunQueries,
 		competitor: {
 			findFirst: async () => competitor,
 			create: async ({ data }) => { created.push(data); return { id: 99, ...data }; },
 		},
 		product: { findMany: async () => products },
-		ingestRun: { findFirst: async () => lastRun },
+		ingestRun: { findFirst: async (args) => { ingestRunQueries.push(args); return lastRun; } },
 		competitorProduct: { count: async () => staleCount },
 		$executeRawUnsafe(sql, ...params) {
 			const op = { sql, params };
@@ -106,6 +108,17 @@ test('dry run matches and reports but writes nothing and creates nothing', async
 	assert.strictEqual(result.competitorId, null);
 	assert.strictEqual(prisma.raw.length, 0);
 	assert.strictEqual(prisma.created.length, 0);
+});
+
+// A dry run records a success with zero writes; the baseline query must
+// skip it and reach the last run that actually wrote rows.
+test('baseline query asks for the latest success that wrote rows', async () => {
+	const prisma = makePrisma({ products, lastRun: { rowsInserted: 3, rowsUpdated: 4 } });
+	const result = await ingestLowriders({ prisma, payload: payloadOf([item('63470')]), thresholds: { minMatched: 1 }, logger: silent });
+	assert.strictEqual(result.previousMatched, 7);
+	const [query] = prisma.ingestRunQueries;
+	assert.deepStrictEqual(query.where, { feed: 'lowriders', status: 'success', OR: [{ rowsInserted: { gt: 0 } }, { rowsUpdated: { gt: 0 } }] });
+	assert.deepStrictEqual(query.orderBy, { id: 'desc' });
 });
 
 test('upserts in batches of UPSERT_BATCH_SIZE', async () => {
