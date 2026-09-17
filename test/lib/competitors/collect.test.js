@@ -35,11 +35,12 @@ function makeFetch({ pages, pageStatus = () => 200, total = 4 }) {
 	return { fetch, calls };
 }
 
-test('client sends the key header and rejects a 404 with LOWRIDERS_KEY_REJECTED', async () => {
+test('client sends the key header and rejects a 404', async () => {
+	const FAKE_KEY = 'fake-key-0123456789abcdef';
 	const { fetch, calls } = makeFetch({ pages: [fixture.list], pageStatus: () => 404 });
-	const client = createPartslogicClient({ fetch, apiKey: 'k', baseUrl: config.apiBaseUrl, userAgent: 'ua', timeoutMs: 1000 });
-	await assert.rejects(client.fetchPage({ brandId: 90296, page: 1, limit: 2 }), (e) => e.code === 'LOWRIDERS_KEY_REJECTED' && !e.message.includes('k'));
-	assert.strictEqual(calls[0].headers['sunhammer-api-key'], 'k');
+	const client = createPartslogicClient({ fetch, apiKey: FAKE_KEY, baseUrl: config.apiBaseUrl, userAgent: 'ua', timeoutMs: 1000 });
+	await assert.rejects(client.fetchPage({ brandId: 90296, page: 1, limit: 2 }), (e) => e.code === 'LOWRIDERS_KEY_REJECTED' && !e.message.includes(FAKE_KEY));
+	assert.strictEqual(calls[0].headers['sunhammer-api-key'], FAKE_KEY);
 	assert.match(calls[0].url, /brands=90296&limit=2&page=1/);
 });
 

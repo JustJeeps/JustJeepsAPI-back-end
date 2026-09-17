@@ -154,6 +154,8 @@ env:
     # production sets LOWRIDERS_MIN_MATCHED.
     CRON_SEED_LOWRIDERS_ENABLED: "false"
     CRON_SEED_LOWRIDERS_SCHEDULE: "13 3 * * *"
+    # stale delete floor; raise after the dry run in production
+    LOWRIDERS_MIN_MATCHED: "500"
     KEYSTONE_FTP_MAX_ATTEMPTS: "12"
     # Keystone FTPS intermediate CA: the server only sends the leaf, so Node
     # needs the intermediate to build the chain. It lives in a private directory
@@ -254,7 +256,6 @@ env:
     # Lowriders scraper (DD-018): contact goes in the User-Agent, key is a fallback only
     - SCRAPER_CONTACT_EMAIL
     - LOWRIDERS_PARTSLOGIC_API_KEY
-    - LOWRIDERS_MIN_MATCHED
     - FREIGHTCOM_API_KEY
     # DigitalOcean Spaces (vendor feeds + request attachments). Required since
     # the feeds pipeline went live; request attachments use the same bucket.

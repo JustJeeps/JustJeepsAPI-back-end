@@ -41,11 +41,11 @@ test('several failures are reported together', () => {
 	assert.deepStrictEqual(codes(r).sort(), ['BELOW_MIN_ITEMS', 'BRAND_IMPURE', 'TOTAL_MISMATCH']);
 });
 
-test('stale floor needs a minimum and no big drop versus the previous run', () => {
-	assert.deepStrictEqual(checkStaleFloor({ matched: 499, previousMatched: null, thresholds: { minMatched: 500, matchDropRatio: 0.8 } }).ok, false);
-	assert.deepStrictEqual(checkStaleFloor({ matched: 500, previousMatched: null, thresholds: { minMatched: 500, matchDropRatio: 0.8 } }), { ok: true, reason: null });
-	assert.strictEqual(checkStaleFloor({ matched: 799, previousMatched: 1000, thresholds: { minMatched: 500, matchDropRatio: 0.8 } }).ok, false);
-	assert.strictEqual(checkStaleFloor({ matched: 800, previousMatched: 1000, thresholds: { minMatched: 500, matchDropRatio: 0.8 } }).ok, true);
+test('stale floor needs a minimum and no big drop versus the rows already stored', () => {
+	assert.deepStrictEqual(checkStaleFloor({ matched: 499, existingCount: null, thresholds: { minMatched: 500, matchDropRatio: 0.8 } }).ok, false);
+	assert.deepStrictEqual(checkStaleFloor({ matched: 500, existingCount: null, thresholds: { minMatched: 500, matchDropRatio: 0.8 } }), { ok: true, reason: null });
+	assert.strictEqual(checkStaleFloor({ matched: 799, existingCount: 1000, thresholds: { minMatched: 500, matchDropRatio: 0.8 } }).ok, false);
+	assert.strictEqual(checkStaleFloor({ matched: 800, existingCount: 1000, thresholds: { minMatched: 500, matchDropRatio: 0.8 } }).ok, true);
 });
 
 test('defaults match the spec', () => {

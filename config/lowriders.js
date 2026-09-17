@@ -47,7 +47,7 @@ function getLowridersConfig(env = process.env) {
 		thresholds: {
 			minCollectRatio: ratioFrom(env.LOWRIDERS_MIN_COLLECT_RATIO, DEFAULTS.minCollectRatio),
 			minItems: intFrom(env.LOWRIDERS_MIN_ITEMS, DEFAULTS.minItems, 0, Number.MAX_SAFE_INTEGER),
-			minMatched: intFrom(env.LOWRIDERS_MIN_MATCHED, DEFAULTS.minMatched, 0, Number.MAX_SAFE_INTEGER),
+			minMatched: intFrom(env.LOWRIDERS_MIN_MATCHED, DEFAULTS.minMatched, 1, Number.MAX_SAFE_INTEGER),
 			matchDropRatio: ratioFrom(env.LOWRIDERS_MATCH_DROP_RATIO, DEFAULTS.matchDropRatio),
 		},
 	};

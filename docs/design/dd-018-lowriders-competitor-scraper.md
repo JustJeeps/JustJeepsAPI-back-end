@@ -194,12 +194,12 @@ flowchart LR
 | Path | Exports | Responsibility |
 |------|---------|----------------|
 | `lib/competitors/lowriders/discoverConfig.js` | `parseWidgetConfig(html)`, `discoverConfig({ fetch, brandPageUrl, fallbackApiKey, userAgent, timeoutMs, logger })` | Read `API_KEY` and `groupId` from the brand page each run. Returns `{ apiKey, groupId, source: 'page' \| 'env' }`. Throws `LOWRIDERS_CONFIG_NOT_FOUND` when neither the page nor the env provides a key. Never logs the key. |
-| `lib/competitors/lowriders/partslogicClient.js` | `createPartslogicClient({ fetch, apiKey, baseUrl, userAgent, timeoutMs, logger })` with `fetchPage({ brandId, page, limit })` | One page request with `sunhammer-api-key`, `AbortSignal.timeout`. Returns `{ list, total }`. HTTP 404 throws `LOWRIDERS_KEY_REJECTED`. Errors are described as `{ status, code, message, url }` with no header values. |
+| `lib/competitors/lowriders/partslogicClient.js` | `createPartslogicClient({ fetch, apiKey, baseUrl, userAgent, timeoutMs })` with `fetchPage({ brandId, page, limit })` | One page request with `sunhammer-api-key`, `AbortSignal.timeout`. Returns `{ list, total }`. HTTP 404 throws `LOWRIDERS_KEY_REJECTED`. Errors are described as `{ status, code, message, url }` with no header values. |
 | `lib/competitors/lowriders/normalize.js` | `normalizeItem(raw)`, `dedupeItems(items)`, `buildPayload({...})` | Item to contract row (section 6). `competitorSku = stockid.replace(/^RCS-/i, '')`, fallback to the title prefix before ` | `, then `dealerid`. `effectivePrice = sale > 0 ? sale : price`. Duplicates keep the lowest effective price and are counted. |
-| `lib/competitors/lowriders/canaries.js` | `checkCollection({ items, reportedTotal, invalidCount, duplicateCount, thresholds })`, `checkStaleFloor({ matched, previousMatched, thresholds })` | Pure checks, section 7. |
+| `lib/competitors/lowriders/canaries.js` | `checkCollection({ items, reportedTotal, invalidCount, duplicateCount, thresholds })`, `checkStaleFloor({ matched, existingCount, thresholds })` | Pure checks, section 7. |
 | `lib/competitors/lowriders/collect.js` | `collectLowriders({ fetch, config, logger, sleep, now, withRetry })` | Orchestrates discover, paginate (concurrency 1, jitter), normalize, canaries, payload. Throws `LowridersCollectError` carrying `failures[]`. |
 | `lib/competitors/skuMatch.js` | `canonicalPartNumber(s)`, `buildProductIndex(products)`, `matchPartNumber(index, partNumber)` | Brand-agnostic matcher, section 8. |
-| `services/competitors/lowridersIngest.js` | `ingestLowriders({ prisma, payload, thresholds, logger, now, dryRun })` | Resolve competitor, load RC products, match, batched upsert, gated stale delete. Returns `{ competitorId, counts, matchRate, staleFloor, unmatchedSample, ambiguous }`. Prisma is injected, never required. |
+| `services/competitors/lowridersIngest.js` | `ingestLowriders({ prisma, payload, thresholds, logger, dryRun })` | Resolve competitor, load RC products, match, batched upsert, gated stale delete. Returns `{ competitorId, counts, matchRate, staleFloor, unmatchedSample, ambiguousCount }`. Prisma is injected, never required. |
 | `prisma/seeds/seed-individual/seed-lowriders.js` | (script) | Build config from env, `startRun('lowriders', { sourceKind: 'api' })`, collect, write and archive the snapshot, ingest, `run.finish`, set `process.exitCode`. Supports `--dry-run`. |
 
 ### 5.2 Runner behaviour
@@ -273,7 +273,7 @@ Pagination stops when `page * limit >= total` or a page comes back short, with a
 Soft floor, evaluated in the ingest service, gates only the stale delete:
 
 - `matched >= LOWRIDERS_MIN_MATCHED`, and
-- no previous successful run, or `matched >= previousMatched * matchDropRatio` (default 0.8).
+- no rows stored for this competitor yet, or `matched >= 80% of the rows already stored for it` (default `matchDropRatio`).
 
 When the floor fails, upserts are still applied, the delete is skipped, `rowsMarkedStale` records how many stale rows were kept, and the log prints `[lowriders] STALE DELETE SKIPPED: <reason>`. The run still counts as `success`.
 
@@ -341,7 +341,7 @@ WHERE cp.competitor_id = $1
 
 The service resolves the competitor by name: `findFirst({ where: { name: { equals: 'Lowriders', mode: 'insensitive' } } })`, and creates `{ name: 'Lowriders', website: 'https://www.lowriders.ca/' }` when missing. The id is never hardcoded. The name must stay exactly `Lowriders` because the front-end export (`Items.jsx`) and `scripts/export-all-products-excel.js` match on that string.
 
-`prisma/seeds/hard-code_data/competitors_data.js` is backfilled with TDOT and Lowriders after Parts Engine, in that order, so a fresh environment reproduces the production ids (4 and 5). `seed-hard-code` matches by name, so this is safe on production.
+`prisma/seeds/hard-code_data/competitors_data.js` is backfilled with TDOT and Lowriders after Parts Engine, in that order, so a fresh environment reproduces the production ids (4 and 5). `seed-hard-code.js` currently has its competitor seeding disabled (the `competitorData` require is commented out), so the backfill documents the production ids for a fresh environment and is not applied automatically. Before re-enabling it, confirm the production names of ids 4 and 5, because `seed-hard-code` matches by name and a different spelling would create a duplicate row.
 
 ### 9.5 Cron and environment
 
@@ -358,7 +358,7 @@ const lowridersSeedSchedule = process.env.CRON_SEED_LOWRIDERS_SCHEDULE || '13 3 
 
 Job entry: `{ enabled, schedule, command: 'seed-lowriders', jobName: 'Lowriders Competitor Prices', logPrefix: 'Lowriders competitor prices', reportLogFile: 'prisma/seeds/logs/seed-lowriders.log' }`, plus both constants re-exported in `config`.
 
-`config/deploy.yml`: `CRON_SEED_LOWRIDERS_ENABLED: "false"` and `CRON_SEED_LOWRIDERS_SCHEDULE: "13 3 * * *"` in `env.clear`; `LOWRIDERS_PARTSLOGIC_API_KEY` (fallback only) and `SCRAPER_CONTACT_EMAIL` in `env.secret`.
+`config/deploy.yml`: `CRON_SEED_LOWRIDERS_ENABLED: "false"` and `CRON_SEED_LOWRIDERS_SCHEDULE: "13 3 * * *"` in `env.clear`. `SCRAPER_CONTACT_EMAIL` (required) and `LOWRIDERS_PARTSLOGIC_API_KEY` (fallback, may be empty) in `env.secret`, and both lines must exist in `.env.production` before the next deploy, because Kamal aborts on a missing secret. `LOWRIDERS_MIN_MATCHED` in `env.clear`.
 
 `.env.example` block:
 
@@ -385,12 +385,12 @@ No `config/feeds.js` entry: that registry is file-centric and "Run now" would tr
 
 ## 10. Observability
 
-- `IngestRun` feed `lowriders`: `sourceRowCount = items.length`, `rowsInserted`, `rowsUpdated`, `rowsDeleted`, `rowsSkipped = unmatched + invalid`, `rowsMarkedStale = stale rows kept when the floor failed`, `error` on failure.
+- `IngestRun` feed `lowriders`: `sourceRowCount = items.length`, `rowsInserted`, `rowsUpdated`, `rowsDeleted`, `rowsSkipped = unmatched + invalid`, `rowsMarkedStale = stale rows kept when the floor failed`, `error` on failure. A `--dry-run` records its own `IngestRun` with `startedBy = 'dry-run'` and zero counts, since nothing is written.
 - Log lines, one per step, prefixed with the ISO timestamp and `[lowriders]`:
   - `step=collect pages=16 items=7712 reportedTotal=7747 configSource=page`
   - `step=match matched=… unmatched=… ambiguous=… matchRate=0.87`
   - `step=upsert inserted=… updated=…`
-  - `step=stale deleted=… floor=passed` or `floor=skipped(<reason>)`
+  - `step=stale deleted=… floor=passed` or `step=stale deleted=0 floor=skipped STALE DELETE SKIPPED: <reason> (<n> rows kept)`
   - `CANARY FAILED code=… detail=…`
 - Snapshot archive key: `logs/cron/seed-lowriders/YYYY/MM/DD/<stamp>-<status>.json` in DO Spaces. The `.log` slice is archived by the cron runner as for every job.
 - Failure alert: exit 1 reaches the existing cron notification e-mail.
@@ -474,7 +474,7 @@ flowchart TD
 | TDOT website string for the `competitors_data.js` backfill | Not in the repo. Confirm the production `Competitor` row before writing it |
 | Front-end deep link | Optional one-line branch in `ProductTable.jsx`: `else if (competitorName.includes('lowriders') && competitorProduct.product_url) link = competitorProduct.product_url;`. No restyle |
 | Regular price is not stored | Lives in the snapshot; a `competitor_regular_price` column is a later decision |
-| Shared ParseHub key in four other files | Out of scope; flagged for rotation |
+| ParseHub key: the deleted `lowriders.js` was the last file carrying it in the tree | Rotate the key anyway because it lived in git history |
 
 ---
 
@@ -491,7 +491,7 @@ flowchart TD
 9. Rewrite `seed-lowriders.js`; delete `prisma/seeds/api-calls/lowriders.js`.
 10. `config/cron-jobs.js`, `config/deploy.yml`, `.env.example`; `npm test`.
 11. `competitors_data.js` backfill.
-12. Deploy (migration applies). Run `npm run seed-lowriders -- --dry-run` in production. Set `LOWRIDERS_MIN_MATCHED`. Enable the cron.
+12. `SCRAPER_CONTACT_EMAIL` and `LOWRIDERS_PARTSLOGIC_API_KEY` must exist in `.env.production` before the next deploy, because Kamal aborts on a missing secret. Deploy (migration applies). Run `npm run seed-lowriders -- --dry-run` in production. Set `LOWRIDERS_MIN_MATCHED`. Enable the cron.
 13. Optional front-end link branch, deployed by hand as usual.
 
 ---

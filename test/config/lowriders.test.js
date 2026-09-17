@@ -32,3 +32,8 @@ test('env overrides are parsed and clamped', () => {
 test('missing contact e-mail is a startup error', () => {
 	assert.throws(() => getLowridersConfig({}), /SCRAPER_CONTACT_EMAIL/);
 });
+
+test('minMatched is clamped to a minimum of 1, never 0', () => {
+	const c = getLowridersConfig({ SCRAPER_CONTACT_EMAIL: 'x@y.test', LOWRIDERS_MIN_MATCHED: '0' });
+	assert.strictEqual(c.thresholds.minMatched, 1);
+});

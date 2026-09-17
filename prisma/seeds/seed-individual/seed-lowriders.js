@@ -50,7 +50,11 @@ async function main() {
 	const dryRun = process.argv.includes('--dry-run');
 	const config = getLowridersConfig(process.env);
 	const startedAt = new Date();
-	const run = await startRun(FEED, { sourceKind: 'api', sourceRef: config.brandPageUrl, startedBy: process.env.INGEST_TRIGGER || 'cron' });
+	const run = await startRun(FEED, {
+		sourceKind: 'api',
+		sourceRef: dryRun ? `${config.brandPageUrl} (dry-run)` : config.brandPageUrl,
+		startedBy: dryRun ? 'dry-run' : process.env.INGEST_TRIGGER || 'cron',
+	});
 	logger.info(`[lowriders] run ${run.id} started${dryRun ? ' (dry-run)' : ''} brand=${config.brandId} pageSize=${config.pageSize}`);
 
 	let status = 'failed';
@@ -69,7 +73,7 @@ async function main() {
 		logger.info(`[lowriders] run ${run.id} finished: matched=${result.matched} matchRate=${result.matchRate.toFixed(3)} inserted=${result.counts.inserted} updated=${result.counts.updated} deleted=${result.counts.deleted} skipped=${result.counts.skipped}${dryRun ? ' (dry-run, nothing written)' : ''}`);
 		process.exitCode = 0;
 	} catch (err) {
-		const detail = err instanceof LowridersCollectError ? err.failures.map((f) => f.code).join(',') : err.code || err.message;
+		const detail = err instanceof LowridersCollectError ? err.failures.map((f) => f.code).join(',') : `${err.code ? err.code + ': ' : ''}${err.message}`;
 		logger.error(`[lowriders] run ${run.id} FAILED: ${err.message}`);
 		await run.finish({ status: 'failed', error: detail }).catch(() => {});
 		process.exitCode = 1;

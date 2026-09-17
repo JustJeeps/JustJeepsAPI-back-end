@@ -14,21 +14,22 @@ function payloadOf(items) {
 }
 
 // Records every raw statement; $transaction resolves the recorded ops.
-function makePrisma({ competitor = { id: 5, name: 'Lowriders' }, products = [], lastRun = null, staleCount = 3, deleteCount = 4 } = {}) {
+// competitorProduct.count is called twice per non-dry, non-passing-floor run
+// (the baseline before the upsert, the rows kept when the floor fails); the
+// first call returns countBefore, later calls return staleCount.
+function makePrisma({ competitor = { id: 5, name: 'Lowriders' }, products = [], countBefore = 0, staleCount = 3, deleteCount = 4 } = {}) {
 	const raw = [];
 	const created = [];
-	const ingestRunQueries = [];
+	let countCalls = 0;
 	return {
 		raw,
 		created,
-		ingestRunQueries,
 		competitor: {
 			findFirst: async () => competitor,
 			create: async ({ data }) => { created.push(data); return { id: 99, ...data }; },
 		},
 		product: { findMany: async () => products },
-		ingestRun: { findFirst: async (args) => { ingestRunQueries.push(args); return lastRun; } },
-		competitorProduct: { count: async () => staleCount },
+		competitorProduct: { count: async () => (countCalls++ === 0 ? countBefore : staleCount) },
 		$executeRawUnsafe(sql, ...params) {
 			const op = { sql, params };
 			raw.push(op);
@@ -45,7 +46,7 @@ const products = [
 ];
 
 test('matches, upserts in one batch and deletes stale rows when the floor passes', async () => {
-	const prisma = makePrisma({ products, lastRun: { rowsInserted: 1, rowsUpdated: 1 } });
+	const prisma = makePrisma({ products, countBefore: 2 });
 	const result = await ingestLowriders({
 		prisma, payload: payloadOf([item('63470', 846.65), item('2620RED', 745.61), item('NOPE')]),
 		thresholds: { minMatched: 1, matchDropRatio: 0.8 }, logger: silent,
@@ -73,7 +74,7 @@ test('matches, upserts in one batch and deletes stale rows when the floor passes
 
 // A thin run must never delete: prices update, rows stay, the log shouts.
 test('when the floor fails the upsert still runs and the delete is skipped', async () => {
-	const prisma = makePrisma({ products, lastRun: { rowsInserted: 100, rowsUpdated: 100 } });
+	const prisma = makePrisma({ products, countBefore: 200 });
 	const warnings = [];
 	const result = await ingestLowriders({
 		prisma, payload: payloadOf([item('63470')]), thresholds: { minMatched: 1, matchDropRatio: 0.8 }, logger: { ...silent, warn: (m) => warnings.push(m) },
@@ -83,13 +84,6 @@ test('when the floor fails the upsert still runs and the delete is skipped', asy
 	assert.strictEqual(result.counts.markedStale, 3);
 	assert.strictEqual(prisma.raw.length, 2, 'update + insert only');
 	assert.ok(warnings.some((w) => w.includes('STALE DELETE SKIPPED')));
-});
-
-test('a previous success with zero writes (dry run) is not a baseline', async () => {
-	const prisma = makePrisma({ products, lastRun: { rowsInserted: 0, rowsUpdated: 0 } });
-	const result = await ingestLowriders({ prisma, payload: payloadOf([item('63470')]), thresholds: { minMatched: 1 }, logger: silent });
-	assert.strictEqual(result.previousMatched, null);
-	assert.strictEqual(result.staleFloor.ok, true);
 });
 
 test('creates the competitor by name when it is missing', async () => {
@@ -110,15 +104,24 @@ test('dry run matches and reports but writes nothing and creates nothing', async
 	assert.strictEqual(prisma.created.length, 0);
 });
 
-// A dry run records a success with zero writes; the baseline query must
-// skip it and reach the last run that actually wrote rows.
-test('baseline query asks for the latest success that wrote rows', async () => {
-	const prisma = makePrisma({ products, lastRun: { rowsInserted: 3, rowsUpdated: 4 } });
-	const result = await ingestLowriders({ prisma, payload: payloadOf([item('63470')]), thresholds: { minMatched: 1 }, logger: silent });
-	assert.strictEqual(result.previousMatched, 7);
-	const [query] = prisma.ingestRunQueries;
-	assert.deepStrictEqual(query.where, { feed: 'lowriders', status: 'success', OR: [{ rowsInserted: { gt: 0 } }, { rowsUpdated: { gt: 0 } }] });
-	assert.deepStrictEqual(query.orderBy, { id: 'desc' });
+// The floor's baseline is the rows already stored for this competitor, not
+// an IngestRun record.
+test('stale floor compares matched against the rows already stored', async () => {
+	const passing = makePrisma({ products, countBefore: 2 });
+	const passResult = await ingestLowriders({
+		prisma: passing, payload: payloadOf([item('63470'), item('2620RED')]),
+		thresholds: { minMatched: 1, matchDropRatio: 0.8 }, logger: silent,
+	});
+	assert.strictEqual(passResult.existingCount, 2);
+	assert.strictEqual(passResult.staleFloor.ok, true);
+
+	const failing = makePrisma({ products, countBefore: 200 });
+	const failResult = await ingestLowriders({
+		prisma: failing, payload: payloadOf([item('63470')]),
+		thresholds: { minMatched: 1, matchDropRatio: 0.8 }, logger: silent,
+	});
+	assert.strictEqual(failResult.existingCount, 200);
+	assert.strictEqual(failResult.staleFloor.ok, false);
 });
 
 test('upserts in batches of UPSERT_BATCH_SIZE', async () => {

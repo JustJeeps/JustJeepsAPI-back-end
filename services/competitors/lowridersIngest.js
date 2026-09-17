@@ -9,7 +9,6 @@ const { checkStaleFloor } = require('../../lib/competitors/lowriders/canaries');
 const UPSERT_BATCH_SIZE = 2000;
 const UNMATCHED_SAMPLE = 25;
 const AMBIGUOUS_LOG_LIMIT = 50;
-const FEED = 'lowriders';
 
 const UPDATE_SQL = `
   WITH input AS (
@@ -74,19 +73,6 @@ function loadRcProducts(prisma) {
 	});
 }
 
-// Last successful run with real writes. The query skips zero-write successes
-// such as dry runs; the post-check is a belt-and-braces guard.
-async function loadPreviousMatched(prisma) {
-	const last = await prisma.ingestRun.findFirst({
-		where: { feed: FEED, status: 'success', OR: [{ rowsInserted: { gt: 0 } }, { rowsUpdated: { gt: 0 } }] },
-		orderBy: { id: 'desc' },
-		select: { rowsInserted: true, rowsUpdated: true },
-	});
-	if (!last) return null;
-	const total = (last.rowsInserted || 0) + (last.rowsUpdated || 0);
-	return total > 0 ? total : null;
-}
-
 async function ingestLowriders({ prisma, payload, thresholds = {}, logger, dryRun = false }) {
 	const competitor = await resolveCompetitor(prisma, payload.competitor, dryRun);
 	const index = buildProductIndex(await loadRcProducts(prisma));
@@ -110,11 +96,13 @@ async function ingestLowriders({ prisma, payload, thresholds = {}, logger, dryRu
 	if (unmatched.length) logger.info(`[lowriders] unmatched sample: ${unmatched.slice(0, UNMATCHED_SAMPLE).join(', ')}`);
 	for (const a of ambiguous.slice(0, AMBIGUOUS_LOG_LIMIT)) logger.warn(`[lowriders] ambiguous ${a.competitorSku} -> ${a.chosen} (candidates: ${a.candidates.join(', ')})`);
 
-	const previousMatched = await loadPreviousMatched(prisma);
-	const staleFloor = checkStaleFloor({ matched, previousMatched, thresholds });
+	// Count when a competitor row exists, regardless of dryRun, so a dry-run
+	// report also shows the floor verdict.
+	const existingCount = competitor ? await prisma.competitorProduct.count({ where: { competitor_id: competitor.id } }) : null;
+	const staleFloor = checkStaleFloor({ matched, existingCount, thresholds });
 	const counts = { inserted: 0, updated: 0, deleted: 0, skipped: unmatched.length + (payload.collection?.invalidCount || 0), markedStale: 0 };
 	const summary = {
-		competitorId: competitor ? competitor.id : null, counts, matched, matchRate, previousMatched, staleFloor,
+		competitorId: competitor ? competitor.id : null, counts, matched, matchRate, existingCount, staleFloor,
 		unmatchedSample: unmatched.slice(0, UNMATCHED_SAMPLE), ambiguousCount: ambiguous.length, dryRun,
 	};
 
@@ -140,7 +128,7 @@ async function ingestLowriders({ prisma, payload, thresholds = {}, logger, dryRu
 		logger.info(`[lowriders] step=stale deleted=${counts.deleted} floor=passed`);
 	} else {
 		counts.markedStale = await prisma.competitorProduct.count({ where: { competitor_id: competitor.id, competitor_sku: { notIn: writtenSkus } } });
-		logger.warn(`[lowriders] STALE DELETE SKIPPED: ${staleFloor.reason} (${counts.markedStale} rows kept)`);
+		logger.warn(`[lowriders] step=stale deleted=0 floor=skipped STALE DELETE SKIPPED: ${staleFloor.reason} (${counts.markedStale} rows kept)`);
 	}
 
 	return summary;
