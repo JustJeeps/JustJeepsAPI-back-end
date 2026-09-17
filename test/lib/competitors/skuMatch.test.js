@@ -52,6 +52,19 @@ test('ambiguous candidates are resolved deterministically and flagged', () => {
 	assert.strictEqual(noExact.sku, 'RC-10497-A', 'no raw equality, so the active product wins');
 });
 
+// Same canonical form, same status, neither is an exact raw match: the
+// smallest sku wins, so two runs on the same data never disagree.
+test('third tie-break tier picks the smallest sku', () => {
+	const index = buildProductIndex([
+		{ sku: 'RC-ZZ-1', searchable_sku: 'ZZ-1', status: 1 },
+		{ sku: 'RC-ZZ_1', searchable_sku: 'ZZ_1', status: 1 },
+	]);
+	const result = matchPartNumber(index, 'zz 1');
+	assert.strictEqual(result.status, 'ambiguous');
+	assert.strictEqual(result.sku, 'RC-ZZ-1');
+	assert.strictEqual(result.candidates.length, 2);
+});
+
 test('products without a searchable_sku are ignored by the index', () => {
 	const index = buildProductIndex([{ sku: 'RC-X', searchable_sku: null, status: 1 }, { sku: 'RC-Y', searchable_sku: '', status: 1 }]);
 	assert.strictEqual(index.size, 0);
