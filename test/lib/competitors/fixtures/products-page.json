@@ -1,0 +1,35 @@
+{
+  "list": [
+    {
+      "id": 23910051, "availability": "Available", "brand_name": "Rough Country", "condition": "New",
+      "dealerid": "63470", "price": 939.95, "sale": 846.65, "sale_hidden": 0, "stockid": "RCS-63470",
+      "title": "63470 | 2.5 Inch Leveling Kit | Spacers | V2 | Jeep Gladiator JT 4WD (20-22)",
+      "url": "https://lowriders.ca/i-23910051?", "inventory": 0, "qty": 0, "has_options": false
+    },
+    {
+      "id": 23910052, "availability": "Available", "brand_name": "Rough Country", "condition": "New",
+      "dealerid": "699", "price": 112.95, "sale": 0, "sale_hidden": 0, "stockid": "RCS-699",
+      "title": "699 | Rough Country Spring Over Pads For Jeep Wrangler YJ 4WD",
+      "url": "https://lowriders.ca/i-23910052?", "inventory": 0, "qty": 0, "has_options": false
+    },
+    {
+      "id": 23910053, "availability": "Inventory", "brand_name": "Rough Country", "condition": "New",
+      "dealerid": "330.2", "price": 1259.95, "sale": 1137.23, "sale_hidden": 0, "stockid": "RCS-330.20",
+      "title": "330.20 | 4 Inch Dodge Suspension Lift Kit w/ Premium N3 Shocks (Dana 44)",
+      "url": "https://lowriders.ca/i-23910053?", "inventory": 0, "qty": 0, "has_options": false
+    },
+    {
+      "id": 23910054, "availability": "Available", "brand_name": "Rough Country", "condition": "New",
+      "dealerid": "28230RED", "price": 829.95, "sale": 745.61, "sale_hidden": 0, "stockid": "RCS-28230RED",
+      "title": "28230RED | Rough Country 3.5 Inch Lift Kit With Red Control Arms",
+      "url": "https://lowriders.ca/i-23910054?", "inventory": 0, "qty": 0, "has_options": false
+    },
+    {
+      "id": 23910055, "availability": "Available", "brand_name": "Rough Country", "condition": "New",
+      "dealerid": "99999", "price": 0, "sale": 0, "sale_hidden": 0, "stockid": "RCS-99999",
+      "title": "99999 | Broken price item",
+      "url": "https://lowriders.ca/i-23910055?", "inventory": 0, "qty": 0, "has_options": false
+    }
+  ],
+  "total": 7747
+}
