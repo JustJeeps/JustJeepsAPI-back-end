@@ -40,6 +40,10 @@ const keystoneFeedFetchSchedule = process.env.CRON_FEED_FETCH_KEYSTONE_SCHEDULE 
 // seed-all das 7:32 (e o commandGate serializa de qualquer forma).
 const feedsPruneEnabled = process.env.CRON_FEEDS_PRUNE_ENABLED === 'true';
 const feedsPruneSchedule = process.env.CRON_FEEDS_PRUNE_SCHEDULE || '17 6 * * *';
+// Lowriders competitor prices (DD-018): public JSON API, 8 to 16 requests a
+// day. Opt-in; 03:13 is off the orders-delta grid and hours before seed-all.
+const lowridersSeedEnabled = process.env.CRON_SEED_LOWRIDERS_ENABLED === 'true';
+const lowridersSeedSchedule = process.env.CRON_SEED_LOWRIDERS_SCHEDULE || '13 3 * * *';
 const testCronEnabled = process.env.CRON_TEST_ENABLED === 'true';
 const testCronSchedule = process.env.CRON_TEST_SCHEDULE || '*/5 * * * *';
 const testCronCommand = process.env.CRON_TEST_COMMAND || 'seed-tdot';
@@ -174,6 +178,14 @@ function getCronJobDefinitions({ includeDisabled = false } = {}) {
 			reportLogFile: 'logs/feed-prune.log',
 		},
 		{
+			enabled: lowridersSeedEnabled,
+			schedule: lowridersSeedSchedule,
+			command: 'seed-lowriders',
+			jobName: 'Lowriders Competitor Prices',
+			logPrefix: 'Lowriders competitor prices',
+			reportLogFile: 'prisma/seeds/logs/seed-lowriders.log',
+		},
+		{
 			enabled: testCronEnabled,
 			schedule: testCronSchedule,
 			command: testCronCommand,
@@ -300,6 +312,8 @@ module.exports = {
 		keystoneFeedFetchSchedule,
 		feedsPruneEnabled,
 		feedsPruneSchedule,
+		lowridersSeedEnabled,
+		lowridersSeedSchedule,
 		testCronEnabled,
 		testCronSchedule,
 		testCronCommand,
