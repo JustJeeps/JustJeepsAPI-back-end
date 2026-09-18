@@ -150,12 +150,13 @@ env:
     # 6:17 sits after the 4:47 fetch and before seed-all at 7:32.
     CRON_FEEDS_PRUNE_ENABLED: "true"
     CRON_FEEDS_PRUNE_SCHEDULE: "17 6 * * *"
-    # Lowriders competitor prices (DD-018). Off until the dry run in
-    # production sets LOWRIDERS_MIN_MATCHED.
-    CRON_SEED_LOWRIDERS_ENABLED: "false"
+    # Lowriders competitor prices (DD-018). On since 2026-09-18, after the
+    # first production run matched 7000 of 7763 collected items (90.2%).
+    CRON_SEED_LOWRIDERS_ENABLED: "true"
     CRON_SEED_LOWRIDERS_SCHEDULE: "13 3 * * *"
-    # stale delete floor; raise after the dry run in production
-    LOWRIDERS_MIN_MATCHED: "500"
+    # Stale delete floor, set from that run: a night that matches fewer than
+    # 6000 still updates prices but refuses to delete anything.
+    LOWRIDERS_MIN_MATCHED: "6000"
     KEYSTONE_FTP_MAX_ATTEMPTS: "12"
     # Keystone FTPS intermediate CA: the server only sends the leaf, so Node
     # needs the intermediate to build the chain. It lives in a private directory
