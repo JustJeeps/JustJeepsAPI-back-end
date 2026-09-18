@@ -1,0 +1,16 @@
+<!doctype html>
+<html><head><title>Rough Country | Lowriders</title></head>
+<body>
+<div id="pl-search-page-container"></div>
+<script>
+window.addEventListener('DOMContentLoaded', function () {
+    window.PartslogicUi.config({ API_KEY: "11111111-2222-3333-4444-555555555555" });
+    const searchPageContainer = document.querySelector('#pl-search-page-container');
+    const ProductListWrapper = window.PartslogicUi.WsmSearchPage;
+    window.ReactDOM.render(
+    window.React.createElement(ProductListWrapper, {groupId: 61039}),
+    searchPageContainer
+    );
+})
+</script>
+</body></html>

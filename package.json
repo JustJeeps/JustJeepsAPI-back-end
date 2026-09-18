@@ -106,6 +106,7 @@
     "update-alpine-cad-map-prices": "node pricing_update/cad_store/update-alpine-map-cad-store.js",
     "update-warn-cad-map-prices": "node pricing_update/cad_store/update-warn-map-cad-store.js",
     "update-teraflex-cad-map-prices": "node pricing_update/cad_store/update-teraflex-map-cad-store.js",
+    "update-wheelpros-cad-map-prices": "node pricing_update/cad_store/update-wheelpros-map-cad-store.js",
     "update-cad-store-prcsvices-from-": "node pricing_update/cad_store/update-prices-from-csv-cad-store.js",
     "update-cad-csv-live": "node pricing_update/cad_store/update-prices-from-csv-cad-store.js --live",
     "magento-bf-no-sale": "node magento_update/update-black-friday-no-sale.js",

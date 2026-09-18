@@ -524,8 +524,14 @@ model CompetitorProduct {
   product_url      String?
   competitor_price Float
   competitor_sku   String?
+  // DD-018: raw-SQL seeds set updated_at themselves; @updatedAt only covers
+  // Prisma client writes.
+  updated_at       DateTime   @default(now()) @updatedAt
   competitor       Competitor @relation(fields: [competitor_id], references: [id])
   product          Product    @relation(fields: [product_sku], references: [sku], onDelete: Cascade)
+
+  @@index([product_sku])
+  @@index([competitor_id, competitor_sku])
 }
 
 model QuickBooksImport {
