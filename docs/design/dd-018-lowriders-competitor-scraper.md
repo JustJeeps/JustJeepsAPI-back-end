@@ -501,6 +501,7 @@ flowchart TD
 | Version | Date | Change |
 |---------|------|--------|
 | 1.0.0 | 2026-09-17 | Initial spec |
+| 1.0.1 | 2026-09-18 | First production dry-run failed TOTAL_MISMATCH and DUPLICATE_STOCKIDS: the default "Recommended" order is not stable between pages (7763 raw, 6134 unique). Every page request now sends `sort=id:asc` (7763 of 7763 unique). |
 
 ## 16. References
 

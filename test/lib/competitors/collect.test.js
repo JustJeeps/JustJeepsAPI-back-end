@@ -44,6 +44,15 @@ test('client sends the key header and rejects a 404', async () => {
 	assert.match(calls[0].url, /brands=90296&limit=2&page=1/);
 });
 
+test('client asks for a stable order: the default "Recommended" order shifts between pages', async () => {
+	// Verified 2026-09-18 in production: without sort, 7763 raw items held only
+	// 6134 unique stockids across 16 pages; with sort=id:asc, 7763 of 7763.
+	const { fetch, calls } = makeFetch({ pages: [fixture.list] });
+	const client = createPartslogicClient({ fetch, apiKey: 'k', baseUrl: config.apiBaseUrl, userAgent: 'ua', timeoutMs: 1000 });
+	await client.fetchPage({ brandId: 90296, page: 1, limit: 2 });
+	assert.strictEqual(new URL(calls[0].url).searchParams.get('sort'), 'id:asc');
+});
+
 test('collects every page, normalizes and builds the payload', async () => {
 	const [a, b, c, d] = fixture.list;
 	const { fetch, calls } = makeFetch({ pages: [[a, b], [c, d]], total: 4 });
