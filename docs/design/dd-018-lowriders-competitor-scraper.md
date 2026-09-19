@@ -501,6 +501,7 @@ flowchart TD
 | Version | Date | Change |
 |---------|------|--------|
 | 1.0.0 | 2026-09-17 | Initial spec |
+| 1.0.2 | 2026-09-19 | The upsert only rewrites a row whose price, link or product changed, and the run reports how many matched rows were left untouched. The first nightly run showed all 7763 collected items identical to the previous day while every one of the 7000 matched rows was rewritten. |
 | 1.0.1 | 2026-09-18 | First production dry-run failed TOTAL_MISMATCH and DUPLICATE_STOCKIDS: the default "Recommended" order is not stable between pages (7763 raw, 6134 unique). Every page request now sends `sort=id:asc` (7763 of 7763 unique). |
 
 ## 16. References

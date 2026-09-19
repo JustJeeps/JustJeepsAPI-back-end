@@ -22,7 +22,15 @@ const UPDATE_SQL = `
       product_url = input.product_url,
       updated_at = CURRENT_TIMESTAMP
   FROM input
-  WHERE cp.competitor_id = $1 AND cp.competitor_sku = input.competitor_sku;
+  WHERE cp.competitor_id = $1 AND cp.competitor_sku = input.competitor_sku
+    -- Only rewrite a row that actually differs. Without this the scrape
+    -- rewrote every matched row nightly: on 2026-09-19 all 7000 were touched
+    -- while not one price had moved. IS DISTINCT FROM also covers NULL urls.
+    AND (
+      cp.competitor_price IS DISTINCT FROM input.competitor_price
+      OR cp.product_url IS DISTINCT FROM input.product_url
+      OR cp.product_sku IS DISTINCT FROM input.product_sku
+    );
 `;
 
 const INSERT_SQL = `
@@ -100,7 +108,7 @@ async function ingestLowriders({ prisma, payload, thresholds = {}, logger, dryRu
 	// report also shows the floor verdict.
 	const existingCount = competitor ? await prisma.competitorProduct.count({ where: { competitor_id: competitor.id } }) : null;
 	const staleFloor = checkStaleFloor({ matched, existingCount, thresholds });
-	const counts = { inserted: 0, updated: 0, deleted: 0, skipped: unmatched.length + (payload.collection?.invalidCount || 0), markedStale: 0 };
+	const counts = { inserted: 0, updated: 0, unchanged: 0, deleted: 0, skipped: unmatched.length + (payload.collection?.invalidCount || 0), markedStale: 0 };
 	const summary = {
 		competitorId: competitor ? competitor.id : null, counts, matched, matchRate, existingCount, staleFloor,
 		unmatchedSample: unmatched.slice(0, UNMATCHED_SAMPLE), ambiguousCount: ambiguous.length, dryRun,
@@ -120,7 +128,10 @@ async function ingestLowriders({ prisma, payload, thresholds = {}, logger, dryRu
 		counts.updated += Number(updated) || 0;
 		counts.inserted += Number(inserted) || 0;
 	}
-	logger.info(`[lowriders] step=upsert inserted=${counts.inserted} updated=${counts.updated}`);
+	// What the update did not touch was already correct, so it is the honest
+	// measure of how quiet the night was.
+	counts.unchanged = Math.max(0, matched - counts.inserted - counts.updated);
+	logger.info(`[lowriders] step=upsert inserted=${counts.inserted} updated=${counts.updated} unchanged=${counts.unchanged}`);
 
 	const writtenSkus = rows.map((r) => r.competitor_sku);
 	if (staleFloor.ok) {

@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { ingestLowriders, UPSERT_BATCH_SIZE } = require('../../../services/competitors/lowridersIngest');
+const { ingestLowriders, UPSERT_BATCH_SIZE, UPDATE_SQL } = require('../../../services/competitors/lowridersIngest');
 
 const silent = { info() {}, warn() {}, error() {} };
 
@@ -17,7 +17,7 @@ function payloadOf(items) {
 // competitorProduct.count is called twice per non-dry, non-passing-floor run
 // (the baseline before the upsert, the rows kept when the floor fails); the
 // first call returns countBefore, later calls return staleCount.
-function makePrisma({ competitor = { id: 5, name: 'Lowriders' }, products = [], countBefore = 0, staleCount = 3, deleteCount = 4 } = {}) {
+function makePrisma({ competitor = { id: 5, name: 'Lowriders' }, products = [], countBefore = 0, staleCount = 3, deleteCount = 4, updateCount = 2, insertCount = 1 } = {}) {
 	const raw = [];
 	const created = [];
 	let countCalls = 0;
@@ -33,7 +33,7 @@ function makePrisma({ competitor = { id: 5, name: 'Lowriders' }, products = [], 
 		$executeRawUnsafe(sql, ...params) {
 			const op = { sql, params };
 			raw.push(op);
-			const count = sql.trimStart().startsWith('DELETE') ? deleteCount : sql.includes('UPDATE "CompetitorProduct"') ? 2 : 1;
+			const count = sql.trimStart().startsWith('DELETE') ? deleteCount : sql.includes('UPDATE "CompetitorProduct"') ? updateCount : insertCount;
 			return Object.assign(Promise.resolve(count), op);
 		},
 		$transaction: async (ops) => Promise.all(ops),
@@ -56,7 +56,7 @@ test('matches, upserts in one batch and deletes stale rows when the floor passes
 	assert.strictEqual(result.counts.skipped, 3, 'one unmatched + two invalid from the collection');
 	assert.deepStrictEqual(result.unmatchedSample, ['NOPE']);
 	assert.strictEqual(result.staleFloor.ok, true);
-	assert.deepStrictEqual(result.counts, { inserted: 1, updated: 2, deleted: 4, skipped: 3, markedStale: 0 });
+	assert.deepStrictEqual(result.counts, { inserted: 1, updated: 2, unchanged: 0, deleted: 4, skipped: 3, markedStale: 0 });
 
 	const [update, insert, del] = prisma.raw;
 	assert.match(update.sql, /UPDATE "CompetitorProduct"/);
@@ -132,4 +132,36 @@ test('upserts in batches of UPSERT_BATCH_SIZE', async () => {
 	assert.strictEqual(updates.length, 2);
 	assert.strictEqual(JSON.parse(updates[0].params[1]).length, UPSERT_BATCH_SIZE);
 	assert.strictEqual(JSON.parse(updates[1].params[1]).length, 1);
+});
+
+// A night where the competitor changed nothing must not rewrite the table:
+// measured on 2026-09-19, the 7763 collected items were identical to the
+// previous run and all 7000 matched rows were rewritten for nothing.
+test('the update only touches a row whose price, link or product actually differ', () => {
+	const where = UPDATE_SQL.slice(UPDATE_SQL.indexOf('WHERE'));
+	assert.match(where, /cp\.competitor_price IS DISTINCT FROM input\.competitor_price/);
+	assert.match(where, /cp\.product_url IS DISTINCT FROM input\.product_url/);
+	assert.match(where, /cp\.product_sku IS DISTINCT FROM input\.product_sku/);
+});
+
+test('counts the matched rows that were left untouched', async () => {
+	const prisma = makePrisma({ products, countBefore: 2, updateCount: 0, insertCount: 0 });
+	const result = await ingestLowriders({
+		prisma, payload: payloadOf([item('63470', 846.65), item('2620RED', 745.61)]),
+		thresholds: { minMatched: 1, matchDropRatio: 0.8 }, logger: silent,
+	});
+	assert.strictEqual(result.matched, 2);
+	assert.strictEqual(result.counts.updated, 0);
+	assert.strictEqual(result.counts.inserted, 0);
+	assert.strictEqual(result.counts.unchanged, 2, 'both rows were already up to date');
+});
+
+test('unchanged rows still protect themselves from the stale delete', async () => {
+	const prisma = makePrisma({ products, countBefore: 2, updateCount: 0, insertCount: 0 });
+	await ingestLowriders({
+		prisma, payload: payloadOf([item('63470', 846.65), item('2620RED', 745.61)]),
+		thresholds: { minMatched: 1, matchDropRatio: 0.8 }, logger: silent,
+	});
+	const del = prisma.raw.find((op) => op.sql.trimStart().startsWith('DELETE'));
+	assert.deepStrictEqual(JSON.parse(del.params[1]).sort(), ['2620RED', '63470']);
 });
