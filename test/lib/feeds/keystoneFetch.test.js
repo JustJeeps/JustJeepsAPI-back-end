@@ -15,16 +15,23 @@ const SPECIAL = 'VCPN,Cost,TotalQty\nB2,20,1\n';
 
 // vendorModifiedAt: the date the file carries AT THE VENDOR (FTP MDTM). It is
 // what tells today's export from yesterday's, since the fetch runs on a
-// schedule that sometimes beats the vendor to publishing.
+// schedule that sometimes beats the vendor to publishing. A Date applies to
+// every file; a map by file name gives each one its own date, which is how a
+// fetch that lands mid-publish looks.
 function makeFixture({ ftpContents = { 'Inventory.csv': INVENTORY, 'SpecialOrder.csv': SPECIAL }, failUploadOf = null, currentBatch = null, vendorModifiedAt = null } = {}) {
 	const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'feedfetch-'));
+
+	const modifiedAtFor = (remoteFile) =>
+		(vendorModifiedAt === null || vendorModifiedAt instanceof Date
+			? vendorModifiedAt
+			: vendorModifiedAt[remoteFile] || null);
 
 	const ftpClient = {
 		downloads: [],
 		downloadFile: async (remoteFile, localPath) => {
 			ftpClient.downloads.push(remoteFile);
 			fs.writeFileSync(localPath, ftpContents[remoteFile]);
-			return { modifiedAt: vendorModifiedAt };
+			return { modifiedAt: modifiedAtFor(remoteFile) };
 		},
 	};
 
@@ -234,4 +241,59 @@ test('a file with a line of odd quotes aborts BEFORE uploading or cataloging', a
 	assert.strictEqual(fixture.store.puts.length, 0, 'nothing uploaded');
 	assert.strictEqual(fixture.registered.length, 0, 'nothing catalogued');
 	assert.strictEqual(fixture.runs[0].status, 'failed');
+});
+
+test('a batch mixing two vendor exports aborts BEFORE uploading or cataloging', async () => {
+	// 2026-09-21: the vendor writes Inventory.csv and ~90s later SpecialOrder.csv.
+	// The fetch started 16s after the first one landed, so it took Monday's
+	// inventory home with Sunday's special order. Both files were there, so the
+	// batch looked complete, and seed-keystone-ftp2 ingested the mix.
+	const fixture = makeFixture({
+		vendorModifiedAt: {
+			'Inventory.csv': new Date('2026-09-21T12:59:48Z'),
+			'SpecialOrder.csv': new Date('2026-09-20T15:04:09Z'),
+		},
+	});
+
+	await assert.rejects(
+		runKeystoneFetch({ ftpClient: fixture.ftpClient, store: fixture.store, prisma: fixture.prisma, catalog: fixture.catalogStub, cacheDir: fixture.cacheDir, env: fixture.env }),
+		/21\.9h apart/
+	);
+	assert.strictEqual(fixture.store.puts.length, 0, 'nothing uploaded');
+	assert.strictEqual(fixture.registered.length, 0, 'nothing catalogued');
+	assert.strictEqual(fixture.runs[0].status, 'failed');
+});
+
+test('the minutes between the two files of one export are the normal rhythm', async () => {
+	// The vendor never writes them at the same second; every good day in the
+	// archive has the two about 90s apart. A gate tighter than that would
+	// reject every fetch.
+	const fixture = makeFixture({
+		vendorModifiedAt: {
+			'Inventory.csv': new Date('2026-09-22T12:22:11Z'),
+			'SpecialOrder.csv': new Date('2026-09-22T12:23:49Z'),
+		},
+	});
+
+	const result = await runKeystoneFetch({ ftpClient: fixture.ftpClient, store: fixture.store, prisma: fixture.prisma, catalog: fixture.catalogStub, cacheDir: fixture.cacheDir, env: fixture.env });
+
+	assert.strictEqual(result.skipped, false);
+	assert.strictEqual(fixture.registered.length, 1);
+	assert.strictEqual(fixture.runs[0].status, 'success');
+});
+
+test('a file the vendor gives no date for cannot be compared, and does not block the batch', async () => {
+	// MDTM is best effort: with one date missing there is no skew to measure,
+	// and refusing the batch would trade a rare torn batch for a daily outage.
+	const fixture = makeFixture({
+		vendorModifiedAt: {
+			'Inventory.csv': new Date('2026-09-22T12:22:11Z'),
+			'SpecialOrder.csv': null,
+		},
+	});
+
+	await runKeystoneFetch({ ftpClient: fixture.ftpClient, store: fixture.store, prisma: fixture.prisma, catalog: fixture.catalogStub, cacheDir: fixture.cacheDir, env: fixture.env });
+
+	assert.strictEqual(fixture.registered.length, 1);
+	assert.strictEqual(fixture.runs[0].status, 'success');
 });

@@ -8,6 +8,9 @@
 //    BEFORE cataloguing;
 //  - BOTH files are uploaded before the batch is registered (a partial upload
 //    catalogs nothing, so the previous batch stays current);
+//  - both files must come from the SAME vendor export (their dates within
+//    KEYSTONE_FTP_MAX_EXPORT_SKEW_HOURS), so a fetch that lands mid-publish
+//    does not catalog today's inventory with yesterday's special order;
 //  - hashes equal to the current batch => skip without uploading (saves a
 //    ~460MB PUT), recorded as skipped-unchanged;
 //  - local cache warmed after cataloguing (the next seed-all does not
@@ -63,6 +66,9 @@ async function runKeystoneFetch({
 	// truncated download that gets past the fixed floor would erase the missing
 	// rows. That is why the real gate compares against the current batch.
 	const minRatioVsCurrent = Number(env.KEYSTONE_FTP_MIN_SIZE_RATIO || 0.9);
+	// The vendor writes the two files about 90 seconds apart, every day in the
+	// archive. Anything past this is not one export.
+	const maxExportSkewHours = Number(env.KEYSTONE_FTP_MAX_EXPORT_SKEW_HOURS || 6);
 
 	// Runs killed mid-flight (a deploy replaces the container) stay as "running"
 	// forever and the panel keeps showing a fetch that is not happening. Only one
@@ -128,6 +134,30 @@ async function runKeystoneFetch({
 				await finishRun({ status: 'skipped-unchanged', rowsSkipped: 1, artifactBatchId: current.batchId });
 				fs.rmSync(scratchDir, { recursive: true, force: true });
 				return { skipped: true, batchId: current.batchId };
+			}
+		}
+
+		// Two files, ONE export. The vendor writes Inventory.csv and ~90s later
+		// SpecialOrder.csv, so a fetch that lands between them carries today's
+		// inventory home with yesterday's special order. Both files are present,
+		// so the batch looks complete to getCurrentBatch and the consumer deletes
+		// against a mix of two days; the freshness alert then reports the feed as
+		// stale for as long as the older file stays in the batch (2026-09-21).
+		// Refusing here keeps the previous, coherent batch current.
+		//
+		// MDTM is best effort, so this only measures when the vendor answered for
+		// every file: one missing date must not turn a rare torn batch into a
+		// daily outage.
+		const exportTimes = files.map((file) => file.sourceModifiedAt).filter(Boolean).map((date) => new Date(date).getTime());
+		if (exportTimes.length === files.length) {
+			const skewHours = (Math.max(...exportTimes) - Math.min(...exportTimes)) / (60 * 60 * 1000);
+			if (skewHours > maxExportSkewHours) {
+				const published = files
+					.map((file) => `${file.fileName} ${new Date(file.sourceModifiedAt).toISOString()}`)
+					.join(', ');
+				throw new Error(
+					`the vendor files are ${skewHours.toFixed(1)}h apart (maximum ${maxExportSkewHours}h), publication in progress? (${published})`
+				);
 			}
 		}
 

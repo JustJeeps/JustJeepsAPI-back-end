@@ -31,13 +31,16 @@ const skuCostAlertSku = process.env.SKU_COST_ALERT_SKU || 'TH-635801';
 const cadDisabledUsWeeklyEnabled = process.env.CRON_CAD_US_WEEKLY_ENABLED !== 'false';
 const cadDisabledUsWeeklySchedule = process.env.CRON_CAD_US_WEEKLY_SCHEDULE || '30 6 * * 1';
 // Keystone feed fetch (FTP -> Spaces): opt-in until the bucket is provisioned
-// (DO_SPACES_*). The schedule sits off the delta's */5 grid and leaves room
-// before seed-all (global mutex across command crons).
+// (DO_SPACES_*). The schedule sits off the delta's */5 grid, AFTER the vendor's
+// publishing window (see config/deploy.yml) and with room before seed-all
+// (global mutex across command crons).
 const keystoneFeedFetchEnabled = process.env.CRON_FEED_FETCH_KEYSTONE_ENABLED === 'true';
-const keystoneFeedFetchSchedule = process.env.CRON_FEED_FETCH_KEYSTONE_SCHEDULE || '47 4,16 * * *';
+const keystoneFeedFetchSchedule = process.env.CRON_FEED_FETCH_KEYSTONE_SCHEDULE || '47 12 * * *';
 // Feeds retention prune (Spaces): opt-in, mesma razao do fetch acima. 6:17
-// fica fora da grade */5 do delta, depois do fetch das 4:47 e antes do
-// seed-all das 7:32 (e o commandGate serializa de qualquer forma).
+// fica fora da grade */5 do delta e antes do seed-all das 7:32 (e o
+// commandGate serializa de qualquer forma). Roda antes do fetch do dia, o que
+// nao e problema: o que o prune pode apagar vem do catalogo, nunca da idade
+// do objeto.
 const feedsPruneEnabled = process.env.CRON_FEEDS_PRUNE_ENABLED === 'true';
 const feedsPruneSchedule = process.env.CRON_FEEDS_PRUNE_SCHEDULE || '17 6 * * *';
 // Lowriders competitor prices (DD-018): public JSON API, 8 to 16 requests a

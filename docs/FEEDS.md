@@ -42,7 +42,7 @@ So no seed script changes how it reads files. Rules: a feed with no catalogued b
 
 - Upload a feed manually (panel): Settings page, Vendor Feeds card, per feed Upload button (triage users only, max 100MB per file).
 - Upload via CLI: `npm run feed-upload -- <feed> <files...> [--note "..."] [--by user]`. Multi-file feeds need all files in one run, or complete a partial batch with `--batch <id>`.
-- Fetch Keystone now: `npm run feed-fetch-keystone` (cron `feed-fetch-keystone` runs it at 4:47 and 16:47 once `CRON_FEED_FETCH_KEYSTONE_ENABLED=true`).
+- Fetch Keystone now: `npm run feed-fetch-keystone` (cron `feed-fetch-keystone` runs it at 12:47 once `CRON_FEED_FETCH_KEYSTONE_ENABLED=true`, after the vendor's publishing window).
 - Materialize locally: `npm run feed-materialize -- <feed>`.
 - Inspect: `GET /api/ingest/feeds` (current batch, age, stale flag, last runs) and `GET /api/ingest/runs?feed=...`. Stale or missing feeds also show as failures in the daily cron digest email.
 - Kill a bad batch: `npm run feed-quarantine -- <feed> [batchId] --note "why"` (no batchId acts on the current batch; `--list` shows the batches of the feed). Quarantine does NOT reactivate the previous batch on its own — the earlier rows are `superseded`, so the feed is left with no current batch and the vendor scripts fail loudly instead of reading condemned data. To recover, re-upload a good file (identical bytes reuse the stored object, so re-committing the previous version is cheap), then run `npm run feed-sync -- <feed>`.

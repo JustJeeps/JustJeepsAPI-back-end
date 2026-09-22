@@ -57,12 +57,17 @@ const FEED_DEFINITIONS = [
 		syncCommands: ['seed-keystone-ftp2', 'seed-keystone-ftp-codes'],
 		recordsOwnRuns: true,
 		legacyDir: 'keystone_files',
-		staleAfterHours: 36, // fetch runs 2x/day; 36h = missed 2 fetches
+		// One fetch a day (12:47), so a batch is ~12h old at the 00:10 digest and
+		// 36h is exactly "the last fetch brought nothing new". It was calibrated
+		// for two fetches a day and left untouched when the schedule became one
+		// (2026-09-16), which is why a single day-old SpecialOrder.csv was enough
+		// to trip it.
+		staleAfterHours: 36,
 		fetch: 'ftp',
-		// Manual trigger for the scheduled fetch (4:47 and 16:47). The schedule is
-		// a guess about when the vendor publishes, and when it guesses wrong the
-		// run succeeds with yesterday's file and there is nothing to do until the
-		// next window.
+		// Manual trigger for the scheduled fetch (12:47). The schedule sits after
+		// the vendor's measured publishing window, but the window does move, and
+		// when it moves past us the run succeeds with yesterday's file and there
+		// is nothing to do until the next window.
 		fetchCommand: 'feed-fetch-keystone',
 		maxUploadBytes: 600 * 1024 * 1024, // SpecialOrder.csv chega a 460MB (upload assinado direto ao bucket)
 	},

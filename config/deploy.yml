@@ -140,14 +140,24 @@ env:
     SMTP_PORT: "2525"
     SMTP_SECURE: "false"
     # Vendor feeds in Spaces (bucket provisioned on 2026-08-05).
-    # 4:47/16:47 = off the delta */5 grid and with room before seed-all
-    # (7:32/19:32): global cron mutex. The Keystone FTP drops long transfers
-    # (426), so byte-level resume plus generous retries.
+    # 12:47 = AFTER the vendor finishes publishing, and with room before
+    # seed-all (7:32/19:32): global cron mutex. The Keystone FTP drops long
+    # transfers (426), so byte-level resume plus generous retries.
+    #
+    # The vendor writes Inventory.csv and ~90s later SpecialOrder.csv, between
+    # 8:11 and 9:06 on weekdays and as late as 11:02 on a Sunday (measured over
+    # the archived fetch logs, 2026-09-13..22). The 9:00 slot ran INSIDE that
+    # window: on 2026-09-21 the fetch started 16s after Inventory.csv landed and
+    # took it home with Sunday's SpecialOrder.csv, which is what the stale-feed
+    # alert reported the next morning. :47 keeps the original slot design (off
+    # the delta */5 grid, 10 min after the */4 jobs at :37).
     CRON_FEED_FETCH_KEYSTONE_ENABLED: "true"
-    CRON_FEED_FETCH_KEYSTONE_SCHEDULE: "0 9 * * *"
+    CRON_FEED_FETCH_KEYSTONE_SCHEDULE: "47 12 * * *"
     # Feeds retention: keeps the 2 newest versions of each feed file in Spaces
     # and deletes the rest (catalog-protected; see scripts/feed-prune.js).
-    # 6:17 sits after the 4:47 fetch and before seed-all at 7:32.
+    # 6:17 sits before both the fetch (12:47) and seed-all (7:32); what a prune
+    # may delete comes from the catalog, never from the age of the object, so
+    # running ahead of the day's fetch is safe.
     CRON_FEEDS_PRUNE_ENABLED: "true"
     CRON_FEEDS_PRUNE_SCHEDULE: "17 6 * * *"
     # Lowriders competitor prices (DD-018). On since 2026-09-18, after the
