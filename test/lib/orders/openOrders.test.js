@@ -63,35 +63,26 @@ test('buildPoNotSetOr returns a fresh array each call (callers spread it into wh
 	assert.notStrictEqual(buildPoNotSetOr(), buildPoNotSetOr());
 });
 
-// Open is decided by OUR ship status when it has a value; Magento's status only
-// when ours is empty (decided 2026-09-16). The PO rule stays exported for the
-// poStatus filters only. The SQL is a pre-filter; isOpenOrder is the rule.
-test('buildOpenOrdersWhere: ship status not done, or empty ship status with Magento not closed', () => {
-	const where = buildOpenOrdersWhere();
-	assert.deepStrictEqual(Object.keys(where), ['OR']);
-	assert.strictEqual(where.OR.length, 2);
-	assert.deepStrictEqual(where.OR[0], {
-		AND: [
-			{ custom_ship_status: { not: null } },
-			{ custom_ship_status: { notIn: ['', 'Please select...'] } },
+// Open is decided by OUR ship status only; Magento's status is ignored (decided
+// 2026-09-23). The PO rule stays exported for the poStatus filters only. The SQL
+// is a pre-filter; isOpenOrder is the rule.
+test('buildOpenOrdersWhere: ship status null or not done, no Magento status', () => {
+	assert.deepStrictEqual(buildOpenOrdersWhere(), {
+		OR: [
+			{ custom_ship_status: null },
 			{ NOT: { custom_ship_status: { in: DONE_SHIP_STATUSES, mode: 'insensitive' } } },
-		],
-	});
-	assert.deepStrictEqual(where.OR[1], {
-		AND: [
-			{ OR: [{ custom_ship_status: null }, { custom_ship_status: { in: ['', 'Please select...'] } }] },
-			{ OR: [{ status: null }, { status: { notIn: ['complete', 'closed', 'canceled'] } }] },
 		],
 	});
 });
 
-test('isOpenOrder: our ship status decides; Magento only when ours is empty', () => {
+test('isOpenOrder: only our ship status decides; empty counts as open', () => {
 	assert.strictEqual(isOpenOrder({ status: 'processing', custom_ship_status: 'Shipping - Drop Shipped' }), false);
 	assert.strictEqual(isOpenOrder({ status: 'complete', custom_ship_status: 'Shipping - Ready To Ship' }), true);
 	assert.strictEqual(isOpenOrder({ status: 'processing', custom_ship_status: 'Captured Waiting For Parts' }), true);
 	assert.strictEqual(isOpenOrder({ status: 'processing', custom_ship_status: '' }), true);
-	assert.strictEqual(isOpenOrder({ status: 'complete', custom_ship_status: '' }), false);
-	assert.strictEqual(isOpenOrder({ status: 'complete', custom_ship_status: 'Please select...' }), false);
+	assert.strictEqual(isOpenOrder({ status: 'complete', custom_ship_status: '' }), true);
+	assert.strictEqual(isOpenOrder({ status: 'canceled', custom_ship_status: 'Please select...' }), true);
+	assert.strictEqual(isOpenOrder({ status: 'closed', custom_ship_status: null }), true);
 	assert.strictEqual(isOpenOrder({ status: null, custom_ship_status: null }), true);
 });
 
@@ -173,8 +164,9 @@ test('attachOpenOrdersSameCustomer does not mutate the input orders', () => {
 
 // 2026-09-16, second revision: the team tracks progress in custom_ship_status
 // (Magento never closes drop-shipped orders: 1,077 "processing" orders were
-// already Drop Shipped). Closed = Magento status closed OR ship status done.
-// When the two sides disagree the API says so and the screen shows a warning.
+// already Drop Shipped). Since 2026-09-23 closed = ship status done, Magento
+// ignored. When the two sides disagree the API says so and the screen shows a
+// warning.
 const { DONE_SHIP_STATUSES, isShipStatusDone, isMagentoStatusClosed, isOpenOrder, getStatusDivergence } = require('../../../lib/orders/openOrders.js');
 
 test('DONE_SHIP_STATUSES lists the ship statuses the team uses as finished', () => {
@@ -235,7 +227,7 @@ test('fetchOpenOrders keeps only rows that isOpenOrder accepts, whatever the SQL
 	];
 	const prisma = makePrismaStub(rows);
 	const result = await fetchOpenOrders(prisma, (w) => w);
-	assert.deepStrictEqual(result.map((r) => r.increment_id), ['200070997', '200060000']);
+	assert.deepStrictEqual(result.map((r) => r.increment_id), ['200070997', '200060000', '200050000']);
 	assert.strictEqual(prisma.calls.findMany[0].select.custom_ship_status, true);
 	assert.strictEqual(prisma.calls.findMany[0].select.status, true);
 });
