@@ -49,7 +49,7 @@ const makePrismaStub = (rows = []) => {
 };
 
 const open = (entity_id, increment_id, customer_email, shipping_telephone, created_at = '2026-09-14 10:00:00') =>
-	({ entity_id, increment_id, customer_email, shipping_telephone, created_at });
+	({ entity_id, increment_id, customer_email, shipping_telephone, created_at, custom_po_number: 'Not set' });
 
 test('CLOSED_ORDER_STATUSES lists the three Magento terminal statuses', () => {
 	assert.deepStrictEqual(CLOSED_ORDER_STATUSES, ['complete', 'closed', 'canceled']);
@@ -63,27 +63,29 @@ test('buildPoNotSetOr returns a fresh array each call (callers spread it into wh
 	assert.notStrictEqual(buildPoNotSetOr(), buildPoNotSetOr());
 });
 
-// Open is decided by OUR ship status only; Magento's status is ignored (decided
-// 2026-09-23). The PO rule stays exported for the poStatus filters only. The SQL
+// Open = PO not set, the same test as the green icon next to the order number
+// (decided 2026-09-23). Neither the ship status nor Magento's status counts.
+// The PO rule for the poStatus filters (buildPoNotSetOr) is separate. The SQL
 // is a pre-filter; isOpenOrder is the rule.
-test('buildOpenOrdersWhere: ship status null or not done, no Magento status', () => {
+test('buildOpenOrdersWhere: PO contains "not set", nothing else', () => {
 	assert.deepStrictEqual(buildOpenOrdersWhere(), {
-		OR: [
-			{ custom_ship_status: null },
-			{ NOT: { custom_ship_status: { in: DONE_SHIP_STATUSES, mode: 'insensitive' } } },
-		],
+		custom_po_number: { contains: 'not set', mode: 'insensitive' },
 	});
 });
 
-test('isOpenOrder: only our ship status decides; empty counts as open', () => {
-	assert.strictEqual(isOpenOrder({ status: 'processing', custom_ship_status: 'Shipping - Drop Shipped' }), false);
-	assert.strictEqual(isOpenOrder({ status: 'complete', custom_ship_status: 'Shipping - Ready To Ship' }), true);
-	assert.strictEqual(isOpenOrder({ status: 'processing', custom_ship_status: 'Captured Waiting For Parts' }), true);
-	assert.strictEqual(isOpenOrder({ status: 'processing', custom_ship_status: '' }), true);
-	assert.strictEqual(isOpenOrder({ status: 'complete', custom_ship_status: '' }), true);
-	assert.strictEqual(isOpenOrder({ status: 'canceled', custom_ship_status: 'Please select...' }), true);
-	assert.strictEqual(isOpenOrder({ status: 'closed', custom_ship_status: null }), true);
-	assert.strictEqual(isOpenOrder({ status: null, custom_ship_status: null }), true);
+test('isOpenOrder: open while the PO contains "not set" (red or yellow icon)', () => {
+	assert.strictEqual(isOpenOrder({ custom_po_number: 'Not set' }), true);
+	assert.strictEqual(isOpenOrder({ custom_po_number: '  NOT SET ' }), true);
+	assert.strictEqual(isOpenOrder({ custom_po_number: 'KD not set yet' }), true);
+	assert.strictEqual(isOpenOrder({ custom_po_number: 'RCDS 4000000159 - KD Sept 22' }), false);
+	assert.strictEqual(isOpenOrder({ custom_po_number: '' }), false);
+	assert.strictEqual(isOpenOrder({ custom_po_number: null }), false);
+});
+
+test('isOpenOrder ignores the ship status and Magento (the Aaron S. case, 200071127)', () => {
+	assert.strictEqual(isOpenOrder({ status: 'processing', custom_ship_status: 'Needs QB Invoice', custom_po_number: 'RCDS 4000000159 - KD Sept 22' }), false);
+	assert.strictEqual(isOpenOrder({ status: 'complete', custom_ship_status: 'Shipping - Shipped', custom_po_number: 'Not set' }), true);
+	assert.strictEqual(isOpenOrder({ status: 'pending', custom_ship_status: null, custom_po_number: 'Not set' }), true);
 });
 
 test('normalizeEmail lowercases and trims; empty becomes null', () => {
@@ -121,7 +123,7 @@ test('fetchOpenOrders reads every open order through wrapWhere, newest first, wi
 	assert.deepStrictEqual(result, rows);
 	const args = prisma.calls.findMany[0];
 	assert.deepStrictEqual(args.where, wrapWhere(buildOpenOrdersWhere()));
-	assert.deepStrictEqual(args.select, { entity_id: true, increment_id: true, created_at: true, customer_email: true, shipping_telephone: true, status: true, custom_ship_status: true });
+	assert.deepStrictEqual(args.select, { entity_id: true, increment_id: true, created_at: true, customer_email: true, shipping_telephone: true, status: true, custom_ship_status: true, custom_po_number: true });
 	assert.deepStrictEqual(args.orderBy, { created_at: 'desc' });
 });
 
@@ -164,9 +166,8 @@ test('attachOpenOrdersSameCustomer does not mutate the input orders', () => {
 
 // 2026-09-16, second revision: the team tracks progress in custom_ship_status
 // (Magento never closes drop-shipped orders: 1,077 "processing" orders were
-// already Drop Shipped). Since 2026-09-23 closed = ship status done, Magento
-// ignored. When the two sides disagree the API says so and the screen shows a
-// warning.
+// already Drop Shipped). Since 2026-09-23 the open count uses the PO only; the
+// ship status is kept for the warning shown when it and Magento disagree.
 const { DONE_SHIP_STATUSES, isShipStatusDone, isMagentoStatusClosed, isOpenOrder, getStatusDivergence } = require('../../../lib/orders/openOrders.js');
 
 test('DONE_SHIP_STATUSES lists the ship statuses the team uses as finished', () => {
@@ -220,16 +221,17 @@ test('getStatusDivergence is null when both sides agree or our side has no value
 
 test('fetchOpenOrders keeps only rows that isOpenOrder accepts, whatever the SQL returned', async () => {
 	const rows = [
-		{ ...open(4, '200070997', 'j@x.com', '604-555-5375'), status: 'processing', custom_ship_status: '' },
-		{ ...open(3, '200067648', 'j@x.com', '604-555-5375'), status: 'processing', custom_ship_status: 'Shipping - Drop Shipped' },
-		{ ...open(2, '200060000', 'k@x.com', null), status: 'complete', custom_ship_status: 'Shipping - Ready To Ship' },
-		{ ...open(1, '200050000', 'k@x.com', null), status: 'complete', custom_ship_status: '' },
+		{ ...open(4, '200070997', 'j@x.com', '604-555-5375'), custom_po_number: 'Not set' },
+		{ ...open(3, '200067648', 'j@x.com', '604-555-5375'), custom_po_number: 'PM 12345' },
+		{ ...open(2, '200060000', 'k@x.com', null), custom_po_number: 'KD not set' },
+		{ ...open(1, '200050000', 'k@x.com', null), custom_po_number: 'RCDS 4000000159 - KD Sept 22' },
 	];
 	const prisma = makePrismaStub(rows);
 	const result = await fetchOpenOrders(prisma, (w) => w);
-	assert.deepStrictEqual(result.map((r) => r.increment_id), ['200070997', '200060000', '200050000']);
+	assert.deepStrictEqual(result.map((r) => r.increment_id), ['200070997', '200060000']);
 	assert.strictEqual(prisma.calls.findMany[0].select.custom_ship_status, true);
 	assert.strictEqual(prisma.calls.findMany[0].select.status, true);
+	assert.strictEqual(prisma.calls.findMany[0].select.custom_po_number, true);
 });
 
 test('attachOpenOrdersSameCustomer also adds status_divergence per row', () => {
