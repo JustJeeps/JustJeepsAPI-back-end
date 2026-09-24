@@ -1232,6 +1232,8 @@ const requestsRoutes = require('./routes/requests');
 const usersRoutes = require('./routes/users');
 const trelloSettingsRoutes = require('./routes/trelloSettings');
 const sectorsRoutes = require('./routes/sectors');
+// Product projection shared by the magnifier lookup and the replacement lookup
+const { PRODUCT_LOOKUP_SELECT } = require('./lib/products/productLookupSelect');
 
 function scheduleQuickBooksLookupPreload() {
 	if (isQuickBooksDbSource()) {
@@ -1376,6 +1378,8 @@ app.use('/api/users', usersRoutes);
 app.use('/api/trello-settings', trelloSettingsRoutes);
 app.use('/api/sectors', sectorsRoutes);
 app.use('/api/reviews', require('./routes/reviews'));
+// Product replacements (SKU substitutions): docs/PRODUCT-REPLACEMENTS.md
+app.use('/api/product-replacements', require('./routes/productReplacements').createDefaultRouter());
 
 // Sample GET route
 app.get('/api/data', (req, res) =>
@@ -2194,66 +2198,7 @@ app.get('/api/products/:sku', async (req, res) => {
 			where: {
 				sku: req.params.sku,
 			},
-			select: {
-				sku: true,
-				name: true,
-				url_path: true,
-				status: true,
-				price: true,
-				MAP: true,
-				replace_oe: true,
-				searchable_sku: true,
-				jj_prefix: true,
-				image: true,
-				brand_name: true,
-				vendors: true,
-				partStatus_meyer: true,
-				keystone_code: true,
-				//add meyer_weight, meyer_length, meyer_width, meyer_height
-				meyer_weight: true,
-				meyer_length: true,
-				meyer_width: true,
-				meyer_height: true,
-				black_friday_sale: true,
-				weight: true,
-				length: true,
-				width: true,
-				height: true,
-				shippingFreight: true,
-				partsEngine_code: true,
-				tdot_url: true,
-				keystone_code_site: true,
-				part: true,
-				thumbnail: true,
-				vendorProducts: {
-					select: {
-						product_sku: true,
-						vendor_sku: true,
-						vendor_cost: true,
-						vendor_cost_usd: true,
-						quadratec_shipping_surcharge_usd: true,
-						vendor_inventory: true,
-						vendor_inventory_string: true,
-						quadratec_sku: true,
-						vendor: {
-							select: {
-								name: true,
-							},
-						},
-					},
-				},
-				competitorProducts: {
-					select: {
-						competitor_price: true,
-						product_url: true,
-						competitor: {
-							select: {
-								name: true,
-							},
-						},
-					},
-				},
-			},
+			select: PRODUCT_LOOKUP_SELECT,
 		});
 
 		const partLookup = await getMagentoPartLabelLookup();

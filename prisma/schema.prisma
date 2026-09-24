@@ -256,6 +256,8 @@ model User {
   trelloBoard        TrelloUserBoard?    @relation("UserTrelloBoard")
   sectorMemberships  SectorMember[]      @relation("SectorMemberUser")
   sectorActivities   SectorActivity[]    @relation("SectorActivityActor")
+  productReplacementsCreated ProductReplacement[]        @relation("ProductReplacementCreator")
+  productReplacementComments ProductReplacementComment[] @relation("ProductReplacementCommentAuthor")
 }
 
 // ---------------------------------------------------------------------------
@@ -731,4 +733,46 @@ model ReviewImportRow {
 
   @@index([fileId, status])
   @@index([status, id])
+}
+
+// ---------------------------------------------------------------------------
+// Product Replacement: known SKU substitutions registered by the team
+// (docs/PRODUCT-REPLACEMENTS.md). source_sku/replacement_sku are plain
+// strings on purpose: the catalog is rewritten by the seeds and
+// prisma/seeds/deleteEntries.js drops products by prefix, so an FK would
+// either cascade-delete the directory or break those scripts. SKUs are
+// validated at creation time and resolved at read time.
+// Duplicate active pairs are blocked by a partial unique index written in the
+// migration (source_sku, replacement_sku) WHERE "deletedAt" IS NULL; Prisma
+// cannot express it here, so the service checks first and maps P2002 to 409.
+// ---------------------------------------------------------------------------
+
+model ProductReplacement {
+  id              Int       @id @default(autoincrement())
+  source_sku      String
+  replacement_sku String
+  created_by_id   Int
+  createdAt       DateTime  @default(now())
+  deletedAt       DateTime?
+  deletedById     Int?
+  createdBy       User      @relation("ProductReplacementCreator", fields: [created_by_id], references: [id])
+  comments        ProductReplacementComment[]
+
+  @@index([source_sku])
+  @@index([replacement_sku])
+  @@index([deletedAt])
+}
+
+model ProductReplacementComment {
+  id             Int       @id @default(autoincrement())
+  replacement_id Int
+  author_id      Int
+  body           String    @db.Text
+  createdAt      DateTime  @default(now())
+  deletedAt      DateTime?
+  deletedById    Int?
+  replacement    ProductReplacement @relation(fields: [replacement_id], references: [id], onDelete: Cascade)
+  author         User      @relation("ProductReplacementCommentAuthor", fields: [author_id], references: [id])
+
+  @@index([replacement_id])
 }

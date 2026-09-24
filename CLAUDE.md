@@ -61,6 +61,7 @@ server.js                    # Express app with most routes (monolithic)
 routes/
   ├── auth.js                # Authentication endpoints
   ├── requests.js            # Requests (internal tickets) — see docs/REQUESTS.md
+  ├── productReplacements.js # Product replacements (SKU substitutions) — see docs/PRODUCT-REPLACEMENTS.md
   ├── sectors.js             # Sectors (boards per sector) — see docs/SECTORS.md
   ├── users.js               # GET /api/users (assignee selects)
   └── trelloSettings.js      # Trello admin panel (triage only)
@@ -70,16 +71,20 @@ prisma/schema.prisma         # Database schema (the REAL one — package.json "p
 config/
   ├── cron-jobs.js           # Central cron definitions (pure: env + literals only)
   ├── requests.js            # Requests constants + triage allowlist
+  ├── productReplacements.js # Replacements limits + manager allowlist (pure)
   └── sectors.js             # Sector roles/default slug (pure)
 lib/
   ├── prisma.js              # Prisma client with role-based pools (APP_ROLE/DB_POOL_*)
   ├── requests/              # Pure domain rules (transitions, activity diff)
+  ├── productReplacements/   # Replacement rules (self, permissions, grouping; pure, tested)
+  ├── products/              # Product projection shared by the magnifier and replacement lookups
   ├── orders/                # Orders rules (open-orders flag; prisma injected, tested)
   ├── trello/                # Trello client + settings persistence (injectable, tested)
   ├── reports/               # Digest data collectors
   └── ingest/                # CSV/feed ingest framework
 services/
   ├── requests/              # Requests use cases (single data-access layer)
+  ├── productReplacements/   # Replacement use cases (injectable service, tested with a stub)
   ├── trello/                # Trello card creation + settings service
   ├── storage/               # DO Spaces attachment storage
   ├── turn14/                # Turn14 API integration
@@ -147,7 +152,7 @@ Credentials are provisioned per user with `npm run seed-users` and delivered out
 
 Core models: `Product`, `Order`, `OrderProduct`, `Vendor`, `VendorProduct`, `PurchaseOrder`, `PurchaseOrderLineItem`, `User`, `Competitor`, `CompetitorProduct`
 
-Requests feature models: `Request`, `RequestComment`, `RequestAttachment`, `RequestActivity`, `TrelloSettings`, `Sector`, `SectorMember`, `TrelloSectorBoard`, `SectorActivity` (see `docs/REQUESTS.md` and `docs/SECTORS.md`; `TrelloUserBoard` is retired, dormant until the cleanup migration). Other models: `QuickBooksImport`, `QuickBooksCustomer`, `SyncState`, `IngestRun`, `SkuStatusChangeHistory`, `OrderCancellationWorkflowHistory`.
+Requests feature models: `Request`, `RequestComment`, `RequestAttachment`, `RequestActivity`, `TrelloSettings`, `Sector`, `SectorMember`, `TrelloSectorBoard`, `SectorActivity` (see `docs/REQUESTS.md` and `docs/SECTORS.md`; `TrelloUserBoard` is retired, dormant until the cleanup migration). Product replacement models: `ProductReplacement`, `ProductReplacementComment` (see `docs/PRODUCT-REPLACEMENTS.md`). Their migration adds a partial unique index (`ProductReplacement_active_pair_key`, active pairs only) that Prisma cannot express in the schema: a future `migrate diff` will propose dropping it; that proposal is wrong. Other models: `QuickBooksImport`, `QuickBooksCustomer`, `SyncState`, `IngestRun`, `SkuStatusChangeHistory`, `OrderCancellationWorkflowHistory`.
 
 Products contain 20,000+ SKUs with multi-vendor support. Schema lives in `prisma/schema.prisma` (~84 migrations; new ones are hand-written SQL folders applied by `migrate deploy` in the container entrypoint — never run `migrate dev` locally, the local `.env` points at the shared production database).
 

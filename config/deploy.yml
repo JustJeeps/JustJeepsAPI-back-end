@@ -199,6 +199,10 @@ env:
     # Who can close. Usernames are not secret; kept in clear so the value
     # never resolves empty (config/requests.js).
     REQUESTS_TRIAGE_USERS: "ricardo,admin,tess"
+    # Product replacements rollout: only these users see and use the feature.
+    REPLACEMENTS_ALLOWED_USERS: "admin,ricardo,paula,karoline"
+    # Product replacements: who can remove other people's associations and comments.
+    REPLACEMENTS_MANAGER_USERS: "ricardo,admin,tess"
     # Who can assign/unassign request owners.
     REQUESTS_ASSIGNEE_MANAGERS: "tess,tsantos,rafael,ricardo"
     REQUESTS_ASSIGNMENT_EMAIL_ENABLED: "true"
