@@ -145,12 +145,15 @@ function createProductReplacementsRouter({
 	}));
 
 	// Create: one original, one or more replacements, each with its own comment.
+	// Create: one original with one or more replacements (each with its own
+	// comment), or `no_replacement: true` with the required comment.
 	router.post('/', handle(async (req, res) => {
 		const body = req.body || {};
-		if (!Array.isArray(body.replacements)) {
+		const noReplacement = body.no_replacement === true;
+		if (!noReplacement && !Array.isArray(body.replacements)) {
 			throw ProductReplacementError.validation('replacements must be a list');
 		}
-		const replacements = body.replacements.map((entry) => ({
+		const replacements = (Array.isArray(body.replacements) ? body.replacements : []).map((entry) => ({
 			replacement_sku: entry && entry.replacement_sku,
 			comment: entry && entry.comment,
 		}));
@@ -158,6 +161,7 @@ function createProductReplacementsRouter({
 			user: req.user,
 			source_sku: body.source_sku,
 			replacements,
+			...(noReplacement ? { no_replacement: true, comment: body.comment } : {}),
 		});
 		res.status(201).json(created);
 	}));

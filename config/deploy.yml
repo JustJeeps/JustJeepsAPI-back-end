@@ -202,7 +202,7 @@ env:
     # Product replacements rollout: only these users see and use the feature.
     REPLACEMENTS_ALLOWED_USERS: "admin,ricardo,paula,karoline"
     # Product replacements: who can remove other people's associations and comments.
-    REPLACEMENTS_MANAGER_USERS: "ricardo,admin,tess"
+    REPLACEMENTS_MANAGER_USERS: "ricardo,admin,tess,paula"
     # Who can assign/unassign request owners.
     REQUESTS_ASSIGNEE_MANAGERS: "tess,tsantos,rafael,ricardo"
     REQUESTS_ASSIGNMENT_EMAIL_ENABLED: "true"

@@ -52,3 +52,25 @@ test('groupBySourceSku keeps first-seen order and nests replacements', () => {
 	]);
 	assert.deepStrictEqual(groupBySourceSku([]), []);
 });
+
+const { REPLACEMENT_KINDS, isNoneMarker, hasActiveReplacements, hasNoneMarker } = require('../../../lib/productReplacements/rules');
+
+test('kinds: a row is either a replacement pair or a "no replacement" marker', () => {
+	assert.deepStrictEqual(REPLACEMENT_KINDS, ['replacement', 'none']);
+	assert.strictEqual(isNoneMarker({ kind: 'none', replacement_sku: null }), true);
+	assert.strictEqual(isNoneMarker({ kind: 'replacement', replacement_sku: 'B' }), false);
+	assert.strictEqual(isNoneMarker({ replacement_sku: 'B' }), false, 'rows from before the column default to a pair');
+	assert.strictEqual(isNoneMarker(null), false);
+});
+
+test('hasActiveReplacements / hasNoneMarker look only at active rows', () => {
+	const rows = [
+		{ kind: 'replacement', deletedAt: null },
+		{ kind: 'none', deletedAt: new Date() },
+	];
+	assert.strictEqual(hasActiveReplacements(rows), true);
+	assert.strictEqual(hasNoneMarker(rows), false, 'a removed marker does not count');
+	assert.strictEqual(hasNoneMarker([{ kind: 'none', deletedAt: null }]), true);
+	assert.strictEqual(hasActiveReplacements([{ kind: 'replacement', deletedAt: new Date() }]), false);
+	assert.strictEqual(hasActiveReplacements([]), false);
+});

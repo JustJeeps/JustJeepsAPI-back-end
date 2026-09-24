@@ -34,6 +34,15 @@ When the store does not answer, the client never throws: the screen falls back t
 - The same active pair cannot exist twice. The database enforces it with a partial unique index (`ProductReplacement_active_pair_key` on `source_sku, replacement_sku` where `deletedAt IS NULL`); the service checks first and maps the `P2002` race to 409 `DUPLICATE_REPLACEMENT`. A removed pair can be registered again.
 - A SKU cannot replace itself (`SELF_REPLACEMENT`).
 
+## "No replacement" marker
+
+A product can be registered as having NO replacement: a `ProductReplacement` row with `kind = 'none'` and `replacement_sku = null`, whose first comment (required) explains why. Rules:
+
+- The comment is required (`COMMENT_REQUIRED`, 400).
+- A marker and replacements never coexist for the same product: marking a product that has active replacements answers 409 `HAS_REPLACEMENTS`; registering a replacement for a marked product answers 409 `MARKED_NO_REPLACEMENT`; a second marker answers 409 `NO_REPLACEMENT_EXISTS` (also enforced by the partial unique index `ProductReplacement_active_none_key`). Nothing is removed automatically: remove the other side first.
+- Removing a marker is a soft delete like any association (creator or manager).
+- On the Orders screen a marked SKU shows a red stop icon instead of the swap icon; it opens nothing, its tooltip is the comment plus who registered it and when. `GET /counts` carries that text.
+
 ## API
 
 All routes require a logged in user (`ENABLE_AUTH=true`) inside the rollout gate (see Permissions); the user is the author of every write, and the date and time are recorded by the database. Business rule violations return **409 with a `code`**, never 403 (the frontend interceptor logs the user out on auth 403). Unknown SKUs are 400 `SKU_NOT_FOUND`.
@@ -43,12 +52,12 @@ All routes require a logged in user (`ENABLE_AUTH=true`) inside the rollout gate
 | GET | `/api/product-replacements/meta` | `{ enabled, isManager, managers }`: `enabled` is the rollout gate for the caller (the frontend hides the feature when false), `isManager` lets it hide the Remove buttons; the backend enforces both anyway. This is the only route outside the gate |
 | GET | `/api/product-replacements/products/:sku` | Product preview for the creation modal: `{ sku, name, description, image, url_path, price, brand_name, status, source }`; 404 `SKU_NOT_FOUND` when neither the catalog nor Magento knows it |
 | GET | `/api/product-replacements?search=` | Directory grouped by original product: `{ groups: [{ source_sku, sourceProduct, replacements: [{ id, replacement_sku, product, createdAt, createdBy, comments }] }], total, truncated, magento }`. The newest 500 active associations are loaded; `search` (max 100 chars) filters them in memory by source SKU, replacement SKU and the product names shown on the cards; `total` is the number of matches (all active associations without a search) and `truncated` says the cap was hit |
-| POST | `/api/product-replacements` | Create a batch: `{ source_sku, replacements: [{ replacement_sku, comment? }] }` (max 20 per call). Answers 201 with the created rows. Errors: `SKU_NOT_FOUND` (400), `SELF_REPLACEMENT`, `DUPLICATE_REPLACEMENT` (409) |
+| POST | `/api/product-replacements` | Create a batch: `{ source_sku, replacements: [{ replacement_sku, comment? }] }` (max 20 per call), or a marker: `{ source_sku, no_replacement: true, comment }`. Answers 201 with the created rows (`kind` is `replacement` or `none`). Errors: `SKU_NOT_FOUND`, `COMMENT_REQUIRED` (400), `SELF_REPLACEMENT`, `DUPLICATE_REPLACEMENT`, `HAS_REPLACEMENTS`, `MARKED_NO_REPLACEMENT`, `NO_REPLACEMENT_EXISTS` (409) |
 | DELETE | `/api/product-replacements/:id` | Soft delete. Creator or manager only (409 `NOT_ALLOWED`) |
 | POST | `/api/product-replacements/:id/comments` | Add a comment `{ body }` (max 2000 chars). Answers 201 with the comment and its author |
 | DELETE | `/api/product-replacements/:id/comments/:commentId` | Soft delete a comment. Author or manager only |
-| GET | `/api/product-replacements/for-sku/:sku` | Replacement Lookup: `{ source_sku, sourceProduct, replacements: [...], magento }` where each `product` uses the same projection as the magnifier lookup (`PRODUCT_LOOKUP_SELECT`), so the drawer shows the same vendor costs, competitors and inventory; `product` is `null` when the SKU is not in the catalog table |
-| GET | `/api/product-replacements/counts?skus=A,B` | `{ counts: { A: 2 } }` for the badges on the expanded order rows (max 200 SKUs; missing key = no replacement) |
+| GET | `/api/product-replacements/for-sku/:sku` | Replacement Lookup: `{ source_sku, sourceProduct, replacements: [...], noReplacement: { id, comment, createdBy, createdAt } \| null, magento }` (markers never appear among `replacements`) where each `product` uses the same projection as the magnifier lookup (`PRODUCT_LOOKUP_SELECT`), so the drawer shows the same vendor costs, competitors and inventory; `product` is `null` when the SKU is not in the catalog table |
+| GET | `/api/product-replacements/counts?skus=A,B` | `{ counts: { A: { replacements: 2, noReplacement: null }, B: { replacements: 0, noReplacement: { comment, by, at } } } }` for the expanded order rows (max 200 SKUs; missing key = nothing registered) |
 
 Comments are never edited: new guidance is a new comment, and an outdated one can be removed.
 
@@ -56,7 +65,7 @@ Comments are never edited: new guidance is a new comment, and an outdated one ca
 
 - Rollout gate: while the team tests the feature, only the users in `REPLACEMENTS_ALLOWED_USERS` (default `admin,ricardo,paula,karoline`, set in `config/deploy.yml`) see and use it. For everyone else the navbar item, the Orders icon and the page are hidden, `GET /meta` answers `enabled: false` and every other route answers 409 `REPLACEMENTS_RESTRICTED`. The list matches the username or the local part of the e-mail. Release = widen the list.
 - Inside the gate, any user can register replacements and add comments.
-- Removing an association or a comment: the person who created it, or a manager from `REPLACEMENTS_MANAGER_USERS` (default `ricardo,admin,tess`).
+- Removing an association or a comment: the person who created it, or a manager from `REPLACEMENTS_MANAGER_USERS` (default and `config/deploy.yml`: `ricardo,admin,tess,paula`).
 
 ## Tests
 

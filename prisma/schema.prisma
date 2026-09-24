@@ -750,7 +750,10 @@ model ReviewImportRow {
 model ProductReplacement {
   id              Int       @id @default(autoincrement())
   source_sku      String
-  replacement_sku String
+  // null when kind = "none" (the product was marked as having no replacement)
+  replacement_sku String?
+  // "replacement" (a pair) or "none" (a marker); validated in code
+  kind            String    @default("replacement")
   created_by_id   Int
   createdAt       DateTime  @default(now())
   deletedAt       DateTime?
@@ -761,6 +764,7 @@ model ProductReplacement {
   @@index([source_sku])
   @@index([replacement_sku])
   @@index([deletedAt])
+  @@index([kind])
 }
 
 model ProductReplacementComment {

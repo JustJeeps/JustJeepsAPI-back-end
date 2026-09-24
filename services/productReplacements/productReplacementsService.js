@@ -20,6 +20,9 @@ const {
 	canRemoveReplacement,
 	canRemoveComment,
 	groupBySourceSku,
+	isNoneMarker,
+	hasActiveReplacements,
+	hasNoneMarker,
 } = require('../../lib/productReplacements/rules');
 const { PRODUCT_LOOKUP_SELECT } = require('../../lib/products/productLookupSelect');
 const { ProductReplacementError } = require('./errors');
@@ -115,6 +118,26 @@ function createProductReplacementsService({ prisma, config, isManager, magento =
 
 	const matchesSearch = (term, ...values) => values.some((value) => String(value || '').toLowerCase().includes(term));
 
+	const displayName = (user) => {
+		if (!user) return '';
+		const name = [user.firstname, user.lastname].filter(Boolean).join(' ').trim();
+		return name || user.username || user.email || '';
+	};
+
+	// The marker's explanation is its first (oldest) active comment.
+	const markerSummary = (marker) => (marker ? {
+		id: marker.id,
+		comment: marker.comments && marker.comments[0] ? marker.comments[0].body : '',
+		createdBy: marker.createdBy,
+		createdAt: marker.createdAt,
+	} : null);
+
+	const activeRowsOf = (sourceSku) => prisma.productReplacement.findMany({
+		where: { source_sku: sourceSku, deletedAt: null },
+		include: REPLACEMENT_INCLUDE,
+		orderBy: { createdAt: 'asc' },
+	});
+
 	const attachProducts = (rows, products) => rows.map((row) => ({
 		...row,
 		product: products.get(row.replacement_sku) || null,
@@ -162,7 +185,8 @@ function createProductReplacementsService({ prisma, config, isManager, magento =
 				row.source_sku,
 				row.replacement_sku,
 				products.get(row.source_sku)?.name,
-				products.get(row.replacement_sku)?.name
+				products.get(row.replacement_sku)?.name,
+				isNoneMarker(row) ? 'no replacement' : ''
 			))
 			: rows;
 
@@ -184,8 +208,53 @@ function createProductReplacementsService({ prisma, config, isManager, magento =
 		};
 	}
 
-	async function createReplacements({ user, source_sku, replacements }) {
+	// "No replacement" marker: one row with kind 'none', no replacement SKU
+	// and the required explanation as its first comment. A marker and pairs
+	// never coexist for the same product (409 either way, nothing removed).
+	async function createNoReplacementMarker({ user, sourceSku, comment }) {
+		const body = optionalComment(comment);
+		if (!body) {
+			throw ProductReplacementError.validation('A comment explaining why there is no replacement is required', 'COMMENT_REQUIRED');
+		}
+		const known = await catalogProductsBySku([sourceSku], { sku: true });
+		if (!known.has(sourceSku)) {
+			throw ProductReplacementError.validation(`SKU ${sourceSku} was not found in the catalog`, 'SKU_NOT_FOUND');
+		}
+		const active = await activeRowsOf(sourceSku);
+		if (hasActiveReplacements(active)) {
+			throw ProductReplacementError.conflict('HAS_REPLACEMENTS', `Remove the registered replacements of ${sourceSku} before marking it as having no replacement`);
+		}
+		if (hasNoneMarker(active)) {
+			throw ProductReplacementError.conflict('NO_REPLACEMENT_EXISTS', `${sourceSku} is already marked as having no replacement`);
+		}
+		try {
+			const row = await prisma.productReplacement.create({
+				data: {
+					source_sku: sourceSku,
+					replacement_sku: null,
+					kind: 'none',
+					created_by_id: user.id,
+					comments: { create: [{ author_id: user.id, body }] },
+				},
+				include: REPLACEMENT_INCLUDE,
+			});
+			return [row];
+		} catch (error) {
+			if (isUniqueViolation(error)) {
+				throw ProductReplacementError.conflict('NO_REPLACEMENT_EXISTS', `${sourceSku} is already marked as having no replacement`);
+			}
+			throw error;
+		}
+	}
+
+	async function createReplacements({ user, source_sku, replacements, no_replacement = false, comment }) {
 		const sourceSku = requireSku(source_sku, 'Source SKU');
+		if (no_replacement === true) {
+			if (Array.isArray(replacements) && replacements.length > 0) {
+				throw ProductReplacementError.validation('A product marked as having no replacement cannot list replacements');
+			}
+			return createNoReplacementMarker({ user, sourceSku, comment });
+		}
 		if (!Array.isArray(replacements) || replacements.length === 0) {
 			throw ProductReplacementError.validation('At least one replacement is required');
 		}
@@ -216,9 +285,11 @@ function createProductReplacementsService({ prisma, config, isManager, magento =
 			throw ProductReplacementError.validation(`SKU ${missing} was not found in the catalog`, 'SKU_NOT_FOUND');
 		}
 
-		const existing = await prisma.productReplacement.findMany({
-			where: { source_sku: sourceSku, replacement_sku: { in: replacementSkus }, deletedAt: null },
-		});
+		const active = await activeRowsOf(sourceSku);
+		if (hasNoneMarker(active)) {
+			throw ProductReplacementError.conflict('MARKED_NO_REPLACEMENT', `${sourceSku} is marked as having no replacement; remove that marker before registering a replacement`);
+		}
+		const existing = active.filter((row) => !isNoneMarker(row) && replacementSkus.includes(row.replacement_sku));
 		if (existing.length > 0) {
 			throw ProductReplacementError.conflict(
 				'DUPLICATE_REPLACEMENT',
@@ -234,6 +305,7 @@ function createProductReplacementsService({ prisma, config, isManager, magento =
 						data: {
 							source_sku: sourceSku,
 							replacement_sku: entry.replacement_sku,
+							kind: 'replacement',
 							created_by_id: user.id,
 							...(entry.comment ? { comments: { create: [{ author_id: user.id, body: entry.comment }] } } : {}),
 						},
@@ -294,11 +366,9 @@ function createProductReplacementsService({ prisma, config, isManager, magento =
 	// (BR-08): only rows whose source_sku is this SKU.
 	async function getReplacementsForSku({ sku }) {
 		const sourceSku = requireSku(sku, 'SKU');
-		const rows = await prisma.productReplacement.findMany({
-			where: { source_sku: sourceSku, deletedAt: null },
-			include: REPLACEMENT_INCLUDE,
-			orderBy: { createdAt: 'asc' },
-		});
+		const active = await activeRowsOf(sourceSku);
+		const rows = active.filter((row) => !isNoneMarker(row));
+		const marker = active.find(isNoneMarker) || null;
 		const { products, magento: magentoStatus } = await productsBySku(
 			[sourceSku, ...rows.map((row) => row.replacement_sku)],
 			PRODUCT_LOOKUP_SELECT
@@ -307,6 +377,7 @@ function createProductReplacementsService({ prisma, config, isManager, magento =
 			source_sku: sourceSku,
 			sourceProduct: products.get(sourceSku) || null,
 			replacements: attachProducts(rows, products),
+			noReplacement: markerSummary(marker),
 			magento: magentoStatus,
 		};
 	}
@@ -325,12 +396,22 @@ function createProductReplacementsService({ prisma, config, isManager, magento =
 		if (unique.length > config.countsMaxSkus) {
 			throw ProductReplacementError.validation(`Too many SKUs in one call (max ${config.countsMaxSkus})`);
 		}
-		const groups = await prisma.productReplacement.groupBy({
-			by: ['source_sku'],
+		const rows = await prisma.productReplacement.findMany({
 			where: { source_sku: { in: unique }, deletedAt: null },
-			_count: { _all: true },
+			include: REPLACEMENT_INCLUDE,
+			orderBy: { createdAt: 'asc' },
 		});
-		return Object.fromEntries(groups.map((group) => [group.source_sku, group._count._all]));
+		const counts = {};
+		for (const row of rows) {
+			if (!counts[row.source_sku]) counts[row.source_sku] = { replacements: 0, noReplacement: null };
+			if (isNoneMarker(row)) {
+				const summary = markerSummary(row);
+				counts[row.source_sku].noReplacement = { comment: summary.comment, by: displayName(row.createdBy), at: row.createdAt };
+			} else {
+				counts[row.source_sku].replacements += 1;
+			}
+		}
+		return counts;
 	}
 
 	return {

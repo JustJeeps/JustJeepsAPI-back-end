@@ -271,3 +271,17 @@ test('GET / caps the search term at 100 characters', async () => {
 		assert.strictEqual(service.calls.length, 0);
 	});
 });
+
+test('POST / accepts the "no replacement" shape without a replacements list', async () => {
+	const service = makeFakeService();
+	service.next.createReplacements = [{ id: 5, kind: 'none' }];
+	await withServer({ service }, async (port) => {
+		const response = await call(port, 'POST', '/api/product-replacements', { source_sku: 'CRO-83503077', no_replacement: true, comment: 'Discontinued.' });
+		const text = await response.text();
+		assert.strictEqual(response.status, 201, text);
+		assert.deepStrictEqual(service.calls[0], {
+			name: 'createReplacements',
+			args: { user: USER, source_sku: 'CRO-83503077', replacements: [], no_replacement: true, comment: 'Discontinued.' },
+		});
+	});
+});

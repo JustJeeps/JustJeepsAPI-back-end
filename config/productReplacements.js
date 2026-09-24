@@ -28,7 +28,7 @@ function isReplacementsUser(userOrUsername) {
 
 // Managers can remove any association or comment. Everyone else can only
 // remove what they created themselves (lib/productReplacements/rules.js).
-const replacementsManagerUsers = (process.env.REPLACEMENTS_MANAGER_USERS || 'ricardo,admin,tess')
+const replacementsManagerUsers = (process.env.REPLACEMENTS_MANAGER_USERS || 'ricardo,admin,tess,paula')
 	.split(/[,\s]+/)
 	.map((username) => username.trim().toLowerCase())
 	.filter(Boolean);

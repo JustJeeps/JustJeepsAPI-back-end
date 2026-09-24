@@ -36,6 +36,7 @@ function makePrismaStub({ products = [] } = {}) {
 		if (where.deletedAt === null && row.deletedAt !== null) return false;
 		if (!matchesStringFilter(row.source_sku, where.source_sku)) return false;
 		if (!matchesStringFilter(row.replacement_sku, where.replacement_sku)) return false;
+		if (where.kind !== undefined && !matchesStringFilter(row.kind || 'replacement', where.kind)) return false;
 		if (where.OR && !where.OR.some((clause) => matchesReplacement(row, clause))) return false;
 		return true;
 	};
@@ -83,8 +84,11 @@ function makePrismaStub({ products = [] } = {}) {
 				return row ? hydrateReplacement(row, include) : null;
 			},
 			create: async ({ data, include }) => {
+				const kind = data.kind || 'replacement';
 				const duplicate = replacements.some((row) =>
-					row.deletedAt === null && row.source_sku === data.source_sku && row.replacement_sku === data.replacement_sku);
+					row.deletedAt === null && row.source_sku === data.source_sku
+					&& ((kind === 'none' && (row.kind || 'replacement') === 'none')
+						|| (kind === 'replacement' && row.replacement_sku !== null && row.replacement_sku === data.replacement_sku)));
 				if (duplicate) {
 					const error = new Error('Unique constraint failed');
 					error.code = 'P2002';
@@ -93,7 +97,8 @@ function makePrismaStub({ products = [] } = {}) {
 				const row = {
 					id: nextId++,
 					source_sku: data.source_sku,
-					replacement_sku: data.replacement_sku,
+					replacement_sku: data.replacement_sku === undefined ? null : data.replacement_sku,
+					kind,
 					created_by_id: data.created_by_id,
 					createdAt: new Date(),
 					deletedAt: null,
@@ -157,6 +162,7 @@ const PRODUCTS = [
 	{ sku: 'CRO-83503077', name: 'Crown Front Lower Control Arm JK', image: 'img-cro', url_path: 'https://www.justjeeps.com/cro.html', price: 199.95, status: 1, vendorProducts: [], competitorProducts: [] },
 	{ sku: 'MOO-RK620185', name: 'Moog Front Lower Control Arm JK', image: 'img-moo', url_path: 'https://www.justjeeps.com/moo.html', price: 189.95, status: 1, vendorProducts: [{ vendor_cost: 118.4, vendor: { name: 'Meyer' } }], competitorProducts: [] },
 	{ sku: 'OMX-18282.05', name: 'Omix-ADA Front Lower Control Arm JK', image: 'img-omx', url_path: null, price: 150, status: 1, vendorProducts: [], competitorProducts: [] },
+	{ sku: 'RUG-11540.11', name: 'Rugged Ridge Floor Liner Kit JL', image: 'img-rug', url_path: null, price: 187.5, status: 1, vendorProducts: [], competitorProducts: [] },
 ];
 
 const PAULA = { id: 1, username: 'paula' };
@@ -324,9 +330,9 @@ test('countActiveBySkus counts active associations per source SKU', async () => 
 		source_sku: 'CRO-83503077',
 		replacements: [{ replacement_sku: 'MOO-RK620185' }, { replacement_sku: 'OMX-18282.05' }],
 	});
-	assert.deepStrictEqual(await service.countActiveBySkus({ skus: ['CRO-83503077', 'MOO-RK620185', ' CRO-83503077 '] }), { 'CRO-83503077': 2 });
+	assert.deepStrictEqual(await service.countActiveBySkus({ skus: ['CRO-83503077', 'MOO-RK620185', ' CRO-83503077 '] }), { 'CRO-83503077': { replacements: 2, noReplacement: null } });
 	await service.removeReplacement({ user: PAULA, id: created[0].id });
-	assert.deepStrictEqual(await service.countActiveBySkus({ skus: ['CRO-83503077'] }), { 'CRO-83503077': 1 });
+	assert.deepStrictEqual(await service.countActiveBySkus({ skus: ['CRO-83503077'] }), { 'CRO-83503077': { replacements: 1, noReplacement: null } });
 	assert.deepStrictEqual(await service.countActiveBySkus({ skus: [] }), {});
 	await rejectsWith(service.countActiveBySkus({ skus: Array.from({ length: 201 }, (_, i) => `X-${i}`) }), 'VALIDATION', 400);
 });
@@ -539,4 +545,95 @@ test('without a Magento client everything comes from the catalog', async () => {
 	const product = await service.getProductBySku({ sku: 'CRO-83503077' });
 	assert.strictEqual(product.name, 'Crown Front Lower Control Arm JK');
 	assert.strictEqual(product.source, 'catalog');
+});
+
+// --- "No replacement" marker ---------------------------------------------------
+
+test('marking a product as having no replacement stores one marker row with its required comment', async () => {
+	const prisma = makePrismaStub({ products: PRODUCTS });
+	const service = makeService(prisma);
+	const created = await service.createReplacements({
+		user: PAULA,
+		source_sku: ' CRO-83503077 ',
+		no_replacement: true,
+		comment: ' Discontinued by the manufacturer, no equivalent part. ',
+	});
+	assert.strictEqual(created.length, 1);
+	assert.strictEqual(created[0].kind, 'none');
+	assert.strictEqual(created[0].replacement_sku, null);
+	assert.strictEqual(created[0].source_sku, 'CRO-83503077');
+	assert.strictEqual(created[0].comments[0].body, 'Discontinued by the manufacturer, no equivalent part.');
+	assert.strictEqual(created[0].comments[0].author.username, 'paula');
+
+	await rejectsWith(service.createReplacements({ user: PAULA, source_sku: 'MOO-RK620185', no_replacement: true, comment: '   ' }), 'COMMENT_REQUIRED', 400);
+	await rejectsWith(service.createReplacements({ user: PAULA, source_sku: 'MOO-RK620185', no_replacement: true, comment: 'x', replacements: [{ replacement_sku: 'OMX-18282.05' }] }), 'VALIDATION', 400);
+	await rejectsWith(service.createReplacements({ user: PAULA, source_sku: 'NOPE', no_replacement: true, comment: 'x' }), 'SKU_NOT_FOUND', 400);
+});
+
+test('a marker and replacements never coexist: each side is blocked with its own code', async () => {
+	const prisma = makePrismaStub({ products: PRODUCTS });
+	const service = makeService(prisma);
+	await service.createReplacements({ user: PAULA, source_sku: 'CRO-83503077', replacements: [{ replacement_sku: 'MOO-RK620185' }] });
+	await rejectsWith(service.createReplacements({ user: TESS, source_sku: 'CRO-83503077', no_replacement: true, comment: 'none' }), 'HAS_REPLACEMENTS', 409);
+
+	await service.createReplacements({ user: PAULA, source_sku: 'OMX-18282.05', no_replacement: true, comment: 'Not made anymore.' });
+	await rejectsWith(service.createReplacements({ user: TESS, source_sku: 'OMX-18282.05', replacements: [{ replacement_sku: 'MOO-RK620185' }] }), 'MARKED_NO_REPLACEMENT', 409);
+	await rejectsWith(service.createReplacements({ user: TESS, source_sku: 'OMX-18282.05', no_replacement: true, comment: 'again' }), 'NO_REPLACEMENT_EXISTS', 409);
+
+	// Race on the partial unique index of the marker.
+	const original = prisma.productReplacement.findMany;
+	prisma.productReplacement.findMany = async () => [];
+	await rejectsWith(service.createReplacements({ user: TESS, source_sku: 'OMX-18282.05', no_replacement: true, comment: 'again' }), 'NO_REPLACEMENT_EXISTS', 409);
+	prisma.productReplacement.findMany = original;
+
+	// Removing the marker frees the product again.
+	const marker = prisma.replacements.find((row) => row.kind === 'none');
+	await service.removeReplacement({ user: PAULA, id: marker.id });
+	const [pair] = await service.createReplacements({ user: TESS, source_sku: 'OMX-18282.05', replacements: [{ replacement_sku: 'MOO-RK620185' }] });
+	assert.strictEqual(pair.kind, 'replacement');
+});
+
+test('the lookup never offers a marker as an option and reports it separately', async () => {
+	const prisma = makePrismaStub({ products: PRODUCTS });
+	const service = makeService(prisma);
+	await service.createReplacements({ user: PAULA, source_sku: 'OMX-18282.05', no_replacement: true, comment: 'Not made anymore.' });
+	const lookup = await service.getReplacementsForSku({ sku: 'OMX-18282.05' });
+	assert.deepStrictEqual(lookup.replacements, []);
+	assert.strictEqual(lookup.noReplacement.comment, 'Not made anymore.');
+	assert.strictEqual(lookup.noReplacement.createdBy.username, 'paula');
+	assert.ok(lookup.noReplacement.createdAt instanceof Date);
+	assert.ok(Number.isInteger(lookup.noReplacement.id));
+
+	await service.createReplacements({ user: PAULA, source_sku: 'CRO-83503077', replacements: [{ replacement_sku: 'MOO-RK620185' }] });
+	const pairs = await service.getReplacementsForSku({ sku: 'CRO-83503077' });
+	assert.strictEqual(pairs.replacements.length, 1);
+	assert.strictEqual(pairs.noReplacement, null);
+});
+
+test('counts tell the Orders screen how many replacements a SKU has or that it has none, with the tooltip text', async () => {
+	const prisma = makePrismaStub({ products: PRODUCTS });
+	const service = makeService(prisma);
+	await service.createReplacements({ user: PAULA, source_sku: 'CRO-83503077', replacements: [{ replacement_sku: 'MOO-RK620185' }, { replacement_sku: 'OMX-18282.05' }] });
+	await service.createReplacements({ user: TESS, source_sku: 'RUG-11540.11', no_replacement: true, comment: 'Kit discontinued, no equivalent.' });
+	const counts = await service.countActiveBySkus({ skus: ['CRO-83503077', 'RUG-11540.11', 'MOO-RK620185'] });
+	assert.deepStrictEqual(counts['CRO-83503077'], { replacements: 2, noReplacement: null });
+	assert.strictEqual(counts['RUG-11540.11'].replacements, 0);
+	assert.strictEqual(counts['RUG-11540.11'].noReplacement.comment, 'Kit discontinued, no equivalent.');
+	assert.strictEqual(counts['RUG-11540.11'].noReplacement.by, 'Tess T');
+	assert.ok(counts['RUG-11540.11'].noReplacement.at instanceof Date);
+	assert.strictEqual(counts['MOO-RK620185'], undefined, 'nothing registered = no key');
+});
+
+test('the directory lists a marker as a row without a replacement product and finds it by "no replacement"', async () => {
+	const prisma = makePrismaStub({ products: PRODUCTS });
+	const service = makeService(prisma);
+	await service.createReplacements({ user: TESS, source_sku: 'RUG-11540.11', no_replacement: true, comment: 'Kit discontinued.' });
+	const list = await service.listReplacements({});
+	const row = list.groups[0].replacements[0];
+	assert.strictEqual(row.kind, 'none');
+	assert.strictEqual(row.replacement_sku, null);
+	assert.strictEqual(row.product, null);
+	assert.strictEqual(list.groups[0].sourceProduct.sku, 'RUG-11540.11');
+	assert.strictEqual((await service.listReplacements({ search: 'no replacement' })).total, 1);
+	assert.strictEqual((await service.listReplacements({ search: 'rugged' })).total, 1);
 });
