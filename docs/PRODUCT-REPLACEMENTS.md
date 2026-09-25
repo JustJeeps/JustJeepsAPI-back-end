@@ -63,7 +63,7 @@ Comments are never edited: new guidance is a new comment, and an outdated one ca
 
 ## Permissions
 
-- Rollout gate: while the team tests the feature, only the users in `REPLACEMENTS_ALLOWED_USERS` (default `admin,ricardo,paula,karoline`, set in `config/deploy.yml`) see and use it. For everyone else the navbar item, the Orders icon and the page are hidden, `GET /meta` answers `enabled: false` and every other route answers 409 `REPLACEMENTS_RESTRICTED`. The list matches the username or the local part of the e-mail. Release = widen the list.
+- Rollout gate: `REPLACEMENTS_ALLOWED_USERS` (`config/deploy.yml`). It is `*` since 2026-09-25: every logged in user sees and uses the feature. Set it to a list of usernames (username or the local part of the e-mail, e.g. `admin,ricardo,paula,karoline`) to restrict it again: for everyone else the navbar item, the Orders icons and the page are hidden, `GET /meta` answers `enabled: false` and every other route answers 409 `REPLACEMENTS_RESTRICTED`.
 - Inside the gate, any user can register replacements and add comments.
 - Removing an association or a comment: the person who created it, or a manager from `REPLACEMENTS_MANAGER_USERS` (default and `config/deploy.yml`: `ricardo,admin,tess,paula`).
 

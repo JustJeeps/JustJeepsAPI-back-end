@@ -5,17 +5,19 @@
 // same rule as config/requests.js) so tests and scripts can load it without
 // starting the server.
 
-// Rollout gate: while the team tests the feature, only these people see and
-// use it (navbar item, Orders icon, /replacements page, every API route).
-// Release = widen the env in config/deploy.yml. Matches the username or the
-// local part of the e-mail, like the Requests assignee managers.
-const replacementsAllowedUsers = (process.env.REPLACEMENTS_ALLOWED_USERS || 'admin,ricardo,paula,karoline')
+// Rollout gate. Released to every logged in user on 2026-09-25: the list is
+// "*". To test a change with a few people again, set REPLACEMENTS_ALLOWED_USERS
+// to a list of usernames in config/deploy.yml (username or the local part of
+// the e-mail, like the Requests assignee managers).
+const replacementsAllowedUsers = (process.env.REPLACEMENTS_ALLOWED_USERS || '*')
 	.split(/[,\s]+/)
 	.map((username) => username.trim().toLowerCase())
 	.filter(Boolean);
+const replacementsEverybody = replacementsAllowedUsers.includes('*');
 
 function isReplacementsUser(userOrUsername) {
 	if (!userOrUsername) return false;
+	if (replacementsEverybody) return true;
 	const username = typeof userOrUsername === 'string'
 		? userOrUsername.toLowerCase()
 		: String(userOrUsername.username || '').toLowerCase();
@@ -56,6 +58,7 @@ module.exports = {
 	CREATE_MAX_BATCH,
 	config: {
 		replacementsAllowedUsers,
+		replacementsEverybody,
 		replacementsManagerUsers,
 	},
 };
