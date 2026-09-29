@@ -11,7 +11,7 @@ const {
 	normalizePostcode,
 	normalizeStreet,
 	scoreReturningCustomer,
-	hasIdentityMatch,
+	matchLevel,
 	pickBestCandidate,
 	attachReturningCustomer,
 	loadReturningCustomerCandidates,
@@ -90,11 +90,13 @@ test('buildOrderIdentity normalizes the e-mail and gives both phone variants', (
 		email: 'marc.l@example.com',
 		phone: '4165550199',
 		phoneVariants: ['4165550199', '14165550199'],
+		nameKey: 'marc lavoie',
 	});
-	assert.deepStrictEqual(buildOrderIdentity(order({ customer_email: '', shipping_telephone: '12345' })), {
+	assert.deepStrictEqual(buildOrderIdentity(order({ customer_email: '', shipping_telephone: '12345', customer_firstname: '', customer_lastname: '' })), {
 		email: null,
 		phone: null,
 		phoneVariants: [],
+		nameKey: null,
 	});
 });
 
@@ -106,16 +108,20 @@ test('buildCandidatesWhere anchors on e-mail or phone, paid customers of the cur
 		OR: [
 			{ emailNorm: { in: ['marc.l@example.com', 'b@x.com'] } },
 			{ phoneSortDigits: { in: ['4165550199', '14165550199'] } },
+			{ displayNameNorm: { in: ['marc lavoie'] } },
 		],
 	});
 });
 
 test('buildCandidatesWhere drops an empty OR entry and is null when nothing anchors', () => {
-	const emailOnly = buildCandidatesWhere(7, [order({ shipping_telephone: '' })]);
+	const noName = { customer_firstname: '', customer_lastname: '' };
+	const emailOnly = buildCandidatesWhere(7, [order({ shipping_telephone: '', ...noName })]);
 	assert.deepStrictEqual(emailOnly.OR, [{ emailNorm: { in: ['marc.l@example.com'] } }]);
-	const phoneOnly = buildCandidatesWhere(7, [order({ customer_email: '' })]);
+	const phoneOnly = buildCandidatesWhere(7, [order({ customer_email: '', ...noName })]);
 	assert.deepStrictEqual(phoneOnly.OR, [{ phoneSortDigits: { in: ['4165550199', '14165550199'] } }]);
-	assert.strictEqual(buildCandidatesWhere(7, [order({ customer_email: '', shipping_telephone: '' })]), null);
+	const nameOnly = buildCandidatesWhere(7, [order({ customer_email: '', shipping_telephone: '', customer_firstname: ' MARC ', customer_lastname: 'Lavoie ' })]);
+	assert.deepStrictEqual(nameOnly.OR, [{ displayNameNorm: { in: ['marc lavoie'] } }]);
+	assert.strictEqual(buildCandidatesWhere(7, [order({ customer_email: '', shipping_telephone: '', ...noName })]), null);
 });
 
 test('CANDIDATE_SELECT never loads the recent transactions json', () => {
@@ -154,7 +160,7 @@ test('fetchReturningCustomerCandidates queries the current import with the candi
 
 test('fetchReturningCustomerCandidates skips the customer query when nothing anchors', async () => {
 	const prisma = makePrismaStub({ importRow: { id: 9, sourceExportedAt: null } });
-	const result = await fetchReturningCustomerCandidates(prisma, [order({ customer_email: '', shipping_telephone: '' })]);
+	const result = await fetchReturningCustomerCandidates(prisma, [order({ customer_email: '', shipping_telephone: '', customer_firstname: '', customer_lastname: '' })]);
 	assert.deepStrictEqual(result, { importId: 9, sourceExportedAt: null, customers: [] });
 	assert.strictEqual(prisma.calls.findMany.length, 0);
 });
@@ -218,7 +224,7 @@ test('scoreReturningCustomer marks e-mail missing when the order has none', () =
 });
 
 test('pickBestCandidate keeps only customers that anchor on the order and prefers the best score, then the latest purchase', () => {
-	const stranger = qb({ customerCode: 'OTHER', emailNorm: 'other@x.com', phoneSortDigits: '9055550000', phoneSearch: '9055550000' });
+	const stranger = qb({ customerCode: 'OTHER', firstName: 'Olga', lastName: 'Ng', displayName: 'Olga Ng', searchName: 'Olga Ng', emailNorm: 'other@x.com', phoneSortDigits: '9055550000', phoneSearch: '9055550000', street1: '9 Elm Rd', city: 'Ottawa', postalCode: 'K1A0B1' });
 	const phoneOnly = qb({ customerCode: 'PHONE', emailNorm: 'old@x.com', email: 'old@x.com' });
 	const full = qb({ customerCode: 'FULL' });
 	const best = pickBestCandidate(order(), [stranger, phoneOnly, full]);
@@ -238,59 +244,77 @@ test('pickBestCandidate scores a phone-only match with a different e-mail at 50%
 	assert.strictEqual(best.score.fields.email, 'different');
 });
 
-// Rule restated by the owner (2026-09-29): the icon appears only when the
-// order's e-mail OR phone is equal to the QuickBooks customer's. Name and
-// address never make a customer appear, they only move the percentage.
+// Levels asked by Tess (2026-09-29): GREEN when two of e-mail, phone and name
+// are equal; YELLOW for any other customer found by e-mail, phone, or name
+// together with the address. Name alone never shows anything.
 
-test('hasIdentityMatch is true only when the scored e-mail or phone is a match', () => {
-	assert.strictEqual(hasIdentityMatch({ fields: { email: 'match', phone: 'different', name: 'match', address: 'match' } }), true);
-	assert.strictEqual(hasIdentityMatch({ fields: { email: 'different', phone: 'match', name: 'different', address: 'different' } }), true);
-	assert.strictEqual(hasIdentityMatch({ fields: { email: 'different', phone: 'different', name: 'match', address: 'match' } }), false);
-	assert.strictEqual(hasIdentityMatch({ fields: { email: 'missing', phone: 'missing', name: 'match', address: 'match' } }), false);
-	assert.strictEqual(hasIdentityMatch({ fields: {} }), false);
-	assert.strictEqual(hasIdentityMatch(null), false);
+test('matchLevel is green with two of e-mail, phone and name, yellow for one identifier or name plus address, null otherwise', () => {
+	const level = (fields) => matchLevel({ fields });
+	assert.strictEqual(level({ email: 'match', phone: 'match', name: 'different', address: 'different' }), 'green');
+	assert.strictEqual(level({ email: 'match', phone: 'missing', name: 'match', address: 'missing' }), 'green');
+	assert.strictEqual(level({ email: 'different', phone: 'match', name: 'match', address: 'different' }), 'green');
+	assert.strictEqual(level({ email: 'match', phone: 'match', name: 'match', address: 'match' }), 'green');
+	assert.strictEqual(level({ email: 'match', phone: 'different', name: 'different', address: 'match' }), 'yellow');
+	assert.strictEqual(level({ email: 'missing', phone: 'match', name: 'different', address: 'missing' }), 'yellow');
+	assert.strictEqual(level({ email: 'different', phone: 'different', name: 'match', address: 'match' }), 'yellow');
+	assert.strictEqual(level({ email: 'missing', phone: 'missing', name: 'match', address: 'match' }), 'yellow');
+	assert.strictEqual(level({ email: 'different', phone: 'different', name: 'match', address: 'different' }), null);
+	assert.strictEqual(level({ email: 'missing', phone: 'missing', name: 'match', address: 'missing' }), null);
+	assert.strictEqual(level({ email: 'different', phone: 'different', name: 'different', address: 'match' }), null);
+	assert.strictEqual(matchLevel({ fields: {} }), null);
+	assert.strictEqual(matchLevel(null), null);
 });
 
-test('attachReturningCustomer never flags a customer with the same name and address but a different e-mail and phone', () => {
+test('a customer with the same name and address but another e-mail and phone is flagged yellow', () => {
 	const lookalike = qb({ customerCode: 'LOOKALIKE', email: 'other@x.com', emailNorm: 'other@x.com', phone: '905-555-0000', phoneSortDigits: '9055550000', phoneSearch: '9055550000 19055550000' });
 	assert.deepStrictEqual(scoreReturningCustomer(order(), lookalike).fields, { email: 'different', phone: 'different', name: 'match', address: 'match' });
 	const [row] = attachReturningCustomer([order()], { importId: 9, sourceExportedAt: null, customers: [lookalike] });
-	assert.strictEqual(row.returning_customer, null);
+	assert.strictEqual(row.returning_customer.customer_code, 'LOOKALIKE');
+	assert.strictEqual(row.returning_customer.level, 'yellow');
 });
 
-test('attachReturningCustomer never flags a customer with the same name and address when QuickBooks has no e-mail and no phone', () => {
-	const nameOnly = qb({ customerCode: 'NAMEONLY', email: '', emailNorm: '', phone: '', phoneSortDigits: '', phoneSearch: '' });
-	assert.deepStrictEqual(scoreReturningCustomer(order(), nameOnly).fields, { email: 'missing', phone: 'missing', name: 'match', address: 'match' });
+test('a customer with only the same name is never flagged', () => {
+	const nameOnly = qb({ customerCode: 'NAMEONLY', email: '', emailNorm: '', phone: '', phoneSortDigits: '', phoneSearch: '', street1: '', city: '', postalCode: '' });
+	assert.deepStrictEqual(scoreReturningCustomer(order(), nameOnly).fields, { email: 'missing', phone: 'missing', name: 'match', address: 'missing' });
 	const [row] = attachReturningCustomer([order()], { importId: 9, sourceExportedAt: null, customers: [nameOnly] });
 	assert.strictEqual(row.returning_customer, null);
 });
 
-test('every attached flag has the e-mail or the phone equal to the order', () => {
+test('a phone-only match is yellow, e-mail plus name is green, and the best level wins among candidates', () => {
+	const phoneOnly = qb({ customerCode: 'PHONE', firstName: 'Zed', lastName: 'Q', displayName: 'Zed Q', searchName: 'Zed Q', email: 'z@x.com', emailNorm: 'z@x.com', street1: '', city: '', postalCode: '' });
+	const emailAndName = qb({ customerCode: 'EMAILNAME', phone: '905-555-1111', phoneSortDigits: '9055551111', phoneSearch: '9055551111', street1: '', city: '', postalCode: '' });
+	const [row] = attachReturningCustomer([order()], { importId: 9, sourceExportedAt: null, customers: [phoneOnly, emailAndName] });
+	assert.strictEqual(row.returning_customer.customer_code, 'EMAILNAME');
+	assert.strictEqual(row.returning_customer.level, 'green');
+	const [alone] = attachReturningCustomer([order()], { importId: 9, sourceExportedAt: null, customers: [phoneOnly] });
+	assert.strictEqual(alone.returning_customer.level, 'yellow');
+	assert.strictEqual(alone.returning_customer.percent, 25);
+});
+
+test('every attached flag carries a level that follows its fields', () => {
 	const rows = [
 		order({ entity_id: 1 }),
 		order({ entity_id: 2, customer_email: 'anna@x.com', customer_firstname: 'Anna', shipping_telephone: '(647) 555-0123' }),
 		order({ entity_id: 3, customer_email: 'paul@x.com', customer_firstname: 'Paul', shipping_telephone: '' }),
-		order({ entity_id: 4, customer_email: '', customer_firstname: 'Rita', shipping_telephone: '(905) 555-0777' }),
+		order({ entity_id: 4, customer_email: '', customer_firstname: 'Rita', shipping_telephone: '(905) 555-0777', shipping_street1: '', shipping_city: '', shipping_postcode: '' }),
 	];
 	const customers = [
 		qb({ customerCode: 'FULL' }),
 		qb({ customerCode: 'ANNA-PHONE', firstName: 'Anna', displayName: 'Anna Lavoie', searchName: 'Anna Lavoie', email: 'old@x.com', emailNorm: 'old@x.com', phone: '647-555-0123', phoneSortDigits: '6475550123', phoneSearch: '6475550123' }),
 		qb({ customerCode: 'PAUL-EMAIL', firstName: 'Paul', displayName: 'Paul Lavoie', searchName: 'Paul Lavoie', email: 'paul@x.com', emailNorm: 'paul@x.com', phone: '', phoneSortDigits: '', phoneSearch: '' }),
-		qb({ customerCode: 'RITA-LOOKALIKE', firstName: 'Rita', displayName: 'Rita Lavoie', searchName: 'Rita Lavoie', email: 'rita@x.com', emailNorm: 'rita@x.com', phone: '416-555-9999', phoneSortDigits: '4165559999', phoneSearch: '4165559999' }),
-		qb({ customerCode: 'NOBODY', firstName: 'Zed', displayName: 'Zed', searchName: 'Zed', email: 'zed@x.com', emailNorm: 'zed@x.com', phone: '', phoneSortDigits: '', phoneSearch: '' }),
+		qb({ customerCode: 'RITA-NAMEONLY', firstName: 'Rita', displayName: 'Rita Lavoie', searchName: 'Rita Lavoie', email: 'rita@x.com', emailNorm: 'rita@x.com', phone: '416-555-9999', phoneSortDigits: '4165559999', phoneSearch: '4165559999' }),
 	];
 	const out = attachReturningCustomer(rows, { importId: 9, sourceExportedAt: null, customers });
-	const flagged = out.filter((row) => row.returning_customer);
-	assert.deepStrictEqual(flagged.map((row) => row.returning_customer.customer_code), ['FULL', 'ANNA-PHONE', 'PAUL-EMAIL']);
-	assert.strictEqual(out[3].returning_customer, null);
-	for (const row of flagged) {
-		const { email, phone } = row.returning_customer.fields;
-		assert.ok(email === 'match' || phone === 'match', `${row.returning_customer.customer_code} was flagged without an identity match`);
-	}
+	assert.deepStrictEqual(out.map((row) => row.returning_customer && [row.returning_customer.customer_code, row.returning_customer.level]), [
+		['FULL', 'green'],
+		['ANNA-PHONE', 'green'],
+		['PAUL-EMAIL', 'green'],
+		null,
+	]);
 });
 
 test('attachReturningCustomer adds the flag without mutating the rows and yields null when there are no candidates', () => {
-	const rows = [order(), order({ entity_id: 2, customer_email: 'nobody@x.com', shipping_telephone: '' })];
+	const rows = [order(), order({ entity_id: 2, customer_email: 'nobody@x.com', shipping_telephone: '', customer_firstname: 'Nora', customer_lastname: 'Body' })];
 	const exportedAt = new Date('2026-07-16T12:00:00Z');
 	const out = attachReturningCustomer(rows, { importId: 9, sourceExportedAt: exportedAt, customers: [qb()] });
 	assert.strictEqual(rows[0].returning_customer, undefined);
@@ -298,6 +322,7 @@ test('attachReturningCustomer adds the flag without mutating the rows and yields
 		customer_code: 'LAVOIEM',
 		customer_name: 'Marc Lavoie',
 		percent: 100,
+		level: 'green',
 		fields: { email: 'match', phone: 'match', name: 'match', address: 'match' },
 		values: out[0].returning_customer.values,
 		last_purchase_date: '2026-03-14',
