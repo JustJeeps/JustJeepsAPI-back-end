@@ -28,6 +28,7 @@ const {
 } = require('./utils/emailService');
 const prisma = require('./lib/prisma');
 const { buildPoNotSetOr, fetchOpenOrders, attachOpenOrdersSameCustomer } = require('./lib/orders/openOrders');
+const { loadReturningCustomerCandidates, attachReturningCustomer } = require('./lib/orders/returningCustomer');
 const { getDateStringInTimezone, getTrailingDateStringsInTimezone } = require('./lib/reports/dates');
 const {
 	readDigestWatermark: readRequestsDigestWatermark,
@@ -3224,9 +3225,12 @@ app.get('/api/orders', async (req, res) => {
 		]);
 		// "N OPEN ORDERS" flag: open orders of the same customer (email or phone) for each row.
 		const openOrders = orders.length ? await fetchOpenOrders(prisma, buildVisibleOrdersWhere) : [];
+		// "Returning customer" flag: best QuickBooks match (e-mail or phone, paid before) per row.
+		// Never fails the list: csv mode or a query error yields null on every row.
+		const returningCustomers = await loadReturningCustomerCandidates(prisma, orders, { isDbSource: isQuickBooksDbSource, logger });
 
 		res.json({
-			data: attachOpenOrdersSameCustomer(orders, openOrders),
+			data: attachReturningCustomer(attachOpenOrdersSameCustomer(orders, openOrders), returningCustomers),
 			pagination: {
 				page,
 				limit,

@@ -126,3 +126,9 @@ https://pricingtool.justjeeps.com/quickbooks-customer-lookup.
 - Histórico do incidente que motivou isto: jul/2026 — CSVs só existiam na
   máquina de build de um colega; deploy de outra máquina shipou imagem sem
   dados e a página quebrou (500).
+
+## Returning customer flag on the Orders screen (2026-09-29)
+
+`GET /api/orders` attaches `returning_customer` to every row (`lib/orders/returningCustomer.js`). A QuickBooks customer of the current import is a candidate when the order's e-mail matches `emailNorm` or the order's phone (10 or 11 digits) matches `phoneSortDigits`, and only when `hasPurchasedBefore` is true. The best candidate is scored on four fields (e-mail, phone, name, address; 25% each; `match`, `different` or `missing`), ties go to the latest purchase. The response carries the percentage, the per-field result, the display values of both sides, the last purchase date, the payment count and `snapshot_exported_at` (the export date of the import), so the Orders screen can say how old the QuickBooks data is.
+
+Why `phoneSortDigits` only: it is indexed by `importId`; `phoneSearch` (phones typed inside "Invoice to") would need a `LIKE` per variant and scan the import on every page. `phoneSearch` is still used in memory for the score. In `csv` mode, or when the query fails, every row gets `null` and the Orders list is served normally (the failure is logged as "Returning customer lookup failed").

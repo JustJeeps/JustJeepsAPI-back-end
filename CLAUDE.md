@@ -78,7 +78,7 @@ lib/
   ├── requests/              # Pure domain rules (transitions, activity diff)
   ├── productReplacements/   # Replacement rules (self, permissions, grouping; pure, tested)
   ├── products/              # Product projection shared by the magnifier and replacement lookups
-  ├── orders/                # Orders rules (open-orders flag; prisma injected, tested)
+  ├── orders/                # Orders rules (open-orders flag, returning-customer flag from QuickBooks; prisma injected, tested)
   ├── trello/                # Trello client + settings persistence (injectable, tested)
   ├── reports/               # Digest data collectors
   └── ingest/                # CSV/feed ingest framework
