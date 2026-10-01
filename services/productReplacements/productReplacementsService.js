@@ -23,11 +23,16 @@ const {
 	isNoneMarker,
 	hasActiveReplacements,
 	hasNoneMarker,
+	collectEquivalents,
 } = require('../../lib/productReplacements/rules');
 const { PRODUCT_LOOKUP_SELECT } = require('../../lib/products/productLookupSelect');
 const { ProductReplacementError } = require('./errors');
 
 const USER_SELECT = { id: true, username: true, email: true, firstname: true, lastname: true };
+
+// How far the lookup follows links (A -> B -> C ...). Enough for real groups,
+// bounded so a bad chain cannot turn one lookup into a crawl.
+const MAX_LINK_HOPS = 4;
 
 // Directory and management screens only need the product card.
 const PRODUCT_SUMMARY_SELECT = { sku: true, name: true, image: true, url_path: true, price: true, brand_name: true, status: true };
@@ -136,6 +141,54 @@ function createProductReplacementsService({ prisma, config, isManager, magento =
 		where: { source_sku: sourceSku, deletedAt: null },
 		include: REPLACEMENT_INCLUDE,
 		orderBy: { createdAt: 'asc' },
+	});
+
+	// Rows linked to the given SKUs on either side, then to what those link to,
+	// and so on for MAX_LINK_HOPS (one query per hop). Feeds collectEquivalents.
+	// `truncated` says the walk stopped at the hop limit with parts still to
+	// explore, so the caller can tell the user the list may be incomplete.
+	const loadLinkedRows = async (rootSkus) => {
+		const rows = [];
+		const seenIds = new Set();
+		const visited = new Set(rootSkus);
+		let frontier = [...rootSkus];
+		for (let hop = 0; hop < MAX_LINK_HOPS && frontier.length > 0; hop += 1) {
+			const batch = await prisma.productReplacement.findMany({
+				where: { deletedAt: null, OR: [{ source_sku: { in: frontier } }, { replacement_sku: { in: frontier } }] },
+				include: REPLACEMENT_INCLUDE,
+				// Rows created in one transaction can share a timestamp; the id keeps
+				// the order stable between calls.
+				orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+			});
+			const next = [];
+			for (const row of batch) {
+				if (seenIds.has(row.id)) continue;
+				seenIds.add(row.id);
+				rows.push(row);
+				for (const sku of [row.source_sku, row.replacement_sku]) {
+					if (sku && !visited.has(sku)) {
+						visited.add(sku);
+						next.push(sku);
+					}
+				}
+			}
+			frontier = next;
+		}
+		return { rows, truncated: frontier.length > 0 };
+	};
+
+	const activeMarkerOf = (sku, rows) => rows.find((row) => row.source_sku === sku && isNoneMarker(row)) || null;
+
+	// One lookup entry per equivalent part: the linking row, shown as if it were
+	// registered root -> part, plus where it was really registered.
+	const toLookupRow = (rootSku, entry, products) => ({
+		...entry.row,
+		source_sku: rootSku,
+		replacement_sku: entry.sku,
+		registered_as: { source_sku: entry.row.source_sku, replacement_sku: entry.row.replacement_sku },
+		relation: entry.relation,
+		via: entry.via,
+		product: products.get(entry.sku) || null,
 	});
 
 	const attachProducts = (rows, products) => rows.map((row) => ({
@@ -361,23 +414,26 @@ function createProductReplacementsService({ prisma, config, isManager, magento =
 		return { id: commentId, removed: true };
 	}
 
-	// Orders screen: everything registered for this source SKU, each replacement
-	// with the same projection the magnifier lookup uses. Direction is explicit
-	// (BR-08): only rows whose source_sku is this SKU.
+	// Orders screen: every part equivalent to this SKU, each with the same
+	// projection the magnifier lookup uses. Pairs are registered one way but
+	// looked up both ways and followed a few hops (BR-08, revised 2026-10-01):
+	// the replacement of A shows A and A's other replacements. An active
+	// "no replacement" marker on the SKU wins over any link pointing to it.
 	async function getReplacementsForSku({ sku }) {
 		const sourceSku = requireSku(sku, 'SKU');
-		const active = await activeRowsOf(sourceSku);
-		const rows = active.filter((row) => !isNoneMarker(row));
-		const marker = active.find(isNoneMarker) || null;
+		const { rows, truncated } = await loadLinkedRows([sourceSku]);
+		const marker = activeMarkerOf(sourceSku, rows);
+		const equivalents = marker ? [] : collectEquivalents(sourceSku, rows, { maxHops: MAX_LINK_HOPS });
 		const { products, magento: magentoStatus } = await productsBySku(
-			[sourceSku, ...rows.map((row) => row.replacement_sku)],
+			[sourceSku, ...equivalents.map((entry) => entry.sku)],
 			PRODUCT_LOOKUP_SELECT
 		);
 		return {
 			source_sku: sourceSku,
 			sourceProduct: products.get(sourceSku) || null,
-			replacements: attachProducts(rows, products),
+			replacements: equivalents.map((entry) => toLookupRow(sourceSku, entry, products)),
 			noReplacement: markerSummary(marker),
+			truncated: !marker && truncated,
 			magento: magentoStatus,
 		};
 	}
@@ -389,27 +445,25 @@ function createProductReplacementsService({ prisma, config, isManager, magento =
 		return products.get(wanted) || null;
 	}
 
-	// Badges on the expanded order rows: { [sku]: activeCount } (absent = 0).
+	// Badges on the expanded order rows: { [sku]: { replacements, noReplacement } }
+	// (absent = nothing registered on either side). Same rules as the lookup.
 	async function countActiveBySkus({ skus }) {
 		const unique = [...new Set((Array.isArray(skus) ? skus : []).map(normalizeSku).filter(Boolean))];
 		if (unique.length === 0) return {};
 		if (unique.length > config.countsMaxSkus) {
 			throw ProductReplacementError.validation(`Too many SKUs in one call (max ${config.countsMaxSkus})`);
 		}
-		const rows = await prisma.productReplacement.findMany({
-			where: { source_sku: { in: unique }, deletedAt: null },
-			include: REPLACEMENT_INCLUDE,
-			orderBy: { createdAt: 'asc' },
-		});
+		const { rows } = await loadLinkedRows(unique);
 		const counts = {};
-		for (const row of rows) {
-			if (!counts[row.source_sku]) counts[row.source_sku] = { replacements: 0, noReplacement: null };
-			if (isNoneMarker(row)) {
-				const summary = markerSummary(row);
-				counts[row.source_sku].noReplacement = { comment: summary.comment, by: displayName(row.createdBy), at: row.createdAt };
-			} else {
-				counts[row.source_sku].replacements += 1;
+		for (const sku of unique) {
+			const marker = activeMarkerOf(sku, rows);
+			if (marker) {
+				const summary = markerSummary(marker);
+				counts[sku] = { replacements: 0, noReplacement: { comment: summary.comment, by: displayName(marker.createdBy), at: marker.createdAt } };
+				continue;
 			}
+			const total = collectEquivalents(sku, rows, { maxHops: MAX_LINK_HOPS }).length;
+			if (total > 0) counts[sku] = { replacements: total, noReplacement: null };
 		}
 		return counts;
 	}

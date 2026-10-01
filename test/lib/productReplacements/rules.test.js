@@ -74,3 +74,45 @@ test('hasActiveReplacements / hasNoneMarker look only at active rows', () => {
 	assert.strictEqual(hasActiveReplacements([{ kind: 'replacement', deletedAt: new Date() }]), false);
 	assert.strictEqual(hasActiveReplacements([]), false);
 });
+
+const { collectEquivalents } = require('../../../lib/productReplacements/rules');
+
+const pair = (id, source, replacement, extra = {}) => ({ id, source_sku: source, replacement_sku: replacement, kind: 'replacement', deletedAt: null, ...extra });
+
+test('collectEquivalents walks the pairs in both directions: registered first, then reverse, then linked', () => {
+	const rows = [
+		pair(1, 'CRO', 'MOO'),
+		pair(2, 'CRO', 'OMX'),
+		pair(3, 'OMX', 'CRO'),
+	];
+	assert.deepStrictEqual(
+		collectEquivalents('CRO', rows).map((e) => [e.sku, e.relation, e.via, e.row.id]),
+		[['MOO', 'registered', 'CRO', 1], ['OMX', 'registered', 'CRO', 2]]
+	);
+	assert.deepStrictEqual(
+		collectEquivalents('MOO', rows).map((e) => [e.sku, e.relation, e.via, e.row.id]),
+		[['CRO', 'reverse', 'MOO', 1], ['OMX', 'linked', 'CRO', 2]]
+	);
+	assert.deepStrictEqual(
+		collectEquivalents('OMX', rows).map((e) => [e.sku, e.relation, e.via, e.row.id]),
+		[['CRO', 'registered', 'OMX', 3], ['MOO', 'linked', 'CRO', 1]]
+	);
+});
+
+test('collectEquivalents ignores markers, removed pairs and rows of other groups, and never returns the root', () => {
+	const rows = [
+		pair(1, 'A', 'B'),
+		pair(2, 'B', 'A', { deletedAt: new Date() }),
+		{ id: 3, source_sku: 'B', replacement_sku: null, kind: 'none', deletedAt: null },
+		pair(4, 'X', 'Y'),
+	];
+	assert.deepStrictEqual(collectEquivalents('A', rows).map((e) => e.sku), ['B']);
+	assert.deepStrictEqual(collectEquivalents('B', rows).map((e) => e.sku), ['A']);
+	assert.deepStrictEqual(collectEquivalents('Z', rows), []);
+});
+
+test('collectEquivalents stops after maxHops', () => {
+	const rows = [pair(1, 'A', 'B'), pair(2, 'B', 'C'), pair(3, 'C', 'D'), pair(4, 'D', 'E')];
+	assert.deepStrictEqual(collectEquivalents('A', rows, { maxHops: 2 }).map((e) => e.sku), ['B', 'C']);
+	assert.deepStrictEqual(collectEquivalents('A', rows).map((e) => e.sku), ['B', 'C', 'D', 'E']);
+});

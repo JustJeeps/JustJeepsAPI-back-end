@@ -4,166 +4,7 @@ const assert = require('node:assert');
 const { createProductReplacementsService } = require('../../../services/productReplacements/productReplacementsService');
 const { ProductReplacementError } = require('../../../services/productReplacements/errors');
 
-// In-memory prisma stub covering ONLY the query shapes the service uses
-// (same approach as test/lib/reviews/reviewServices.test.js). No database.
-function makePrismaStub({ products = [] } = {}) {
-	const replacements = [];
-	const comments = [];
-	const users = new Map([
-		[1, { id: 1, username: 'paula', email: 'paula@x', firstname: 'Paula', lastname: 'P' }],
-		[2, { id: 2, username: 'tess', email: 'tess@x', firstname: 'Tess', lastname: 'T' }],
-		[3, { id: 3, username: 'ricardo', email: 'ricardo@x', firstname: 'Ricardo', lastname: 'R' }],
-	]);
-	let nextId = 1;
-
-	const pick = (row, select) => Object.fromEntries(Object.keys(select).map((key) => [key, row[key]]));
-	const userFor = (id, select) => (select ? pick(users.get(id), select) : users.get(id));
-
-	const matchesStringFilter = (value, filter) => {
-		if (filter === undefined) return true;
-		if (typeof filter === 'string') return value === filter;
-		if (filter.in) return filter.in.includes(value);
-		if (filter.contains !== undefined) {
-			const haystack = filter.mode === 'insensitive' ? String(value || '').toLowerCase() : String(value || '');
-			const needle = filter.mode === 'insensitive' ? filter.contains.toLowerCase() : filter.contains;
-			return haystack.includes(needle);
-		}
-		return true;
-	};
-
-	const matchesReplacement = (row, where = {}) => {
-		if (where.id !== undefined && row.id !== where.id) return false;
-		if (where.deletedAt === null && row.deletedAt !== null) return false;
-		if (!matchesStringFilter(row.source_sku, where.source_sku)) return false;
-		if (!matchesStringFilter(row.replacement_sku, where.replacement_sku)) return false;
-		if (where.kind !== undefined && !matchesStringFilter(row.kind || 'replacement', where.kind)) return false;
-		if (where.OR && !where.OR.some((clause) => matchesReplacement(row, clause))) return false;
-		return true;
-	};
-
-	const commentsOf = (replacementId, args = {}) => {
-		let found = comments.filter((comment) => comment.replacement_id === replacementId);
-		if (args.where?.deletedAt === null) found = found.filter((comment) => comment.deletedAt === null);
-		found = found.sort((a, b) => a.id - b.id);
-		return found.map((comment) => hydrateComment(comment, args.include));
-	};
-
-	const hydrateComment = (comment, include) => ({
-		...comment,
-		...(include?.author ? { author: userFor(comment.author_id, include.author.select) } : {}),
-	});
-
-	const hydrateReplacement = (row, include) => ({
-		...row,
-		...(include?.createdBy ? { createdBy: userFor(row.created_by_id, include.createdBy.select) } : {}),
-		...(include?.comments ? { comments: commentsOf(row.id, include.comments === true ? {} : include.comments) } : {}),
-	});
-
-	const stub = {
-		replacements,
-		comments,
-		productFindManyCalls: [],
-		product: {
-			findMany: async ({ where = {}, select, take } = {}) => {
-				stub.productFindManyCalls.push({ where, select, take });
-				let found = products.filter((product) =>
-					matchesStringFilter(product.sku, where.sku) && matchesStringFilter(product.name, where.name));
-				if (take) found = found.slice(0, take);
-				return select ? found.map((product) => pick(product, select)) : found.map((product) => ({ ...product }));
-			},
-		},
-		productReplacement: {
-			findMany: async ({ where, include, orderBy, take } = {}) => {
-				let found = replacements.filter((row) => matchesReplacement(row, where));
-				if (orderBy?.createdAt === 'desc') found = [...found].sort((a, b) => b.createdAt - a.createdAt || b.id - a.id);
-				if (take) found = found.slice(0, take);
-				return found.map((row) => hydrateReplacement(row, include));
-			},
-			findFirst: async ({ where, include } = {}) => {
-				const row = replacements.find((entry) => matchesReplacement(entry, where));
-				return row ? hydrateReplacement(row, include) : null;
-			},
-			create: async ({ data, include }) => {
-				const kind = data.kind || 'replacement';
-				const duplicate = replacements.some((row) =>
-					row.deletedAt === null && row.source_sku === data.source_sku
-					&& ((kind === 'none' && (row.kind || 'replacement') === 'none')
-						|| (kind === 'replacement' && row.replacement_sku !== null && row.replacement_sku === data.replacement_sku)));
-				if (duplicate) {
-					const error = new Error('Unique constraint failed');
-					error.code = 'P2002';
-					throw error;
-				}
-				const row = {
-					id: nextId++,
-					source_sku: data.source_sku,
-					replacement_sku: data.replacement_sku === undefined ? null : data.replacement_sku,
-					kind,
-					created_by_id: data.created_by_id,
-					createdAt: new Date(),
-					deletedAt: null,
-					deletedById: null,
-				};
-				replacements.push(row);
-				for (const entry of data.comments?.create || []) {
-					comments.push({ id: nextId++, replacement_id: row.id, deletedAt: null, deletedById: null, createdAt: new Date(), ...entry });
-				}
-				return hydrateReplacement(row, include);
-			},
-			update: async ({ where, data }) => {
-				const row = replacements.find((entry) => entry.id === where.id);
-				Object.assign(row, data);
-				return { ...row };
-			},
-			count: async ({ where } = {}) => replacements.filter((row) => matchesReplacement(row, where)).length,
-			groupBy: async ({ where }) => {
-				const counts = new Map();
-				for (const row of replacements) {
-					if (!matchesReplacement(row, where)) continue;
-					counts.set(row.source_sku, (counts.get(row.source_sku) || 0) + 1);
-				}
-				return [...counts.entries()].map(([source_sku, count]) => ({ source_sku, _count: { _all: count } }));
-			},
-		},
-		productReplacementComment: {
-			create: async ({ data, include }) => {
-				const comment = { id: nextId++, deletedAt: null, deletedById: null, createdAt: new Date(), ...data };
-				comments.push(comment);
-				return hydrateComment(comment, include);
-			},
-			findFirst: async ({ where } = {}) => {
-				const comment = comments.find((entry) =>
-					entry.id === where.id && (where.replacement_id === undefined || entry.replacement_id === where.replacement_id)
-					&& (where.deletedAt !== null || entry.deletedAt === null));
-				return comment ? { ...comment } : null;
-			},
-			update: async ({ where, data }) => {
-				const comment = comments.find((entry) => entry.id === where.id);
-				Object.assign(comment, data);
-				return { ...comment };
-			},
-		},
-		$transaction: async (fn) => {
-			// Real Prisma rolls the whole callback back on a throw; mirror that.
-			const snapshot = { replacements: replacements.length, comments: comments.length };
-			try {
-				return await fn(stub);
-			} catch (error) {
-				replacements.length = snapshot.replacements;
-				comments.length = snapshot.comments;
-				throw error;
-			}
-		},
-	};
-	return stub;
-}
-
-const PRODUCTS = [
-	{ sku: 'CRO-83503077', name: 'Crown Front Lower Control Arm JK', image: 'img-cro', url_path: 'https://www.justjeeps.com/cro.html', price: 199.95, status: 1, vendorProducts: [], competitorProducts: [] },
-	{ sku: 'MOO-RK620185', name: 'Moog Front Lower Control Arm JK', image: 'img-moo', url_path: 'https://www.justjeeps.com/moo.html', price: 189.95, status: 1, vendorProducts: [{ vendor_cost: 118.4, vendor: { name: 'Meyer' } }], competitorProducts: [] },
-	{ sku: 'OMX-18282.05', name: 'Omix-ADA Front Lower Control Arm JK', image: 'img-omx', url_path: null, price: 150, status: 1, vendorProducts: [], competitorProducts: [] },
-	{ sku: 'RUG-11540.11', name: 'Rugged Ridge Floor Liner Kit JL', image: 'img-rug', url_path: null, price: 187.5, status: 1, vendorProducts: [], competitorProducts: [] },
-];
+const { makePrismaStub, PRODUCTS } = require('./prismaStub');
 
 const PAULA = { id: 1, username: 'paula' };
 const TESS = { id: 2, username: 'tess' };
@@ -282,7 +123,7 @@ test('a removed pair can be registered again', async () => {
 	assert.notStrictEqual(second.id, first.id);
 });
 
-test('getReplacementsForSku returns active replacements of that source only, with lookup data and comments', async () => {
+test('getReplacementsForSku looks both ways and follows the links: registered, reverse and linked parts', async () => {
 	const prisma = makePrismaStub({ products: PRODUCTS });
 	const service = makeService(prisma);
 	await service.createReplacements({
@@ -290,22 +131,77 @@ test('getReplacementsForSku returns active replacements of that source only, wit
 		source_sku: 'CRO-83503077',
 		replacements: [{ replacement_sku: 'MOO-RK620185', comment: 'Customer approval is required.' }, { replacement_sku: 'OMX-18282.05' }],
 	});
-	// Reverse direction is a different association (BR-08) and must not show up.
+	// A pair registered the other way round is the same link, listed once.
 	await service.createReplacements({ user: TESS, source_sku: 'OMX-18282.05', replacements: [{ replacement_sku: 'CRO-83503077' }] });
 
 	const result = await service.getReplacementsForSku({ sku: 'CRO-83503077' });
 	assert.strictEqual(result.source_sku, 'CRO-83503077');
 	assert.strictEqual(result.sourceProduct.name, 'Crown Front Lower Control Arm JK');
 	assert.deepStrictEqual(result.replacements.map((row) => row.replacement_sku), ['MOO-RK620185', 'OMX-18282.05']);
+	assert.deepStrictEqual(result.replacements.map((row) => row.relation), ['registered', 'registered']);
 	assert.strictEqual(result.replacements[0].product.vendorProducts[0].vendor.name, 'Meyer');
 	assert.strictEqual(result.replacements[0].comments[0].author.firstname, 'Paula');
 	assert.strictEqual(result.replacements[0].createdBy.username, 'paula');
 
-	const reverse = await service.getReplacementsForSku({ sku: 'OMX-18282.05' });
-	assert.deepStrictEqual(reverse.replacements.map((row) => row.replacement_sku), ['CRO-83503077']);
+	// Looking at the replacement shows the original (reverse) and its other
+	// replacements (linked through the original), with the row that links them.
+	const fromMoo = await service.getReplacementsForSku({ sku: 'MOO-RK620185' });
+	assert.deepStrictEqual(fromMoo.replacements.map((row) => [row.replacement_sku, row.relation, row.via]), [
+		['CRO-83503077', 'reverse', 'MOO-RK620185'],
+		['OMX-18282.05', 'linked', 'CRO-83503077'],
+	]);
+	assert.deepStrictEqual(fromMoo.replacements[0].registered_as, { source_sku: 'CRO-83503077', replacement_sku: 'MOO-RK620185' });
+	assert.strictEqual(fromMoo.replacements[0].source_sku, 'MOO-RK620185', 'the row is presented as root -> part');
+	assert.strictEqual(fromMoo.truncated, false);
+	assert.strictEqual(fromMoo.replacements[0].product.name, 'Crown Front Lower Control Arm JK');
+	assert.strictEqual(fromMoo.replacements[0].comments[0].body, 'Customer approval is required.');
+	assert.strictEqual(fromMoo.replacements[0].createdBy.username, 'paula');
 
-	const none = await service.getReplacementsForSku({ sku: 'MOO-RK620185' });
-	assert.deepStrictEqual(none.replacements, []);
+	const fromOmx = await service.getReplacementsForSku({ sku: 'OMX-18282.05' });
+	assert.deepStrictEqual(fromOmx.replacements.map((row) => [row.replacement_sku, row.relation]), [
+		['CRO-83503077', 'registered'],
+		['MOO-RK620185', 'linked'],
+	]);
+});
+
+test('the lookup stops following links after a few hops', async () => {
+	const chain = ['A-1', 'A-2', 'A-3', 'A-4', 'A-5', 'A-6', 'A-7'].map((sku) => ({ sku, name: sku, image: null, url_path: null, price: 1, status: 1, vendorProducts: [], competitorProducts: [] }));
+	const prisma = makePrismaStub({ products: [...PRODUCTS, ...chain] });
+	const service = makeService(prisma);
+	for (let i = 0; i < chain.length - 1; i += 1) {
+		await service.createReplacements({ user: PAULA, source_sku: chain[i].sku, replacements: [{ replacement_sku: chain[i + 1].sku }] });
+	}
+	const result = await service.getReplacementsForSku({ sku: 'A-1' });
+	assert.deepStrictEqual(result.replacements.map((row) => row.replacement_sku), ['A-2', 'A-3', 'A-4', 'A-5']);
+	assert.strictEqual(result.truncated, true, 'A-6 and A-7 exist beyond the hop limit');
+	assert.strictEqual((await service.getReplacementsForSku({ sku: 'A-7' })).truncated, true);
+	assert.strictEqual((await service.getReplacementsForSku({ sku: 'A-4' })).truncated, false, 'everything within reach');
+});
+
+test('a simple pair costs two queries on lookup and nothing is re-fetched', async () => {
+	const prisma = makePrismaStub({ products: PRODUCTS });
+	const service = makeService(prisma);
+	await service.createReplacements({ user: PAULA, source_sku: 'CRO-83503077', replacements: [{ replacement_sku: 'MOO-RK620185' }] });
+	prisma.replacementFindManyCalls.length = 0;
+	await service.getReplacementsForSku({ sku: 'MOO-RK620185' });
+	assert.strictEqual(prisma.replacementFindManyCalls.length, 2);
+	prisma.replacementFindManyCalls.length = 0;
+	await service.countActiveBySkus({ skus: ['CRO-83503077', 'MOO-RK620185', 'RUG-11540.11'] });
+	assert.strictEqual(prisma.replacementFindManyCalls.length, 1, 'both ends of the pair are roots: nothing new to follow');
+});
+
+test('a "no replacement" marker wins over links coming from other products', async () => {
+	const prisma = makePrismaStub({ products: PRODUCTS });
+	const service = makeService(prisma);
+	await service.createReplacements({ user: PAULA, source_sku: 'OMX-18282.05', no_replacement: true, comment: 'Not made anymore.' });
+	await service.createReplacements({ user: TESS, source_sku: 'CRO-83503077', replacements: [{ replacement_sku: 'OMX-18282.05' }] });
+
+	const lookup = await service.getReplacementsForSku({ sku: 'OMX-18282.05' });
+	assert.deepStrictEqual(lookup.replacements, []);
+	assert.strictEqual(lookup.noReplacement.comment, 'Not made anymore.');
+	const counts = await service.countActiveBySkus({ skus: ['OMX-18282.05', 'CRO-83503077'] });
+	assert.deepStrictEqual(counts['OMX-18282.05'], { replacements: 0, noReplacement: { comment: 'Not made anymore.', by: 'Paula P', at: counts['OMX-18282.05'].noReplacement.at } });
+	assert.deepStrictEqual(counts['CRO-83503077'], { replacements: 1, noReplacement: null });
 });
 
 test('getReplacementsForSku keeps the association when the replacement product left the catalog', async () => {
@@ -322,7 +218,7 @@ test('getReplacementsForSku keeps the association when the replacement product l
 	}
 });
 
-test('countActiveBySkus counts active associations per source SKU', async () => {
+test('countActiveBySkus counts the equivalents of each SKU, whichever side it was registered on', async () => {
 	const prisma = makePrismaStub({ products: PRODUCTS });
 	const service = makeService(prisma);
 	const created = await service.createReplacements({
@@ -330,7 +226,10 @@ test('countActiveBySkus counts active associations per source SKU', async () => 
 		source_sku: 'CRO-83503077',
 		replacements: [{ replacement_sku: 'MOO-RK620185' }, { replacement_sku: 'OMX-18282.05' }],
 	});
-	assert.deepStrictEqual(await service.countActiveBySkus({ skus: ['CRO-83503077', 'MOO-RK620185', ' CRO-83503077 '] }), { 'CRO-83503077': { replacements: 2, noReplacement: null } });
+	assert.deepStrictEqual(
+		await service.countActiveBySkus({ skus: ['CRO-83503077', 'MOO-RK620185', ' CRO-83503077 '] }),
+		{ 'CRO-83503077': { replacements: 2, noReplacement: null }, 'MOO-RK620185': { replacements: 2, noReplacement: null } }
+	);
 	await service.removeReplacement({ user: PAULA, id: created[0].id });
 	assert.deepStrictEqual(await service.countActiveBySkus({ skus: ['CRO-83503077'] }), { 'CRO-83503077': { replacements: 1, noReplacement: null } });
 	assert.deepStrictEqual(await service.countActiveBySkus({ skus: [] }), {});
@@ -615,13 +514,14 @@ test('counts tell the Orders screen how many replacements a SKU has or that it h
 	const service = makeService(prisma);
 	await service.createReplacements({ user: PAULA, source_sku: 'CRO-83503077', replacements: [{ replacement_sku: 'MOO-RK620185' }, { replacement_sku: 'OMX-18282.05' }] });
 	await service.createReplacements({ user: TESS, source_sku: 'RUG-11540.11', no_replacement: true, comment: 'Kit discontinued, no equivalent.' });
-	const counts = await service.countActiveBySkus({ skus: ['CRO-83503077', 'RUG-11540.11', 'MOO-RK620185'] });
+	const counts = await service.countActiveBySkus({ skus: ['CRO-83503077', 'RUG-11540.11', 'MOO-RK620185', 'UNKNOWN-1'] });
 	assert.deepStrictEqual(counts['CRO-83503077'], { replacements: 2, noReplacement: null });
 	assert.strictEqual(counts['RUG-11540.11'].replacements, 0);
 	assert.strictEqual(counts['RUG-11540.11'].noReplacement.comment, 'Kit discontinued, no equivalent.');
 	assert.strictEqual(counts['RUG-11540.11'].noReplacement.by, 'Tess T');
 	assert.ok(counts['RUG-11540.11'].noReplacement.at instanceof Date);
-	assert.strictEqual(counts['MOO-RK620185'], undefined, 'nothing registered = no key');
+	assert.deepStrictEqual(counts['MOO-RK620185'], { replacements: 2, noReplacement: null }, 'registered as a replacement: sees the original and its other replacement');
+	assert.strictEqual(counts['UNKNOWN-1'], undefined, 'nothing registered = no key');
 });
 
 test('the directory lists a marker as a row without a replacement product and finds it by "no replacement"', async () => {

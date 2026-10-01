@@ -48,8 +48,19 @@ const COUNTS_MAX_SKUS = 200;
 // Max replacements accepted in one create call (the modal saves a batch).
 const CREATE_MAX_BATCH = 20;
 
+// What the replacements service needs to know (injected by the router and by
+// scripts), so both read the same limits.
+const SERVICE_CONFIG = {
+	skuMaxLength: SKU_MAX_LENGTH,
+	commentMaxLength: COMMENT_MAX_LENGTH,
+	listMax: LIST_MAX,
+	countsMaxSkus: COUNTS_MAX_SKUS,
+	createMaxBatch: CREATE_MAX_BATCH,
+};
+
 module.exports = {
 	isReplacementsUser,
+	SERVICE_CONFIG,
 	isReplacementsManager,
 	SKU_MAX_LENGTH,
 	COMMENT_MAX_LENGTH,

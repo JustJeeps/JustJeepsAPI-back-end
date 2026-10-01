@@ -16,6 +16,7 @@ const {
 	LIST_MAX,
 	COUNTS_MAX_SKUS,
 	CREATE_MAX_BATCH,
+	SERVICE_CONFIG,
 } = require('../config/productReplacements');
 const { ProductReplacementError } = require('../services/productReplacements/errors');
 const { createProductReplacementsService } = require('../services/productReplacements/productReplacementsService');
@@ -24,13 +25,6 @@ const { describeHttpError } = require('../lib/magento/describeHttpError');
 
 const SEARCH_MAX_LENGTH = 100;
 
-const SERVICE_CONFIG = {
-	skuMaxLength: SKU_MAX_LENGTH,
-	commentMaxLength: COMMENT_MAX_LENGTH,
-	listMax: LIST_MAX,
-	countsMaxSkus: COUNTS_MAX_SKUS,
-	createMaxBatch: CREATE_MAX_BATCH,
-};
 
 // --- error mapping -------------------------------------------------------------
 

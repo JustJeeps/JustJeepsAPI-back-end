@@ -23,6 +23,8 @@
     "reviews-sync": "node scripts/reviews-sync.js",
     "log-archive": "node scripts/log-archive.js",
     "rotate-passwords": "node scripts/rotate-user-passwords.js",
+    "import-omix-oe-replacements": "node scripts/import-omix-oe-replacements.js",
+    "import-omix-oe-replacements-apply": "node scripts/import-omix-oe-replacements.js --confirm",
     "start": "node server.js",
     "dev": "nodemon server.js",
     "seed-hard-code": "node prisma/seeds/seed-hard-code.js",
