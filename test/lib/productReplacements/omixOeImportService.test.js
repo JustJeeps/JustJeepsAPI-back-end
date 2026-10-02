@@ -20,7 +20,7 @@ const PRODUCTS = [
 ];
 
 const ADMIN = { id: 4, username: 'admin' };
-const CONFIG = { skuMaxLength: 64, commentMaxLength: 2000, listMax: 500, countsMaxSkus: 200, createMaxBatch: 20 };
+const CONFIG = { skuMaxLength: 64, commentMaxLength: 2000, listPageSize: 50, listPageSizeMax: 100, countsMaxSkus: 200, createMaxBatch: 20 };
 const silentLog = { log() {}, warn() {}, error() {} };
 
 function makeImport(prisma, overrides = {}) {

@@ -41,9 +41,11 @@ function isReplacementsManager(username) {
 
 const SKU_MAX_LENGTH = 64;
 const COMMENT_MAX_LENGTH = 2000;
-// Directory list cap and the max number of SKUs accepted by the counts route
-// (one call per expanded order, so a few dozen SKUs at most in practice).
-const LIST_MAX = 500;
+// Directory page size (original products per page) and its ceiling, and the
+// max number of SKUs accepted by the counts route (one call per expanded
+// order, so a few dozen SKUs at most in practice).
+const LIST_PAGE_SIZE = 50;
+const LIST_PAGE_SIZE_MAX = 100;
 const COUNTS_MAX_SKUS = 200;
 // Max replacements accepted in one create call (the modal saves a batch).
 const CREATE_MAX_BATCH = 20;
@@ -53,7 +55,8 @@ const CREATE_MAX_BATCH = 20;
 const SERVICE_CONFIG = {
 	skuMaxLength: SKU_MAX_LENGTH,
 	commentMaxLength: COMMENT_MAX_LENGTH,
-	listMax: LIST_MAX,
+	listPageSize: LIST_PAGE_SIZE,
+	listPageSizeMax: LIST_PAGE_SIZE_MAX,
 	countsMaxSkus: COUNTS_MAX_SKUS,
 	createMaxBatch: CREATE_MAX_BATCH,
 };
@@ -64,7 +67,8 @@ module.exports = {
 	isReplacementsManager,
 	SKU_MAX_LENGTH,
 	COMMENT_MAX_LENGTH,
-	LIST_MAX,
+	LIST_PAGE_SIZE,
+	LIST_PAGE_SIZE_MAX,
 	COUNTS_MAX_SKUS,
 	CREATE_MAX_BATCH,
 	config: {

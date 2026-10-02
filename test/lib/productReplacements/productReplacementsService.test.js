@@ -10,7 +10,7 @@ const PAULA = { id: 1, username: 'paula' };
 const TESS = { id: 2, username: 'tess' };
 const RICARDO = { id: 3, username: 'ricardo' };
 
-const CONFIG = { managers: ['ricardo'], skuMaxLength: 64, commentMaxLength: 2000, listMax: 500, countsMaxSkus: 200, createMaxBatch: 20 };
+const CONFIG = { managers: ['ricardo'], skuMaxLength: 64, commentMaxLength: 2000, listPageSize: 50, listPageSizeMax: 100, countsMaxSkus: 200, createMaxBatch: 20 };
 
 function makeService(prisma) {
 	return createProductReplacementsService({
@@ -277,17 +277,62 @@ test('listReplacements groups by original product and searches SKUs and product 
 	await service.createReplacements({ user: TESS, source_sku: 'OMX-18282.05', replacements: [{ replacement_sku: 'MOO-RK620185' }] });
 
 	const all = await service.listReplacements({});
-	assert.strictEqual(all.total, 3);
+	assert.strictEqual(all.total, 2, 'total counts original products');
+	assert.strictEqual(all.totalRows, 3, 'totalRows counts associations');
 	assert.deepStrictEqual(all.groups.map((group) => group.source_sku), ['OMX-18282.05', 'CRO-83503077']);
 	assert.strictEqual(all.groups[1].sourceProduct.image, 'img-cro');
 	assert.strictEqual(all.groups[1].replacements[0].product.name, 'Moog Front Lower Control Arm JK');
+	assert.deepStrictEqual({ page: all.page, pageSize: all.pageSize }, { page: 1, pageSize: 50 });
 
 	const bySku = await service.listReplacements({ search: 'omx' });
+	assert.deepStrictEqual(bySku.groups.map((group) => [group.source_sku, group.replacements.map((r) => r.replacement_sku)]), [
+		['OMX-18282.05', ['MOO-RK620185']],
+		['CRO-83503077', ['OMX-18282.05']],
+	]);
 	assert.strictEqual(bySku.total, 2);
+	assert.strictEqual(bySku.totalRows, 2);
 	const byName = await service.listReplacements({ search: 'crown' });
 	assert.deepStrictEqual(byName.groups.map((group) => group.source_sku), ['CRO-83503077']);
+	assert.strictEqual(byName.groups[0].replacements.length, 2, 'CRO is the source of both rows');
 	const nothing = await service.listReplacements({ search: 'zzz' });
 	assert.strictEqual(nothing.total, 0);
+	assert.deepStrictEqual(nothing.groups, []);
+});
+
+test('listReplacements pages by original product, newest first, without splitting a group', async () => {
+	const prisma = makePrismaStub({ products: PRODUCTS });
+	const service = createProductReplacementsService({ prisma, isManager: () => false, config: { ...CONFIG, listPageSize: 2 } });
+	await service.createReplacements({ user: PAULA, source_sku: 'CRO-83503077', replacements: [{ replacement_sku: 'MOO-RK620185' }, { replacement_sku: 'OMX-18282.05' }] });
+	await service.createReplacements({ user: TESS, source_sku: 'OMX-18282.05', replacements: [{ replacement_sku: 'MOO-RK620185' }] });
+	await service.createReplacements({ user: TESS, source_sku: 'RUG-11540.11', replacements: [{ replacement_sku: 'MOO-RK620185' }] });
+
+	const first = await service.listReplacements({ page: 1 });
+	assert.deepStrictEqual(first.groups.map((group) => group.source_sku), ['RUG-11540.11', 'OMX-18282.05']);
+	assert.deepStrictEqual({ page: first.page, pageSize: first.pageSize, total: first.total, totalRows: first.totalRows }, { page: 1, pageSize: 2, total: 3, totalRows: 4 });
+
+	const second = await service.listReplacements({ page: 2 });
+	assert.deepStrictEqual(second.groups.map((group) => group.source_sku), ['CRO-83503077']);
+	assert.strictEqual(second.groups[0].replacements.length, 2, 'the whole group travels together');
+	assert.strictEqual(second.total, 3);
+
+	const beyond = await service.listReplacements({ page: 9 });
+	assert.deepStrictEqual(beyond.groups, []);
+	assert.strictEqual(beyond.total, 3);
+
+	const searched = await service.listReplacements({ search: 'moo', page: 2 });
+	assert.deepStrictEqual(searched.groups.map((group) => group.source_sku), ['CRO-83503077']);
+	assert.strictEqual(searched.total, 3);
+	assert.strictEqual(searched.totalRows, 3, 'only the MOO rows count, not CRO -> OMX');
+	assert.strictEqual(searched.groups[0].replacements.length, 1, 'inside a group only the matching rows are shown');
+});
+
+test('listReplacements rejects a bad page or page size', async () => {
+	const prisma = makePrismaStub({ products: PRODUCTS });
+	const service = makeService(prisma);
+	await rejectsWith(service.listReplacements({ page: 0 }), 'VALIDATION', 400);
+	await rejectsWith(service.listReplacements({ page: 'x' }), 'VALIDATION', 400);
+	await rejectsWith(service.listReplacements({ pageSize: 101 }), 'VALIDATION', 400);
+	assert.strictEqual((await service.listReplacements({ pageSize: 10 })).pageSize, 10);
 });
 
 // --- Live product info from Magento --------------------------------------------
@@ -390,27 +435,22 @@ test('responses say whether Magento answered, so the UI can tell the user the ca
 	assert.deepStrictEqual((await makeService(prisma).listReplacements({})).magento, { configured: false, degraded: true });
 });
 
-test('directory search matches the live Magento name shown on the card and is not capped by a catalog pre-query', async () => {
+test('directory search runs in the database: catalog names match, live Magento names do not', async () => {
 	const prisma = makePrismaStub({ products: PRODUCTS });
 	const service = makeServiceWithMagento(prisma, makeMagentoStub(MAGENTO));
 	await service.createReplacements({ user: PAULA, source_sku: 'CRO-83503077', replacements: [{ replacement_sku: 'MOO-RK620185' }, { replacement_sku: 'OMX-18282.05' }] });
-	// "live name" only exists in the Magento names, not in the catalog names.
+	// "live name" only exists in the Magento names; the search is paged in the
+	// database, so it looks at the catalog names only (the cards still show
+	// the live ones).
 	const byLiveName = await service.listReplacements({ search: 'live name' });
-	assert.strictEqual(byLiveName.total, 2);
-	// A term that only the catalog name of OMX has still matches (OMX has no Magento data here).
+	assert.strictEqual(byLiveName.total, 0);
 	const byCatalogName = await service.listReplacements({ search: 'omix-ada' });
 	assert.strictEqual(byCatalogName.total, 1);
-	assert.strictEqual(prisma.productFindManyCalls.filter((call) => call.where && call.where.name).length, 0, 'no name pre-query against the whole catalog');
-});
-
-test('total counts every active association even when the list is capped', async () => {
-	const prisma = makePrismaStub({ products: PRODUCTS });
-	const service = createProductReplacementsService({ prisma, isManager: () => false, config: { ...CONFIG, listMax: 1 } });
-	await service.createReplacements({ user: PAULA, source_sku: 'CRO-83503077', replacements: [{ replacement_sku: 'MOO-RK620185' }, { replacement_sku: 'OMX-18282.05' }] });
-	const list = await service.listReplacements({});
-	assert.strictEqual(list.total, 2);
-	assert.strictEqual(list.groups.reduce((sum, group) => sum + group.replacements.length, 0), 1);
-	assert.strictEqual(list.truncated, true);
+	assert.deepStrictEqual(byCatalogName.groups[0].replacements.map((r) => r.replacement_sku), ['OMX-18282.05']);
+	assert.strictEqual(byCatalogName.groups[0].replacements[0].product.name, 'Omix-ADA Front Lower Control Arm JK');
+	const nameQueries = prisma.productFindManyCalls.filter((call) => call.where && call.where.name);
+	assert.strictEqual(nameQueries.length, 2, 'one catalog name query per search');
+	assert.deepStrictEqual(nameQueries[0].where.name, { contains: 'live name', mode: 'insensitive' });
 });
 
 test('a batch is all or nothing: a P2002 on the second row leaves nothing behind', async () => {

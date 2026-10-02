@@ -93,7 +93,15 @@ test('GET / lists the directory with the search term', async () => {
 		const response = await call(port, 'GET', '/api/product-replacements?search=crown');
 		assert.strictEqual(response.status, 200);
 		assert.deepStrictEqual(await response.json(), { groups: [], total: 0 });
-		assert.deepStrictEqual(service.calls[0], { name: 'listReplacements', args: { search: 'crown' } });
+		assert.deepStrictEqual(service.calls[0], { name: 'listReplacements', args: { search: 'crown', page: 1, pageSize: 50 } });
+
+		service.next.listReplacements = { groups: [], total: 0 };
+		await call(port, 'GET', '/api/product-replacements?page=3&pageSize=20');
+		assert.deepStrictEqual(service.calls[1].args, { search: '', page: 3, pageSize: 20 });
+
+		const badPage = await call(port, 'GET', '/api/product-replacements?page=abc');
+		assert.strictEqual(badPage.status, 400);
+		assert.strictEqual((await badPage.json()).code, 'VALIDATION');
 	});
 });
 

@@ -34,6 +34,9 @@ const USER_SELECT = { id: true, username: true, email: true, firstname: true, la
 // bounded so a bad chain cannot turn one lookup into a crawl.
 const MAX_LINK_HOPS = 4;
 
+// Catalog SKUs considered when a search term matches product names.
+const NAME_SEARCH_MAX_SKUS = 500;
+
 // Directory and management screens only need the product card.
 const PRODUCT_SUMMARY_SELECT = { sku: true, name: true, image: true, url_path: true, price: true, brand_name: true, status: true };
 
@@ -121,8 +124,6 @@ function createProductReplacementsService({ prisma, config, isManager, magento =
 		return { products: merged, magento: { configured, degraded: !configured || Boolean(liveAnswer.degraded) } };
 	};
 
-	const matchesSearch = (term, ...values) => values.some((value) => String(value || '').toLowerCase().includes(term));
-
 	const displayName = (user) => {
 		if (!user) return '';
 		const name = [user.firstname, user.lastname].filter(Boolean).join(' ').trim();
@@ -209,56 +210,75 @@ function createProductReplacementsService({ prisma, config, isManager, magento =
 
 	// --- use cases -------------------------------------------------------------
 
-	// Directory. The search runs in memory over the rows already loaded (capped
-	// at listMax, newest first) and over the names shown on the cards, which
-	// are the live Magento names when available: a catalog pre-query would
-	// silently cap common terms ("control arm") at an arbitrary subset.
-	async function listReplacements({ search } = {}) {
-		const term = String(search ?? '').trim().toLowerCase();
-		const where = { deletedAt: null };
+	// Directory, paged by original product (newest first; a group never splits
+	// across pages). The search runs in the database: both SKUs, the catalog
+	// product names (one name query, capped) and "no replacement" for markers.
+	// The cards still show live Magento names; the search does not look at
+	// them, that would mean fetching the whole store on every keystroke.
+	const searchClauses = async (term) => {
+		const named = await prisma.product.findMany({
+			where: { name: { contains: term, mode: 'insensitive' } },
+			select: { sku: true },
+			take: NAME_SEARCH_MAX_SKUS,
+		});
+		const skus = named.map((product) => product.sku);
+		return [
+			{ source_sku: { contains: term, mode: 'insensitive' } },
+			{ replacement_sku: { contains: term, mode: 'insensitive' } },
+			...(skus.length > 0 ? [{ source_sku: { in: skus } }, { replacement_sku: { in: skus } }] : []),
+			...('no replacement'.includes(term.toLowerCase()) ? [{ kind: 'none' }] : []),
+		];
+	};
 
-		const [rows, activeCount] = await Promise.all([
-			prisma.productReplacement.findMany({
+	const requirePage = (value, { fallback, max, label }) => {
+		if (value === undefined || value === null || value === '') return fallback;
+		const number = Number(value);
+		if (!Number.isInteger(number) || number < 1 || (max !== undefined && number > max)) {
+			throw ProductReplacementError.validation(`${label} must be a whole number between 1 and ${max ?? 'any'}`);
+		}
+		return number;
+	};
+
+	async function listReplacements({ search, page, pageSize } = {}) {
+		const term = String(search ?? '').trim();
+		const currentPage = requirePage(page, { fallback: 1, label: 'page' });
+		const size = requirePage(pageSize, { fallback: config.listPageSize, max: config.listPageSizeMax, label: 'pageSize' });
+		const where = { deletedAt: null, ...(term ? { OR: await searchClauses(term) } : {}) };
+
+		const [pageGroups, allGroups, totalRows] = await Promise.all([
+			prisma.productReplacement.groupBy({
+				by: ['source_sku'],
 				where,
-				include: REPLACEMENT_INCLUDE,
-				orderBy: { createdAt: 'desc' },
-				take: config.listMax,
+				_max: { createdAt: true, id: true },
+				orderBy: [{ _max: { createdAt: 'desc' } }, { _max: { id: 'desc' } }],
+				skip: (currentPage - 1) * size,
+				take: size,
 			}),
+			prisma.productReplacement.groupBy({ by: ['source_sku'], where }),
 			prisma.productReplacement.count({ where }),
 		]);
 
+		const pageSkus = pageGroups.map((group) => group.source_sku);
+		const rows = pageSkus.length === 0 ? [] : await prisma.productReplacement.findMany({
+			where: { ...where, source_sku: { in: pageSkus } },
+			include: REPLACEMENT_INCLUDE,
+			orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+		});
 		const { products, magento: magentoStatus } = await productsBySku(
 			rows.flatMap((row) => [row.source_sku, row.replacement_sku]),
 			PRODUCT_SUMMARY_SELECT
 		);
+		const grouped = new Map(groupBySourceSku(rows).map((group) => [group.source_sku, group]));
+		const groups = pageSkus
+			.map((sourceSku) => grouped.get(sourceSku))
+			.filter(Boolean)
+			.map((group) => ({
+				source_sku: group.source_sku,
+				sourceProduct: products.get(group.source_sku) || null,
+				replacements: attachProducts(group.replacements, products),
+			}));
 
-		const matching = term
-			? rows.filter((row) => matchesSearch(
-				term,
-				row.source_sku,
-				row.replacement_sku,
-				products.get(row.source_sku)?.name,
-				products.get(row.replacement_sku)?.name,
-				isNoneMarker(row) ? 'no replacement' : ''
-			))
-			: rows;
-
-		// Newest original product first; inside a group, registration order.
-		const groups = groupBySourceSku(matching).map((group) => ({
-			source_sku: group.source_sku,
-			sourceProduct: products.get(group.source_sku) || null,
-			replacements: attachProducts(
-				[...group.replacements].sort((a, b) => (a.createdAt - b.createdAt) || (a.id - b.id)),
-				products
-			),
-		}));
-
-		return {
-			groups,
-			total: term ? matching.length : activeCount,
-			truncated: activeCount > rows.length,
-			magento: magentoStatus,
-		};
+		return { groups, total: allGroups.length, totalRows, page: currentPage, pageSize: size, magento: magentoStatus };
 	}
 
 	// "No replacement" marker: one row with kind 'none', no replacement SKU

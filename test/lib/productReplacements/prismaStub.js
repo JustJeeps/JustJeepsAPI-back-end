@@ -131,13 +131,27 @@ function makePrismaStub({ products = [], extraUsers = [] } = {}) {
 				return { ...row };
 			},
 			count: async ({ where } = {}) => replacements.filter((row) => matchesReplacement(row, where)).length,
-			groupBy: async ({ where }) => {
-				const counts = new Map();
+			groupBy: async ({ where, _max, orderBy, skip = 0, take } = {}) => {
+				const groups = new Map();
 				for (const row of replacements) {
 					if (!matchesReplacement(row, where)) continue;
-					counts.set(row.source_sku, (counts.get(row.source_sku) || 0) + 1);
+					const group = groups.get(row.source_sku) || { source_sku: row.source_sku, count: 0, maxCreatedAt: null, maxId: 0 };
+					group.count += 1;
+					group.maxCreatedAt = group.maxCreatedAt && group.maxCreatedAt > row.createdAt ? group.maxCreatedAt : row.createdAt;
+					group.maxId = Math.max(group.maxId, row.id);
+					groups.set(row.source_sku, group);
 				}
-				return [...counts.entries()].map(([source_sku, count]) => ({ source_sku, _count: { _all: count } }));
+				let list = [...groups.values()];
+				const orders = Array.isArray(orderBy) ? orderBy : (orderBy ? [orderBy] : []);
+				if (orders.some((order) => order._max?.createdAt === 'desc')) {
+					list.sort((a, b) => (b.maxCreatedAt - a.maxCreatedAt) || (b.maxId - a.maxId));
+				}
+				list = list.slice(skip, take === undefined ? undefined : skip + take);
+				return list.map((group) => ({
+					source_sku: group.source_sku,
+					_count: { _all: group.count },
+					...(_max ? { _max: { ...(_max.createdAt ? { createdAt: group.maxCreatedAt } : {}), ...(_max.id ? { id: group.maxId } : {}) } } : {}),
+				}));
 			},
 		},
 		productReplacementComment: {

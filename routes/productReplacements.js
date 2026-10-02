@@ -13,7 +13,8 @@ const {
 	config: replacementsConfig,
 	SKU_MAX_LENGTH,
 	COMMENT_MAX_LENGTH,
-	LIST_MAX,
+	LIST_PAGE_SIZE,
+	LIST_PAGE_SIZE_MAX,
 	COUNTS_MAX_SKUS,
 	CREATE_MAX_BATCH,
 	SERVICE_CONFIG,
@@ -61,6 +62,17 @@ const idParam = (req, name) => {
 	const id = parseId(req.params[name]);
 	if (!id) throw ProductReplacementError.validation(`Invalid ${name}`);
 	return id;
+};
+
+// Query integers: absent = fallback; anything else must be a whole number >= 1
+// (and <= max when given), otherwise 400 so a typo never silently means page 1.
+const parsePositiveInt = (value, { fallback, max, label }) => {
+	if (value === undefined || value === '') return fallback;
+	const number = Number(value);
+	if (!Number.isInteger(number) || number < 1 || (max !== undefined && number > max)) {
+		throw ProductReplacementError.validation(`${label} must be a whole number between 1 and ${max ?? 'any'}`);
+	}
+	return number;
 };
 
 const parseSkuList = (value) => String(value ?? '')
@@ -130,12 +142,15 @@ function createProductReplacementsRouter({
 	}));
 
 	// Directory (management screen).
+	// Paged by original product: ?search=&page=1&pageSize=50 (pageSize max 100).
 	router.get('/', handle(async (req, res) => {
 		const search = req.query.search === undefined ? '' : String(req.query.search);
 		if (search.length > SEARCH_MAX_LENGTH) {
 			throw ProductReplacementError.validation(`Search is too long (max ${SEARCH_MAX_LENGTH} chars)`);
 		}
-		res.json(await service.listReplacements({ search }));
+		const page = parsePositiveInt(req.query.page, { fallback: 1, label: 'page' });
+		const pageSize = parsePositiveInt(req.query.pageSize, { fallback: LIST_PAGE_SIZE, max: LIST_PAGE_SIZE_MAX, label: 'pageSize' });
+		res.json(await service.listReplacements({ search, page, pageSize }));
 	}));
 
 	// Create: one original, one or more replacements, each with its own comment.
