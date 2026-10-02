@@ -399,7 +399,7 @@ model VendorProduct {
 - `quadratec_code`: Quadratec wholesale part number
 - `rough_country_code`: Rough Country SKU
 - `gentecdirect_code`: Gentec Direct code
-- `tdot_code`: Tire Discounter code
+- `tdot_code`: TDOT Performance code (competitor, see dd-019; not Tire Discounter)
 - `ctp_code`: CTP part number
 - `partsEngine_code`: PartsEngine code
 

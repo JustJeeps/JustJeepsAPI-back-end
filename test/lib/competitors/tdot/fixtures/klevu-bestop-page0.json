@@ -1,0 +1,93 @@
+{
+ "meta": {
+  "totalResultsFound": 8,
+  "noOfResults": 5,
+  "paginationStartFrom": 0,
+  "typeOfQuery": "WILDCARD_AND",
+  "term": "Bestop",
+  "notificationCode": 1,
+  "storeBaseCurrency": "CAD"
+ },
+ "result": [
+  {
+   "id": "308505",
+   "sku": "Bestop-42811-01",
+   "name": "Bestop 42811-01 - Soft Top Storage Bag - For Use w/All Bestop Soft Tops Or Bestop Trektop Pro (with all Bestop soft tops or Bestop Trektop Pro)",
+   "price": "273.98",
+   "salePrice": "273.98",
+   "oldPrice": "273.98",
+   "startPrice": "273.98",
+   "basePrice": "273.98",
+   "discount": "",
+   "currency": "CAD",
+   "url": "https://www.tdotperformance.ca/products/bestop-42811-01-soft-top-storage-bag-for-use-w-all-bestop-soft-tops-or-bestop-trektop-pro-with-all-bestop-soft-tops-or-bestop-trektop-pro.html",
+   "inStock": "yes",
+   "totalVariants": "0",
+   "itemGroupId": ""
+  },
+  {
+   "id": "61571",
+   "sku": "Bestop-61028-15",
+   "name": "Bestop 61028-15 - Tire Cover, 28\" x 8\" (Black Denim)",
+   "price": "114.98",
+   "salePrice": "114.98",
+   "oldPrice": "114.98",
+   "startPrice": "114.98",
+   "basePrice": "114.98",
+   "discount": "",
+   "currency": "CAD",
+   "url": "https://www.tdotperformance.ca/products/bestop-61028-15-tire-cover-28-x-8-black-denim.html",
+   "inStock": "yes",
+   "totalVariants": "0",
+   "itemGroupId": ""
+  },
+  {
+   "id": "61120",
+   "sku": "Bestop-41444-01",
+   "name": "Bestop 41444-01 - Universal Tray (Black)",
+   "price": "345.98",
+   "salePrice": "345.98",
+   "oldPrice": "345.98",
+   "startPrice": "345.98",
+   "basePrice": "345.98",
+   "discount": "",
+   "currency": "CAD",
+   "url": "https://www.tdotperformance.ca/products/bestop-41444-01-universal-tray-black.html",
+   "inStock": "yes",
+   "totalVariants": "0",
+   "itemGroupId": ""
+  },
+  {
+   "id": "61330",
+   "sku": "Bestop-51787-15",
+   "name": "Bestop 51787-15 - Upper Door Sliders (Black Denim)",
+   "price": "1213.98",
+   "salePrice": "1213.98",
+   "oldPrice": "1213.98",
+   "startPrice": "1213.98",
+   "basePrice": "1213.98",
+   "discount": "",
+   "currency": "CAD",
+   "url": "https://www.tdotperformance.ca/products/bestop-51787-15-upper-door-sliders-black-denim.html",
+   "inStock": "yes",
+   "totalVariants": "0",
+   "itemGroupId": ""
+  },
+  {
+   "id": "308509",
+   "sku": "Bestop-52401-11",
+   "name": "Bestop 52401-11 - Sun Bikini Top - Safari Style - Mesh (4-Dr)",
+   "price": "343.98",
+   "salePrice": "343.98",
+   "oldPrice": "343.98",
+   "startPrice": "343.98",
+   "basePrice": "343.98",
+   "discount": "",
+   "currency": "CAD",
+   "url": "https://www.tdotperformance.ca/products/bestop-52401-11-sun-bikini-top-safari-style-mesh-4-dr.html",
+   "inStock": "yes",
+   "totalVariants": "0",
+   "itemGroupId": ""
+  }
+ ]
+}

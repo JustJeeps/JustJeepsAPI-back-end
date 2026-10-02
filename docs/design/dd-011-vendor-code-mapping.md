@@ -258,7 +258,7 @@ Error Handling:
   premier_code: "BST",           // Premier Performance prefix
 
   // Additional mappings
-  tdot_code: "Bestop",           // Tire Discounter code
+  tdot_code: "Bestop",           // TDOT Performance label (competitor, dd-019)
   ctp_code: "",                  // CTP code
   partsEngine_code: "-vp-bestop-15.aspx",  // PartsEngine URL suffix
   keystone_code_site: "BES",     // Keystone website search code
@@ -460,7 +460,7 @@ model Product {
   premier_code       String?  // Premier Performance code
   omix_code          String?  // Omix-ADA direct SKU
   rough_country_code String?  // Rough Country SKU
-  tdot_code          String?  // Tire Discounter code
+  tdot_code          String?  // TDOT Performance code (competitor, dd-019)
   tdot_url           String?  // TDot search URL
   ctp_code           String?  // CTP part number
   partsEngine_code   String?  // PartsEngine URL
@@ -489,7 +489,7 @@ interface VendorPrefix {
   quadratec_code?: string;     // Quadratec brand name
   t14_code?: string;           // Turn14 prefix
   premier_code?: string;       // Premier Performance prefix
-  tdot_code?: string;          // Tire Discounter code
+  tdot_code?: string;          // TDOT Performance code (competitor, dd-019)
   ctp_code?: string;           // CTP code
   partsEngine_code?: string;   // PartsEngine URL suffix
   gentecdirect_code?: string;  // Gentec Direct prefix
@@ -601,7 +601,7 @@ Integration Point 4:
 | `quadratec_code` | Brand name + SKU | Quadratec | None |
 | `t14_code` | Prefix + SKU | Turn14 | None |
 | `premier_code` | Prefix + SKU | Premier Performance | None |
-| `tdot_code` | Code + space + SKU | Tire Discounter | None |
+| `tdot_code` | Code + space + SKU | TDOT Performance (competitor, dd-019) | None |
 | `tdot_url` | Full search URL | TDot website | Conditional generation |
 | `ctp_code` | Prefix + SKU | CTP | None |
 | `partsEngine_code` | Full URL | PartsEngine | Bestop hyphen insertion |

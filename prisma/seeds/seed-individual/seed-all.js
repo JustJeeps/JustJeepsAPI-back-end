@@ -29,7 +29,7 @@ const otherSeeds = [
   
   // "seed-orders-all",
   "seed-meyer",
-  "seed-tdot",
+  // "seed-tdot": own cron since DD-019 (CRON_SEED_TDOT_ENABLED); a 1-2 h Klevu crawl does not belong in this tail
   "seed-roughCountry",
   "seed-tireDiscounter",
   // "seed-aev",

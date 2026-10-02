@@ -1,0 +1,93 @@
+{
+ "meta": {
+  "totalResultsFound": 8,
+  "noOfResults": 5,
+  "paginationStartFrom": 5,
+  "typeOfQuery": "WILDCARD_AND",
+  "term": "Bestop",
+  "notificationCode": 1,
+  "storeBaseCurrency": "CAD"
+ },
+ "result": [
+  {
+   "id": "2078612",
+   "sku": "Bestop-54856-01",
+   "name": "Bestop 54856-01 - Trektop Pro Soft Top Component",
+   "price": "1140.7",
+   "salePrice": "1140.7",
+   "oldPrice": "1140.7",
+   "startPrice": "1140.7",
+   "basePrice": "1140.7",
+   "discount": "",
+   "currency": "CAD",
+   "url": "https://www.tdotperformance.ca/products/bestop-54856-01-trektop-pro-soft-top-component.html",
+   "inStock": "yes",
+   "totalVariants": "0",
+   "itemGroupId": ""
+  },
+  {
+   "id": "61524",
+   "sku": "Bestop-55003-01",
+   "name": "Bestop 55003-01 - Replacement Bows And Frames Kit, OE style (Black, Unlimited 4Dr)",
+   "price": "1122.98",
+   "salePrice": "1122.98",
+   "oldPrice": "1122.98",
+   "startPrice": "1122.98",
+   "basePrice": "1122.98",
+   "discount": "",
+   "currency": "CAD",
+   "url": "https://www.tdotperformance.ca/products/bestop-55003-01-replacement-bows-and-frames-kit-oe-style-black-unlimited-4dr.html",
+   "inStock": "yes",
+   "totalVariants": "0",
+   "itemGroupId": ""
+  },
+  {
+   "id": "2078444",
+   "sku": "Bestop-50875-01",
+   "name": "Bestop 50875-01 - Trektop Soft Top Hardware",
+   "price": "1097.66",
+   "salePrice": "1097.66",
+   "oldPrice": "1097.66",
+   "startPrice": "1097.66",
+   "basePrice": "1097.66",
+   "discount": "",
+   "currency": "CAD",
+   "url": "https://www.tdotperformance.ca/products/bestop-50875-01-trektop-soft-top-hardware.html",
+   "inStock": "yes",
+   "totalVariants": "0",
+   "itemGroupId": ""
+  },
+  {
+   "id": "999001",
+   "sku": "Bestop-99999-01",
+   "name": "Bestop 99999-01 - Test Sale Item",
+   "price": "200.00",
+   "salePrice": "150.00",
+   "oldPrice": "200.00",
+   "startPrice": "150.00",
+   "basePrice": "200.00",
+   "discount": "25",
+   "currency": "CAD",
+   "url": "https://www.tdotperformance.ca/products/bestop-99999-01",
+   "inStock": "yes",
+   "totalVariants": "0",
+   "itemGroupId": ""
+  },
+  {
+   "id": "999002",
+   "sku": "Bestop-99999-02",
+   "name": "Bestop 99999-02 - Test No Price",
+   "price": "",
+   "salePrice": "",
+   "oldPrice": "",
+   "startPrice": "",
+   "basePrice": "",
+   "discount": "",
+   "currency": "CAD",
+   "url": "https://www.tdotperformance.ca/products/bestop-99999-02",
+   "inStock": "no",
+   "totalVariants": "0",
+   "itemGroupId": ""
+  }
+ ]
+}

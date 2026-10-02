@@ -154,7 +154,7 @@ The current Lowriders path is `prisma/seeds/api-calls/lowriders.js` (ParseHub) f
 
 ### 3.3 Replaced
 
-- `prisma/seeds/api-calls/lowriders.js`: deleted (ParseHub, hardcoded key `t0UjHTnrieK_`, fetch at import time).
+- `prisma/seeds/api-calls/lowriders.js`: deleted (ParseHub, hardcoded ParseHub key (literal removed from this doc), fetch at import time).
 - `prisma/seeds/seed-individual/seed-lowriders.js`: rewritten as a thin runner. The npm script name stays.
 
 ---
@@ -474,7 +474,7 @@ flowchart TD
 | TDOT website string for the `competitors_data.js` backfill | Not in the repo. Confirm the production `Competitor` row before writing it |
 | Front-end deep link | Optional one-line branch in `ProductTable.jsx`: `else if (competitorName.includes('lowriders') && competitorProduct.product_url) link = competitorProduct.product_url;`. No restyle |
 | Regular price is not stored | Lives in the snapshot; a `competitor_regular_price` column is a later decision |
-| ParseHub key: the deleted `lowriders.js` was the last file carrying it in the tree | Rotate the key anyway because it lived in git history |
+| ParseHub key: still present in `tdot-api.js`, `northridge-api.js`, `partsEngine-api.js` and `omix-inventory-api.js` (checked 2026-10-02; dd-019 phase 5 removes them) | Rotate the key when the last ParseHub feed is retired; it lived in git history anyway |
 
 ---
 

@@ -389,7 +389,7 @@ journey
 | Alpine | 8 | CSV | None | seed-alpine | CAD (1.5x) |
 | CTP | 9 | CSV | None | seed-ctp | CAD (1.5x) |
 | KeyParts | 10 | CSV | None | seed-keyparts | CAD (1.5x) |
-| TDot | 11 | CSV | None | seed-tdot | CAD (native) |
+| TDOT (competitor) | 11 | Klevu search API (dd-019) | None | seed-tdot | CAD (native) |
 | Lowriders | 12 | CSV | None | seed-lowriders | CAD (1.5x) |
 | Tire Discounter | 13 | API | Low | seed-tireDiscounter | CAD (1.5x) |
 | MetalCloak | 14 | Web Scrape | Manual CAPTCHA | scrape-metalcloak | CAD (1.5x) |

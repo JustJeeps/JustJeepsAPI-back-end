@@ -47,9 +47,13 @@ const feedsPruneSchedule = process.env.CRON_FEEDS_PRUNE_SCHEDULE || '17 6 * * *'
 // day. Opt-in; 03:13 is off the orders-delta grid and hours before seed-all.
 const lowridersSeedEnabled = process.env.CRON_SEED_LOWRIDERS_ENABLED === 'true';
 const lowridersSeedSchedule = process.env.CRON_SEED_LOWRIDERS_SCHEDULE || '13 3 * * *';
+// TDOT competitor prices (DD-019): own job, out of seed-all, opt-in until the
+// parity run sets TDOT_MIN_MATCHED. 01:43 sits off the */5 grid, before Lowriders.
+const tdotSeedEnabled = process.env.CRON_SEED_TDOT_ENABLED === 'true';
+const tdotSeedSchedule = process.env.CRON_SEED_TDOT_SCHEDULE || '43 1 * * *';
 const testCronEnabled = process.env.CRON_TEST_ENABLED === 'true';
 const testCronSchedule = process.env.CRON_TEST_SCHEDULE || '*/5 * * * *';
-const testCronCommand = process.env.CRON_TEST_COMMAND || 'seed-tdot';
+const testCronCommand = process.env.CRON_TEST_COMMAND || 'seed-orders';
 const testCronJobName = process.env.CRON_TEST_JOB_NAME || 'Cron Test Job';
 const testCronLogFile = process.env.CRON_TEST_LOG_FILE || `prisma/seeds/logs/${testCronCommand}.log`;
 const testCronNotifyOnSuccess = process.env.CRON_TEST_NOTIFY_ON_SUCCESS
@@ -187,6 +191,14 @@ function getCronJobDefinitions({ includeDisabled = false } = {}) {
 			jobName: 'Lowriders Competitor Prices',
 			logPrefix: 'Lowriders competitor prices',
 			reportLogFile: 'prisma/seeds/logs/seed-lowriders.log',
+		},
+		{
+			enabled: tdotSeedEnabled,
+			schedule: tdotSeedSchedule,
+			command: 'seed-tdot',
+			jobName: 'TDOT Competitor Prices',
+			logPrefix: 'TDOT competitor prices',
+			reportLogFile: 'prisma/seeds/logs/seed-tdot.log',
 		},
 		{
 			enabled: testCronEnabled,

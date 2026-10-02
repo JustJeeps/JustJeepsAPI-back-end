@@ -586,7 +586,7 @@ function runCommandToLog(cmd: string): Promise<void>;
 | seed-ctp | seed-individual/seed-ctp.js | CTP vendor |
 | seed-keyparts | seed-individual/seed-keyparts.js | KeyParts vendor |
 | seed-roughCountry | seed-individual/seed-roughCountry.js | Rough Country |
-| seed-tdot | seed-individual/seed-tdot.js | TDot vendor |
+| seed-tdot | seed-individual/seed-tdot.js | TDOT competitor prices (Klevu collector, own cron since dd-019) |
 | seed-lowriders | seed-individual/seed-lowriders.js | Lowriders vendor |
 | seed-tireDiscounter | seed-individual/seed-tireDiscounter-api.js | Tire Discounter |
 | seed-turn14-production | seed-individual/seed-turn14-production.js | Turn14 full sync |

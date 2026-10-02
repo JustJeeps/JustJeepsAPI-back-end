@@ -411,7 +411,7 @@ model Product {
   quadratec_code     String?    // Quadratec wholesale part number
   rough_country_code String?    // Rough Country SKU
   gentecdirect_code  String?    // Gentec Direct code
-  tdot_code          String?    // Tire Discounter code
+  tdot_code          String?    // TDOT Performance code (competitor label + sku, see dd-019)
   ctp_code           String?    // CTP part number
   partsEngine_code   String?    // PartsEngine code
 }

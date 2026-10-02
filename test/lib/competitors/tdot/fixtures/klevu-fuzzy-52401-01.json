@@ -1,0 +1,77 @@
+{
+ "meta": {
+  "totalResultsFound": 61,
+  "noOfResults": 20,
+  "paginationStartFrom": 0,
+  "typeOfQuery": "FUZZY_AND",
+  "term": "52401-01",
+  "notificationCode": 1,
+  "storeBaseCurrency": "CAD"
+ },
+ "result": [
+  {
+   "id": "308509",
+   "sku": "Bestop-52401-11",
+   "name": "Bestop 52401-11 - Sun Bikini Top - Safari Style - Mesh (4-Dr)",
+   "price": "343.98",
+   "salePrice": "343.98",
+   "oldPrice": "343.98",
+   "startPrice": "343.98",
+   "basePrice": "343.98",
+   "discount": "",
+   "currency": "CAD",
+   "url": "https://www.tdotperformance.ca/products/bestop-52401-11-sun-bikini-top-safari-style-mesh-4-dr.html",
+   "inStock": "yes",
+   "totalVariants": "0",
+   "itemGroupId": ""
+  },
+  {
+   "id": "61451",
+   "sku": "Bestop-52601-01",
+   "name": "Bestop 52601-01 - Tailgate Bar, replacement (Black, 2-Dr/4-Dr)",
+   "price": "170.73",
+   "salePrice": "170.73",
+   "oldPrice": "170.73",
+   "startPrice": "170.73",
+   "basePrice": "170.73",
+   "discount": "",
+   "currency": "CAD",
+   "url": "https://www.tdotperformance.ca/products/bestop-52601-01-tailgate-bar-replacement-black-2-dr-4-dr.html",
+   "inStock": "yes",
+   "totalVariants": "0",
+   "itemGroupId": ""
+  },
+  {
+   "id": "855755",
+   "sku": "Bestop-52410-11",
+   "name": "Bestop 52410-11 - Sun Bikini Targa Style Mesh Soft Top",
+   "price": "209.98",
+   "salePrice": "209.98",
+   "oldPrice": "209.98",
+   "startPrice": "209.98",
+   "basePrice": "209.98",
+   "discount": "",
+   "currency": "CAD",
+   "url": "https://www.tdotperformance.ca/products/bestop-52410-11-sun-bikini-targa-style-mesh-soft-top.html",
+   "inStock": "yes",
+   "totalVariants": "0",
+   "itemGroupId": ""
+  },
+  {
+   "id": "61392",
+   "sku": "Bestop-52509-01",
+   "name": "Bestop 52509-01 - Bikini Top, Strapless (Black Crush, Requires 51209-01 channel)",
+   "price": "161.98",
+   "salePrice": "161.98",
+   "oldPrice": "161.98",
+   "startPrice": "161.98",
+   "basePrice": "161.98",
+   "discount": "",
+   "currency": "CAD",
+   "url": "https://www.tdotperformance.ca/products/bestop-52509-01-bikini-top-strapless-black-crush-requires-51209-01-channel.html",
+   "inStock": "yes",
+   "totalVariants": "0",
+   "itemGroupId": ""
+  }
+ ]
+}
