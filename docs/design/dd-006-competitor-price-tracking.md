@@ -210,7 +210,7 @@ Both Northridge and Parts Engine use ParseHub for automated web scraping.
 ```
 Endpoint: https://www.parsehub.com/api/v2/projects/{PROJECT_ID}/last_ready_run/data
 Project ID: tXLcYOFE6taM
-API Key: t0UjHTnrieK_
+API Key: (removed from this doc; read from the environment)
 Response Format: JSON with scraped product data
 
 Flow:
@@ -224,7 +224,7 @@ Flow:
 ```
 Endpoint: https://www.parsehub.com/api/v2/projects/{PROJECT_ID}/last_ready_run/data
 Project ID: tp8CNvT37gGV
-API Key: t0UjHTnrieK_
+API Key: (removed from this doc; read from the environment)
 Response Format: JSON with links[] containing sku, price, link
 
 Data Structure:
@@ -814,7 +814,7 @@ complexity_rationale:
 
 1. **Competitor ID Inconsistency**: Northridge 4x4 is registered as ID 1, but `seed-northridge.js` uses `competitor_id: 4` (Tdot). This needs clarification on intended relationship.
 
-2. **Hardcoded API Keys**: ParseHub API key `t0UjHTnrieK_` is hardcoded in source files. Should be moved to environment variables.
+2. **Hardcoded API Keys**: ParseHub API key (literal removed from this doc) is hardcoded in source files. Should be moved to environment variables.
 
 3. **Hardcoded Chrome Path**: `partsengine-batch-runner.js` hardcodes macOS Chrome path. Not portable to other environments.
 

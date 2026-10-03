@@ -3,7 +3,8 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 
-const { createTdotSource, parseParsehubRows } = require('../../../../prisma/seeds/api-calls/tdot-api');
+const tdotApi = require('../../../../prisma/seeds/api-calls/tdot-api');
+const { createTdotSource } = tdotApi;
 const { withConcurrency } = require('../../../../lib/ingest/withRetry');
 
 const html = fs.readFileSync(path.join(__dirname, 'fixtures/storefront-snippet.html'), 'utf8');
@@ -56,29 +57,6 @@ test('the facade can read a snapshot file instead of hitting Klevu', async () =>
 	assert.strictEqual(prisma.calls.length, 0);
 });
 
-test('parseParsehubRows keeps the ParseHub escape hatch byte-for-byte compatible', () => {
-	const rows = parseParsehubRows({ list1: [
-		{ link: 'https://t/x', title: [{ name: 'Bestop 52401-11 - Sun Top', price: 'C$1,234.56' }, { name: 'Bestop 52401-11 - dup', price: 'C$1,000.00' }] },
-		{ link: null, title: [{ name: 'Rugged Ridge 11540.13 - Stinger', price: 'C$517.98' }] },
-	] });
-	assert.deepStrictEqual(rows, [
-		{ tdot_price: 1000, tdot_code: 'Bestop 52401-11', sku: '52401-11', brand: 'Bestop', product_url: 'https://t/x' },
-		{ tdot_price: 517.98, tdot_code: 'Rugged Ridge 11540.13', sku: '11540.13', brand: 'Rugged Ridge', product_url: null },
-	]);
-	assert.throws(() => parseParsehubRows({}), /list1/);
-});
-
-test('with TDOT_SOURCE=parsehub the facade calls ParseHub with the key from the environment, never a literal', async () => {
-	const calls = [];
-	const fetch = async (url) => { calls.push(url); return { ok: true, status: 200, json: async () => ({ list1: [] }) }; };
-	const source = createTdotSource({ prisma: makePrisma([]), env: { ...env, TDOT_SOURCE: 'parsehub', PARSEHUB_API_KEY: 'secret-key', PARSEHUB_TDOT_PROJECT: 'proj1' }, fetch, logger: silent, labels: [] });
-	const result = await source.fetchRows({});
-	assert.deepStrictEqual(result.rows, []);
-	assert.strictEqual(result.payload, null);
-	assert.match(calls[0], /parsehub\.com\/api\/v2\/projects\/proj1\/last_ready_run\/data\?api_key=secret-key&format=json/);
-	await assert.rejects(createTdotSource({ prisma: makePrisma([]), env: { ...env, TDOT_SOURCE: 'parsehub' }, fetch, logger: silent, labels: [] }).fetchRows({}), /PARSEHUB_API_KEY/);
-});
-
 test('a snapshot file is validated and its own canaries are re-run before it is trusted', async () => {
 	const prisma = makePrisma([]);
 	const bad = { schemaVersion: 2, source: 'tdot', items: [] };
@@ -96,19 +74,23 @@ test('the default snapshot writer names the file per run and only refreshes "lat
 	assert.strictEqual(snapshotFileName({ runId: null, dryRun: false, capturedAt: '2026-10-03T01:43:00.000Z' }), 'tdot-run-manual-2026-10-03T01-43-00.json');
 });
 
-test('the ParseHub escape hatch sends a timeout signal', async () => {
-	let seen = null;
-	const fetch = async (url, opts) => { seen = opts; return { ok: true, status: 200, json: async () => ({ list1: [] }) }; };
-	await createTdotSource({ prisma: makePrisma([]), env: { ...env, TDOT_SOURCE: 'parsehub', PARSEHUB_API_KEY: 'k' }, fetch, logger: silent, labels: [] }).fetchRows({});
-	assert.ok(seen.signal, 'an AbortSignal is passed');
+test('ParseHub is gone: TDOT_SOURCE=parsehub is ignored and the run still goes to Klevu', async () => {
+	const prisma = makePrisma([{ sku: 'BST-52401-11', searchable_sku: '52401-11', tdot_code: 'Bestop 52401-11', status: 1 }]);
+	const urls = [];
+	const fetch = async (url, opts) => { urls.push(url); return fetchKlevu(url, opts); };
+	const source = createTdotSource({
+		prisma, env: { ...env, TDOT_SOURCE: 'parsehub', PARSEHUB_API_KEY: 'k' }, fetch, logger: silent, sleep: async () => {},
+		withRetry: async (fn) => fn(), withConcurrency, labels: ['Bestop'], writeSnapshot: () => '/tmp/snap.json',
+	});
+	const result = await source.fetchRows({ runId: 1 });
+	assert.strictEqual(result.payload.source, 'tdot');
+	assert.ok(urls.every((u) => !/parsehub/i.test(u)), 'no ParseHub call');
+	assert.strictEqual(source.describe(), 'klevu:tdotperformance.ca');
+	assert.strictEqual(tdotApi.parseParsehubRows, undefined);
 });
 
-test('reading a snapshot or ParseHub does not require SCRAPER_CONTACT_EMAIL', async () => {
-	const noEmail = { TDOT_MIN_MATCHED: '1' };
+test('reading a snapshot does not require SCRAPER_CONTACT_EMAIL', async () => {
 	const payload = { schemaVersion: 1, source: 'tdot', items: [{ tdotCode: 'Bestop 1', productSku: 'BST-1', partNumber: '1', effectivePrice: 9, url: null }], collection: { requests: 1, failedRequests: 0, matched: 1, rawCount: 1, invalidCount: 0 } };
-	const fromFile = createTdotSource({ prisma: makePrisma([]), env: noEmail, fetch: async () => { throw new Error('no network'); }, logger: silent, labels: [], readSnapshot: () => payload });
+	const fromFile = createTdotSource({ prisma: makePrisma([]), env: { TDOT_MIN_MATCHED: '1' }, fetch: async () => { throw new Error('no network'); }, logger: silent, labels: [], readSnapshot: () => payload });
 	assert.strictEqual((await fromFile.fetchRows({ fromSnapshot: '/tmp/x.json' })).rows.length, 1);
-	const fetch = async () => ({ ok: true, status: 200, json: async () => ({ list1: [] }) });
-	const parsehub = createTdotSource({ prisma: makePrisma([]), env: { ...noEmail, TDOT_SOURCE: 'parsehub', PARSEHUB_API_KEY: 'k' }, fetch, logger: silent, labels: [] });
-	assert.deepStrictEqual((await parsehub.fetchRows({})).rows, []);
 });

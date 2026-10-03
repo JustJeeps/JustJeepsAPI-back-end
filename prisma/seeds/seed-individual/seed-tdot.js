@@ -63,7 +63,8 @@ function indexProductsByTdotCode(products) {
 async function lastWrittenRowCount(prisma) {
   if (!prisma.ingestRun || typeof prisma.ingestRun.findFirst !== "function") return null;
   const last = await prisma.ingestRun.findFirst({
-    where: { feed: "tdot", status: { in: ["success", "partial"] }, startedBy: { not: "dry-run" } },
+    // Only a full success sets the bar: partial runs wrote fewer rows on purpose.
+    where: { feed: "tdot", status: "success", startedBy: { not: "dry-run" } },
     orderBy: { startedAt: "desc" },
     select: { id: true, sourceRowCount: true },
   });
@@ -195,8 +196,8 @@ async function runSeedTdot({
     logWithTimestamp(`Creates queued: ${createsCount}`);
     logWithTimestamp(`Updates queued: ${updatesCount}`);
 
-    // Guards that do not depend on the source: a snapshot or ParseHub run has
-    // no collector canaries, so the row count is checked here as well.
+    // Guards that do not depend on the source: a snapshot carries no live
+    // collector canaries, so the row count is checked here as well.
     if (upsertRows.length === 0) {
       throw Object.assign(new Error(`no matched rows to write (source rows ${totalRows}, valid ${validRowCount})`), { code: "TDOT_NO_ROWS" });
     }

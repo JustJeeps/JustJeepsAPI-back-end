@@ -54,7 +54,7 @@ test('config reads and clamps the env overrides', () => {
 	assert.strictEqual(cfg.thresholds.maxInvalidRatio, 0.5);
 });
 
-test('the offline config (thresholds, timeout) needs no contact e-mail: snapshot and ParseHub runs make no Klevu request', () => {
+test('the offline config (thresholds, timeout) needs no contact e-mail: snapshot runs make no Klevu request', () => {
 	const { getTdotOfflineConfig } = require('../../../../config/tdot');
 	const offline = getTdotOfflineConfig({ TDOT_MIN_MATCHED: '5', TDOT_REQUEST_TIMEOUT_MS: '5000' });
 	assert.strictEqual(offline.thresholds.minMatched, 5);

@@ -37,8 +37,8 @@ function ratioFrom(value, fallback) {
 }
 
 // The part of the config that needs no network identity: the canary
-// thresholds and the HTTP timeout. Snapshot ingests and the ParseHub escape
-// hatch use only this, so they run without SCRAPER_CONTACT_EMAIL.
+// thresholds and the HTTP timeout. Snapshot ingests use only this, so they run
+// without SCRAPER_CONTACT_EMAIL.
 function getTdotOfflineConfig(env = process.env) {
 	return {
 		timeoutMs: intFrom(env.TDOT_REQUEST_TIMEOUT_MS, DEFAULTS.timeoutMs, 1000, 120000),

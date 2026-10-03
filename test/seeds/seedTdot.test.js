@@ -164,3 +164,13 @@ test('a row whose price and link did not change counts as skipped, not as writte
 	assert.deepStrictEqual(result.counts, { inserted: 0, updated: 0, skipped: 1 });
 	assert.strictEqual(runs[0].finished.status, 'success');
 });
+
+test('the match-drop baseline is the last full success: a partial run never lowers the bar', async () => {
+	const prisma = makePrisma({ products, lastRun: { id: 7, sourceRowCount: 1 } });
+	let where = null;
+	prisma.ingestRun.findFirst = async (args) => { where = args.where; return { id: 7, sourceRowCount: 1 }; };
+	const { startRun } = makeStartRun();
+	await runSeedTdot({ prisma, source: { fetchRows: async () => ({ rows, payload, snapshotPath: null }) }, startRun, argv: [], logger: silent });
+	assert.strictEqual(where.status, 'success');
+	assert.strictEqual(where.feed, 'tdot');
+});

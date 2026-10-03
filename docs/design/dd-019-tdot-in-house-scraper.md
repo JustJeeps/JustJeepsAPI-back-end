@@ -495,3 +495,31 @@ Runner (`seed-tdot.js`):
 Left as is, on purpose: `maxFailedRequestRatio` stays 0.1 until the parity nights show the
 real failure rate; the 550 trailing-hyphen catalog duplicates and the "Fox Racing" label are
 data fixes for the owner of `vendors_prefix.js` (phase 5).
+
+## 10. ParseHub removed and end-to-end write verified (2026-10-03)
+
+Ricardo decided ParseHub is no longer used. The `TDOT_SOURCE=parsehub` path, its parser and
+its tests are deleted; a test pins that `TDOT_SOURCE` is ignored and no request goes to
+ParseHub. The key is still live in the Parts Engine, Northridge and Omix inventory feeds.
+
+The write path had only been tested with stubs, so the real seed ran against a throwaway
+Postgres 16 (all migrations applied) loaded with the 111 production products of three labels
+(AEM, aFe Power, Airaid) and their 69 production competitor-4 rows, read with SELECTs only.
+Axiom and the Spaces archive were switched off for these runs. Production has no duplicate
+`competitor_sku` for competitor 4 (runbook check, 0 rows).
+
+| Sandbox run | Scenario | Result |
+|---|---|---|
+| 1 | first real write | 64 matched, 7 inserted, 57 updated (46 prices and all 57 links changed: ParseHub stored the search URL), every row's price, link and owner equal to the snapshot, 0 duplicate keys, the 12 rows TDOT no longer shows untouched |
+| 2 | immediate rerun | 0 inserted, 0 updated, 64 skipped, no `updated_at` moved |
+| 3 | one price and one link tampered | exactly those 2 rows rewritten |
+| 4 | `TDOT_MIN_MATCHED=1000` | `BELOW_MIN_MATCHED`, exit 1, tampered price untouched |
+| 5 | request budget 30 | partial with 17 matched, refused by `TDOT_MATCH_DROP`, exit 1, nothing written |
+| 6 | same, drop guard relaxed | status `partial`, 1 row fixed, exit 2 |
+| 7 | storefront unreachable | `TDOT_CONFIG_NOT_FOUND`, exit 1 |
+| 8 | `--dry-run` | status `dry-run`, nothing written |
+| 9, 10 | short run after the partial, then a full run | refused against the baseline of 64; full run healed the tampered row |
+
+Defect found and fixed by this check: the match-drop baseline counted `partial` runs, so a
+partial run would have lowered the bar for the next one. The baseline is now the last
+`success` run only (test added).

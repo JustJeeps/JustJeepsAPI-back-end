@@ -1,10 +1,7 @@
-// TDOT competitor prices: acquisition facade (DD-019). Replaces the ParseHub
-// download with the in-house Klevu collector (lib/competitors/tdot) and keeps
-// the contract seed-tdot.js consumes:
+// TDOT competitor prices: acquisition facade (DD-019). The in-house Klevu
+// collector (lib/competitors/tdot) behind the contract seed-tdot.js consumes:
 //   tdotCost() -> [{ tdot_price, tdot_code, sku, brand, product_url }]
-//
-// Escape hatch during the cutover: TDOT_SOURCE=parsehub reads ParseHub's last
-// ready run with PARSEHUB_API_KEY from the environment (never a literal).
+// ParseHub is retired (2026-10-03): there is no other live source.
 
 const fs = require('fs');
 const path = require('path');
@@ -17,7 +14,6 @@ const { toLegacyRows } = require('../../../lib/competitors/tdot/legacyAdapter');
 const SNAPSHOT_DIR = path.join(__dirname, '..', 'logs', 'tdot');
 const SNAPSHOT_FILE = path.join(SNAPSHOT_DIR, 'latest-snapshot.json');
 const SNAPSHOT_SCHEMA_VERSION = 1;
-const DEFAULT_PARSEHUB_PROJECT = 't84q4nt7WzTR';
 const KLEVU_SOURCE_REF = 'klevu:tdotperformance.ca';
 
 const TARGET_WHERE = { AND: [{ tdot_code: { not: null } }, { tdot_code: { not: '' } }] };
@@ -64,69 +60,28 @@ function validateSnapshot(payload, thresholds) {
 	return payload;
 }
 
-// ParseHub's shape, parsed exactly as before (title before " -", last token
-// is the sku, last duplicate of a tdot_code wins).
-function parseParsehubRows(body) {
-	const data = body && body.list1;
-	if (!Array.isArray(data)) throw new Error("ParseHub answered an unexpected format: 'list1' not found");
-	const results = [];
-	for (const item of data) {
-		for (const t of item.title || []) {
-			const name = t.name || '';
-			const price = parseFloat(String(t.price || '').replace('C$', '').replace(',', ''));
-			const tdotCode = name.split(' -')[0].trim();
-			const sku = tdotCode.split(' ').pop();
-			const brand = tdotCode.replace(sku, '').trim();
-			results.push({ tdot_price: price, tdot_code: tdotCode, sku, brand, product_url: item.link || null });
-		}
-	}
-	return Object.values(results.reduce((acc, row) => { acc[row.tdot_code] = row; return acc; }, {}));
-}
-
-function parsehubProject(env) {
-	return String(env.PARSEHUB_TDOT_PROJECT || DEFAULT_PARSEHUB_PROJECT).trim();
-}
-
-async function fetchParsehubRows({ fetch, env, timeoutMs }) {
-	const apiKey = String(env.PARSEHUB_API_KEY || '').trim();
-	if (!apiKey) throw new Error('TDOT_SOURCE=parsehub needs PARSEHUB_API_KEY in the environment');
-	const url = `https://www.parsehub.com/api/v2/projects/${encodeURIComponent(parsehubProject(env))}/last_ready_run/data?api_key=${encodeURIComponent(apiKey)}&format=json`;
-	const signal = typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(timeoutMs) : undefined;
-	const res = await fetch(url, { headers: { accept: 'application/json' }, signal });
-	if (!res.ok) throw new Error(`ParseHub answered HTTP ${res.status}`);
-	return parseParsehubRows(await res.json());
-}
-
 function createTdotSource({
 	prisma, env = process.env, fetch = globalThis.fetch, logger = console, sleep, now, withRetry, withConcurrency,
 	labels, writeSnapshot = defaultWriteSnapshot, readSnapshot = defaultReadSnapshot,
 } = {}) {
-	const useParsehub = String(env.TDOT_SOURCE || '').toLowerCase() === 'parsehub';
-
 	async function loadTargets() {
 		return prisma.product.findMany({ where: TARGET_WHERE, select: TARGET_SELECT });
 	}
 
 	// What IngestRun.sourceRef records for this run.
 	function describe() {
-		return useParsehub ? `parsehub:${parsehubProject(env)}` : KLEVU_SOURCE_REF;
+		return KLEVU_SOURCE_REF;
 	}
 
-	// rows: the legacy contract; payload: the collector's snapshot (null for
-	// ParseHub); snapshotPath: where it went (the file read, for --from-snapshot).
+	// rows: the legacy contract; payload: the collector's snapshot;
+	// snapshotPath: where it went (the file read, for --from-snapshot).
 	async function fetchRows({ dryRun = false, runId = null, fromSnapshot = null } = {}) {
-		// Snapshot and ParseHub paths make no Klevu request: no User-Agent needed.
-		const offline = getTdotOfflineConfig(env);
 		if (fromSnapshot) {
-			const payload = validateSnapshot(readSnapshot(fromSnapshot), offline.thresholds);
+			// A snapshot makes no Klevu request: no User-Agent needed.
+			const payload = validateSnapshot(readSnapshot(fromSnapshot), getTdotOfflineConfig(env).thresholds);
 			logger.info(`[tdot] snapshot ${fromSnapshot} accepted: ${payload.items.length} items from run ${payload.runId == null ? 'manual' : payload.runId} captured ${payload.capturedAt}`);
 			return { rows: toLegacyRows(payload), payload, snapshotPath: fromSnapshot };
 		}
-		if (useParsehub) {
-			logger.warn('[tdot] TDOT_SOURCE=parsehub: reading the last ParseHub run (cutover escape hatch)');
-			return { rows: await fetchParsehubRows({ fetch, env, timeoutMs: offline.timeoutMs }), payload: null, snapshotPath: null };
-		}
-
 		const config = getTdotConfig(env);
 		const targets = await loadTargets();
 		const { payload } = await collectTdot({
@@ -155,7 +110,6 @@ async function tdotCost(options = {}) {
 module.exports = tdotCost;
 module.exports.tdotCost = tdotCost;
 module.exports.createTdotSource = createTdotSource;
-module.exports.parseParsehubRows = parseParsehubRows;
 module.exports.SNAPSHOT_FILE = SNAPSHOT_FILE;
 module.exports.SNAPSHOT_DIR = SNAPSHOT_DIR;
 module.exports.snapshotFileName = snapshotFileName;

@@ -71,9 +71,10 @@ are spent on it.
   `BELOW_MIN_MATCHED`, `PRICE_INVALID_RATIO`) abort before any write; the IngestRun row keeps
   the code and the message.
 - `TDOT_MATCH_DROP`: the run matched fewer than `TDOT_MATCH_DROP_RATIO` (default 0.8) of the
-  rows the last successful run wrote (`IngestRun.sourceRowCount`). Nothing is written; look at
+  rows the last fully successful run wrote (`IngestRun.sourceRowCount`; partial runs never
+  lower this baseline). Nothing is written; look at
   `labelStats` for labels that went `probe-failed` or `not-on-tdot` unexpectedly.
-- `TDOT_NO_ROWS`: the source produced no matched row (empty snapshot, ParseHub down).
+- `TDOT_NO_ROWS`: the source produced no matched row (for example an empty snapshot).
 - `TDOT_SOURCE_UNAVAILABLE`: `TDOT_CONSECUTIVE_FAILURE_LIMIT` (default 10) requests failed in a
   row; the circuit breaker stops the run instead of burning the whole budget.
 - `TDOT_SNAPSHOT_INVALID`: `--from-snapshot` was given a file that is not a TDOT payload
@@ -84,8 +85,6 @@ are spent on it.
   trace of a search on tdotperformance.ca as a stop-gap, then fix `discoverConfig.js`.
 - Per-request failures are listed under `failures` in the snapshot with label, term, code
   and HTTP status; the run continues past them.
-- Cutover escape hatch: `TDOT_SOURCE=parsehub` with `PARSEHUB_API_KEY` reads ParseHub's last
-  run instead of Klevu (parsing unchanged from the old implementation).
 
 ## Investigating unmatched products
 
@@ -101,7 +100,9 @@ are spent on it.
 - `invalidSample` shows records rejected with a reason (`invalid-price`, `currency-mismatch`,
   `no-part-number`).
 
-## Not done yet (see DD-019 phases 3 to 5)
+## Not done yet
 
-Parity numbers against the last ParseHub data, enabling the cron, retiring the ParseHub path
-and rotating its key, the gated stale delete after 30 days of `updated_at` data.
+ParseHub is retired for TDOT (2026-10-03): the code path is gone and `TDOT_SOURCE` is
+ignored. Still open: enabling the cron, rotating the ParseHub key (still used by the Parts
+Engine, Northridge and Omix inventory feeds), and the gated stale delete after 30 days of
+`updated_at` data.
