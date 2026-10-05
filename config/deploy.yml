@@ -164,7 +164,9 @@ env:
     # first production run matched 7000 of 7763 collected items (90.2%).
     CRON_SEED_LOWRIDERS_ENABLED: "true"
     CRON_SEED_LOWRIDERS_SCHEDULE: "13 3 * * *"
-    CRON_SEED_TDOT_ENABLED: "false"
+    # TDOT competitor prices (DD-019). On since 2026-10-05, after the full
+    # production dry run matched 35,870 products and the sandbox write check.
+    CRON_SEED_TDOT_ENABLED: "true"
     CRON_SEED_TDOT_SCHEDULE: "43 1 * * *"
     TDOT_MIN_MATCHED: "28000"
     # Stale delete floor, set from that run: a night that matches fewer than
