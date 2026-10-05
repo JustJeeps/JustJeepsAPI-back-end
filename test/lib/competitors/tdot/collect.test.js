@@ -268,3 +268,17 @@ test('labels run two at a time when concurrency is 2, and the per-worker delay i
 	assert.ok(peak >= 2, `expected two labels in flight, peak was ${peak}`);
 	assert.ok(sleeps.length >= 4);
 });
+
+test('the payload records how long each phase and each label took, for the run audit', async () => {
+	let t = 0;
+	const clock = () => new Date(Date.UTC(2026, 9, 2, 6, 43, 0) + (t += 1000));
+	const { fetch } = makeFetch();
+	const { payload } = await run(fetch, { now: clock });
+	const timing = payload.collection.timing;
+	for (const key of ['discoverMs', 'probeMs', 'fetchMs', 'matchMs']) assert.strictEqual(typeof timing[key], 'number', key);
+	assert.ok(timing.probeMs > 0 && timing.fetchMs > 0);
+	assert.ok(payload.collection.durationMs >= timing.discoverMs + timing.probeMs + timing.fetchMs + timing.matchMs);
+	const bestop = payload.labelStats.find((l) => l.label === 'Bestop');
+	assert.ok(bestop.durationMs > 0, 'a crawled label carries its fetch time');
+	assert.ok(payload.labelStats.every((l) => typeof l.durationMs === 'number'));
+});

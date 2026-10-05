@@ -174,3 +174,38 @@ test('the match-drop baseline is the last full success: a partial run never lowe
 	assert.strictEqual(where.status, 'success');
 	assert.strictEqual(where.feed, 'tdot');
 });
+
+test('the summary carries collect, write and total time and a TIMING line names the slowest labels', async () => {
+	let t = 0;
+	const clock = () => new Date(Date.UTC(2026, 9, 6, 5, 43, 0) + (t += 1000));
+	const lines = [];
+	const logger = { info: (m) => lines.push(m), warn() {}, error() {} };
+	const prisma = makePrisma({ products });
+	const { startRun } = makeStartRun();
+	const timedPayload = {
+		...payload,
+		collection: { ...payload.collection, durationMs: 120000, timing: { discoverMs: 1000, probeMs: 9000, fetchMs: 100000, matchMs: 10000 } },
+		labelStats: [
+			{ label: 'Bestop', mode: 'crawl', requests: 8, durationMs: 20000 },
+			{ label: 'Covercraft', mode: 'per-product', requests: 400, durationMs: 90000 },
+			{ label: 'Smittybilt', mode: 'not-on-tdot', requests: 0, durationMs: 0 },
+		],
+	};
+	const source = { fetchRows: async () => ({ rows, payload: timedPayload, snapshotPath: null }) };
+	const result = await runSeedTdot({ prisma, source, startRun, argv: [], logger, now: clock });
+	const { timing } = result.summary;
+	assert.ok(timing.collectMs > 0 && timing.writeMs > 0);
+	assert.ok(timing.totalMs >= timing.collectMs + timing.writeMs);
+	const line = lines.find((m) => m.includes('[tdot] TIMING'));
+	assert.ok(line, 'a TIMING line is logged');
+	assert.match(line, /slowest=Covercraft\(per-product, 400 req\) 90s, Bestop\(crawl, 8 req\) 20s/);
+	assert.match(line, /probe=9s fetch=100s match=10s/);
+});
+
+test('a dry run reports no write time', async () => {
+	const prisma = makePrisma({ products });
+	const { startRun } = makeStartRun();
+	const source = { fetchRows: async () => ({ rows, payload, snapshotPath: null }) };
+	const result = await runSeedTdot({ prisma, source, startRun, argv: ['--dry-run'], logger: silent });
+	assert.strictEqual(result.summary.timing.writeMs, 0);
+});

@@ -57,6 +57,10 @@ The last log line is `[tdot] SUMMARY {...}`:
 | `matched` / `unmatched` | TDOT items that are ours / TDOT items we do not sell |
 | `invalid` | records without a usable price or part number |
 | `partial` | the request or time budget stopped the crawl early |
+| `timing` | `collectMs`, `writeMs`, `totalMs` |
+
+Right after it, `[tdot] TIMING ...` says where the time went: crawl phases and the five
+slowest labels. Record audited runs and the tuning limits in `docs/COMPETITOR-TDOT-TIMING.md`.
 
 The collector line `[tdot] step=collect ...` carries the same numbers plus duplicates and
 ambiguous codes; `labelStats` in the snapshot lists, per label, the mode (`crawl`,

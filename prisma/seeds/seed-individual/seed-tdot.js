@@ -16,6 +16,24 @@ const UPSERT_BATCH_SIZE = 2000;
 const LOG_EVERY = 500;
 const TDOT_COMPETITOR_ID = 4;
 
+const SLOWEST_LABELS = 5;
+const secondsOf = (ms) => `${Math.round((Number(ms) || 0) / 1000)}s`;
+
+// One line that tells where the night went: phases of the crawl and the labels
+// that cost the most. Read it to decide whether the run needs tuning.
+function timingLine(timing, collection, labelStats) {
+  const phases = collection && collection.timing
+    ? ` probe=${secondsOf(collection.timing.probeMs)} fetch=${secondsOf(collection.timing.fetchMs)} match=${secondsOf(collection.timing.matchMs)}`
+    : "";
+  const slowest = (labelStats || [])
+    .filter((l) => Number(l.durationMs) > 0)
+    .sort((a, b) => b.durationMs - a.durationMs)
+    .slice(0, SLOWEST_LABELS)
+    .map((l) => `${l.label}(${l.mode}, ${l.requests} req) ${secondsOf(l.durationMs)}`)
+    .join(", ");
+  return `[tdot] TIMING total=${secondsOf(timing.totalMs)} collect=${secondsOf(timing.collectMs)} write=${secondsOf(timing.writeMs)}${phases}${slowest ? ` slowest=${slowest}` : ""}`;
+}
+
 function chunkArray(items, size) {
   const chunks = [];
   for (let i = 0; i < items.length; i += size) {
@@ -98,7 +116,9 @@ async function runSeedTdot({
   };
 
   try {
+    const collectStart = now();
     const { rows: competitorProductsData, payload, snapshotPath } = await source.fetchRows({ dryRun: args.dryRun, runId: run.id, fromSnapshot: args.fromSnapshot });
+    const collectMs = now().getTime() - collectStart.getTime();
     const totalRows = competitorProductsData.length;
     logWithTimestamp(`Total competitor products to process: ${totalRows}`);
 
@@ -278,9 +298,11 @@ async function runSeedTdot({
     };
 
     const counts = { inserted: 0, updated: 0, skipped: 0 };
+    let writeMs = 0;
     if (args.dryRun) {
       logWithTimestamp(`[tdot] dry-run: ${upsertRows.length} rows would be written (creates ${createsCount}, updates ${updatesCount}), nothing written`);
     } else {
+      const writeStart = now();
       let processedUpserts = 0;
       for (const upsertChunk of chunkArray(upsertRows, UPSERT_BATCH_SIZE)) {
         const [updated, inserted] = await upsertBatch(upsertChunk);
@@ -292,6 +314,7 @@ async function runSeedTdot({
         );
       }
       counts.skipped = upsertRows.length - counts.inserted - counts.updated;
+      writeMs = now().getTime() - writeStart.getTime();
       logWithTimestamp(
         `Competitor products from Tdot seeded successfully! Inserted: ${counts.inserted}, Updated (price or link changed): ${counts.updated}, Unchanged: ${counts.skipped}`
       );
@@ -300,12 +323,14 @@ async function runSeedTdot({
     const collection = payload && payload.collection ? payload.collection : null;
     const partial = Boolean(collection && collection.partial);
     const status = args.dryRun ? "dry-run" : partial ? "partial" : "success";
+    const timing = { collectMs, writeMs, totalMs: now().getTime() - startedAt.getTime() };
     const summary = {
       runId: run.id, status, sourceRows: totalRows, validRows: validRowCount, uniqueCodes: uniqueCodes.length,
-      missingProducts: missingProductCount, wouldWrite: upsertRows.length, ...counts,
+      missingProducts: missingProductCount, wouldWrite: upsertRows.length, ...counts, timing,
       ...(collection ? { requests: collection.requests, failedRequests: collection.failedRequests, matched: collection.matched, unmatched: collection.unmatched, invalid: collection.invalidCount, partial } : {}),
     };
     logWithTimestamp(`[tdot] SUMMARY ${JSON.stringify(summary)}`);
+    logWithTimestamp(timingLine(timing, collection, payload && payload.labelStats));
     if (partial) logger.warn(`[tdot] run ${run.id} is PARTIAL: the crawl stopped on its budget (${collection.labelsOverBudget} labels not fetched); rows written, exit code ${EXIT_PARTIAL}`);
     await finishRun({
       status, counts, sourceRowCount: upsertRows.length,
