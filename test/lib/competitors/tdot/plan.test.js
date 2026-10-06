@@ -29,3 +29,18 @@ test('planLabels reports the total request budget and respects a hard cap by dro
 	assert.deepStrictEqual(plan.find((p) => p.label === 'Covercraft').mode, 'over-budget');
 	assert.deepStrictEqual(plan.find((p) => p.label === 'Bestop').mode, 'crawl');
 });
+
+test('planLabels queries a perProductOnly label per product, even when its label search is small or empty', () => {
+	const plan = planLabels([
+		{ label: 'Fuel', total: 23000, ourProducts: 75, perProductOnly: true },
+		{ label: 'Alloy USA', total: 14, ourProducts: 245, perProductOnly: true },
+		{ label: 'Empty', total: 0, ourProducts: 3, perProductOnly: true },
+		{ label: 'None of ours', total: 50, ourProducts: 0, perProductOnly: true },
+	], { pageSize: 100, brandCrawlMaxItems: 10000 });
+	assert.deepStrictEqual(plan.map((p) => [p.label, p.mode, p.requests]), [
+		['Fuel', 'per-product', 75],
+		['Alloy USA', 'per-product', 245],
+		['Empty', 'per-product', 3],
+		['None of ours', 'skip', 0],
+	]);
+});

@@ -194,7 +194,8 @@ test('a label whose probe shows none of its own items is skipped as not-on-tdot'
 	const corbeau = [1, 2, 3].map((n) => ({ sku: `CRB-${n}`, searchable_sku: String(n), tdot_code: `Corbeau Seats ${n}`, status: 1 }));
 	const { payload } = await collectTdot({ fetch, config: { ...config, thresholds: { ...config.thresholds, minMatched: 0 } }, targets: corbeau, labels: ['Corbeau Seats'], runId: 1, logger: silent, sleep: noSleep, now, withRetry: noRetry, withConcurrency, random: () => 0 });
 	assert.deepStrictEqual(payload.labelStats.map((l) => [l.label, l.mode, l.requests]), [['Corbeau Seats', 'not-on-tdot', 0]]);
-	assert.strictEqual(calls.filter((u) => u.includes('cloud-search')).length, 1, 'the foreign token (Sparco) is not even probed');
+	const terms = calls.filter((u) => u.includes('cloud-search')).map((u) => new URL(u).searchParams.get('term'));
+	assert.deepStrictEqual(terms, ['Corbeau Seats', 'Corbeau Seats 1', 'Corbeau Seats 2', 'Corbeau Seats 3'], 'the foreign token (Sparco) is not probed; up to three of our products are, and none hits');
 	assert.strictEqual(payload.collection.labelsNotOnTdot, 1);
 	assert.deepStrictEqual(payload.labelStats[0].probeSample, ['Sparco BPR0001', 'Sparco BPR0002']);
 });
@@ -281,4 +282,32 @@ test('the payload records how long each phase and each label took, for the run a
 	const bestop = payload.labelStats.find((l) => l.label === 'Bestop');
 	assert.ok(bestop.durationMs > 0, 'a crawled label carries its fetch time');
 	assert.ok(payload.labelStats.every((l) => typeof l.durationMs === 'number'));
+});
+
+// "Fuel" is a generic word: TDOT's top results for it are Edelbrock fuel
+// pumps, yet TDOT sells Fuel wheels (12,806 for "Fuel Wheels", 2026-10-06).
+// When the label search shows no brand item, one of our own products found by
+// tdot_code proves the brand is there, and the label is queried per product.
+test('a label hidden by its generic word is found through one of our products and queried per product', async () => {
+	const rec = (sku, brand = sku.split('-')[0]) => ({ id: sku, sku, name: `${brand} ${sku.slice(sku.indexOf('-') + 1)} - Item`, price: '10.00', salePrice: '10.00', oldPrice: '10.00', currency: 'CAD', url: 'u', inStock: 'yes' });
+	const calls = [];
+	const fetch = async (url) => {
+		calls.push(url);
+		if (url === config.storefrontUrl) return { ok: true, status: 200, text: async () => html };
+		if (url.endsWith('klevu-16884958633259895.json')) return { ok: true, status: 200, json: async () => klevuConfig };
+		const term = new URL(url).searchParams.get('term');
+		if (term === 'Fuel') return { ok: true, status: 200, json: async () => ({ meta: { totalResultsFound: 23000, typeOfQuery: 'WILDCARD_AND' }, result: [rec('Edelbrock-17311'), rec('Edelbrock-17312')] }) };
+		if (term === 'Fuel D538A') return { ok: true, status: 200, json: async () => ({ meta: { totalResultsFound: 0 }, result: [] }) };
+		if (term === 'Fuel D538B') return { ok: true, status: 200, json: async () => ({ meta: { totalResultsFound: 1, typeOfQuery: 'FUZZY_AND' }, result: [rec('Fuel-D538B')] }) };
+		if (term === 'Fuel D538C') return { ok: true, status: 200, json: async () => ({ meta: { totalResultsFound: 1, typeOfQuery: 'FUZZY_AND' }, result: [rec('Fuel-D538C')] }) };
+		return { ok: true, status: 200, json: async () => ({ meta: { totalResultsFound: 0 }, result: [] }) };
+	};
+	const fuel = ['D538A', 'D538B', 'D538C'].map((part) => ({ sku: `FUEL-${part}`, searchable_sku: part, tdot_code: `Fuel ${part}`, status: 1 }));
+	const { payload } = await collectTdot({ fetch, config: { ...config, thresholds: { ...config.thresholds, minMatched: 0 } }, targets: fuel, labels: ['Fuel'], runId: 1, logger: silent, sleep: noSleep, now, withRetry: noRetry, withConcurrency, random: () => 0 });
+	const terms = calls.filter((u) => u.includes('cloud-search')).map((u) => new URL(u).searchParams.get('term'));
+	assert.deepStrictEqual(terms, ['Fuel', 'Fuel D538A', 'Fuel D538B', 'Fuel D538A', 'Fuel D538B', 'Fuel D538C'], 'label probe, product probes until the first hit, then one query per product');
+	const [stat] = payload.labelStats;
+	assert.deepStrictEqual([stat.mode, stat.requests, stat.matched], ['per-product', 3, 2]);
+	assert.strictEqual(payload.collection.labelsNotOnTdot, 0);
+	assert.deepStrictEqual(payload.items.map((i) => i.productSku).sort(), ['FUEL-D538B', 'FUEL-D538C']);
 });
