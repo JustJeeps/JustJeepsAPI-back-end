@@ -529,6 +529,8 @@ model CompetitorProduct {
   // DD-018: raw-SQL seeds set updated_at themselves; @updatedAt only covers
   // Prisma client writes.
   updated_at       DateTime   @default(now()) @updatedAt
+  // Rows that existed before this column carry 2026-10-05 as a reference date.
+  created_at       DateTime   @default(now())
   competitor       Competitor @relation(fields: [competitor_id], references: [id])
   product          Product    @relation(fields: [product_sku], references: [sku], onDelete: Cascade)
 
