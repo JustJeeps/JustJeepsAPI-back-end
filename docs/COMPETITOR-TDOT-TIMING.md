@@ -50,6 +50,7 @@ Look at the `TIMING` line. Open an improvement task when any of these happens:
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | 2026-10-02 | 1170 | full dry run (no write) | success | 46.1 min | 46.1 min | none | 3,058 | 35,870 | none | not recorded (timing per label added 2026-10-05) | Baseline. 1.8 s per request per worker; uses 31% of the time budget and 51% of the request budget |
 | 2026-10-06 | 1235 | first real run (cron 01:43) | success | 27.7 min | 27.5 min (probe 3.5 min, fetch 23.9 min, match 5 s) | 4 s | 1,993 (0 failed) | 35,799 | 4,534 / 31,265 / 0 | Power Stop (per-product, 180 req) 4.4 min, WeatherTech (per-product, 120 req) 2.9 min, Crown Automotive (crawl, 90 req) 2.4 min, Rough Country (crawl, 76 req) 2.2 min, Magnaflow (crawl, 61 req) 1.7 min | No tuning needed. Every limit is clear: 18% of the time budget, 33% of the request budget. 0 unchanged because every ParseHub row got a new URL or price. See note 1 |
+| 2026-10-07 | 1254 | nightly (cron 01:43), first with product probes (`ca6a127`) | success | 29.3 min | 29.2 min (probe 4.2 min, fetch 24.9 min, match 3 s) | 3 s | 2,086 (0 failed) | 35,846 | 2 / 97 / 35,747 | Power Stop (per-product, 180 req) 4.3 min, WeatherTech (per-product, 120 req) 2.9 min, Crown Automotive (crawl, 90 req) 2.4 min, Rough Country (crawl, 76 req) 2.0 min, Fuel (per-product, 75 req) 1.7 min | No tuning needed. Fuel found by product (50 of 75 matched); 6 labels still not-on-tdot. Total time up 6% with 5% more requests |
 
 ## Notes
 
