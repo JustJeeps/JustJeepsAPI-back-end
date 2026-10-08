@@ -79,7 +79,9 @@ test('crawls small labels, queries huge labels per product, matches by canonical
 		['Bestop 99999-01', 'BST-99999-01', 150],
 		['Covercraft C18001', 'COV-C18001', 99],
 	]);
-	// storefront + config + 2 probes (Bestop, Covercraft) + 2 Bestop pages + 1 per-product Covercraft query
+	// storefront + config + 2 probes (Bestop, Covercraft) + 2 Bestop pages + 1
+	// per-product Covercraft query. pageSize 5 is below the 20-record probe, so
+	// the probe is not reused as page 1 (the pageSize 100 tests cover reuse).
 	assert.strictEqual(calls.length, 7, calls.map((c) => c.url).join('\n'));
 	assert.deepStrictEqual(payload.labelStats.map((l) => [l.label, l.mode, l.requests, l.matched]), [
 		['Bestop', 'crawl', 2, 3],
@@ -169,10 +171,10 @@ test('when the probe shows a different brand token, the token is probed too and 
 	const foxTargets = [1, 2, 3, 4].map((n) => ({ sku: `FOX-${n}`, searchable_sku: String(n), tdot_code: `Fox Racing ${n}`, status: 1 }));
 	const { payload } = await collectTdot({ fetch, config: { ...config, pageSize: 100, thresholds: { ...config.thresholds, minMatched: 0 } }, targets: foxTargets, labels: ['Fox Racing'], runId: 1, logger: silent, sleep: noSleep, now, withRetry: noRetry, withConcurrency, random: () => 0 });
 	const terms = calls.filter((u) => u.includes('cloud-search')).map((u) => new URL(u).searchParams.get('term'));
-	assert.deepStrictEqual(terms, ['Fox Racing', 'FoxShox', 'FoxShox'], 'label probe, token probe, then the crawl with the token');
+	assert.deepStrictEqual(terms, ['Fox Racing', 'FoxShox'], 'label probe and token probe; the token probe is already page 1 of the crawl');
 	const [foxStat] = payload.labelStats;
-	assert.deepStrictEqual({ label: foxStat.label, mode: foxStat.mode, total: foxStat.total, requests: foxStat.requests, matched: foxStat.matched, term: foxStat.term, ourProducts: foxStat.ourProducts }, { label: 'Fox Racing', mode: 'crawl', total: 3, requests: 1, matched: 0, term: 'FoxShox', ourProducts: 4 });
-	assert.strictEqual(payload.collection.requests, 3);
+	assert.deepStrictEqual({ label: foxStat.label, mode: foxStat.mode, total: foxStat.total, requests: foxStat.requests, matched: foxStat.matched, term: foxStat.term, ourProducts: foxStat.ourProducts }, { label: 'Fox Racing', mode: 'crawl', total: 3, requests: 0, matched: 0, term: 'FoxShox', ourProducts: 4 });
+	assert.strictEqual(payload.collection.requests, 2);
 });
 
 // TDOT does not sell every brand we label: the probe for "Corbeau Seats" came
@@ -216,7 +218,7 @@ test('a one-letter brand token from a hyphenated brand is ignored', async () => 
 	const targets = [1, 2].map((n) => ({ sku: `NFB-7505${n}`, searchable_sku: `7505${n}`, tdot_code: `N-Fab 7505${n}`, status: 1 }));
 	const { payload } = await collectTdot({ fetch, config: { ...config, pageSize: 100, thresholds: { ...config.thresholds, minMatched: 0 } }, targets, labels: ['N-Fab'], runId: 1, logger: silent, sleep: noSleep, now, withRetry: noRetry, withConcurrency, random: () => 0 });
 	const terms = calls.filter((u) => u.includes('cloud-search')).map((u) => new URL(u).searchParams.get('term'));
-	assert.deepStrictEqual(terms, ['N-Fab', 'N-Fab'], 'probe and crawl with the label; no "N" probe');
+	assert.deepStrictEqual(terms, ['N-Fab'], 'the label probe is the whole crawl; no "N" probe');
 	assert.strictEqual(payload.labelStats[0].mode, 'crawl');
 	assert.strictEqual(payload.labelStats[0].matched, 2);
 });
@@ -305,9 +307,156 @@ test('a label hidden by its generic word is found through one of our products an
 	const fuel = ['D538A', 'D538B', 'D538C'].map((part) => ({ sku: `FUEL-${part}`, searchable_sku: part, tdot_code: `Fuel ${part}`, status: 1 }));
 	const { payload } = await collectTdot({ fetch, config: { ...config, thresholds: { ...config.thresholds, minMatched: 0 } }, targets: fuel, labels: ['Fuel'], runId: 1, logger: silent, sleep: noSleep, now, withRetry: noRetry, withConcurrency, random: () => 0 });
 	const terms = calls.filter((u) => u.includes('cloud-search')).map((u) => new URL(u).searchParams.get('term'));
-	assert.deepStrictEqual(terms, ['Fuel', 'Fuel D538A', 'Fuel D538B', 'Fuel D538A', 'Fuel D538B', 'Fuel D538C'], 'label probe, product probes until the first hit, then one query per product');
+	assert.deepStrictEqual(terms, ['Fuel', 'Fuel D538A', 'Fuel D538B', 'Fuel D538C'], 'label probe, product probes until the first hit, then only the products not asked yet');
 	const [stat] = payload.labelStats;
-	assert.deepStrictEqual([stat.mode, stat.requests, stat.matched], ['per-product', 3, 2]);
+	assert.deepStrictEqual([stat.mode, stat.requests, stat.matched], ['per-product', 1, 2]);
 	assert.strictEqual(payload.collection.labelsNotOnTdot, 0);
 	assert.deepStrictEqual(payload.items.map((i) => i.productSku).sort(), ['FUEL-D538B', 'FUEL-D538C']);
+});
+
+// Requests run from one shared queue, so answers arrive out of order; each
+// label's records must still come out in page order, as a sequential crawl
+// would give them, or the duplicate tie-break in matchItems would depend on
+// network timing.
+test('with two workers and uneven latency, records keep page order and the match is the same as with one worker', async () => {
+	const rec = (sku, price, url = `u-${price}`) => ({ id: sku, sku, name: `${sku.replace('-', ' ')} - Item`, price: String(price), salePrice: String(price), oldPrice: String(price), currency: 'CAD', url, inStock: 'yes' });
+	// Same listing on pages 2 and 3 at the same price: the first one in page
+	// order must win the tie, though page 2 answers last.
+	const pages = [
+		[rec('Acme-1', 10), rec('Acme-2', 20)],
+		[rec('Acme-3', 30, 'from-page-2'), rec('Acme-4', 40)],
+		[rec('Acme-3', 30, 'from-page-3'), rec('Acme-5', 50)],
+	];
+	const runWith = async (concurrency) => {
+		const fetch = async (url) => {
+			if (url === config.storefrontUrl) return { ok: true, status: 200, text: async () => html };
+			if (url.endsWith('klevu-16884958633259895.json')) return { ok: true, status: 200, json: async () => klevuConfig };
+			const u = new URL(url);
+			const term = u.searchParams.get('term');
+			const from = Number(u.searchParams.get('paginationStartsFrom'));
+			await new Promise((r) => setTimeout(r, term === 'Acme' && from === 2 ? 40 : 1));
+			if (term === 'Acme') return { ok: true, status: 200, json: async () => ({ meta: { totalResultsFound: 6, typeOfQuery: 'WILDCARD_AND' }, result: pages[from / 2] }) };
+			if (term === 'Zeta') return { ok: true, status: 200, json: async () => ({ meta: { totalResultsFound: 4, typeOfQuery: 'WILDCARD_AND' }, result: [rec(`Zeta-${from + 1}`, from + 1), rec(`Zeta-${from + 2}`, from + 2)] }) };
+			return { ok: true, status: 200, json: async () => ({ meta: { totalResultsFound: 0 }, result: [] }) };
+		};
+		const t = [...[1, 2, 3, 4, 5].map((k) => ({ sku: `ACM-${k}`, searchable_sku: String(k), tdot_code: `Acme ${k}`, status: 1 })), ...[1, 2, 3, 4].map((k) => ({ sku: `ZET-${k}`, searchable_sku: String(k), tdot_code: `Zeta ${k}`, status: 1 }))];
+		return collectTdot({ fetch, config: { ...config, pageSize: 2, concurrency, thresholds: { ...config.thresholds, minMatched: 0 } }, targets: t, labels: ['Acme', 'Zeta'], runId: 1, logger: silent, sleep: noSleep, now, withRetry: noRetry, withConcurrency, random: () => 0 });
+	};
+	const one = await runWith(1);
+	const two = await runWith(2);
+	const view = (r) => r.payload.items.map((i) => [i.productSku, i.effectivePrice, i.url]).sort();
+	assert.deepStrictEqual(view(two), view(one));
+	assert.strictEqual(two.payload.items.length, 9);
+	assert.strictEqual(two.payload.items.find((i) => i.productSku === 'ACM-3').url, 'from-page-2');
+	assert.strictEqual(two.payload.collection.duplicateCount, one.payload.collection.duplicateCount);
+	assert.deepStrictEqual(two.payload.labelStats.map((l) => [l.label, l.mode, l.requests]), [['Acme', 'crawl', 3], ['Zeta', 'crawl', 2]]);
+});
+
+// When the breaker trips on one worker, the other must not keep draining the
+// queue, even if the source answers again right after the trip.
+test('after the circuit breaker trips, no worker sends another request', async () => {
+	const failing = new Set(['Covercraft X0', 'Covercraft X1', 'Covercraft X2']);
+	const { fetch, calls } = makeFetch({ statusFor: (term) => (failing.has(term) ? 503 : 200) });
+	const many = Array.from({ length: 30 }, (_, k) => ({ sku: `COV-${k}`, searchable_sku: `X${k}`, tdot_code: `Covercraft X${k}`, status: 1 }));
+	await assert.rejects(run(fetch, { targets: many, labels: ['Covercraft'], config: { concurrency: 2, consecutiveFailureLimit: 3, thresholds: { minMatched: 0, maxFailedRequestRatio: 1, maxInvalidRatio: 1 } } }), (e) => e.code === 'TDOT_SOURCE_UNAVAILABLE');
+	await new Promise((r) => setTimeout(r, 30));
+	const after = calls.filter((c) => c.url.includes('cloud-search') && /Covercraft\+X([3-9]|\d\d)/.test(c.url));
+	assert.ok(after.length <= 1, `expected at most the one request already in flight, got ${after.length}`);
+});
+
+// A product probe that failed has no answer to reuse: the fetch asks again.
+test('a product probe that failed is queried again in the per-product fetch', async () => {
+	const rec = (sku) => ({ id: sku, sku, name: `${sku.replace('-', ' ')} - Wheel`, price: '10.00', salePrice: '10.00', oldPrice: '10.00', currency: 'CAD', url: 'u', inStock: 'yes' });
+	const calls = [];
+	let firstA = true;
+	const fetch = async (url) => {
+		calls.push(url);
+		if (url === config.storefrontUrl) return { ok: true, status: 200, text: async () => html };
+		if (url.endsWith('klevu-16884958633259895.json')) return { ok: true, status: 200, json: async () => klevuConfig };
+		const term = new URL(url).searchParams.get('term');
+		if (term === 'Fuel') return { ok: true, status: 200, json: async () => ({ meta: { totalResultsFound: 23000, typeOfQuery: 'WILDCARD_AND' }, result: [rec('Edelbrock-1')] }) };
+		if (term === 'Fuel A1') {
+			if (firstA) { firstA = false; return { ok: false, status: 404, json: async () => ({}) }; }
+			return { ok: true, status: 200, json: async () => ({ meta: { totalResultsFound: 1 }, result: [rec('Fuel-A1')] }) };
+		}
+		if (term === 'Fuel B2') return { ok: true, status: 200, json: async () => ({ meta: { totalResultsFound: 1 }, result: [rec('Fuel-B2')] }) };
+		return { ok: true, status: 200, json: async () => ({ meta: { totalResultsFound: 0 }, result: [] }) };
+	};
+	const fuel = ['A1', 'B2'].map((part) => ({ sku: `FUEL-${part}`, searchable_sku: part, tdot_code: `Fuel ${part}`, status: 1 }));
+	const { payload } = await collectTdot({ fetch, config: { ...config, thresholds: { ...config.thresholds, minMatched: 0, maxFailedRequestRatio: 1 } }, targets: fuel, labels: ['Fuel'], runId: 1, logger: silent, sleep: noSleep, now, withRetry: noRetry, withConcurrency, random: () => 0 });
+	const terms = calls.filter((u) => u.includes('cloud-search')).map((u) => new URL(u).searchParams.get('term'));
+	assert.deepStrictEqual(terms, ['Fuel', 'Fuel A1', 'Fuel B2', 'Fuel A1']);
+	assert.deepStrictEqual(payload.items.map((i) => i.productSku).sort(), ['FUEL-A1', 'FUEL-B2']);
+});
+
+// The probe now asks a full page (100) but must decide on the first 20
+// records only, as before: a brand that only shows up deep in the generic
+// results is still not on TDOT.
+test('a brand item ranked past the first 20 probe records does not make the label present', async () => {
+	const other = (n) => ({ id: `o${n}`, sku: `Sparco-${n}`, name: `Sparco ${n} - Seat`, price: '10', salePrice: '10', oldPrice: '10', currency: 'CAD', url: 'u', inStock: 'yes' });
+	const corbeau = { id: 'c', sku: 'CorbeauSeats-1', name: 'Corbeau Seats 1 - Seat', price: '10', salePrice: '10', oldPrice: '10', currency: 'CAD', url: 'u', inStock: 'yes' };
+	const fetch = async (url) => {
+		if (url === config.storefrontUrl) return { ok: true, status: 200, text: async () => html };
+		if (url.endsWith('klevu-16884958633259895.json')) return { ok: true, status: 200, json: async () => klevuConfig };
+		const term = new URL(url).searchParams.get('term');
+		if (term === 'Corbeau Seats') {
+			const result = Array.from({ length: 100 }, (_, i) => (i === 25 ? corbeau : other(i)));
+			return { ok: true, status: 200, json: async () => ({ meta: { totalResultsFound: 57303, typeOfQuery: 'WILDCARD_AND' }, result }) };
+		}
+		return { ok: true, status: 200, json: async () => ({ meta: { totalResultsFound: 0 }, result: [] }) };
+	};
+	const t = [1, 2].map((n) => ({ sku: `CRB-${n}`, searchable_sku: String(n), tdot_code: `Corbeau Seats ${n}`, status: 1 }));
+	const { payload } = await collectTdot({ fetch, config: { ...config, pageSize: 100, thresholds: { ...config.thresholds, minMatched: 0 } }, targets: t, labels: ['Corbeau Seats'], runId: 1, logger: silent, sleep: noSleep, now, withRetry: noRetry, withConcurrency, random: () => 0 });
+	assert.strictEqual(payload.labelStats[0].mode, 'not-on-tdot');
+});
+
+// When the brand token wins ("FoxShox"), page 1 of the crawl is the token's
+// answer, not the label's: every record must come from the token pages.
+test('when the token wins, page 1 of the crawl is the token answer and every token page is used', async () => {
+	const fox = (sku) => ({ id: sku, sku, name: `${sku.replace('-', ' ')} - Shock`, price: '10.00', salePrice: '10.00', oldPrice: '10.00', currency: 'CAD', url: `u-${sku}`, inStock: 'yes' });
+	const calls = [];
+	const fetch = async (url) => {
+		calls.push(url);
+		if (url === config.storefrontUrl) return { ok: true, status: 200, text: async () => html };
+		if (url.endsWith('klevu-16884958633259895.json')) return { ok: true, status: 200, json: async () => klevuConfig };
+		const u = new URL(url);
+		const term = u.searchParams.get('term');
+		const from = Number(u.searchParams.get('paginationStartsFrom'));
+		if (term === 'Fox Racing') return { ok: true, status: 200, json: async () => ({ meta: { totalResultsFound: 2, typeOfQuery: 'WILDCARD_AND' }, result: [fox('FoxShox-L1'), fox('FoxShox-L2')] }) };
+		if (term === 'FoxShox') return { ok: true, status: 200, json: async () => ({ meta: { totalResultsFound: 40, typeOfQuery: 'WILDCARD_AND' }, result: Array.from({ length: 20 }, (_, i) => fox(`FoxShox-${from + i + 1}`)) }) };
+		return { ok: true, status: 200, json: async () => ({ meta: { totalResultsFound: 0 }, result: [] }) };
+	};
+	const t = [1, 2, 3, 4].map((n) => ({ sku: `FOX-${n}`, searchable_sku: String(n), tdot_code: `Fox Racing ${n}`, status: 1 }));
+	const { payload } = await collectTdot({ fetch, config: { ...config, pageSize: 20, thresholds: { ...config.thresholds, minMatched: 0 } }, targets: t, labels: ['Fox Racing'], runId: 1, logger: silent, sleep: noSleep, now, withRetry: noRetry, withConcurrency, random: () => 0 });
+	const [fr] = payload.labelStats;
+	assert.deepStrictEqual([fr.term, fr.mode, fr.total, fr.requests], ['FoxShox', 'crawl', 40, 1]);
+	const terms = calls.filter((u) => u.includes('cloud-search')).map((u) => `${new URL(u).searchParams.get('term')}@${new URL(u).searchParams.get('paginationStartsFrom')}`);
+	assert.deepStrictEqual(terms, ['Fox Racing@0', 'FoxShox@0', 'FoxShox@20']);
+	assert.strictEqual(fr.unmatched, 40, 'the 40 token records (pages 1 and 2), none of the label probe records');
+	assert.ok(!fr.unmatchedSample.some((sku) => sku.includes('L1')));
+});
+
+// TDOT_PAGE_SIZE accepts 10..100: a page smaller than the probe must not
+// shrink what the decision sees, and the bigger probe is not reused as page 1.
+test('with a page size below 20 the probe still reads 20 records and is not reused as page 1', async () => {
+	const edel = (n) => ({ id: `e${n}`, sku: `Edelbrock-${n}`, name: `Edelbrock ${n} - Pump`, price: '10', salePrice: '10', oldPrice: '10', currency: 'CAD', url: 'u', inStock: 'yes' });
+	const acme = (n) => ({ id: `a${n}`, sku: `Acme-${n}`, name: `Acme ${n} - Part`, price: '10', salePrice: '10', oldPrice: '10', currency: 'CAD', url: 'u', inStock: 'yes' });
+	const ranked = [...Array.from({ length: 12 }, (_, i) => edel(i)), ...Array.from({ length: 8 }, (_, i) => acme(i + 1))];
+	const calls = [];
+	const fetch = async (url) => {
+		calls.push(url);
+		if (url === config.storefrontUrl) return { ok: true, status: 200, text: async () => html };
+		if (url.endsWith('klevu-16884958633259895.json')) return { ok: true, status: 200, json: async () => klevuConfig };
+		const u = new URL(url);
+		const from = Number(u.searchParams.get('paginationStartsFrom'));
+		const size = Number(u.searchParams.get('noOfResults'));
+		if (u.searchParams.get('term') === 'Acme') return { ok: true, status: 200, json: async () => ({ meta: { totalResultsFound: 20, typeOfQuery: 'WILDCARD_AND' }, result: ranked.slice(from, from + size) }) };
+		return { ok: true, status: 200, json: async () => ({ meta: { totalResultsFound: 0 }, result: [] }) };
+	};
+	const t = Array.from({ length: 8 }, (_, i) => ({ sku: `ACM-${i + 1}`, searchable_sku: String(i + 1), tdot_code: `Acme ${i + 1}`, status: 1 }));
+	const { payload } = await collectTdot({ fetch, config: { ...config, pageSize: 10, thresholds: { ...config.thresholds, minMatched: 0 } }, targets: t, labels: ['Acme'], runId: 1, logger: silent, sleep: noSleep, now, withRetry: noRetry, withConcurrency, random: () => 0 });
+	const sizes = calls.filter((u) => u.includes('cloud-search')).map((u) => `${new URL(u).searchParams.get('noOfResults')}@${new URL(u).searchParams.get('paginationStartsFrom')}`);
+	assert.deepStrictEqual(sizes, ['20@0', '10@0', '10@10'], 'probe of 20, then both crawl pages of 10');
+	assert.deepStrictEqual([payload.labelStats[0].mode, payload.labelStats[0].requests], ['crawl', 2]);
+	assert.strictEqual(payload.items.length, 8);
 });

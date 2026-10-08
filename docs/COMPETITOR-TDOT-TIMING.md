@@ -17,8 +17,12 @@ Every run since 2026-10-05 records its timing in four places:
 The run log and the snapshot are archived to DO Spaces after each real run:
 `npm run log-archive -- list --command seed-tdot`.
 
-Label times are wall time per label. The fetch runs two labels at a time, so the label times add
-up to about twice the fetch phase.
+Label times are wall time per label, from its first fetch request to its last. Since 2026-10-08 the
+probes run on the same two workers as the fetch, and the fetch is one shared queue of single
+requests (a page or a product), so two labels can overlap and the label times do not add up to
+the fetch phase. `requests` per label counts fetch requests only: page 1 of a crawl and the
+product probes of a label like Fuel come from the probe and are not counted again, so crawl labels
+read one less than in runs before 2026-10-08 (Crown Automotive 90 -> 89).
 
 ## Current settings
 
