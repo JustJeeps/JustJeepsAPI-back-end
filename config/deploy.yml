@@ -140,22 +140,28 @@ env:
     SMTP_PORT: "2525"
     SMTP_SECURE: "false"
     # Vendor feeds in Spaces (bucket provisioned on 2026-08-05).
-    # 12:47 = AFTER the vendor finishes publishing, and with room before
-    # seed-all (7:32/19:32): global cron mutex. The Keystone FTP drops long
-    # transfers (426), so byte-level resume plus generous retries.
+    # The Keystone FTP drops long transfers (426), so byte-level resume plus
+    # generous retries; command crons share one gate (deferred, never dropped).
     #
     # The vendor writes Inventory.csv and ~90s later SpecialOrder.csv, between
     # 8:11 and 9:06 on weekdays and as late as 11:02 on a Sunday (measured over
-    # the archived fetch logs, 2026-09-13..22). The 9:00 slot ran INSIDE that
-    # window: on 2026-09-21 the fetch started 16s after Inventory.csv landed and
-    # took it home with Sunday's SpecialOrder.csv, which is what the stale-feed
-    # alert reported the next morning. :47 keeps the original slot design (off
-    # the delta */5 grid, 10 min after the */4 jobs at :37).
+    # the archived fetch logs, 2026-09-13..22). On 2026-09-21 a 9:00 fetch
+    # started 16s after Inventory.csv landed and took it home with Sunday's
+    # SpecialOrder.csv; the export-skew gate now refuses that mix.
+    #
+    # Since 2026-10-13 (asked by Ricardo): fetch at 9:30, after the weekday
+    # window, and apply the Keystone prices at 10:10 instead of waiting for the
+    # 19:32 seed-all. The 12:47 catch-up covers late Sundays (a batch it brings
+    # is applied by seed-all at 19:32); when nothing changed it uploads nothing.
     CRON_FEED_FETCH_KEYSTONE_ENABLED: "true"
-    CRON_FEED_FETCH_KEYSTONE_SCHEDULE: "47 12 * * *"
+    CRON_FEED_FETCH_KEYSTONE_SCHEDULE: "30 9 * * *"
+    CRON_FEED_APPLY_KEYSTONE_ENABLED: "true"
+    CRON_FEED_APPLY_KEYSTONE_SCHEDULE: "10 10 * * *"
+    CRON_FEED_FETCH_KEYSTONE_CATCHUP_ENABLED: "true"
+    CRON_FEED_FETCH_KEYSTONE_CATCHUP_SCHEDULE: "47 12 * * *"
     # Feeds retention: keeps the 2 newest versions of each feed file in Spaces
     # and deletes the rest (catalog-protected; see scripts/feed-prune.js).
-    # 6:17 sits before both the fetch (12:47) and seed-all (7:32); what a prune
+    # 6:17 sits before both the fetch (9:30) and seed-all (7:32); what a prune
     # may delete comes from the catalog, never from the age of the object, so
     # running ahead of the day's fetch is safe.
     CRON_FEEDS_PRUNE_ENABLED: "true"

@@ -1218,6 +1218,9 @@ const { authenticateToken, optionalAuth } = require('./middleware/auth');
 // Vendor feeds in Spaces: catalog/audit trail, panel and download
 const ingestRoutes = require('./routes/ingest');
 const feedRunner = require('./services/feeds/runnerInstance');
+// The reverse of the isBusy() check below: Run now refuses while the feed's own
+// scheduled job holds the gate.
+feedRunner.setActiveCronCommand(() => commandGate.getActive()?.command || null);
 const feedCatalog = require('./lib/feeds/catalog');
 const { createFeedStore } = require('./lib/feeds/feedStore');
 const { getFeedDefinitions } = require('./config/feeds');

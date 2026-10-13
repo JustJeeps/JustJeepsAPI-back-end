@@ -31,11 +31,21 @@ const skuCostAlertSku = process.env.SKU_COST_ALERT_SKU || 'TH-635801';
 const cadDisabledUsWeeklyEnabled = process.env.CRON_CAD_US_WEEKLY_ENABLED !== 'false';
 const cadDisabledUsWeeklySchedule = process.env.CRON_CAD_US_WEEKLY_SCHEDULE || '30 6 * * 1';
 // Keystone feed fetch (FTP -> Spaces): opt-in until the bucket is provisioned
-// (DO_SPACES_*). The schedule sits off the delta's */5 grid, AFTER the vendor's
-// publishing window (see config/deploy.yml) and with room before seed-all
-// (global mutex across command crons).
+// (DO_SPACES_*). 9:30 is after the vendor's weekday publishing window (see
+// config/deploy.yml); the 12:47 catch-up covers the Sundays the vendor
+// publishes late. The catch-up is the same script under its own npm name,
+// because crons are keyed by command (runner, gate, history). When nothing
+// changed it ends with "identical to the current batch".
 const keystoneFeedFetchEnabled = process.env.CRON_FEED_FETCH_KEYSTONE_ENABLED === 'true';
-const keystoneFeedFetchSchedule = process.env.CRON_FEED_FETCH_KEYSTONE_SCHEDULE || '47 12 * * *';
+const keystoneFeedFetchSchedule = process.env.CRON_FEED_FETCH_KEYSTONE_SCHEDULE || '30 9 * * *';
+const keystoneFeedFetchCatchupEnabled = process.env.CRON_FEED_FETCH_KEYSTONE_CATCHUP_ENABLED === 'true';
+const keystoneFeedFetchCatchupSchedule = process.env.CRON_FEED_FETCH_KEYSTONE_CATCHUP_SCHEDULE || '47 12 * * *';
+// Keystone prices: applies the batch the 9:30 fetch brought without waiting
+// for the 19:32 seed-all (same chain as the panel's Run now plus the codes
+// pass). If the fetch is still running the gate defers this until it ends; if
+// the fetch brought nothing new the seed sees the same file hash and skips.
+const keystoneFeedApplyEnabled = process.env.CRON_FEED_APPLY_KEYSTONE_ENABLED === 'true';
+const keystoneFeedApplySchedule = process.env.CRON_FEED_APPLY_KEYSTONE_SCHEDULE || '10 10 * * *';
 // Feeds retention prune (Spaces): opt-in, mesma razao do fetch acima. 6:17
 // fica fora da grade */5 do delta e antes do seed-all das 7:32 (e o
 // commandGate serializa de qualquer forma). Roda antes do fetch do dia, o que
@@ -175,6 +185,22 @@ function getCronJobDefinitions({ includeDisabled = false } = {}) {
 			jobName: 'Keystone FTP Feed Fetch',
 			logPrefix: 'Keystone FTP feed fetch',
 			reportLogFile: 'logs/feed-fetch-keystone.log',
+		},
+		{
+			enabled: keystoneFeedFetchCatchupEnabled,
+			schedule: keystoneFeedFetchCatchupSchedule,
+			command: 'feed-fetch-keystone-catchup',
+			jobName: 'Keystone FTP Feed Fetch (catch-up)',
+			logPrefix: 'Keystone FTP feed fetch catch-up',
+			reportLogFile: 'logs/feed-fetch-keystone-catchup.log',
+		},
+		{
+			enabled: keystoneFeedApplyEnabled,
+			schedule: keystoneFeedApplySchedule,
+			command: 'feed-apply-keystone',
+			jobName: 'Keystone Prices Apply',
+			logPrefix: 'Keystone prices apply',
+			reportLogFile: 'logs/feed-apply-keystone.log',
 		},
 		{
 			enabled: feedsPruneEnabled,
@@ -325,6 +351,10 @@ module.exports = {
 		cadDisabledUsWeeklySchedule,
 		keystoneFeedFetchEnabled,
 		keystoneFeedFetchSchedule,
+		keystoneFeedFetchCatchupEnabled,
+		keystoneFeedFetchCatchupSchedule,
+		keystoneFeedApplyEnabled,
+		keystoneFeedApplySchedule,
 		feedsPruneEnabled,
 		feedsPruneSchedule,
 		lowridersSeedEnabled,

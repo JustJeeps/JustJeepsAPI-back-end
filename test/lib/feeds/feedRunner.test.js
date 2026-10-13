@@ -9,7 +9,13 @@ const FEEDS = {
 		if (name === 'omix') return { name: 'omix', seedCommand: 'seed-omix' };
 		// Pulled from the vendor by FTP, so it also has a manual fetch.
 		if (name === 'keystone-ftp') {
-			return { name: 'keystone-ftp', seedCommand: 'seed-keystone-ftp2', fetchCommand: 'feed-fetch-keystone' };
+			return {
+				name: 'keystone-ftp',
+				seedCommand: 'seed-keystone-ftp2',
+				syncCommands: ['seed-keystone-ftp2', 'seed-keystone-ftp-codes'],
+				applyCommand: 'feed-apply-keystone',
+				fetchCommand: 'feed-fetch-keystone',
+			};
 		}
 		// A feed may list several scripts, run in sequence.
 		if (name === 'quadratec') return { name: 'quadratec', seedCommand: ['seed-quadratec', 'seed-quad-inventory'] };
@@ -168,4 +174,29 @@ test('a lock left behind by a restart does not block the button forever', () => 
 
 	assert.doesNotThrow(() => fixture.runner.start('omix'));
 	assert.strictEqual(fixture.spawned.length, 1);
+});
+
+test("blocks while the feed's own scheduled job holds the cron gate, and only that feed", () => {
+	const fixture = makeFixture();
+	let active = 'feed-apply-keystone';
+	fixture.runner.setActiveCronCommand(() => active);
+
+	assert.throws(
+		() => fixture.runner.start('keystone-ftp'),
+		(error) => error.code === 'FEED_RUN_BUSY' && /feed-apply-keystone/.test(error.message)
+	);
+	assert.strictEqual(fixture.spawned.length, 0);
+
+	// Another vendor's seed does not share Keystone's staging tables.
+	fixture.runner.start('omix');
+	assert.strictEqual(fixture.spawned.length, 1);
+	fixture.getChild().emit('close', 0);
+
+	// The codes pass is part of the feed's sync as well.
+	active = 'seed-keystone-ftp-codes';
+	assert.throws(() => fixture.runner.start('keystone-ftp'), (error) => error.code === 'FEED_RUN_BUSY');
+
+	active = null;
+	fixture.runner.start('keystone-ftp');
+	assert.strictEqual(fixture.spawned.length, 2);
 });

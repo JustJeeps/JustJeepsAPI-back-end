@@ -55,16 +55,19 @@ const FEED_DEFINITIONS = [
 		files: ['Inventory.csv', 'SpecialOrder.csv'],
 		seedCommand: 'seed-keystone-ftp2',
 		syncCommands: ['seed-keystone-ftp2', 'seed-keystone-ftp-codes'],
+		// Scheduled job (10:10) that runs the sync above on its own; Run now
+		// refuses while it holds the cron gate.
+		applyCommand: 'feed-apply-keystone',
 		recordsOwnRuns: true,
 		legacyDir: 'keystone_files',
-		// One fetch a day (12:47), so a batch is ~12h old at the 00:10 digest and
-		// 36h is exactly "the last fetch brought nothing new". It was calibrated
-		// for two fetches a day and left untouched when the schedule became one
-		// (2026-09-16), which is why a single day-old SpecialOrder.csv was enough
-		// to trip it.
+		// Fetch at 9:30 with a 12:47 catch-up, so a batch is ~15h old at the
+		// 00:10 digest and 36h is exactly "the last fetches brought nothing new".
+		// It was calibrated for two fetches a day and left untouched when the
+		// schedule became one (2026-09-16), which is why a single day-old
+		// SpecialOrder.csv was enough to trip it.
 		staleAfterHours: 36,
 		fetch: 'ftp',
-		// Manual trigger for the scheduled fetch (12:47). The schedule sits after
+		// Manual trigger for the scheduled fetch (9:30, catch-up 12:47). The schedule sits after
 		// the vendor's measured publishing window, but the window does move, and
 		// when it moves past us the run succeeds with yesterday's file and there
 		// is nothing to do until the next window.
