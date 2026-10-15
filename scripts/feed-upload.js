@@ -129,27 +129,29 @@ async function main() {
 		files.push({ fileName: upload.fileName, objectKey: key, sha256, sizeBytes, contentType, sourceModifiedAt });
 	}
 
-	// What was not given is carried forward from the current batch, so a single
-	// file of a multi-file feed can be refreshed on its own (the vendor does not
-	// always send both at once). --batch is left alone: there the caller is
-	// deliberately completing an existing batch by hand.
+	// What was not given is carried forward from the newest stored copy of
+	// each file (same rule as the panel, see carryForwardMissing in
+	// routes/ingest.js), so a single file of a multi-file feed can be
+	// refreshed on its own (the vendor does not always send both at once).
+	// Per file and not from the current batch, so a feed that just gained a
+	// file still carries the old ones. --batch is left alone: there the caller
+	// is deliberately completing an existing batch by hand.
 	if (!args.archive && !args.batch) {
 		const missingNow = feed.files.filter((name) => !files.some((file) => file.fileName === name));
 		if (missingNow.length > 0) {
-			const current = await catalog.getCurrentBatch(prisma, feed.name, feed.files);
-			if (current) {
-				for (const name of missingNow) {
-					const previous = current.artifacts.find((artifact) => artifact.fileName === name);
-					console.log(`📎 ${name} kept from the current batch (uploaded ${previous.uploadedAt.toISOString().slice(0, 16)})`);
-					files.push({
-						fileName: previous.fileName,
-						objectKey: previous.objectKey,
-						sha256: previous.sha256,
-						sizeBytes: Number(previous.sizeBytes),
-						contentType: previous.contentType,
-						sourceModifiedAt: previous.sourceModifiedAt,
-					});
-				}
+			const latest = await catalog.getLatestArtifacts(prisma, feed.name, missingNow);
+			for (const name of missingNow) {
+				const previous = latest[name];
+				if (!previous) continue; // never stored: reported as INCOMPLETE below
+				console.log(`📎 ${name} kept from its latest stored copy (uploaded ${previous.uploadedAt.toISOString().slice(0, 16)})`);
+				files.push({
+					fileName: previous.fileName,
+					objectKey: previous.objectKey,
+					sha256: previous.sha256,
+					sizeBytes: Number(previous.sizeBytes),
+					contentType: previous.contentType,
+					sourceModifiedAt: previous.sourceModifiedAt,
+				});
 			}
 		}
 	}

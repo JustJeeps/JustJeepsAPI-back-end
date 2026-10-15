@@ -51,7 +51,8 @@ stub('../../lib/feeds/feedStore', {
 	createFeedStore: () => ({
 		isConfigured: () => true,
 		buildKey: ({ feed, fileName, sha256 }) => `feeds/${feed}/${sha256.slice(0, 8)}-${fileName}`,
-		createMultipartUpload: async () => ({ uploadId: 'multipart-1' }),
+		// One id per call: a commit of two files holds two sessions at once.
+		createMultipartUpload: async () => ({ uploadId: `multipart-${nextId++}` }),
 		signPart: async () => 'https://bucket.example/signed-part',
 		listParts: async () => [{ PartNumber: 1 }],
 		completeMultipartUpload: async () => ({}),
@@ -91,22 +92,38 @@ const post = (port, url, body) => fetch(`http://127.0.0.1:${port}${url}`, {
 	body: JSON.stringify(body),
 });
 
-// Puts a complete batch in the catalog, the way a first upload would.
-const seedCurrentBatch = async () => {
+// Puts a batch in the catalog, the way an upload would. Only the file names
+// given, so a test can start from the batches that exist in production before
+// the feed gained its third file.
+const seedBatch = async (fileNames) => {
 	artifacts.length = 0;
 	const { registerArtifacts } = require('../../lib/feeds/catalog');
 	await registerArtifacts(prismaStub, {
 		feed: 'quadratec',
 		source: 'manual',
-		files: [
-			{ fileName: 'quadratec_wholesale.csv', objectKey: 'feeds/quadratec/old-csv', sha256: 'a'.repeat(64), sizeBytes: 10 },
-			{ fileName: 'pricingSheet_quad.xlsx', objectKey: 'feeds/quadratec/old-xlsx', sha256: 'b'.repeat(64), sizeBytes: 20 },
-		],
+		files: fileNames.map((fileName, index) => ({
+			fileName,
+			objectKey: `feeds/quadratec/old-${fileName}`,
+			sha256: String.fromCharCode(97 + index).repeat(64),
+			sizeBytes: 10 * (index + 1),
+		})),
 	});
 };
 
+const QUADRATEC_FILES = ['quadratec_wholesale.csv', 'pricingSheet_quad.xlsx', 'pricingKit_quad.xlsx'];
+
+// Drives the browser flow for one file: upload slot, bytes, multipart done.
+const uploadFile = async (port, fileName, sha256) => {
+	const init = await post(port, '/api/ingest/feeds/quadratec/uploads', { fileName, sizeBytes: 1024 })
+		.then((res) => res.json());
+	assert.ok(init.uploadId, `expected an upload id for ${fileName}, got ${JSON.stringify(init)}`);
+	const done = await post(port, `/api/ingest/feeds/quadratec/uploads/${init.uploadId}/complete`, { sha256 });
+	assert.strictEqual(done.status, 200, await done.text());
+	return init.uploadId;
+};
+
 test('a partial upload completes the batch from the current one', async () => {
-	await seedCurrentBatch();
+	await seedBatch(QUADRATEC_FILES);
 	const { server, port } = await startServer();
 
 	try {
@@ -133,14 +150,70 @@ test('a partial upload completes the batch from the current one', async () => {
 		assert.strictEqual(body.isCurrent, true, 'the new batch has to be readable right away');
 		assert.deepStrictEqual(
 			body.carriedForward.map((file) => file.fileName),
-			['pricingSheet_quad.xlsx'],
-			'the file that was not sent is named back, so the panel can say what it kept'
+			['pricingSheet_quad.xlsx', 'pricingKit_quad.xlsx'],
+			'the files that were not sent are named back, so the panel can say what it kept'
 		);
 
 		// The kept file points at the object that was already stored: nothing was
 		// re-uploaded for it.
 		const kept = body.artifacts.find((artifact) => artifact.fileName === 'pricingSheet_quad.xlsx');
-		assert.strictEqual(kept.objectKey, 'feeds/quadratec/old-xlsx');
+		assert.strictEqual(kept.objectKey, 'feeds/quadratec/old-pricingSheet_quad.xlsx');
+	} finally {
+		server.close();
+	}
+});
+
+// The transition when a feed gains a file: production holds batches with the
+// CSV and the sheet only, so no batch covers every file. The first upload of
+// the new kit, sent together with the sheet, still has to carry the CSV from
+// the old batch and come out as a complete three-file batch.
+test('a missing file is carried from the latest stored copy even when no batch covers every file', async () => {
+	await seedBatch(['quadratec_wholesale.csv', 'pricingSheet_quad.xlsx']);
+	const { server, port } = await startServer();
+
+	try {
+		const sheetId = await uploadFile(port, 'pricingSheet_quad.xlsx', 'c'.repeat(64));
+		const kitId = await uploadFile(port, 'pricingKit_quad.xlsx', 'd'.repeat(64));
+
+		const response = await post(port, '/api/ingest/feeds/quadratec/uploads/commit', {
+			uploadIds: [sheetId, kitId],
+			reuse: [],
+		});
+		const body = await response.json();
+
+		assert.strictEqual(response.status, 201, `expected 201, got ${response.status}: ${JSON.stringify(body)}`);
+		assert.strictEqual(body.isCurrent, true, 'the three-file batch is the current one');
+		assert.deepStrictEqual(body.carriedForward.map((file) => file.fileName), ['quadratec_wholesale.csv']);
+		assert.deepStrictEqual(
+			body.artifacts.map((artifact) => artifact.fileName).sort(),
+			[...QUADRATEC_FILES].sort()
+		);
+		const kept = body.artifacts.find((artifact) => artifact.fileName === 'quadratec_wholesale.csv');
+		assert.strictEqual(kept.objectKey, 'feeds/quadratec/old-quadratec_wholesale.csv');
+	} finally {
+		server.close();
+	}
+});
+
+test('a file that was never stored cannot be carried forward and is named in the 409', async () => {
+	await seedBatch(['quadratec_wholesale.csv', 'pricingSheet_quad.xlsx']);
+	const { server, port } = await startServer();
+
+	try {
+		// Only the sheet: the CSV can be carried, the kit has never been uploaded.
+		const sheetId = await uploadFile(port, 'pricingSheet_quad.xlsx', 'c'.repeat(64));
+
+		const response = await post(port, '/api/ingest/feeds/quadratec/uploads/commit', { uploadIds: [sheetId] });
+		const body = await response.json();
+
+		assert.strictEqual(response.status, 409, JSON.stringify(body));
+		assert.strictEqual(body.code, 'FEED_BATCH_INCOMPLETE');
+		assert.deepStrictEqual(body.missing, ['pricingKit_quad.xlsx']);
+		assert.match(body.error, /pricingKit_quad\.xlsx/);
+		assert.doesNotMatch(body.error, /quadratec_wholesale\.csv/, 'the CSV could be carried, so it is not asked for');
+
+		// Nothing was catalogued: the old batch is untouched.
+		assert.ok(artifacts.every((row) => row.status === 'available' && row.objectKey.startsWith('feeds/quadratec/old-')));
 	} finally {
 		server.close();
 	}

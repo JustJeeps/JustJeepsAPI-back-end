@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const fs = require("fs");
 const path = require("path");
 const prisma = require("../../../lib/prisma");
 const quadratecCost = require("../api-calls/quadratec-excel.js");
@@ -247,6 +248,22 @@ async function buildQuadratecRows() {
   return { rowsToInsert, rawCount: raw.length, missingProduct };
 }
 
+const PRICE_SHEET_PATH = path.join(__dirname, "..", "api-calls", "pricingSheet_quad.xlsx");
+// Gold kit export (merged into the prices by quadratec-excel.js). It only
+// exists on disk after the first kit upload, so it is optional here.
+const KIT_SHEET_PATH = path.join(__dirname, "..", "api-calls", "pricingKit_quad.xlsx");
+
+// Skip gate hash. Without the kit it is the same hash as before, so a deploy
+// alone does not force a run. With the kit present its digest joins the hash,
+// so a new kit upload is never skipped as "unchanged".
+function quadratecSourceHash({ fileDigest, priceSheetDigest, kitDigest = null, rate }) {
+  const hash = crypto.createHash("sha256")
+    .update(fileDigest).update("|")
+    .update(priceSheetDigest).update("|");
+  if (kitDigest) hash.update(kitDigest).update("|");
+  return hash.update(String(rate)).digest("hex");
+}
+
 const STAGING_TABLE = "vp_quadratec";
 const STAGING_DDL = `
   product_sku TEXT NOT NULL,
@@ -277,15 +294,16 @@ async function seedQuadratecStaged() {
     // Prices come from pricingSheet_quad.xlsx (via quadratec-excel.js), not
     // from the CSV. The gate has to invalidate the skip when ANY of the sources
     // changes, otherwise an xlsx-only refresh never runs and prices stay frozen.
-    const priceSheetDigest = await hashFile(
-      path.join(__dirname, "..", "api-calls", "pricingSheet_quad.xlsx")
-    );
+    const priceSheetDigest = await hashFile(PRICE_SHEET_PATH);
+    const kitDigest = fs.existsSync(KIT_SHEET_PATH) ? await hashFile(KIT_SHEET_PATH) : null;
     // The CAD cost derives from the exchange rate, so a change to
     // USD_TO_CAD_RATE has to invalidate the skip even with identical files.
-    const sourceHash = crypto.createHash("sha256")
-      .update(fileDigest).update("|")
-      .update(priceSheetDigest).update("|")
-      .update(String(USD_TO_CAD_RATE)).digest("hex");
+    const sourceHash = quadratecSourceHash({
+      fileDigest,
+      priceSheetDigest,
+      kitDigest,
+      rate: USD_TO_CAD_RATE,
+    });
 
     run = await startRun(FEED, {
       sourceKind: "csv",
@@ -397,5 +415,12 @@ const seedQuadratec = process.env.QUADRATEC_PIPELINE === "legacy"
   ? seedQuadratecLegacy
   : seedQuadratecStaged;
 
-seedQuadratec();
+if (require.main === module) {
+  seedQuadratec();
+}
+
 module.exports = seedQuadratec;
+// For tests and offline dry runs (mocked prisma), never for other seeds.
+module.exports.buildQuadratecRows = buildQuadratecRows;
+module.exports.quadratecSourceHash = quadratecSourceHash;
+module.exports.KIT_SHEET_PATH = KIT_SHEET_PATH;

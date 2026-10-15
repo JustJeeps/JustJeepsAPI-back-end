@@ -18,6 +18,14 @@ Before this, feed files were copied into the image from the deployer's working d
 
 Multi-file feeds (Keystone = `Inventory.csv` + `SpecialOrder.csv`) share a `batchId`. A batch only becomes current when ALL expected files are catalogued, so a partial upload can never feed the sync.
 
+### Carry-forward on upload
+
+An upload (panel or `npm run feed-upload`) does not have to include every file of a multi-file feed. Each file that was not sent is carried forward from the newest stored copy **of that file name**, whatever batch it sits in, and the new batch is registered with all of them. The lookup is per file, not "the current batch", so a feed that gains a file keeps accepting uploads during the transition: the old files are carried and only the new one has to be sent. A file that was never stored cannot be carried; the upload is refused with `409 FEED_BATCH_INCOMPLETE` and `missing` lists exactly those files.
+
+### Quadratec: three files since Oct 2026
+
+`quadratec` = `quadratec_wholesale.csv` (inventory) + `pricingSheet_quad.xlsx` (gold sheet, item prices) + `pricingKit_quad.xlsx` (gold kit, kit prices). Up to Sep 2026 the kits were rows inside the gold sheet; Quadratec now exports them in a separate file. The kit is **required**: `seed-quadratec` deletes the `VendorProduct` rows missing from the files, so a batch with the sheet alone would remove the ~6k kit rows, and the 0.5 shrink guard does not catch a 6% drop. Right after the deploy that added the kit, no batch covers all three files: the panel shows the feed as "no data", the digest reports it as having no batch, feed-sync removes its Quadratec symlinks and `seed-quadratec` / `seed-quad-inventory` fail in seed-all, until the sheet and the kit are uploaded together (the CSV is carried forward). Upload them right after the deploy.
+
 ## Legacy paths preserved (feed-sync)
 
 Seed scripts keep reading their original paths under `prisma/seeds/api-calls/`. The `feed-sync` step (stage 0 of `seed-all`, also `npm run feed-sync`) materializes the current batch of every feed into the verified cache and puts an atomic **symlink** at each legacy path, for example:

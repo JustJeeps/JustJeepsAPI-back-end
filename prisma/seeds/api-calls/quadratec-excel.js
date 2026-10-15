@@ -1,5 +1,6 @@
 const XLSX = require("xlsx");
 const path = require("path");
+const { loadKitSheetRows, mergeKitRows } = require("./quadratec-kit.js");
 
 function normalizeText(value) {
   return (value ?? "").toString().trim();
@@ -114,10 +115,19 @@ function toPoisonSpyderDashedPartNumber(value) {
   return `${compact.slice(0, 2)}-${compact.slice(2, 4)}-${compact.slice(4)}`;
 }
 
-const quadratecCost = () => {
+// options are only used by tests and dry runs (paths and logger injection);
+// the seeds call quadratecCost() with no arguments.
+const quadratecCost = (options = {}) => {
+  const logger = options.logger || console;
+
   // Step 1: Load Excel file
   // Construct the absolute file path using __dirname and the file name
-  const filePath = path.join(__dirname, "pricingSheet_quad.xlsx");
+  const filePath = options.sheetPath || path.join(__dirname, "pricingSheet_quad.xlsx");
+  // Kits come in their own "gold kit" export since Oct 2026. Before that they
+  // were rows of this sheet, so the kit file is read through an adapter that
+  // gives each kit row the old sheet shape and the rows are appended below the
+  // sheet rows. The loop below then treats both the same way.
+  const kitPath = options.kitPath || path.join(__dirname, "pricingKit_quad.xlsx");
 
   // Read the file using the updated file path
   const workbook = XLSX.readFile(filePath);
@@ -138,9 +148,19 @@ const quadratecCost = () => {
     "Shipping Surcharge",
   ];
   const jsonData = XLSX.utils.sheet_to_json(sheet, { header: customHeader });
+  const sheetRows = jsonData.slice(1);
+
+  // Kit rows go below the sheet rows. A PN present in both keeps the sheet row.
+  const kit = loadKitSheetRows({ filePath: kitPath });
+  if (!kit.present) {
+    logger.warn(
+      `⚠️  ${path.basename(kitPath)} not found: kits come only from the gold sheet (old layout)`
+    );
+  }
+  const merged = mergeKitRows(sheetRows, kit.rows);
 
   // Step 3: Access JSON Data
-  const finalResults = jsonData.slice(1).map((obj) => {
+  const finalResults = merged.rows.map((obj) => {
     const originalBrand = normalizeText(obj["Brand"]);
     const mpn = normalizeText(obj["MPN"]);
     const quadPn = normalizeText(obj["Quadratec PN"]);
@@ -317,6 +337,21 @@ const quadratecCost = () => {
 
   //     };
   //   });
+  if (kit.present) {
+    // Kits without a brand get the bare PN as code (same as a sheet row with an
+    // empty brand). Only a count here, no extra matching rules.
+    const kitResults = finalResults.slice(sheetRows.length);
+    const nullBrandWithCode = kitResults.filter(
+      (row) => !row.original_brand && row.quadratec_code
+    ).length;
+    logger.log(
+      `✅ Quadratec kits (${path.basename(kitPath)}): ${kit.counts.read} read, ` +
+        `${merged.appended} appended, ${merged.skipped} already in the sheet (sheet wins), ` +
+        `${kit.counts.noWholesale} without wholesale price, ` +
+        `${kit.counts.nullBrand} without brand (${nullBrandWithCode} of them with a bare PN code)`
+    );
+  }
+
   if (process.env.DEBUG_QUADRATEC_EXCEL === "1") {
     console.log("from api-calls", finalResults);
   }

@@ -25,6 +25,7 @@ test('workbookBaseName is unique and resolves the matching feed', () => {
 	// One vendor, two workbooks: both resolve to the same feed.
 	assert.strictEqual(feedsConfig.getFeedByWorkbookBaseName('quadratec_wholesale').name, 'quadratec');
 	assert.strictEqual(feedsConfig.getFeedByWorkbookBaseName('pricingSheet_quad').name, 'quadratec');
+	assert.strictEqual(feedsConfig.getFeedByWorkbookBaseName('pricingKit_quad').name, 'quadratec');
 	assert.strictEqual(feedsConfig.getFeedByWorkbookBaseName('CTPENT_Inventory').name, 'ctp');
 	assert.strictEqual(feedsConfig.getFeedByWorkbookBaseName('does-not-exist'), null);
 });
@@ -32,6 +33,13 @@ test('workbookBaseName is unique and resolves the matching feed', () => {
 test('keystone-ftp requires both FTP files', () => {
 	const keystone = feedsConfig.getFeedByName('keystone-ftp');
 	assert.deepStrictEqual(keystone.files, ['Inventory.csv', 'SpecialOrder.csv']);
+});
+
+test('quadratec requires the CSV, the gold sheet and the gold kit', () => {
+	// The kit is required, not optional: seed-quadratec deletes what is missing
+	// from the files, so a sheet-only batch would remove every kit row.
+	const quadratec = feedsConfig.getFeedByName('quadratec');
+	assert.deepStrictEqual(quadratec.files, ['quadratec_wholesale.csv', 'pricingSheet_quad.xlsx', 'pricingKit_quad.xlsx']);
 });
 
 test('FEED_STALE_HOURS_<NAME> overrides the threshold', () => {

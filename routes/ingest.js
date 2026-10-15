@@ -82,6 +82,9 @@ const serializeStatus = (status) => ({
 	currentBatch: status.currentBatch
 		? { ...status.currentBatch, artifacts: status.currentBatch.artifacts.map(serializeArtifact) }
 		: null,
+	latestArtifacts: Object.fromEntries(
+		Object.entries(status.latestArtifacts || {}).map(([fileName, artifact]) => [fileName, serializeArtifact(artifact)])
+	),
 });
 
 // --- guard: feature requires a logged in user (same contract as requests) ------
@@ -393,6 +396,49 @@ router.post('/feeds/:feed/uploads/:uploadId/complete', requireTriage, async (req
 	}
 });
 
+// A file the person did not send is CARRIED FORWARD from the newest stored
+// copy of that file name, so each file of a multi-file feed can be updated on
+// its own. The vendor does not always send everything at the same time (the
+// QuickBooks exports are taken separately, and Quadratec ships the sheet and
+// the CSV on their own schedules), and refusing the upload just meant the new
+// file never arrived. The batch still ends up covering every file, which is
+// what keeps the feed readable.
+//
+// Each file is looked up on its own, not through the current batch: when a
+// feed gains a file (Quadratec got its gold kit in Oct 2026) there is no
+// batch covering every file until the first upload of the new one, and that
+// upload still needs the old files carried forward. The only thing that
+// cannot be carried is a file that was never stored; those are named back so
+// the caller can send them.
+//
+// Both upload routes share this. uploadedAt rides along so the commit route
+// can tell the panel from when the kept file is.
+async function carryForwardMissing(feed, sentNames) {
+	const missing = feed.files.filter((name) => !sentNames.includes(name));
+	if (missing.length === 0) return { carriedForward: [], neverStored: [] };
+
+	const latest = await catalog.getLatestArtifacts(prisma, feed.name, missing);
+	const neverStored = missing.filter((name) => !latest[name]);
+	const carriedForward = missing
+		.filter((name) => latest[name])
+		.map((name) => ({
+			fileName: latest[name].fileName,
+			objectKey: latest[name].objectKey,
+			sha256: latest[name].sha256,
+			sizeBytes: Number(latest[name].sizeBytes),
+			contentType: latest[name].contentType,
+			sourceModifiedAt: latest[name].sourceModifiedAt,
+			uploadedAt: latest[name].uploadedAt,
+		}));
+	return { carriedForward, neverStored };
+}
+
+const batchIncompleteError = (feed, neverStored) => ({
+	error: `Feed ${feed.name} has no stored copy of ${neverStored.join(', ')} to complete the batch with, so this upload needs to include it`,
+	code: 'FEED_BATCH_INCOMPLETE',
+	missing: neverStored,
+});
+
 // 4) Registers the WHOLE set as one batch. Files that did not change are named
 // here by hash, so a batch mixing reused and freshly uploaded files is still
 // complete. Nothing is catalogued until this call succeeds.
@@ -452,40 +498,14 @@ router.post('/feeds/:feed/uploads/commit', requireTriage, async (req, res) => {
 
 		if (files.length === 0) return res.status(400).json({ error: 'Nothing to commit' });
 
-		// A file the person did not send is CARRIED FORWARD from the current
-		// batch, so each file of a multi-file feed can be updated on its own.
-		// The vendor does not always send both at the same time (the QuickBooks
-		// exports are taken separately, and Quadratec ships the sheet and the CSV
-		// on their own schedules), and refusing the upload just meant the new
-		// file never arrived. The batch still ends up covering every file, which
-		// is what keeps the feed readable.
+		// What was not sent comes from the newest stored copy of each file (see
+		// carryForwardMissing above).
 		const names = files.map((file) => file.fileName);
-		const missing = feed.files.filter((name) => !names.includes(name));
-		let carriedForward = [];
-
-		if (missing.length > 0) {
-			const current = await catalog.getCurrentBatch(prisma, feed.name, feed.files);
-			if (!current) {
-				return res.status(409).json({
-					error: `Feed ${feed.name} has no previous file to complete the batch with, so this first upload needs all of them. Missing: ${missing.join(', ')}`,
-					code: 'FEED_BATCH_INCOMPLETE',
-				});
-			}
-
-			carriedForward = missing.map((name) => {
-				const previous = current.artifacts.find((artifact) => artifact.fileName === name);
-				return {
-					fileName: previous.fileName,
-					objectKey: previous.objectKey,
-					sha256: previous.sha256,
-					sizeBytes: Number(previous.sizeBytes),
-					contentType: previous.contentType,
-					sourceModifiedAt: previous.sourceModifiedAt,
-					uploadedAt: previous.uploadedAt,
-				};
-			});
-			files.push(...carriedForward.map(({ uploadedAt, ...file }) => file));
+		const { carriedForward, neverStored } = await carryForwardMissing(feed, names);
+		if (neverStored.length > 0) {
+			return res.status(409).json(batchIncompleteError(feed, neverStored));
 		}
+		files.push(...carriedForward.map(({ uploadedAt, ...file }) => file));
 
 		const { batchId, artifacts } = await catalog.registerArtifacts(prisma, {
 			feed: feed.name,
@@ -570,17 +590,11 @@ router.post('/feeds/:feed/upload', requireTriage, upload.array('files', 5), asyn
 			});
 		}
 		// Same rule as the direct upload: what is not sent is carried forward
-		// from the current batch, so one file of a multi-file feed can be
-		// refreshed on its own.
-		const missing = feed.files.filter((name) => !names.includes(name));
-		const currentBatch = missing.length > 0
-			? await catalog.getCurrentBatch(prisma, feed.name, feed.files)
-			: null;
-		if (missing.length > 0 && !currentBatch) {
-			return res.status(409).json({
-				error: `Feed ${feed.name} has no previous file to complete the batch with, so this first upload needs all of them. Missing: ${missing.join(', ')}`,
-				code: 'FEED_BATCH_INCOMPLETE',
-			});
+		// from the newest stored copy of each file (see carryForwardMissing),
+		// so one file of a multi-file feed can be refreshed on its own.
+		const { carriedForward, neverStored } = await carryForwardMissing(feed, names);
+		if (neverStored.length > 0) {
+			return res.status(409).json(batchIncompleteError(feed, neverStored));
 		}
 		const oversized = incoming.filter((file) => file.sizeBytes > feed.maxUploadBytes);
 		if (oversized.length > 0) {
@@ -603,17 +617,7 @@ router.post('/feeds/:feed/upload', requireTriage, upload.array('files', 5), asyn
 			files.push({ fileName: file.fileName, objectKey: key, sha256, sizeBytes: file.sizeBytes, contentType: CONTENT_TYPES[path.extname(file.fileName).toLowerCase()] || null });
 		}
 
-		for (const name of missing) {
-			const previous = currentBatch.artifacts.find((artifact) => artifact.fileName === name);
-			files.push({
-				fileName: previous.fileName,
-				objectKey: previous.objectKey,
-				sha256: previous.sha256,
-				sizeBytes: Number(previous.sizeBytes),
-				contentType: previous.contentType,
-				sourceModifiedAt: previous.sourceModifiedAt,
-			});
-		}
+		files.push(...carriedForward.map(({ uploadedAt, ...file }) => file));
 
 		const { batchId, artifacts } = await catalog.registerArtifacts(prisma, {
 			feed: feed.name,

@@ -329,6 +329,8 @@ const mapMagentoOptionValueToLabel = (rawValue, optionLookup) => {
 };
 
 const buildQuadratecPnLookup = async () => {
+  // quadratecCost() already merges the gold kit rows (pricingKit_quad.xlsx)
+  // below the sheet rows, sheet wins on a shared PN, so kit PNs land here too.
   const rows = await quadratecCost();
   const lookup = new Map();
 

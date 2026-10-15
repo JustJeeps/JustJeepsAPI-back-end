@@ -269,6 +269,29 @@ test('getCurrentBatch ignores an incomplete batch of a multi-file feed', async (
 	assert.notStrictEqual(nowCurrent.batchId, complete.batchId);
 });
 
+test('getLatestArtifacts returns the newest available copy of each file, whatever batch it is in', async () => {
+	// A feed that gained a file: the old batches have two files, the newest
+	// has only the new one. No batch covers all three, so getCurrentBatch is
+	// null, but each file still has a copy to carry forward except the one
+	// that was never uploaded.
+	const prisma = makePrismaStub();
+	const oldCsv = file('quadratec_wholesale.csv', { uploadedAt: new Date('2026-09-01T10:00:00Z') });
+	const oldSheet = file('pricingSheet_quad.xlsx', { uploadedAt: new Date('2026-09-01T10:00:00Z') });
+	await catalog.registerArtifacts(prisma, { feed: 'quadratec', source: 'manual', files: [oldCsv, oldSheet] });
+
+	const newSheet = file('pricingSheet_quad.xlsx', { uploadedAt: new Date('2026-10-13T10:00:00Z') });
+	await catalog.registerArtifacts(prisma, { feed: 'quadratec', source: 'manual', files: [newSheet] });
+
+	const all = ['quadratec_wholesale.csv', 'pricingSheet_quad.xlsx', 'pricingKit_quad.xlsx'];
+	assert.strictEqual(await catalog.getCurrentBatch(prisma, 'quadratec', all), null);
+
+	const latest = await catalog.getLatestArtifacts(prisma, 'quadratec', all);
+	assert.deepStrictEqual(Object.keys(latest).sort(), ['pricingSheet_quad.xlsx', 'quadratec_wholesale.csv']);
+	assert.strictEqual(latest['quadratec_wholesale.csv'].objectKey, oldCsv.objectKey, 'the CSV comes from the old batch');
+	assert.strictEqual(latest['pricingSheet_quad.xlsx'].objectKey, newSheet.objectKey, 'the sheet is the newest one, not the superseded copy');
+	assert.strictEqual(latest['pricingKit_quad.xlsx'], undefined, 'a file never uploaded has nothing to carry');
+});
+
 test('quarantineBatch takes the batch out of circulation and the previous one does not come back on its own', async () => {
 	const prisma = makePrismaStub();
 	await catalog.registerArtifacts(prisma, { feed: 'ctp', source: 'manual', files: [file('CTPENT_Inventory.csv')] });
@@ -331,4 +354,26 @@ test('listFeedStatuses marks stale by age and treats a missing batch as stale', 
 	// The panel uses seedCommand to enable the "Run now" button.
 	assert.strictEqual(statuses[0].seedCommand, 'seed-ctp');
 	assert.strictEqual(statuses[1].seedCommand, 'seed-omix');
+});
+
+test('listFeedStatuses lists the newest copy of each file even when no batch is complete', async () => {
+	// Feed that just gained a file: the panel has no current batch to show, but
+	// the upload modal still needs to know that the CSV and the sheet can be
+	// left out (they will be carried forward) and only the kit must be sent.
+	const prisma = makePrismaStub();
+	const csv = file('quadratec_wholesale.csv');
+	const sheet = file('pricingSheet_quad.xlsx');
+	await catalog.registerArtifacts(prisma, { feed: 'quadratec', source: 'manual', files: [csv, sheet] });
+
+	const defs = [{
+		name: 'quadratec',
+		files: ['quadratec_wholesale.csv', 'pricingSheet_quad.xlsx', 'pricingKit_quad.xlsx'],
+		staleAfterHours: 24,
+		maxUploadBytes: 1,
+	}];
+	const [status] = await catalog.listFeedStatuses(prisma, defs, { now: new Date() });
+
+	assert.strictEqual(status.currentBatch, null);
+	assert.deepStrictEqual(Object.keys(status.latestArtifacts).sort(), ['pricingSheet_quad.xlsx', 'quadratec_wholesale.csv']);
+	assert.strictEqual(status.latestArtifacts['quadratec_wholesale.csv'].objectKey, csv.objectKey);
 });

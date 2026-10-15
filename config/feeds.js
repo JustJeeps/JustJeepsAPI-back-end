@@ -75,18 +75,26 @@ const FEED_DEFINITIONS = [
 		maxUploadBytes: 600 * 1024 * 1024, // SpecialOrder.csv chega a 460MB (upload assinado direto ao bucket)
 	},
 	{
-		// One vendor, two files: the wholesale CSV carries inventory and the
-		// pricing sheet carries prices, and the scripts read them together (the
-		// price seed hashes both plus the CAD rate, so replacing only one would
-		// freeze the other). Keeping them as a single feed also means the batch
-		// is only current when both files are present.
+		// One vendor, three files: the wholesale CSV carries inventory, the gold
+		// sheet carries item prices and the gold kit carries kit prices. The
+		// scripts read them together (the price seed hashes the sheet and the kit
+		// plus the CAD rate, so replacing only one would freeze the others).
+		// Keeping them as a single feed also means the batch is only current
+		// when every file is present.
+		//
+		// The kit file is REQUIRED on purpose. Up to Sep 2026 the kits were rows
+		// inside the gold sheet; in Oct 2026 Quadratec moved them to a separate
+		// "gold kit" export. seed-quadratec deletes the VendorProduct rows that
+		// are missing from the files (staleStrategy delete), so a batch with the
+		// sheet alone would remove the ~6k kit rows. Making the kit optional
+		// would let that happen silently; requiring it makes the batch wait.
 		name: 'quadratec',
-		label: 'Quadratec (CSV + XLSX)',
-		files: ['quadratec_wholesale.csv', 'pricingSheet_quad.xlsx'],
+		label: 'Quadratec (CSV + gold sheet + gold kit)',
+		files: ['quadratec_wholesale.csv', 'pricingSheet_quad.xlsx', 'pricingKit_quad.xlsx'],
 		seedCommand: ['seed-quadratec', 'seed-quad-inventory'],
 		syncCommands: ['seed-quadratec', 'seed-quad-inventory'],
 		recordsOwnRuns: true,
-		workbookBaseNames: ['quadratec_wholesale', 'pricingSheet_quad'],
+		workbookBaseNames: ['quadratec_wholesale', 'pricingSheet_quad', 'pricingKit_quad'],
 		staleAfterHours: 30 * DAY_HOURS,
 	},
 	{
