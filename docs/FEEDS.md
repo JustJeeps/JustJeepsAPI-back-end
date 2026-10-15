@@ -26,6 +26,18 @@ An upload (panel or `npm run feed-upload`) does not have to include every file o
 
 `quadratec` = `quadratec_wholesale.csv` (inventory) + `pricingSheet_quad.xlsx` (gold sheet, item prices) + `pricingKit_quad.xlsx` (gold kit, kit prices). Up to Sep 2026 the kits were rows inside the gold sheet; Quadratec now exports them in a separate file. The kit is **required**: `seed-quadratec` deletes the `VendorProduct` rows missing from the files, so a batch with the sheet alone would remove the ~6k kit rows, and the 0.5 shrink guard does not catch a 6% drop. Right after the deploy that added the kit, no batch covers all three files: the panel shows the feed as "no data", the digest reports it as having no batch, feed-sync removes its Quadratec symlinks and `seed-quadratec` / `seed-quad-inventory` fail in seed-all, until the sheet and the kit are uploaded together (the CSV is carried forward). Upload them right after the deploy.
 
+### How a file is identified: by its columns, not its name
+
+Vendors export files with whatever name they like ("gold kit 10.13.26.xlsx", "gold sheet 10.13.26-1.xlsx"). Nobody has to rename them. Every feed in `config/feeds.js` lists its files as `fileSpecs: [{ name, label, signature, sheet }]`: `name` is the canonical file name (still the key in the catalog, the cache, the legacy symlinks and the seeds; `feed.files` is derived from it), `label` is what the panel shows ("Quadratec gold kit"), `signature` is the exact, ordered list of header columns of the real vendor file, and `sheet` names the sheet the seed reads (null = first sheet).
+
+The panel reads the header of a dropped file in the browser (`lib/feeds/fileSignature.js` rules, same code on both sides), matches it against the signatures returned by `GET /api/ingest/feeds` (`feed.fileSpecs`) and sends the canonical name. The server is the authority: `POST .../uploads/:id/complete` reads the stored object (a ranged GET of the first 64KB for a CSV, the whole file for an xlsx, bounded by the feed's `maxUploadBytes`) and checks it against the signature of the claimed name; the legacy multer route checks the temp file before storing it; `npm run feed-upload` classifies each file the same way (`--as <name>` names it explicitly, and the columns are still checked). A mismatch is `409 FEED_FILE_SIGNATURE_MISMATCH` with `missing` and `extra` columns, the object is deleted and nothing is catalogued. The Keystone FTP fetch runs the same check instead of its old "has a VCPN column" test.
+
+Matching rules (`lib/feeds/fileSignature.js`): cells are trimmed, inner whitespace and newlines collapsed to one space, leading and trailing empty cells dropped, empty cells in the middle kept (WARN has two), case kept. The first 20 rows are scanned (KeyParts has its header on row 7, WARN on row 4). The match is exact and ordered: several seeds read columns by position, so a reordered, extended or shortened header is a different file and is rejected rather than imported.
+
+**Keystone tie-break.** `Inventory.csv` and `SpecialOrder.csv` share the same header. The signature still picks the feed; between the two files, the name the file arrived with decides when it equals one of the canonical names (case-insensitive). If it does not, the panel asks the person to pick and the CLI asks for `--as`.
+
+**When a vendor changes its columns** the upload is refused with the diff. Open the new file, confirm with the seed owner that the importer still reads it (positional readers break on a reorder), then update the `signature` in `config/feeds.js` to the new header exactly as the file has it (the test in `test/lib/feeds/realFeedFiles.test.js` runs every local vendor file through the classifier, so put the new file at its legacy path and run `npm test`). Nothing else changes: the canonical name stays.
+
 ## Legacy paths preserved (feed-sync)
 
 Seed scripts keep reading their original paths under `prisma/seeds/api-calls/`. The `feed-sync` step (stage 0 of `seed-all`, also `npm run feed-sync`) materializes the current batch of every feed into the verified cache and puts an atomic **symlink** at each legacy path, for example:
@@ -38,18 +50,19 @@ So no seed script changes how it reads files. Rules: a feed with no catalogued b
 
 ## Key modules
 
-- `config/feeds.js` - feed registry (names, expected files, freshness thresholds)
+- `config/feeds.js` - feed registry (names, expected files with their column signatures, freshness thresholds)
+- `lib/feeds/fileSignature.js` - pure signature rules (normalize, find the header row, classify, diff); `lib/feeds/readHeaderRows.js` reads the first rows of a CSV/xlsx buffer; `services/feeds/signatureCheck.js` applies them to a stored object or a local file
 - `lib/feeds/feedStore.js` - S3 client factory (injectable, MinIO-friendly via `DO_SPACES_FORCE_PATH_STYLE`)
 - `lib/feeds/catalog.js` - register/getCurrentBatch/quarantine/listing (prisma injected)
 - `lib/feeds/materialize.js` - downloads the current batch into `FEED_CACHE_DIR` with sha verification and sentinel files; typed failures (`FEED_NO_ARTIFACT`, `FEED_HASH_MISMATCH`, `FEED_STALE`, `FEED_STORE_UNAVAILABLE`); falls back to the last intact cached batch if Spaces is down (marked stale, never silent)
 - `lib/feeds/keystoneFtp.js` - FTPS client, credentials from `KEYSTONE_FTP_USER/PASS` env; byte resume waits for the previous write stream to close before measuring the file, and the final size is checked against the vendor's `SIZE` (a mismatch discards the download)
 - `lib/feeds/csvIntegrity.js` - streaming quote-parity check (a line with an odd number of quotes means a stitched download; csv-parser would buffer the rest of the file until OOM)
-- `services/feeds/keystoneFetchService.js` - download, sanity gates (minimum size, size vs current batch, VCPN header, quote parity), upload both files, then catalog
+- `services/feeds/keystoneFetchService.js` - download, sanity gates (minimum size, size vs current batch, column signature, quote parity), upload both files, then catalog
 
 ## How to
 
 - Upload a feed manually (panel): Settings page, Vendor Feeds card, per feed Upload button (triage users only, max 100MB per file).
-- Upload via CLI: `npm run feed-upload -- <feed> <files...> [--note "..."] [--by user]`. Multi-file feeds need all files in one run, or complete a partial batch with `--batch <id>`.
+- Upload via CLI: `npm run feed-upload -- <feed> <files...> [--note "..."] [--by user] [--as name]`. Files are recognised by their columns, whatever their name; files not given are carried forward, or complete a partial batch with `--batch <id>`.
 - Fetch Keystone now: `npm run feed-fetch-keystone` (cron `feed-fetch-keystone` runs it at 12:47 once `CRON_FEED_FETCH_KEYSTONE_ENABLED=true`, after the vendor's publishing window).
 - Materialize locally: `npm run feed-materialize -- <feed>`.
 - Inspect: `GET /api/ingest/feeds` (current batch, age, stale flag, last runs) and `GET /api/ingest/runs?feed=...`. Stale or missing feeds also show as failures in the daily cron digest email.

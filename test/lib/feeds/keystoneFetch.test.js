@@ -9,9 +9,11 @@ const { runKeystoneFetch } = require('../../../services/feeds/keystoneFetchServi
 
 const sha256 = (content) => crypto.createHash('sha256').update(content).digest('hex');
 
-// Small contents; size floors lowered through the injected env.
-const INVENTORY = 'VCPN,Cost,TotalQty\nA1,10,2\n';
-const SPECIAL = 'VCPN,Cost,TotalQty\nB2,20,1\n';
+// Small contents with the real Keystone header (the fetch checks the column
+// signature from config/feeds.js); size floors lowered through the injected env.
+const KEYSTONE_HEADER = require('../../../config/feeds').getFileSpec('keystone-ftp', 'Inventory.csv').signature.join(',');
+const INVENTORY = `${KEYSTONE_HEADER}\nAIR LIFT,A1,A13,1,1,x,10,10\n`;
+const SPECIAL = `${KEYSTONE_HEADER}\nAIR LIFT,B2,A13,2,2,y,20,20\n`;
 
 // vendorModifiedAt: the date the file carries AT THE VENDOR (FTP MDTM). It is
 // what tells today's export from yesterday's, since the fetch runs on a
@@ -130,12 +132,26 @@ test('a file below the minimum size aborts BEFORE uploading or cataloging', asyn
 	assert.strictEqual(fixture.runs[0].status, 'failed');
 });
 
-test('a header without VCPN aborts', async () => {
+test('a header that is not the Keystone layout aborts', async () => {
 	const fixture = makeFixture({ ftpContents: { 'Inventory.csv': 'foo,bar\n1,2\n', 'SpecialOrder.csv': SPECIAL } });
 
 	await assert.rejects(
 		runKeystoneFetch({ ftpClient: fixture.ftpClient, store: fixture.store, prisma: fixture.prisma, catalog: fixture.catalogStub, cacheDir: fixture.cacheDir, env: fixture.env }),
-		/VCPN/
+		/Inventory\.csv has an unexpected header.*Keystone inventory \(Inventory\.csv\).*missing columns: "VendorName", "VCPN"/
+	);
+	assert.strictEqual(fixture.store.puts.length, 0);
+	assert.strictEqual(fixture.registered.length, 0);
+});
+
+test('a header with the VCPN column but a different layout aborts too', async () => {
+	// The old check only asked for a VCPN column somewhere; a vendor that adds
+	// or moves a column would have passed it and broken the positional readers.
+	const moved = `VCPN,${KEYSTONE_HEADER.replace('VCPN,', '')}\nA1,AIR LIFT\n`;
+	const fixture = makeFixture({ ftpContents: { 'Inventory.csv': INVENTORY, 'SpecialOrder.csv': moved } });
+
+	await assert.rejects(
+		runKeystoneFetch({ ftpClient: fixture.ftpClient, store: fixture.store, prisma: fixture.prisma, catalog: fixture.catalogStub, cacheDir: fixture.cacheDir, env: fixture.env }),
+		/SpecialOrder\.csv has an unexpected header.*different order/
 	);
 	assert.strictEqual(fixture.registered.length, 0);
 });
@@ -231,7 +247,7 @@ test('a vendor that does not answer with a date still catalogues the file', asyn
 test('a file with a line of odd quotes aborts BEFORE uploading or cataloging', async () => {
 	// 2026-09-09: same size as the current batch, same header, but one line
 	// stitched by a bad resume. Every downstream CSV reader choked on it.
-	const broken = 'VCPN,Desc,Cost\n"A1","ok",1\n"B2","CUSTOM FIT",9.0IN",759.18\n"C3","ok",3\n';
+	const broken = `${KEYSTONE_HEADER}\n"A1","ok",1\n"B2","CUSTOM FIT",9.0IN",759.18\n"C3","ok",3\n`;
 	const fixture = makeFixture({ ftpContents: { 'Inventory.csv': INVENTORY, 'SpecialOrder.csv': broken } });
 
 	await assert.rejects(

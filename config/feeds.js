@@ -6,6 +6,22 @@
 // data (same rule as config/cron-jobs.js), so it can be loaded by tests and
 // validation scripts without booting the server.
 //
+// fileSpecs: one entry per canonical file, { name, label, signature, sheet }.
+//   - name: the canonical file name, the key everywhere else (catalog,
+//     materializer, legacy symlinks, retention, seeds). `files` is derived
+//     from it, so nothing downstream changes.
+//   - label: what the panel shows next to a detected file ("Quadratec gold
+//     kit"), plain words.
+//   - signature: the exact, ordered list of header columns, taken from the
+//     real vendor file (lib/feeds/fileSignature.js normalizes: trimmed, inner
+//     whitespace collapsed, leading/trailing empty cells dropped, empty cells
+//     in the middle kept). A file is identified by this signature, never by
+//     the name it arrived with: people drop "gold kit 10.13.26.xlsx" and the
+//     panel/CLI/API work out which canonical file it is. Order matters because
+//     several seeds read columns by position. When a vendor changes its
+//     columns, update the signature here (docs/FEEDS.md explains how).
+//   - sheet: the sheet the seed reads (KeyParts "Price List"), null = first.
+//
 // staleAfterHours: batch age from which the feed shows up as stale (warning
 // in the digest/panel; ingest only fails with requireFresh). Manual drop
 // feeds change when the vendor sends a new spreadsheet, so the thresholds are
@@ -48,11 +64,38 @@
 
 const DAY_HOURS = 24;
 
+// Keystone publishes Inventory.csv and SpecialOrder.csv with the same layout
+// (verified against the bucket copies of 2026-10-14). The signature alone
+// cannot tell them apart; the name the file arrived with breaks the tie.
+const KEYSTONE_FTP_COLUMNS = [
+	'VendorName', 'VCPN', 'VendorCode', 'PartNumber', 'ManufacturerPartNo', 'LongDescription', 'JobberPrice', 'Cost',
+	'Purolatorable', 'CoreCharge', 'CaseQty', 'IsNonReturnable', 'Prop65Toxicity', 'UPCCode', 'Weight', 'Height',
+	'Length', 'Width', 'AAIACode', 'IsHazmat', 'IsChemical', 'Puralator_Ground_Assessorials', 'EastQty', 'MidwestQty',
+	'CaliforniaQty', 'SoutheastQty', 'PacificNWQty', 'TexasQty', 'GreatLakesQty', 'FloridaQty', 'TotalQty',
+	'KitComponents', 'IsKit',
+];
+
+// The three WheelPros CSVs end with one quantity column per warehouse.
+const WHEELPROS_STORE_COLUMNS = ['1011', '1015', '1019', '1022', '1028', '1031', '1036', '1072', '1085', '1086', '1088', '4033', '4035'];
+
 const FEED_DEFINITIONS = [
 	{
 		name: 'keystone-ftp',
 		label: 'Keystone (FTP)',
-		files: ['Inventory.csv', 'SpecialOrder.csv'],
+		fileSpecs: [
+			{
+				name: 'Inventory.csv',
+				label: 'Keystone inventory',
+				signature: KEYSTONE_FTP_COLUMNS,
+				sheet: null,
+			},
+			{
+				name: 'SpecialOrder.csv',
+				label: 'Keystone special order',
+				signature: KEYSTONE_FTP_COLUMNS,
+				sheet: null,
+			},
+		],
 		seedCommand: 'seed-keystone-ftp2',
 		syncCommands: ['seed-keystone-ftp2', 'seed-keystone-ftp-codes'],
 		// Scheduled job (10:10) that runs the sync above on its own; Run now
@@ -90,7 +133,26 @@ const FEED_DEFINITIONS = [
 		// would let that happen silently; requiring it makes the batch wait.
 		name: 'quadratec',
 		label: 'Quadratec (CSV + gold sheet + gold kit)',
-		files: ['quadratec_wholesale.csv', 'pricingSheet_quad.xlsx', 'pricingKit_quad.xlsx'],
+		fileSpecs: [
+			{
+				name: 'quadratec_wholesale.csv',
+				label: 'Quadratec wholesale CSV (inventory)',
+				signature: ['Quadratec Part No', 'Part No', 'Description', 'Brand', 'Inventory PA1', 'Inventory PA2', 'Inventory NV1', 'Inventory Total', 'Cost', 'Surcharge', 'UPC', 'MAP'],
+				sheet: null,
+			},
+			{
+				name: 'pricingSheet_quad.xlsx',
+				label: 'Quadratec gold sheet',
+				signature: ['Quadratec PN', 'MPN', 'Description', 'UPC Code', 'Brand', 'Retail Price', 'Wholesale Price', 'Shipping Surcharge'],
+				sheet: null,
+			},
+			{
+				name: 'pricingKit_quad.xlsx',
+				label: 'Quadratec gold kit',
+				signature: ['Name', 'Display Name', 'Retail Price', 'Wholesale Price', 'Brand'],
+				sheet: null,
+			},
+		],
 		seedCommand: ['seed-quadratec', 'seed-quad-inventory'],
 		syncCommands: ['seed-quadratec', 'seed-quad-inventory'],
 		recordsOwnRuns: true,
@@ -100,7 +162,14 @@ const FEED_DEFINITIONS = [
 	{
 		name: 'ctp',
 		label: 'CTP inventory (CSV)',
-		files: ['CTPENT_Inventory.csv'],
+		fileSpecs: [
+			{
+				name: 'CTPENT_Inventory.csv',
+				label: 'CTP inventory',
+				signature: ['StockCode', 'SupplierCode', 'Description', 'BrandName', 'AAIA', 'Barcode', 'QtyAvailable', 'ListPrice', 'JobberPrice', 'CustPrice', 'MAP', 'SpecialOrder', 'NonReturnable', 'Oversize', 'LiftGateReq'],
+				sheet: null,
+			},
+		],
 		seedCommand: 'seed-ctp',
 		syncCommands: ['seed-ctp'],
 		recordsOwnRuns: true,
@@ -110,7 +179,14 @@ const FEED_DEFINITIONS = [
 	{
 		name: 'keyparts',
 		label: 'KeyParts price file (XLSX)',
-		files: ['KeyParts-price-file.xlsx'],
+		fileSpecs: [
+			{
+				name: 'KeyParts-price-file.xlsx',
+				label: 'KeyParts price list',
+				signature: ['Item', 'Description', 'Unit Price'],
+				sheet: 'Price List',
+			},
+		],
 		seedCommand: 'seed-keyparts',
 		syncCommands: ['seed-keyparts'],
 		recordsOwnRuns: true,
@@ -119,7 +195,14 @@ const FEED_DEFINITIONS = [
 	{
 		name: 'warn-map',
 		label: 'WARN MAP prices (XLSX)',
-		files: ['WARN-MAP.xlsx'],
+		fileSpecs: [
+			{
+				name: 'WARN-MAP.xlsx',
+				label: 'WARN MAP prices',
+				signature: ['Product Category', '', 'WARN Part Number', 'Product Description', '', 'Retailer to Consumer', 'MSRP/CAN'],
+				sheet: 'Table 1',
+			},
+		],
 		// No button on purpose: this script publishes prices to the live store.
 		// It still runs in the daily sync, so bookkeeping follows it here.
 		seedCommand: null,
@@ -130,7 +213,26 @@ const FEED_DEFINITIONS = [
 	{
 		name: 'wheelpros-inventory',
 		label: 'WheelPros inventory (3 CSVs)',
-		files: ['accessoriesInvPriceData.csv', 'tireInvPriceData.csv', 'wheelInvPriceData.csv'],
+		fileSpecs: [
+			{
+				name: 'accessoriesInvPriceData.csv',
+				label: 'WheelPros accessories inventory',
+				signature: ['PartNumber', 'PartDescription', 'Brand', 'CapHardwareDescription', 'CapScrewQuantity', 'CapWrench', 'CapStyleDescription', 'ImageURL', 'TotalQOH', 'MSRP_CAD', 'MAP_CAD', 'RunDate', ...WHEELPROS_STORE_COLUMNS],
+				sheet: null,
+			},
+			{
+				name: 'tireInvPriceData.csv',
+				label: 'WheelPros tire inventory',
+				signature: ['Brand', 'PartNumber', 'PartDescription', 'ManufacturerPartNumber', 'ImageURL', 'InvOrderType', 'TotalQOH', 'MSRP_CAD', 'MAP_CAD', 'RunDate', 'Division', ...WHEELPROS_STORE_COLUMNS],
+				sheet: null,
+			},
+			{
+				name: 'wheelInvPriceData.csv',
+				label: 'WheelPros wheel inventory',
+				signature: ['PartNumber', 'PartDescription', 'Brand', 'DisplayStyleNo', 'Finish', 'Size', 'BoltPattern', 'Offset', 'CenterBore', 'LoadRating', 'ShippingWeight', 'ImageURL', 'InvOrderType', 'Style', 'TotalQOH', 'MSRP_CAD', 'MAP_CAD', 'RunDate', ...WHEELPROS_STORE_COLUMNS],
+				sheet: null,
+			},
+		],
 		seedCommand: 'seed-wp-inventory',
 		syncCommands: ['seed-wheelPros', 'seed-wp-inventory'],
 		recordsOwnRuns: true,
@@ -140,7 +242,14 @@ const FEED_DEFINITIONS = [
 	{
 		name: 'omix',
 		label: 'Omix price sheet (XLSX)',
-		files: ['omix-excel.xlsx'],
+		fileSpecs: [
+			{
+				name: 'omix-excel.xlsx',
+				label: 'Omix price sheet',
+				signature: ['Account#', 'Desc', 'Brand', 'PF Desc', 'Product Class', 'Product Line', 'Prefix', 'Part Number', 'Jobber', 'Quoted Price', 'Cust Item', 'MAP', 'MSRP', 'UPC', 'Mfg Co', 'Origin', 'Sch B'],
+				sheet: null,
+			},
+		],
 		seedCommand: 'seed-omix',
 		syncCommands: ['seed-omix', 'seed-omix-inventory'],
 		recordsOwnRuns: true,
@@ -165,7 +274,20 @@ const FEED_DEFINITIONS = [
 		// api-calls, which is harmless and inspectable in development.
 		name: 'quickbooks',
 		label: 'QuickBooks customer export (2 CSVs)',
-		files: ['customers_qb_desktop.csv', 'transactions_per_customer.csv'],
+		fileSpecs: [
+			{
+				name: 'customers_qb_desktop.csv',
+				label: 'QuickBooks customers export',
+				signature: ['Customer', '', 'Invoice to', '', 'Main Email', '', 'First Name', '', 'Last Name', '', 'Main Phone', '', 'Balance Total', '', 'Street1', '', 'Street2', '', 'City', '', 'Province', '', 'Postal Code', '', 'Country'],
+				sheet: null,
+			},
+			{
+				name: 'transactions_per_customer.csv',
+				label: 'QuickBooks transactions per customer',
+				signature: ['Type', '', 'Date', '', 'Num', '', 'Name', '', 'Memo', '', 'Account', '', 'Clr', '', 'Split', '', 'Debit', '', 'Credit'],
+				sheet: null,
+			},
+		],
 		seedCommand: 'seed-quickbooks-customers',
 		syncCommands: ['seed-quickbooks-customers'],
 		// Read per call (legacyDirEnv), like the staleness overrides: a value
@@ -181,7 +303,14 @@ const FEED_DEFINITIONS = [
 	{
 		name: 'aev',
 		label: 'AEV price file (XLSX)',
-		files: ['AEV-price-file.xlsx'],
+		fileSpecs: [
+			{
+				name: 'AEV-price-file.xlsx',
+				label: 'AEV price file',
+				signature: ['Manufacturer SKU', 'UPC #', 'REV LEVEL UPDATED', 'Discontinued', 'Product Title', 'Product Summary', 'Brand', 'Country of Origin', 'Jobber Price', 'Dealer Price', 'Dealer+ Price', 'MAP Pricing', 'eCommerce', 'Fitment Summary', 'Description', 'Key Features', 'Tech Specs', 'Important Notes', 'Installation Difficulty', 'Length (in)', 'Width (in)', 'Height (in)', 'Weight (lb)', 'Number of Boxes', 'Ships Freight?', 'Image', 'Image', 'Image', 'Image', 'Image', 'PDF (Installation Instructions)', 'Link to Product Page', 'American Expedition Vehicles SKU', 'Years', 'Make', 'Model', 'Sub-Model', 'Engine', 'CAB', 'Notes', 'Product Title', 'American Expedition Vehicles SKU', 'Category'],
+				sheet: 'All SKUs',
+			},
+		],
 		seedCommand: 'seed-aev',
 		syncCommands: ['seed-aev'],
 		staleAfterHours: 365 * DAY_HOURS,
@@ -204,6 +333,9 @@ function getFeedDefinitions() {
 		const override = Number(process.env[envStaleKey(feed.name)]);
 		return {
 			...feed,
+			// Canonical names, derived from the specs: everything downstream keys
+			// on them and never looks at the signatures.
+			files: feed.fileSpecs.map((spec) => spec.name),
 			legacyDir: (feed.legacyDirEnv ? process.env[feed.legacyDirEnv] : '') || feed.legacyDir || '',
 			ingestFeed: feed.ingestFeed || feed.name,
 			seedCommand: feed.seedCommand || null,
@@ -225,6 +357,19 @@ function getFeedByName(name) {
 	return getFeedDefinitions().find((feed) => feed.name === name) || null;
 }
 
+// The spec of one canonical file of a feed (feed: name or definition), or
+// null. What the signature check reads to know which columns to expect.
+function getFileSpec(feed, fileName) {
+	const definition = typeof feed === 'string' ? getFeedByName(feed) : feed;
+	return definition?.fileSpecs?.find((spec) => spec.name === fileName) || null;
+}
+
+// Every spec of every feed, each tagged with its feed name: the candidate
+// list for classifying a file nobody has named yet.
+function getAllFileSpecs() {
+	return getFeedDefinitions().flatMap((feed) => feed.fileSpecs.map((spec) => ({ feed: feed.name, fileName: spec.name, label: spec.label, signature: spec.signature, sheet: spec.sheet })));
+}
+
 // Bridge to the central workbook resolver (load-workbook.js): file baseName
 // -> matching feed.
 // A feed may answer for more than one workbook, which is the case for vendors
@@ -238,6 +383,8 @@ function getFeedByWorkbookBaseName(baseName) {
 module.exports = {
 	getFeedDefinitions,
 	getFeedByName,
+	getFileSpec,
+	getAllFileSpecs,
 	getFeedByWorkbookBaseName,
 	config: {
 		uploadPanelMaxBytes,

@@ -15,12 +15,37 @@ const catalog = require('../lib/feeds/catalog');
 const feedsConfig = require('../config/feeds');
 const { createFeedStore } = require('../lib/feeds/feedStore');
 const runner = require('../services/feeds/runnerInstance');
+const { createSignatureCheck, MISMATCH_CODE } = require('../services/feeds/signatureCheck');
 const { hashFile } = require('../lib/ingest/fileHash');
 const { isTriageUser } = require('../config/triage');
 const { isReviewsUser } = require('../config/reviews');
 
 const router = express.Router();
 const store = createFeedStore();
+// A file is identified by its columns, not by its name (config/feeds.js
+// fileSpecs). The panel detects the file in the browser and sends the
+// canonical name; the server checks the stored bytes against that name before
+// anything is catalogued, because the panel can be bypassed.
+const signatureCheck = createSignatureCheck({ store, feedsConfig });
+
+// 409 body for a file whose columns are not the ones of the claimed name.
+const signatureMismatchBody = (result) => ({
+	error: result.message,
+	code: MISMATCH_CODE,
+	missing: result.missing,
+	extra: result.extra,
+});
+
+// Worded so nobody is told to rename a file: the name is chosen by the panel
+// from the columns, people only pick the file.
+const unknownFileBody = (feed, fileNames) => ({
+	error: `Feed ${feed.name} has no file called ${fileNames.join(', ')}. Its files are: ${feed.files.join(', ')}. The panel works out which one a file is from its columns, so pick the file again instead of naming it.`,
+	code: 'FEED_FILE_MISMATCH',
+});
+
+// Contract with the panel: { name, label, signature: string[], sheet }.
+const serializeFileSpecs = (feedName) => (feedsConfig.getFeedByName(feedName)?.fileSpecs || [])
+	.map((spec) => ({ name: spec.name, label: spec.label, signature: [...spec.signature], sheet: spec.sheet || null }));
 
 const CONTENT_TYPES = {
 	'.csv': 'text/csv',
@@ -78,6 +103,8 @@ const serializeStatus = (status) => ({
 	seedCommandNote: status.seedCommandNote,
 	fetchCommand: status.fetchCommand,
 	running: runningFeed(status.feed),
+	// What the panel detects dropped files with (see fileSpecs in config/feeds.js).
+	fileSpecs: serializeFileSpecs(status.feed),
 	ageHours: status.ageHours === null ? null : Number(status.ageHours.toFixed(1)),
 	currentBatch: status.currentBatch
 		? { ...status.currentBatch, artifacts: status.currentBatch.artifacts.map(serializeArtifact) }
@@ -238,7 +265,7 @@ router.post('/feeds/:feed/uploads/check', requireTriage, async (req, res) => {
 		const fileName = String(req.body?.fileName || '');
 		const sha256 = String(req.body?.sha256 || '');
 		if (!feed.files.includes(fileName)) {
-			return res.status(409).json({ error: `Unexpected file for feed ${feed.name}: ${fileName}`, code: 'FEED_FILE_MISMATCH' });
+			return res.status(409).json(unknownFileBody(feed, [fileName]));
 		}
 		if (!/^[a-f0-9]{64}$/i.test(sha256)) {
 			return res.status(400).json({ error: 'sha256 is required' });
@@ -271,10 +298,7 @@ router.post('/feeds/:feed/uploads', requireTriage, async (req, res) => {
 		const sizeBytes = Number(req.body?.sizeBytes || 0);
 
 		if (!feed.files.includes(fileName)) {
-			return res.status(409).json({
-				error: `Unexpected file for feed ${feed.name}: ${fileName}. Expected: ${feed.files.join(', ')}`,
-				code: 'FEED_FILE_MISMATCH',
-			});
+			return res.status(409).json(unknownFileBody(feed, [fileName]));
 		}
 		if (!Number.isFinite(sizeBytes) || sizeBytes <= 0) {
 			return res.status(400).json({ error: 'sizeBytes is required' });
@@ -376,6 +400,22 @@ router.post('/feeds/:feed/uploads/:uploadId/complete', requireTriage, async (req
 				error: `Uploaded file is larger than allowed for ${feed.name} (${Math.round(head.sizeBytes / 1024 / 1024)}MB > ${Math.round(feed.maxUploadBytes / 1024 / 1024)}MB)`,
 				code: 'FEED_FILE_TOO_LARGE',
 			});
+		}
+
+		// The bytes in the bucket have to carry the columns of the claimed name:
+		// a gold kit sent as the gold sheet used to be catalogued and then fed to
+		// the sheet importer. A mismatch deletes the object (nothing points at
+		// it) and closes the session, so the person picks the file again.
+		const signature = await signatureCheck.verifyStoredObject({
+			feed: feed.name,
+			fileName: session.fileName,
+			key: session.key,
+			maxBytes: feed.maxUploadBytes,
+		});
+		if (!signature.ok) {
+			await store.deleteObject(session.key).catch(() => {});
+			uploadSessions.delete(req.params.uploadId);
+			return res.status(409).json(signatureMismatchBody(signature));
 		}
 
 		// Stored on the session so the commit uses what the server verified, not
@@ -584,10 +624,14 @@ router.post('/feeds/:feed/upload', requireTriage, upload.array('files', 5), asyn
 		const names = incoming.map((file) => file.fileName);
 		const unexpected = names.filter((name) => !feed.files.includes(name));
 		if (unexpected.length > 0) {
-			return res.status(409).json({
-				error: `Unexpected file(s) for feed ${feed.name}: ${unexpected.join(', ')}. Expected: ${feed.files.join(', ')}`,
-				code: 'FEED_FILE_MISMATCH',
-			});
+			return res.status(409).json(unknownFileBody(feed, unexpected));
+		}
+		// Same check as the direct upload, on the temp file before it is stored.
+		for (const file of incoming) {
+			const signature = signatureCheck.verifyLocalFile(file.tmpPath, { feed: feed.name, fileName: file.fileName });
+			if (!signature.ok) {
+				return res.status(409).json(signatureMismatchBody(signature));
+			}
 		}
 		// Same rule as the direct upload: what is not sent is carried forward
 		// from the newest stored copy of each file (see carryForwardMissing),

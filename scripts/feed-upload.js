@@ -4,8 +4,11 @@
 //                              [--as canonicalName] [--batch batchId]
 //        npm run feed-upload -- --archive <file...> [--note "..."]
 //
-// - The basename of each file (or --as, for a single file) has to be one of
-//   the canonical names of the feed in config/feeds.js.
+// - Each file is recognised by its COLUMNS (config/feeds.js fileSpecs), not by
+//   its name: "gold kit 10.13.26.xlsx" is catalogued as pricingKit_quad.xlsx.
+//   When two files of the feed share a header (Keystone) the basename breaks
+//   the tie. --as <canonicalName> (single file) names it explicitly, and the
+//   columns are still checked against that name.
 // - Multi-file feed: upload them all together (one batch) or complete an
 //   existing partial batch with --batch <id>; an incomplete batch does NOT
 //   become the current one.
@@ -24,6 +27,8 @@ const catalog = require('../lib/feeds/catalog');
 const feedsConfig = require('../config/feeds');
 const { createFeedStore } = require('../lib/feeds/feedStore');
 const { hashFile } = require('../lib/ingest/fileHash');
+const { classifyLocalFile, verifyLocalFile } = require('../services/feeds/signatureCheck');
+const { diffSignature } = require('../lib/feeds/fileSignature');
 
 const CONTENT_TYPES = {
 	'.csv': 'text/csv',
@@ -44,6 +49,44 @@ function parseArgs(argv) {
 		else args.files.push(arg);
 	}
 	return args;
+}
+
+const listColumns = (columns) => (columns.length ? columns.map((column) => `"${column}"`).join(', ') : 'none');
+
+// Which canonical file of the feed is this? By columns; the basename only
+// breaks a tie. Returns the canonical name or null after printing why not.
+function resolveFileName(feed, filePath, asName) {
+	const baseName = path.basename(filePath);
+	if (asName) {
+		if (!feed.files.includes(asName)) {
+			console.error(`"${asName}" is not a file of feed ${feed.name} (its files: ${feed.files.join(', ')})`);
+			return null;
+		}
+		const result = verifyLocalFile(filePath, { feed: feed.name, fileName: asName });
+		if (!result.ok) {
+			console.error(`❌ ${baseName}: ${result.message}`);
+			return null;
+		}
+		return asName;
+	}
+
+	const { matches, ambiguous, rows } = classifyLocalFile(filePath, { feed: feed.name, originalName: baseName });
+	if (ambiguous) {
+		console.error(`❌ ${baseName} has the columns of more than one file of feed ${feed.name}: ${matches.map((m) => m.fileName).join(', ')}. Say which one with --as <name>.`);
+		return null;
+	}
+	if (matches.length === 0) {
+		console.error(`❌ ${baseName} does not have the columns of any file of feed ${feed.name}:`);
+		for (const spec of feed.fileSpecs) {
+			const diff = diffSignature(rows, spec.signature);
+			console.error(`   as ${spec.label} (${spec.name}): missing ${listColumns(diff.missing)}; unexpected ${listColumns(diff.extra)}`);
+		}
+		console.error('   Check that you picked the right file, or that the vendor did not change its layout (then update config/feeds.js).');
+		return null;
+	}
+	const [match] = matches;
+	console.log(`🔎 ${baseName} detected as ${match.label} (${match.fileName})`);
+	return match.fileName;
 }
 
 async function main() {
@@ -85,9 +128,14 @@ async function main() {
 			process.exitCode = 1;
 			return;
 		}
-		const fileName = args.as || path.basename(filePath);
-		if (feed.files && !feed.files.includes(fileName)) {
-			console.error(`"${fileName}" is not an expected file of feed ${feed.name} (expected: ${feed.files.join(', ')})`);
+		// Archive mode keeps any basename; a registry feed goes by the columns.
+		const fileName = feed.files ? resolveFileName(feed, filePath, args.as) : path.basename(filePath);
+		if (!fileName) {
+			process.exitCode = 1;
+			return;
+		}
+		if (uploads.some((upload) => upload.fileName === fileName)) {
+			console.error(`Two of the given files are both ${fileName}; send one per canonical file`);
 			process.exitCode = 1;
 			return;
 		}

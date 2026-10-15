@@ -4,8 +4,8 @@
 // seed-all round).
 //
 // Guarantees:
-//  - sanity gates (minimum size + VCPN header + quote parity on every line)
-//    BEFORE cataloguing;
+//  - sanity gates (minimum size + column signature + quote parity on every
+//    line) BEFORE cataloguing;
 //  - BOTH files are uploaded before the batch is registered (a partial upload
 //    catalogs nothing, so the previous batch stays current);
 //  - both files must come from the SAME vendor export (their dates within
@@ -23,6 +23,7 @@ const path = require('path');
 const crypto = require('crypto');
 
 const { checkCsvQuoteParity } = require('../../lib/feeds/csvIntegrity');
+const { verifyLocalFile } = require('./signatureCheck');
 
 const FEED_NAME = 'keystone-ftp';
 const RUN_FEED = 'keystone-ftp-fetch'; // heartbeat kept separate from the consumption rounds
@@ -35,17 +36,6 @@ const sha256File = (filePath) =>
 			.on('error', reject)
 			.on('end', () => resolve(hash.digest('hex')));
 	});
-
-function firstLine(filePath) {
-	const buffer = Buffer.alloc(4096);
-	const fd = fs.openSync(filePath, 'r');
-	try {
-		const bytes = fs.readSync(fd, buffer, 0, buffer.length, 0);
-		return buffer.toString('utf8', 0, bytes).split('\n')[0] || '';
-	} finally {
-		fs.closeSync(fd);
-	}
-}
 
 async function runKeystoneFetch({
 	ftpClient,
@@ -108,8 +98,12 @@ async function runKeystoneFetch({
 					`${fileName} shrank to ${sizeBytes} bytes (current batch has ${previousSize}, minimum ${Math.round(minRatioVsCurrent * 100)}%), truncated download?`
 				);
 			}
-			if (!firstLine(localPath).includes('VCPN')) {
-				throw new Error(`${fileName} has no VCPN column in the header, unexpected format`);
+			// The header has to be exactly the Keystone layout (config/feeds.js
+			// fileSpecs), the same check every upload goes through. A column the
+			// vendor adds or moves stops here, before the positional readers see it.
+			const signature = verifyLocalFile(localPath, { feed: feed.name, fileName, feedsConfig });
+			if (!signature.ok) {
+				throw new Error(`${fileName} has an unexpected header. ${signature.message}`);
 			}
 			// A byte resume that stitched two records together keeps the size and
 			// the header but leaves a line with an odd number of quotes; every

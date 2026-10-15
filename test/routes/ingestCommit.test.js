@@ -47,6 +47,31 @@ const prismaStub = {
 };
 
 stub('../../lib/prisma', prismaStub);
+
+// The bucket serves bytes back: the complete route reads the header of the
+// stored object to check it is the file it was claimed to be. By default a key
+// holds a file with the right columns for its canonical name; a test puts
+// other bytes under a name through storeState.content to simulate a wrong
+// file sent under that name.
+const XLSX = require('xlsx');
+const { Readable } = require('stream');
+const feedsConfig = require('../../config/feeds');
+
+const workbookOf = (rows) => {
+	const workbook = XLSX.utils.book_new();
+	XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(rows), 'Sheet1');
+	return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+};
+const bytesOf = (fileName) => {
+	const spec = feedsConfig.getAllFileSpecs().find((entry) => entry.fileName === fileName);
+	return /\.csv$/i.test(fileName)
+		? Buffer.from(`${spec.signature.join(',')}\nrow\n`)
+		: workbookOf([spec.signature, ['row']]);
+};
+const storeState = { content: new Map(), deleted: [], puts: [] };
+const fileNameOfKey = (key) => key.split('/').pop().slice(9); // "{sha8}-{fileName}"
+const objectBytes = (key) => storeState.content.get(fileNameOfKey(key)) || bytesOf(fileNameOfKey(key));
+
 stub('../../lib/feeds/feedStore', {
 	createFeedStore: () => ({
 		isConfigured: () => true,
@@ -57,7 +82,16 @@ stub('../../lib/feeds/feedStore', {
 		listParts: async () => [{ PartNumber: 1 }],
 		completeMultipartUpload: async () => ({}),
 		headObject: async () => ({ sizeBytes: 1024 }),
-		deleteObject: async () => ({}),
+		getObjectRange: async (key, bytes) => {
+			const buffer = objectBytes(key);
+			return { buffer: buffer.subarray(0, bytes), totalBytes: buffer.length };
+		},
+		getObjectStream: async (key) => {
+			const buffer = objectBytes(key);
+			return { body: Readable.from([buffer]), contentLength: buffer.length };
+		},
+		putFile: async ({ key, filePath }) => { storeState.puts.push({ key, exists: require('fs').existsSync(filePath) }); },
+		deleteObject: async (key) => { storeState.deleted.push(key); },
 		abortMultipartUpload: async () => ({}),
 	}),
 });
@@ -214,6 +248,132 @@ test('a file that was never stored cannot be carried forward and is named in the
 
 		// Nothing was catalogued: the old batch is untouched.
 		assert.ok(artifacts.every((row) => row.status === 'available' && row.objectKey.startsWith('feeds/quadratec/old-')));
+	} finally {
+		server.close();
+	}
+});
+
+// The case that started all this: the gold kit sent under the gold sheet's
+// name. The server reads the stored bytes, sees the kit columns, deletes the
+// object and closes the session, so nothing with those bytes can be committed
+// under that name.
+test('complete refuses a kit file claimed as the gold sheet and deletes the object', async () => {
+	await seedBatch(QUADRATEC_FILES);
+	storeState.content.set('pricingSheet_quad.xlsx', bytesOf('pricingKit_quad.xlsx'));
+	storeState.deleted.length = 0;
+	const { server, port } = await startServer();
+
+	try {
+		const init = await post(port, '/api/ingest/feeds/quadratec/uploads', {
+			fileName: 'pricingSheet_quad.xlsx',
+			sizeBytes: 1024,
+		}).then((res) => res.json());
+
+		const done = await post(port, `/api/ingest/feeds/quadratec/uploads/${init.uploadId}/complete`, { sha256: 'e'.repeat(64) });
+		const body = await done.json();
+
+		assert.strictEqual(done.status, 409, JSON.stringify(body));
+		assert.strictEqual(body.code, 'FEED_FILE_SIGNATURE_MISMATCH');
+		assert.deepStrictEqual(body.extra, ['Name', 'Display Name']);
+		assert.deepStrictEqual(body.missing, ['Quadratec PN', 'MPN', 'Description', 'UPC Code', 'Shipping Surcharge']);
+		assert.match(body.error, /Quadratec gold sheet \(pricingSheet_quad\.xlsx\)/);
+		assert.match(body.error, /"Name", "Display Name"/);
+		assert.doesNotMatch(body.error, /rename/i);
+		assert.deepStrictEqual(storeState.deleted, [init.key], 'the object with the wrong columns is removed from the bucket');
+
+		// The session is gone: the bytes cannot be committed afterwards.
+		const commit = await post(port, '/api/ingest/feeds/quadratec/uploads/commit', { uploadIds: [init.uploadId] });
+		assert.strictEqual(commit.status, 409);
+		assert.strictEqual((await commit.json()).code, 'UPLOAD_SESSION_GONE');
+		assert.ok(artifacts.every((row) => row.objectKey.startsWith('feeds/quadratec/old-')), 'nothing was catalogued');
+	} finally {
+		storeState.content.clear();
+		server.close();
+	}
+});
+
+test('GET /feeds carries the file specs the panel detects files with', async () => {
+	await seedBatch(QUADRATEC_FILES);
+	const { server, port } = await startServer();
+	try {
+		const body = await fetch(`http://127.0.0.1:${port}/api/ingest/feeds`).then((res) => res.json());
+		const quadratec = body.feeds.find((feed) => feed.feed === 'quadratec');
+		assert.deepStrictEqual(quadratec.files, QUADRATEC_FILES, 'files is unchanged');
+		assert.deepStrictEqual(
+			quadratec.fileSpecs.map((spec) => [spec.name, spec.label, spec.sheet]),
+			[
+				['quadratec_wholesale.csv', 'Quadratec wholesale CSV (inventory)', null],
+				['pricingSheet_quad.xlsx', 'Quadratec gold sheet', null],
+				['pricingKit_quad.xlsx', 'Quadratec gold kit', null],
+			]
+		);
+		assert.deepStrictEqual(quadratec.fileSpecs[2].signature, ['Name', 'Display Name', 'Retail Price', 'Wholesale Price', 'Brand']);
+		const keyparts = body.feeds.find((feed) => feed.feed === 'keyparts');
+		assert.strictEqual(keyparts.fileSpecs[0].sheet, 'Price List');
+	} finally {
+		server.close();
+	}
+});
+
+// The legacy multer route: the file crosses the API, so it is checked on the
+// temp file before a single byte reaches the bucket.
+const postMultipart = (port, url, files) => {
+	const form = new FormData();
+	for (const { fileName, bytes } of files) form.append('files', new Blob([bytes]), fileName);
+	return fetch(`http://127.0.0.1:${port}${url}`, { method: 'POST', body: form });
+};
+
+test('the legacy upload refuses a kit file sent under the gold sheet name before storing it', async () => {
+	await seedBatch(QUADRATEC_FILES);
+	storeState.puts.length = 0;
+	const { server, port } = await startServer();
+
+	try {
+		const response = await postMultipart(port, '/api/ingest/feeds/quadratec/upload', [
+			{ fileName: 'pricingSheet_quad.xlsx', bytes: bytesOf('pricingKit_quad.xlsx') },
+		]);
+		const body = await response.json();
+
+		assert.strictEqual(response.status, 409, JSON.stringify(body));
+		assert.strictEqual(body.code, 'FEED_FILE_SIGNATURE_MISMATCH');
+		assert.deepStrictEqual(body.extra, ['Name', 'Display Name']);
+		assert.deepStrictEqual(storeState.puts, [], 'nothing reached the bucket');
+		assert.ok(artifacts.every((row) => row.objectKey.startsWith('feeds/quadratec/old-')), 'nothing was catalogued');
+	} finally {
+		server.close();
+	}
+});
+
+test('the legacy upload stores a file whose columns match its name', async () => {
+	await seedBatch(QUADRATEC_FILES);
+	storeState.puts.length = 0;
+	const { server, port } = await startServer();
+
+	try {
+		const response = await postMultipart(port, '/api/ingest/feeds/quadratec/upload', [
+			{ fileName: 'pricingKit_quad.xlsx', bytes: bytesOf('pricingKit_quad.xlsx') },
+		]);
+		const body = await response.json();
+
+		assert.strictEqual(response.status, 201, JSON.stringify(body));
+		assert.strictEqual(storeState.puts.length, 1);
+		assert.ok(storeState.puts[0].key.endsWith('-pricingKit_quad.xlsx'));
+		assert.deepStrictEqual(body.artifacts.map((artifact) => artifact.fileName).sort(), [...QUADRATEC_FILES].sort());
+	} finally {
+		server.close();
+	}
+});
+
+test('a name the feed does not have is refused without telling anyone to rename anything', async () => {
+	await seedBatch(QUADRATEC_FILES);
+	const { server, port } = await startServer();
+	try {
+		const response = await post(port, '/api/ingest/feeds/quadratec/uploads', { fileName: 'gold kit 10.13.26.xlsx', sizeBytes: 10 });
+		const body = await response.json();
+		assert.strictEqual(response.status, 409);
+		assert.strictEqual(body.code, 'FEED_FILE_MISMATCH');
+		assert.doesNotMatch(body.error, /rename/i);
+		assert.match(body.error, /columns/);
 	} finally {
 		server.close();
 	}
