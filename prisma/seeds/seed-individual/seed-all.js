@@ -35,6 +35,7 @@ const otherSeeds = [
   // "seed-aev",
   "seed-ctp",
   "seed-keyparts",
+  "seed-jrp",
   "update-warn-cad-map-prices",
   "update-teraflex-cad-map-prices",
   "update-wheelpros-cad-map-prices",

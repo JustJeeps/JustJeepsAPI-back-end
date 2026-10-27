@@ -105,3 +105,10 @@ test('jrp-ftp is a pulled feed of one file whose signature is the JRP layout', (
 	assert.strictEqual(jrp.legacyDir, 'jrp_files');
 	assert.strictEqual(jrp.staleAfterHours, 36);
 });
+
+test('jrp-ftp is applied by seed-jrp and its scheduled apply holds the Run now gate', () => {
+	const jrp = feedsConfig.getFeedByName('jrp-ftp');
+	assert.strictEqual(jrp.seedCommand, 'seed-jrp');
+	assert.deepStrictEqual(jrp.syncCommands, ['seed-jrp']);
+	assert.strictEqual(jrp.applyCommand, 'feed-apply-jrp');
+});

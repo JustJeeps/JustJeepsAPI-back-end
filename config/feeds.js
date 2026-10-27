@@ -133,9 +133,10 @@ const FEED_DEFINITIONS = [
 				sheet: null,
 			},
 		],
-		// seedCommand 'seed-jrp' is added together with its npm script: the
-		// cron verification (npm test) refuses a seedCommand that package.json
-		// does not define yet.
+		seedCommand: 'seed-jrp',
+		// Scheduled job (9:50) that runs feed-sync plus seed-jrp on its own; Run
+		// now refuses while it holds the cron gate.
+		applyCommand: 'feed-apply-jrp',
 		recordsOwnRuns: true,
 		legacyDir: 'jrp_files',
 		// One fetch a day, so 36h means the last fetch brought nothing new
