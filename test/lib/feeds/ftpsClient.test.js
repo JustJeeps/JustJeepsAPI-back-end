@@ -176,3 +176,18 @@ test('the deadline stops the loop even while the file keeps growing', async () =
 	await assert.rejects(run.download(), /deadline of 1000ms exceeded after 1 attempts/);
 	assert.strictEqual(run.ftp.accessCalls.length, 1);
 });
+
+test('without a pinned CA the warning points to AIA instead of predicting a TLS failure', async () => {
+	const warnings = [];
+	const missing = Object.assign(new Error('UnknownError'), { $metadata: { httpStatusCode: 404 } });
+	const run = makeClient({
+		plan: [{ write: 'a,b\n' }],
+		env: { JRP_FTP_CA_PEM: '' },
+		options: {
+			store: { isConfigured: () => true, getObjectStream: async () => { throw missing; } },
+			log: { ...quietLog, warn: (msg) => warnings.push(String(msg)) },
+		},
+	});
+	await run.download();
+	assert.deepStrictEqual(warnings, ['⚠️ jrp intermediate CA not found (env or bucket), it will be fetched through AIA if the server omits it']);
+});
