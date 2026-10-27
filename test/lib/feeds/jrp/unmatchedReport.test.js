@@ -62,3 +62,31 @@ test('the log sample holds at most 25 unmatched lines with brand, JRPSKU, OEMSKU
 	assert.strictEqual(sample[0], 'B | J0 | O0 | no-sku-match');
 	assert.deepStrictEqual(formatSample([]), []);
 });
+
+test('the sample lists mapping gaps first, one brand at a time', () => {
+	const rows = [
+		...Array.from({ length: 40 }, (_, i) => ({ brandLabel: 'AlphaRex', jrpSku: `A${i}`, oemSku: `${i}`, reason: 'no-sku-match' })),
+		{ brandLabel: 'Zone', jrpSku: 'Z1', oemSku: '1', reason: 'no-brand-mapping' },
+		{ brandLabel: 'Zone', jrpSku: 'Z2', oemSku: '2', reason: 'no-brand-mapping' },
+		{ brandLabel: 'Bestop', jrpSku: 'B1', oemSku: '1', reason: 'no-brand-mapping' },
+	];
+	const sample = formatSample(rows);
+	assert.deepStrictEqual(sample.slice(0, 4), [
+		'Bestop | B1 | 1 | no-brand-mapping',
+		'Zone | Z1 | 1 | no-brand-mapping',
+		'Zone | Z2 | 2 | no-brand-mapping',
+		'AlphaRex | A0 | 0 | no-sku-match',
+	]);
+	assert.strictEqual(sample.length, 25);
+});
+
+test('the remaining slots rotate across brand labels in a deterministic order', () => {
+	const rowsFor = (brand, count) => Array.from({ length: count }, (_, i) => ({ brandLabel: brand, jrpSku: `${brand}${i}`, oemSku: `${i}`, reason: 'no-sku-match' }));
+	const rows = [...rowsFor('Rugged', 30), ...rowsFor('AlphaRex', 30), ...rowsFor('Mopar', 2)];
+	const sample = formatSample(rows);
+	assert.deepStrictEqual(sample.slice(0, 7).map((line) => line.split(' | ')[1]), [
+		'AlphaRex0', 'Mopar0', 'Rugged0', 'AlphaRex1', 'Mopar1', 'Rugged1', 'AlphaRex2',
+	]);
+	assert.strictEqual(sample.length, 25);
+	assert.deepStrictEqual(formatSample(rows), sample, 'same input, same sample');
+});
