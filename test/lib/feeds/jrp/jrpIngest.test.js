@@ -198,3 +198,21 @@ function assertNothingWritten(world) {
 	assert.deepStrictEqual(world.db.stage.calls, [], 'staging untouched');
 	assert.deepStrictEqual(world.uploads, [], 'no report uploaded');
 }
+
+test('ambiguous matches are listed in the JSON and CSV report', async () => {
+	const { deps, uploads } = createWorld();
+	const loadProductsForPrefix = async (prefix) => (prefix === 'KCH'
+		? [{ sku: 'KCH-0100', searchable_sku: '0100', status: 1 }, { sku: 'KCH-0100-OLD', searchable_sku: '0100', status: 0 }]
+		: deps.prisma.product.findMany({ where: { sku: { startsWith: `${prefix}-` } } }));
+
+	const result = await runJrpIngest({ ...deps, loadProductsForPrefix });
+
+	assert.strictEqual(result.status, 'success');
+	assert.strictEqual(result.counts.ambiguous, 1);
+	const report = JSON.parse(uploads[0].text);
+	assert.strictEqual(report.counts.ambiguous, 1);
+	assert.strictEqual(report.ambiguous.length, 1);
+	assert.strictEqual(report.ambiguous[0].productSku, 'KCH-0100');
+	assert.deepStrictEqual(report.ambiguous[0].otherCandidates, ['KCH-0100-OLD']);
+	assert.ok(uploads[1].text.split('\n').some((line) => line.startsWith('"ambiguous",') && line.endsWith('"KCH-0100","ambiguous:KCH-0100-OLD"')));
+});

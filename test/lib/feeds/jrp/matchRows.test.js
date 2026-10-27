@@ -98,6 +98,13 @@ test('an ambiguous match counts as matched and uses the tie-break (active produc
 	assert.strictEqual(result.matched[0].productSku, 'KCH-0100');
 	assert.strictEqual(result.matched[0].ambiguous, true);
 	assert.strictEqual(result.ambiguousCount, 1);
+	assert.strictEqual(result.ambiguous.length, 1);
+	const [listed] = result.ambiguous;
+	assert.deepStrictEqual(
+		{ brandLabel: listed.brandLabel, jrpSku: listed.jrpSku, oemSku: listed.oemSku, productSku: listed.productSku },
+		{ brandLabel: 'KC HiLiTES', jrpSku: 'KCH0100', oemSku: '0100', productSku: 'KCH-0100' },
+	);
+	assert.deepStrictEqual(listed.otherCandidates, ['KCH-0100-OLD'], 'names the candidate that lost the tie-break');
 });
 
 test('products are loaded once per prefix, however many rows share it', async () => {

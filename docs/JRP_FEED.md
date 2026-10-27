@@ -208,10 +208,11 @@ reports/jrp-ftp/<runId>/unmatched.csv
 |---|---|---|
 | `unmatched` | `no-brand-mapping` | the `BRAND` label is on no `vendors_prefix.js` row (a brand we have not mapped yet) |
 | `unmatched` | `no-sku-match` | brand known, but no product of that prefix has this part number |
+| `ambiguous` | `ambiguous:<sku1>\|<sku2>` | applied, but more than one product had this part number: `product_sku` is the one the tie-break chose, the reason lists the others |
 | `inactive` | `skipped-inactive` | brand mapped, but its prefix is not in the active list |
 | `stale` | `missing-from-feed` | a JRP row in `VendorProduct` that is not in this feed; listed only, never deleted |
 
-The JSON has the same lists plus the run `counts`. These objects are outside the `feeds/`
+The JSON has the same lists (`unmatched`, `ambiguous`, `inactive`, `stale`) plus the run `counts`. These objects are outside the `feeds/`
 prefix, so the retention prune never touches them, and nothing else deletes them either.
 
 ## Activating a new brand

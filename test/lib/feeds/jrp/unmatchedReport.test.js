@@ -10,6 +10,9 @@ const LISTS = {
 		{ brandLabel: 'AlphaRex', jrpSku: 'ARX1', oemSku: '1', reason: 'no-sku-match' },
 		{ brandLabel: 'Rugged, "Ridge"', jrpSku: 'RUG1', oemSku: '=SUM(A1)', reason: 'no-brand-mapping' },
 	],
+	ambiguous: [
+		{ brandLabel: 'KC HiLiTES', jrpSku: 'KCH0100', oemSku: '0100', productSku: 'KCH-0100', otherCandidates: ['KCH-100', '=KCH-0100B'] },
+	],
 	inactive: [{ brandLabel: 'Bilstein', jrpSku: 'BIL1', oemSku: '1', prefix: 'BIL', reason: 'skipped-inactive' }],
 	stale: [{ vendorSku: 'ARX9', productSku: 'ALR-9' }],
 };
@@ -29,15 +32,16 @@ test('report keys refuse a missing run id or report prefix', () => {
 	assert.throws(() => reportKeys({ reportPrefix: '', runId: 1 }), /reportPrefix/);
 });
 
-test('the JSON body carries the run, the counts and the three full lists', () => {
+test('the JSON body carries the run, the counts and the four full lists', () => {
 	const generatedAt = new Date('2026-10-27T13:00:00Z');
 	const body = JSON.parse(buildReportJson({ runId: 42, generatedAt, counts: { matched: 3 }, ...LISTS }));
 	assert.deepStrictEqual(body, {
 		feed: 'jrp-ftp',
 		runId: 42,
 		generatedAt: '2026-10-27T13:00:00.000Z',
-		counts: { matched: 3, unmatched: 2, inactive: 1, stale: 1 },
+		counts: { matched: 3, unmatched: 2, ambiguous: 1, inactive: 1, stale: 1 },
 		unmatched: LISTS.unmatched,
+		ambiguous: LISTS.ambiguous,
 		inactive: LISTS.inactive,
 		stale: LISTS.stale,
 	});
@@ -49,6 +53,7 @@ test('the CSV has one line per entry, quoted, with formula text neutralized', ()
 		'"list","brand_label","jrpsku","oemsku","product_sku","reason"',
 		'"unmatched","AlphaRex","ARX1","1","","no-sku-match"',
 		'"unmatched","Rugged, ""Ridge""","RUG1","\'=SUM(A1)","","no-brand-mapping"',
+		'"ambiguous","KC HiLiTES","KCH0100","0100","KCH-0100","ambiguous:KCH-100|=KCH-0100B"',
 		'"inactive","Bilstein","BIL1","1","","skipped-inactive"',
 		'"stale","","ARX9","","ALR-9","missing-from-feed"',
 	]);
@@ -89,4 +94,14 @@ test('the remaining slots rotate across brand labels in a deterministic order', 
 	]);
 	assert.strictEqual(sample.length, 25);
 	assert.deepStrictEqual(formatSample(rows), sample, 'same input, same sample');
+});
+
+test('an ambiguous candidate list that starts like a formula is neutralized', () => {
+	const csv = buildReportCsv({
+		unmatched: [],
+		ambiguous: [{ brandLabel: '@B', jrpSku: '+J', oemSku: '-1', productSku: '=P', otherCandidates: [] }],
+		inactive: [],
+		stale: [],
+	});
+	assert.strictEqual(csv.trim().split('\n')[1], '"ambiguous","\'@B","\'+J","\'-1","\'=P","ambiguous:"');
 });
