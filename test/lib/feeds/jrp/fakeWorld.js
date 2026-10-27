@@ -126,7 +126,6 @@ function createWorld({ db = createFakeDb(), env = { JRP_MIN_MATCHED: String(MATC
 	const deps = {
 		prisma: db.prisma,
 		store: {
-			keyPrefix: () => 'feeds',
 			putStream: async (object) => { uploads.push({ ...object, text: object.body.toString('utf8') }); },
 		},
 		materialize: async () => ({ files: { 'JUSJEE.csv': FIXTURE }, batchId: 'batch-1' }),

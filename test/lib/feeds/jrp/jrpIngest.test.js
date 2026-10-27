@@ -34,13 +34,13 @@ test('a first run writes the matched rows, records the run and uploads the repor
 		sourceRowCount: 25,
 	});
 
-	assert.deepStrictEqual(uploads.map((u) => u.key), ['feeds/jrp-ftp/reports/42/unmatched.json', 'feeds/jrp-ftp/reports/42/unmatched.csv']);
+	assert.deepStrictEqual(uploads.map((u) => u.key), ['reports/jrp-ftp/42/unmatched.json', 'reports/jrp-ftp/42/unmatched.csv']);
 	const report = JSON.parse(uploads[0].text);
 	assert.strictEqual(report.runId, 42);
 	assert.strictEqual(report.unmatched.length, 20);
 	assert.ok(report.unmatched.every((u) => u.brandLabel && u.jrpSku && u.oemSku && u.reason === 'no-sku-match'));
 	assert.strictEqual(uploads[0].contentLength, Buffer.byteLength(uploads[0].text));
-	assert.ok(log.lines.some((line) => line.includes('feeds/jrp-ftp/reports/42/unmatched.json')), 'report key is logged');
+	assert.ok(log.lines.some((line) => line.includes('json=reports/jrp-ftp/42/unmatched.json csv=reports/jrp-ftp/42/unmatched.csv')), 'report key is logged');
 	assert.ok(log.lines.some((line) => /unmatched sample \(20 of 20\)/.test(line)));
 	assert.ok(log.lines.some((line) => /map-below-cost=1/.test(line)));
 });

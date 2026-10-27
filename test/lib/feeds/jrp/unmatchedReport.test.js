@@ -14,16 +14,19 @@ const LISTS = {
 	stale: [{ vendorSku: 'ARX9', productSku: 'ALR-9' }],
 };
 
-test('report keys are deterministic under <prefix>/jrp-ftp/reports/<runId>/', () => {
-	assert.deepStrictEqual(reportKeys({ keyPrefix: 'feeds', runId: 42 }), {
-		json: 'feeds/jrp-ftp/reports/42/unmatched.json',
-		csv: 'feeds/jrp-ftp/reports/42/unmatched.csv',
+test('report keys are deterministic under reports/jrp-ftp/<runId>/, outside the feeds/ retention prefix', () => {
+	const keys = reportKeys({ runId: 42 });
+	assert.deepStrictEqual(keys, {
+		json: 'reports/jrp-ftp/42/unmatched.json',
+		csv: 'reports/jrp-ftp/42/unmatched.csv',
 	});
+	assert.ok(Object.values(keys).every((key) => !key.startsWith('feeds/')));
+	assert.strictEqual(reportKeys({ runId: 7, reportPrefix: 'tmp' }).json, 'tmp/jrp-ftp/7/unmatched.json');
 });
 
-test('report keys refuse a missing run id or key prefix', () => {
-	assert.throws(() => reportKeys({ keyPrefix: 'feeds', runId: null }), /runId/);
-	assert.throws(() => reportKeys({ keyPrefix: '', runId: 1 }), /keyPrefix/);
+test('report keys refuse a missing run id or report prefix', () => {
+	assert.throws(() => reportKeys({ runId: null }), /runId/);
+	assert.throws(() => reportKeys({ reportPrefix: '', runId: 1 }), /reportPrefix/);
 });
 
 test('the JSON body carries the run, the counts and the three full lists', () => {
