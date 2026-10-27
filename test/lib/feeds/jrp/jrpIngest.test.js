@@ -138,6 +138,7 @@ test('dry run: gates and matching run, nothing is written, uploaded or recorded'
 	assert.strictEqual(world.runs.length, 0);
 	assert.ok(world.log.lines.some((line) => /unmatched sample/.test(line)));
 	assert.ok(world.log.lines.some((line) => /DRY RUN/.test(line)));
+	assert.ok(world.log.lines.some((line) => /source batch=batch-1 sha=sha-1/.test(line)), 'the source is logged in dry run too');
 });
 
 test('dry run still fails on a gate', async () => {
