@@ -91,8 +91,10 @@ Optional (code defaults apply when unset, documented in `.env.example`):
 | `JRP_ACTIVE_BRANDS` | the 10 prefixes in `config/jrp.js` | comma separated `jj_prefix` list of brands to apply |
 | `FEED_STALE_HOURS_JRP_FTP` | 36 | when the panel and digest call the feed stale |
 
-Without a pinned CA, every fetch logs `⚠️ jrp intermediate CA not found (env or bucket), TLS validation is going to fail`
-once, then recovers the intermediate through AIA. That warning is expected.
+Without a pinned CA, a fetch logs `ℹ️ No pinned CA at certs/jrp-ftp-ca.pem in the bucket` and
+`⚠️ jrp intermediate CA not found (env or bucket), it will be fetched through AIA if the server omits it`,
+then recovers the intermediate through AIA. Both lines are expected. Any other bucket error is
+still a warning: `⚠️ Could not read certs/jrp-ftp-ca.pem from the bucket: <error>`.
 
 ## Daily schedule
 
@@ -103,6 +105,10 @@ once, then recovers the intermediate through AIA. That warning is expected.
 
 Both are off by default. If the fetch is still running at 9:50 the command gate defers the
 apply. A file identical to the last one is skipped by its hash at both steps.
+
+The 9:20 fetch rests on a single observed publish time (08:42 ET on 2026-10-27). After a week
+of logged `published <ISO>` times, move the fetch later, or add a catch-up job like Keystone's
+if JRP ever publishes late.
 
 `seed-jrp` is **not** part of seed-all. It stays out until the first verified production run.
 
@@ -115,6 +121,12 @@ apply. A file identical to the last one is skipped by its hash at both steps.
 5. Check the IngestRun of feed `jrp-ftp` (`GET /api/ingest/runs?feed=jrp-ftp`): `status = success`, `rowsInserted` close to the matched count, `rowsDeleted = 0`. Open the report in Spaces (below).
 6. Set `CRON_FEED_FETCH_JRP_ENABLED=true` and `CRON_FEED_APPLY_JRP_ENABLED=true` in `config/deploy.yml` (`env.clear`) and deploy.
 7. Later, decide whether to add `seed-jrp` to seed-all (the commented line in `prisma/seeds/seed-individual/seed-all.js`).
+
+The feed is registered in `config/feeds.js`, so the daily digest checks its freshness from the
+deploy on. Without a catalogued batch it reports `jrp-ftp` as having no catalogued artifact
+batch, and once the fetch cron stays off for more than `FEED_STALE_HOURS_JRP_FTP` (36h) it
+reports it stale. Do step 2 right after the deploy and turn the fetch cron on the same day (or
+raise `FEED_STALE_HOURS_JRP_FTP` until then), otherwise the digest email flags JRP every day.
 
 ## Expected log lines
 
@@ -134,7 +146,7 @@ Apply, successful run:
 [jrp] parsed rows=<n> valid=<n> invalid=<n>
 [jrp] match matched=<n> ambiguous=<n> unmatched=<n> skipped-inactive=<n>
 [jrp] unmatched sample (25 of <n>): brand | JRPSKU | OEMSKU | reason
-[jrp]   <brand> | <JRPSKU> | <OEMSKU> | no-sku-match
+[jrp]   <brand> | <JRPSKU> | <OEMSKU> | <reason>
 [jrp] gates ok: rows=<n> (last <n|none>), invalid=<n>, matched=<n> (min 1500)
 [jrp] vendor JRP id=<id>
 [jrp] applied staged=<n> inserted=<n> updated=<n> unchanged=<n> stale=<n> (listed only, nothing deleted)
@@ -142,7 +154,8 @@ Apply, successful run:
 [jrp] done status=success parsed=<n> matched=<n> ambiguous=<n> unmatched=<n> invalid=<n> skipped-inactive=<n> map-below-cost=<n> inserted=<n> updated=<n> stale=<n> failures=0
 ```
 
-The vendor line ends with ` (created)` on the very first run. When rows are invalid, the
+The sample lists `no-brand-mapping` rows first, then rotates across brand labels in
+alphabetical order, so each brand shows a few rows. The vendor line ends with ` (created)` on the very first run. When rows are invalid, the
 parsed line lists the reasons (for example `bad-cost=N`).
 
 Other apply lines:
@@ -152,6 +165,7 @@ Other apply lines:
 | `[jrp] source identical to the last successful run (sha <sha8>): nothing to do` | run `skipped-unchanged` |
 | `[jrp] another jrp-ftp run holds the lock: skipped` | another apply is running; exit 0 |
 | `[jrp] DRY RUN: reads only, nothing is written, uploaded or recorded` | start of a dry run |
+| `[jrp] DRY RUN: source identical to the last successful run, a real run would skip (add --force to evaluate it)` | dry run on the file already applied; nothing evaluated |
 | `[jrp] DRY RUN: would stage <n> rows for vendor id=<id>` | end of a dry run (`JRP (to be created)` before the first real run) |
 | `[jrp] FAILED (gate): <reason>` | a gate refused the apply, nothing written |
 | `[jrp] FAILED: <message>` | any other failure |
@@ -225,6 +239,13 @@ When JRP approves one of the remaining brands, its rows appear in the report as
 3. Add its `jj_prefix` to the active list: either `DEFAULT_ACTIVE_BRANDS` in `config/jrp.js`, or `JRP_ACTIVE_BRANDS` in the environment (the env list replaces the default, so it must name all the active prefixes).
 4. If its part numbers carry a brand prefix like Airaid's `AIR`, add an entry to `OEM_STRIP` in `config/jrp.js`.
 5. Run `npm test`, deploy, then `npm run seed-jrp -- --dry-run --force` and check the brand in the match counts.
+6. A real apply of the same file is `skipped-unchanged`: the hash gate compares it with the last successful apply. The new brand is written by the next JRP file, or right away with `npm run seed-jrp -- --force` (in production `kamal app exec 'npm run seed-jrp -- --force'`).
+
+## Turning it off
+
+1. Set `CRON_FEED_FETCH_JRP_ENABLED=false` and `CRON_FEED_APPLY_JRP_ENABLED=false` in `config/deploy.yml` (`env.clear`) and deploy.
+2. The JRP rows stay in `VendorProduct` with their last cost and stock. Nothing is zeroed or deleted automatically (team policy).
+3. Never bulk delete JRP rows by hand without first checking `OrderProduct.vendor_product_id` for references: `OrderProduct.vendorProduct` is `onDelete: Cascade` (`prisma/schema.prisma`), so the delete also removes those order lines.
 
 ## Read-only probe
 
