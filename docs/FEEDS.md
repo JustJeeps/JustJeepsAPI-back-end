@@ -10,7 +10,7 @@ Before this, feed files were copied into the image from the deployer's working d
 
 | Layer | What | Where |
 |---|---|---|
-| Acquisition | FTP fetch cron (Keystone), settings panel upload, CLI | `services/feeds/`, `scripts/feed-*.js` |
+| Acquisition | FTP fetch crons (Keystone, JRP), settings panel upload, CLI | `services/feeds/`, `scripts/feed-*.js` |
 | Landing zone | immutable objects `feeds/{feed}/{YYYY}/{MM}/{ts}-{sha8}-{file}` | Spaces bucket (`DO_SPACES_FEEDS_BUCKET`, falls back to `DO_SPACES_BUCKET`) |
 | Catalog | `FeedArtifact` rows + `IngestRun.artifactBatchId` | Postgres |
 | Ingestion | existing staged pipeline (`lib/ingest/`), unchanged | seeds |
@@ -25,6 +25,10 @@ An upload (panel or `npm run feed-upload`) does not have to include every file o
 ### Quadratec: three files since Oct 2026
 
 `quadratec` = `quadratec_wholesale.csv` (inventory) + `pricingSheet_quad.xlsx` (gold sheet, item prices) + `pricingKit_quad.xlsx` (gold kit, kit prices). Up to Sep 2026 the kits were rows inside the gold sheet; Quadratec now exports them in a separate file. The kit is **required**: `seed-quadratec` deletes the `VendorProduct` rows missing from the files, so a batch with the sheet alone would remove the ~6k kit rows, and the 0.5 shrink guard does not catch a 6% drop. Right after the deploy that added the kit, no batch covers all three files: the panel shows the feed as "no data", the digest reports it as having no batch, feed-sync removes its Quadratec symlinks and `seed-quadratec` / `seed-quad-inventory` fail in seed-all, until the sheet and the kit are uploaded together (the CSV is carried forward). Upload them right after the deploy.
+
+### JRP: one FTPS file, applied by its own script
+
+`jrp-ftp` = `JUSJEE.csv` (cost, stock and MAP for the JRP brands we are approved for, CAD). `npm run feed-fetch-jrp` downloads it over explicit FTPS (AUTH TLS, port 21), checks it (minimum size, size vs current batch, exact header, quote parity) and catalogs it; an identical file is skipped by its hash. `npm run seed-jrp` (`feed-apply-jrp` chains `feed-sync -- jrp-ftp` before it) matches the rows to our catalog and writes `VendorProduct` for the vendor named `JRP`. It never deletes: rows missing from the feed are only listed in a per-run report under `reports/jrp-ftp/<runId>/`, outside the `feeds/` prefix so retention leaves it alone. Both crons are off by default and `seed-jrp` is not in seed-all yet. Design: [dd-020-jrp-vendor-feed.md](./design/dd-020-jrp-vendor-feed.md). Runbook: [JRP_FEED.md](./JRP_FEED.md).
 
 ### How a file is identified: by its columns, not its name
 
@@ -58,12 +62,15 @@ So no seed script changes how it reads files. Rules: a feed with no catalogued b
 - `lib/feeds/keystoneFtp.js` - FTPS client, credentials from `KEYSTONE_FTP_USER/PASS` env; byte resume waits for the previous write stream to close before measuring the file, and the final size is checked against the vendor's `SIZE` (a mismatch discards the download)
 - `lib/feeds/csvIntegrity.js` - streaming quote-parity check (a line with an odd number of quotes means a stitched download; csv-parser would buffer the rest of the file until OOM)
 - `services/feeds/keystoneFetchService.js` - download, sanity gates (minimum size, size vs current batch, column signature, quote parity), upload both files, then catalog
+- `lib/feeds/ftpsClient.js` - generic FTPS download loop (resume, retries, deadline, vendor `SIZE` check, AIA intermediate recovery) shared by Keystone (implicit TLS) and JRP (explicit AUTH TLS through `lib/feeds/explicitTlsConnect.js`)
+- `services/feeds/jrpFetchService.js` - JRP fetch with the same gates for its single file; `lib/feeds/jrp/` holds the apply (parse, match, gates, report)
 
 ## How to
 
 - Upload a feed manually (panel): Settings page, Vendor Feeds card, per feed Upload button (triage users only, max 100MB per file).
 - Upload via CLI: `npm run feed-upload -- <feed> <files...> [--note "..."] [--by user] [--as name]`. Files are recognised by their columns, whatever their name; files not given are carried forward, or complete a partial batch with `--batch <id>`.
 - Fetch Keystone now: `npm run feed-fetch-keystone` (cron `feed-fetch-keystone` runs it at 12:47 once `CRON_FEED_FETCH_KEYSTONE_ENABLED=true`, after the vendor's publishing window).
+- Fetch JRP now: `npm run feed-fetch-jrp` (cron `feed-fetch-jrp` at 9:20 once `CRON_FEED_FETCH_JRP_ENABLED=true`; the apply cron `feed-apply-jrp` at 9:50 needs `CRON_FEED_APPLY_JRP_ENABLED=true`). See [JRP_FEED.md](./JRP_FEED.md).
 - Materialize locally: `npm run feed-materialize -- <feed>`.
 - Inspect: `GET /api/ingest/feeds` (current batch, age, stale flag, last runs) and `GET /api/ingest/runs?feed=...`. Stale or missing feeds also show as failures in the daily cron digest email.
 - Kill a bad batch: `npm run feed-quarantine -- <feed> [batchId] --note "why"` (no batchId acts on the current batch; `--list` shows the batches of the feed). Quarantine does NOT reactivate the previous batch on its own — the earlier rows are `superseded`, so the feed is left with no current batch and the vendor scripts fail loudly instead of reading condemned data. To recover, re-upload a good file (identical bytes reuse the stored object, so re-committing the previous version is cheap), then run `npm run feed-sync -- <feed>`.
@@ -79,7 +86,7 @@ Protection is computed from the **catalog**, never from object age — `objectKe
 - the ranking keeps the `keepVersions` newest DISTINCT keys per (feed, fileName) over `available|superseded` rows;
 - objects newer than the grace window (default 24h) are never deleted — a signed upload exists in the bucket before its commit catalogs it;
 - a feed with no `available` row at all is report-only (protects against a diverging catalog);
-- only `feeds/<name>/` prefixes for feeds in `config/feeds.js` are eligible: `feeds/_archive/`, legacy prefixes (`quadratec-pricing`, `quadratec-wholesale`), `logs/`, `certs/` and request attachments are never touched.
+- only `feeds/<name>/` prefixes for feeds in `config/feeds.js` are eligible: `feeds/_archive/`, legacy prefixes (`quadratec-pricing`, `quadratec-wholesale`), `logs/`, `certs/`, `reports/` (JRP unmatched reports) and request attachments are never touched.
 
 Rows whose object is deleted are marked `status: purged` (before the delete, so hash dedupe stops offering the dying key). `FeedArtifact` rows are still never deleted.
 
