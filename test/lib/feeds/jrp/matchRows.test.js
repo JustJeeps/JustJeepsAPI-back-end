@@ -119,3 +119,27 @@ test('the input rows are not mutated', async () => {
 	await matchRows(input, options);
 	assert.strictEqual(input[0].oemSku, 'AIR100-262');
 });
+
+test('two feed rows that match the same product: the exact OEMSKU wins, the other is a feed collision', async () => {
+	const { options } = setup();
+	const result = await matchRows([row('AlphaRex', 'ARX2100-81', '2100-81'), row('AlphaRex', 'ARX210081', '210081')], options);
+	assert.deepStrictEqual(result.matched.map((m) => m.jrpSku), ['ARX210081']);
+	assert.deepStrictEqual(result.collisions, [{
+		brandLabel: 'AlphaRex', jrpSku: 'ARX2100-81', oemSku: '2100-81', productSku: 'ALR-210081', keptJrpSku: 'ARX210081', reason: 'feed-collision',
+	}]);
+	assert.strictEqual(result.collisionCount, 1);
+});
+
+test('a feed collision with no exact OEMSKU keeps the smallest JRPSKU', async () => {
+	const { options } = setup();
+	const result = await matchRows([row('AlphaRex', 'ARXB', '2100-81'), row('AlphaRex', 'ARXA', '21-0081')], options);
+	assert.deepStrictEqual(result.matched.map((m) => m.jrpSku), ['ARXA']);
+	assert.deepStrictEqual(result.collisions.map((c) => [c.jrpSku, c.keptJrpSku]), [['ARXB', 'ARXA']]);
+});
+
+test('the Airaid strip counts as exact for the collision tie-break', async () => {
+	const { options } = setup();
+	const result = await matchRows([row('Airaid', 'AIR100262', 'AIR100262'), row('Airaid', 'AIR100-262', 'AIR100-262')], options);
+	assert.deepStrictEqual(result.matched.map((m) => m.jrpSku), ['AIR100-262']);
+	assert.strictEqual(result.collisionCount, 1);
+});

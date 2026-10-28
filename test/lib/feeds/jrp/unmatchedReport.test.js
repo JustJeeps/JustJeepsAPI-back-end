@@ -13,6 +13,7 @@ const LISTS = {
 	ambiguous: [
 		{ brandLabel: 'KC HiLiTES', jrpSku: 'KCH0100', oemSku: '0100', productSku: 'KCH-0100', otherCandidates: ['KCH-100', '=KCH-0100B'] },
 	],
+	collisions: [{ brandLabel: 'Holley', jrpSku: 'HOL121-25', oemSku: '121-25', productSku: 'HOL-12-125', keptJrpSku: 'HOL12-125', reason: 'feed-collision' }],
 	inactive: [{ brandLabel: 'Bilstein', jrpSku: 'BIL1', oemSku: '1', prefix: 'BIL', reason: 'skipped-inactive' }],
 	stale: [{ vendorSku: 'ARX9', productSku: 'ALR-9' }],
 };
@@ -32,16 +33,17 @@ test('report keys refuse a missing run id or report prefix', () => {
 	assert.throws(() => reportKeys({ reportPrefix: '', runId: 1 }), /reportPrefix/);
 });
 
-test('the JSON body carries the run, the counts and the four full lists', () => {
+test('the JSON body carries the run, the counts and the full lists', () => {
 	const generatedAt = new Date('2026-10-27T13:00:00Z');
 	const body = JSON.parse(buildReportJson({ runId: 42, generatedAt, counts: { matched: 3 }, ...LISTS }));
 	assert.deepStrictEqual(body, {
 		feed: 'jrp-ftp',
 		runId: 42,
 		generatedAt: '2026-10-27T13:00:00.000Z',
-		counts: { matched: 3, unmatched: 2, ambiguous: 1, inactive: 1, stale: 1 },
+		counts: { matched: 3, unmatched: 2, ambiguous: 1, collisions: 1, inactive: 1, stale: 1 },
 		unmatched: LISTS.unmatched,
 		ambiguous: LISTS.ambiguous,
+		collisions: LISTS.collisions,
 		inactive: LISTS.inactive,
 		stale: LISTS.stale,
 	});
@@ -54,6 +56,7 @@ test('the CSV has one line per entry, quoted, with formula text neutralized', ()
 		'"unmatched","AlphaRex","ARX1","1","","no-sku-match"',
 		'"unmatched","Rugged, ""Ridge""","RUG1","\'=SUM(A1)","","no-brand-mapping"',
 		'"ambiguous","KC HiLiTES","KCH0100","0100","KCH-0100","ambiguous:KCH-100|=KCH-0100B"',
+		'"collision","Holley","HOL121-25","121-25","HOL-12-125","feed-collision:kept=HOL12-125"',
 		'"inactive","Bilstein","BIL1","1","","skipped-inactive"',
 		'"stale","","ARX9","","ALR-9","missing-from-feed"',
 	]);

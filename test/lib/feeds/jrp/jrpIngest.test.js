@@ -86,6 +86,23 @@ test('stale rows are listed and counted, never deleted or zeroed', async () => {
 	assert.deepStrictEqual(db.writes, [], 'existing vendor found by name, not created');
 });
 
+test('feed collisions: one VendorProduct row per product, the losers go to the report and count as skipped', async () => {
+	const feedRow = (jrpSku, oemSku, cost) => ({ brandLabel: 'AlphaRex', jrpSku, oemSku, description: '', stock: 1, stockText: '1', cost, map: 99, mapBelowCost: false });
+	const readFeed = async () => ({ rowsRead: 2, rows: [feedRow('ARX2100-81', '2100-81', 54.99), feedRow('ARX210081', '210081', 618.99)], invalid: [] });
+	const world = createWorld({ readFeed, env: { JRP_MIN_MATCHED: '1' } });
+
+	const result = await runJrpIngest(world.deps);
+
+	assert.strictEqual(result.status, 'success');
+	assert.deepStrictEqual([...world.db.vendorProducts.keys()], ['ARX210081']);
+	assert.strictEqual(world.db.vendorProducts.get('ARX210081').vendor_cost, 618.99);
+	assert.deepStrictEqual(world.runs[0].finished.counts, { inserted: 1, updated: 0, markedStale: 0, skipped: 1 });
+	const report = JSON.parse(world.uploads[0].text);
+	assert.deepStrictEqual(report.collisions, [{ brandLabel: 'AlphaRex', jrpSku: 'ARX2100-81', oemSku: '2100-81', productSku: 'ALR-210081', keptJrpSku: 'ARX210081', reason: 'feed-collision' }]);
+	assert.match(world.uploads[1].text, /"collision","AlphaRex","ARX2100-81","2100-81","ALR-210081","feed-collision:kept=ARX210081"/);
+	assert.ok(world.log.lines.some((line) => /match matched=1 ambiguous=0 collisions=1 unmatched=0/.test(line)), 'collisions are logged');
+});
+
 test('shrink gate: far fewer rows than the last successful run fails before any write', async () => {
 	const db = createFakeDb();
 	db.lastSuccess = { hash: 'older', rows: 1000 };
