@@ -226,6 +226,7 @@ reports/jrp-ftp/<runId>/unmatched.csv
 | `ambiguous` | `ambiguous:<sku1>\|<sku2>` | applied, but more than one product had this part number: `product_sku` is the one the tie-break chose, the reason lists the others |
 | `duplicate` | `duplicate-jrpsku` | the feed repeated this JRPSKU; the first copy in feed order was applied, this one was not |
 | `collision` | `feed-collision:kept=<JRPSKU>` | another feed row landed on the same product (part numbers that differ only by separators, such as Holley 12-125 and 121-25); the row whose part number equals the product's `searchable_sku` as written was applied, this one was not |
+| `collision` | `feed-collision:unresolved` | several feed rows landed on this product and none (or more than one) equals its `searchable_sku` as written; nothing was written for the product, check the catalog part number |
 | `inactive` | `skipped-inactive` | brand mapped, but its prefix is not in the active list |
 | `stale` | `missing-from-feed` | a JRP row in `VendorProduct` that is not in this feed; listed only, never deleted |
 

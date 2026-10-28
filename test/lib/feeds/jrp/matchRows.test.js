@@ -130,9 +130,21 @@ test('two feed rows that match the same product: the exact OEMSKU wins, the othe
 	assert.strictEqual(result.collisionCount, 1);
 });
 
-test('a feed collision with no exact OEMSKU keeps the smallest JRPSKU', async () => {
+test('a feed collision with no exact OEMSKU writes nothing for that product', async () => {
 	const { options } = setup();
 	const result = await matchRows([row('AlphaRex', 'ARXB', '2100-81'), row('AlphaRex', 'ARXA', '21-0081')], options);
+	assert.deepStrictEqual(result.matched, []);
+	assert.deepStrictEqual(result.collisions.map((c) => [c.jrpSku, c.productSku, c.keptJrpSku, c.reason]), [
+		['ARXB', 'ALR-210081', null, 'feed-collision'],
+		['ARXA', 'ALR-210081', null, 'feed-collision'],
+	]);
+	assert.strictEqual(result.collisionCount, 2);
+});
+
+test('a part number equal to the product sku minus its prefix counts as exact', async () => {
+	const { options } = setup();
+	const loadProductsForPrefix = async () => [{ sku: 'ALR-21-0081', searchable_sku: '210081', status: 1 }];
+	const result = await matchRows([row('AlphaRex', 'ARXB', '2100-81'), row('AlphaRex', 'ARXA', '21-0081')], { ...options, loadProductsForPrefix });
 	assert.deepStrictEqual(result.matched.map((m) => m.jrpSku), ['ARXA']);
 	assert.deepStrictEqual(result.collisions.map((c) => [c.jrpSku, c.keptJrpSku]), [['ARXB', 'ARXA']]);
 });

@@ -14,7 +14,10 @@ const LISTS = {
 		{ brandLabel: 'KC HiLiTES', jrpSku: 'KCH0100', oemSku: '0100', productSku: 'KCH-0100', otherCandidates: ['KCH-100', '=KCH-0100B'] },
 	],
 	duplicates: [{ brandLabel: 'Bilstein', jrpSku: 'BIL7', oemSku: '7', reason: 'duplicate-jrpsku' }],
-	collisions: [{ brandLabel: 'Holley', jrpSku: 'HOL121-25', oemSku: '121-25', productSku: 'HOL-12-125', keptJrpSku: 'HOL12-125', reason: 'feed-collision' }],
+	collisions: [
+		{ brandLabel: 'Holley', jrpSku: 'HOL121-25', oemSku: '121-25', productSku: 'HOL-12-125', keptJrpSku: 'HOL12-125', reason: 'feed-collision' },
+		{ brandLabel: 'Holley', jrpSku: 'HOL1-2135', oemSku: '1-2135', productSku: 'HOL-12135', keptJrpSku: null, reason: 'feed-collision' },
+	],
 	inactive: [{ brandLabel: 'Bilstein', jrpSku: 'BIL1', oemSku: '1', prefix: 'BIL', reason: 'skipped-inactive' }],
 	stale: [{ vendorSku: 'ARX9', productSku: 'ALR-9' }],
 };
@@ -41,7 +44,7 @@ test('the JSON body carries the run, the counts and the full lists', () => {
 		feed: 'jrp-ftp',
 		runId: 42,
 		generatedAt: '2026-10-27T13:00:00.000Z',
-		counts: { matched: 3, unmatched: 2, ambiguous: 1, duplicates: 1, collisions: 1, inactive: 1, stale: 1 },
+		counts: { matched: 3, unmatched: 2, ambiguous: 1, duplicates: 1, collisions: 2, inactive: 1, stale: 1 },
 		unmatched: LISTS.unmatched,
 		ambiguous: LISTS.ambiguous,
 		duplicates: LISTS.duplicates,
@@ -60,6 +63,7 @@ test('the CSV has one line per entry, quoted, with formula text neutralized', ()
 		'"ambiguous","KC HiLiTES","KCH0100","0100","KCH-0100","ambiguous:KCH-100|=KCH-0100B"',
 		'"duplicate","Bilstein","BIL7","7","","duplicate-jrpsku"',
 		'"collision","Holley","HOL121-25","121-25","HOL-12-125","feed-collision:kept=HOL12-125"',
+		'"collision","Holley","HOL1-2135","1-2135","HOL-12135","feed-collision:unresolved"',
 		'"inactive","Bilstein","BIL1","1","","skipped-inactive"',
 		'"stale","","ARX9","","ALR-9","missing-from-feed"',
 	]);
