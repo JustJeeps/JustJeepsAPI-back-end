@@ -103,6 +103,22 @@ test('feed collisions: one VendorProduct row per product, the losers go to the r
 	assert.ok(world.log.lines.some((line) => /match matched=1 ambiguous=0 collisions=1 unmatched=0/.test(line)), 'collisions are logged');
 });
 
+test('duplicate JRPSKU rows: the first copy is applied, the rest go to the report and count as skipped', async () => {
+	const feedRow = (cost) => ({ brandLabel: 'AlphaRex', jrpSku: 'ARX210081', oemSku: '210081', description: '', stock: 1, stockText: '1', cost, map: 99, mapBelowCost: false });
+	const readFeed = async () => ({ rowsRead: 2, rows: [feedRow(53.76), feedRow(1)], invalid: [] });
+	const world = createWorld({ readFeed, env: { JRP_MIN_MATCHED: '1' } });
+
+	const result = await runJrpIngest(world.deps);
+
+	assert.strictEqual(result.status, 'success');
+	assert.strictEqual(world.db.vendorProducts.get('ARX210081').vendor_cost, 53.76);
+	assert.deepStrictEqual(world.runs[0].finished.counts, { inserted: 1, updated: 0, markedStale: 0, skipped: 1 });
+	const report = JSON.parse(world.uploads[0].text);
+	assert.deepStrictEqual(report.duplicates, [{ brandLabel: 'AlphaRex', jrpSku: 'ARX210081', oemSku: '210081', reason: 'duplicate-jrpsku' }]);
+	assert.match(world.uploads[1].text, /"duplicate","AlphaRex","ARX210081","210081","","duplicate-jrpsku"/);
+	assert.ok(world.log.lines.some((line) => /parsed rows=2 valid=2 invalid=0 duplicates=1/.test(line)), 'duplicates are logged');
+});
+
 test('shrink gate: far fewer rows than the last successful run fails before any write', async () => {
 	const db = createFakeDb();
 	db.lastSuccess = { hash: 'older', rows: 1000 };
