@@ -100,6 +100,18 @@ test('shrink gate: far fewer rows than the last successful run fails before any 
 	assert.match(world.runs[0].finished.error, /Feed shrank/);
 });
 
+test('quote parity gate: a stray quote in the file fails before parsing or any write', async () => {
+	const world = createWorld({ readFeed: async () => { throw new Error('readFeed must not run'); } });
+	world.deps.checkQuoteParity = async () => ({ lines: 1000, oddQuoteLines: 2, firstOddQuoteLine: 101 });
+
+	const result = await runJrpIngest(world.deps);
+
+	assert.strictEqual(result.status, 'failed');
+	assert.match(result.error, /2 line\(s\).*line 101/);
+	assertNothingWritten(world);
+	assert.strictEqual(world.runs[0].finished.status, 'failed');
+});
+
 test('invalid ratio gate: too many invalid rows fails before any write', async () => {
 	const readFeed = async () => ({
 		rowsRead: 100,

@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { shrinkGate, invalidRatioGate, minMatchedGate } = require('../../../../lib/feeds/jrp/jrpGates');
+const { shrinkGate, invalidRatioGate, minMatchedGate, quoteParityGate } = require('../../../../lib/feeds/jrp/jrpGates');
 
 test('shrink gate: passes on the first run and above the ratio, fails below it', () => {
 	assert.strictEqual(shrinkGate({ rowsRead: 10, lastRowCount: null, minRatio: 0.7 }), null);
@@ -18,4 +18,9 @@ test('invalid ratio gate: fails on an empty feed and above the ratio', () => {
 test('min matched gate: names the count and the threshold', () => {
 	assert.strictEqual(minMatchedGate({ matched: 1500, minMatched: 1500 }), null);
 	assert.match(minMatchedGate({ matched: 1499, minMatched: 1500 }), /1499 matched.*threshold 1500/);
+});
+
+test('quote parity gate: an odd number of quotes on any line names the first one', () => {
+	assert.strictEqual(quoteParityGate({ lines: 100, oddQuoteLines: 0, firstOddQuoteLine: null }), null);
+	assert.match(quoteParityGate({ lines: 100, oddQuoteLines: 2, firstOddQuoteLine: 7 }), /2 line\(s\).*odd number of quotes.*line 7.*Aborted before any write/);
 });
