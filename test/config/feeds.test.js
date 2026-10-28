@@ -93,3 +93,22 @@ test('FEED_STALE_HOURS_<NAME> overrides the threshold', () => {
 	}
 	assert.strictEqual(feedsConfig.getFeedByName('keystone-ftp').staleAfterHours, 36);
 });
+
+test('jrp-ftp is a pulled feed of one file whose signature is the JRP layout', () => {
+	const { EXPECTED_COLUMNS } = require('../../config/jrp');
+	const jrp = feedsConfig.getFeedByName('jrp-ftp');
+	assert.deepStrictEqual(jrp.files, ['JUSJEE.csv']);
+	assert.deepStrictEqual(feedsConfig.getFileSpec(jrp, 'JUSJEE.csv').signature, [...EXPECTED_COLUMNS]);
+	assert.strictEqual(jrp.fetch, 'ftp');
+	assert.strictEqual(jrp.fetchCommand, 'feed-fetch-jrp');
+	assert.strictEqual(jrp.recordsOwnRuns, true);
+	assert.strictEqual(jrp.legacyDir, 'jrp_files');
+	assert.strictEqual(jrp.staleAfterHours, 36);
+});
+
+test('jrp-ftp is applied by seed-jrp and its scheduled apply holds the Run now gate', () => {
+	const jrp = feedsConfig.getFeedByName('jrp-ftp');
+	assert.strictEqual(jrp.seedCommand, 'seed-jrp');
+	assert.deepStrictEqual(jrp.syncCommands, ['seed-jrp']);
+	assert.strictEqual(jrp.applyCommand, 'feed-apply-jrp');
+});

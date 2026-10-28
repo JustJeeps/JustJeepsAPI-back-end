@@ -35,6 +35,7 @@ const cases = [
 	{ feed: 'omix', fileName: 'omix-excel.xlsx', file: 'omix-excel.xlsx', originalName: 'omix.xlsx' },
 	{ feed: 'quickbooks', fileName: 'customers_qb_desktop.csv', file: 'quickbooks/customers_qb_desktop.csv' },
 	{ feed: 'quickbooks', fileName: 'transactions_per_customer.csv', file: 'quickbooks/transactions_per_customer.csv' },
+	{ feed: 'jrp-ftp', fileName: 'JUSJEE.csv', file: 'jrp_files/JUSJEE.csv' },
 ];
 
 for (const entry of cases) {

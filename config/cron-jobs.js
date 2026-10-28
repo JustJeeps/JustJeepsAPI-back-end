@@ -46,6 +46,14 @@ const keystoneFeedFetchCatchupSchedule = process.env.CRON_FEED_FETCH_KEYSTONE_CA
 // the fetch brought nothing new the seed sees the same file hash and skips.
 const keystoneFeedApplyEnabled = process.env.CRON_FEED_APPLY_KEYSTONE_ENABLED === 'true';
 const keystoneFeedApplySchedule = process.env.CRON_FEED_APPLY_KEYSTONE_SCHEDULE || '10 10 * * *';
+// JRP feed (FTPS -> Spaces, then VendorProduct): opt-in. JRP writes JUSJEE.csv
+// around 8:42 ET, so the fetch runs at 9:20, apart from the Keystone fetch at
+// 9:30, and the apply at 9:50 (feed-sync + seed-jrp). If the fetch is still
+// running the gate defers the apply; an unchanged file is skipped by its hash.
+const jrpFeedFetchEnabled = process.env.CRON_FEED_FETCH_JRP_ENABLED === 'true';
+const jrpFeedFetchSchedule = process.env.CRON_FEED_FETCH_JRP_SCHEDULE || '20 9 * * *';
+const jrpFeedApplyEnabled = process.env.CRON_FEED_APPLY_JRP_ENABLED === 'true';
+const jrpFeedApplySchedule = process.env.CRON_FEED_APPLY_JRP_SCHEDULE || '50 9 * * *';
 // Feeds retention prune (Spaces): opt-in, mesma razao do fetch acima. 6:17
 // fica fora da grade */5 do delta e antes do seed-all das 7:32 (e o
 // commandGate serializa de qualquer forma). Roda antes do fetch do dia, o que
@@ -203,6 +211,22 @@ function getCronJobDefinitions({ includeDisabled = false } = {}) {
 			reportLogFile: 'logs/feed-apply-keystone.log',
 		},
 		{
+			enabled: jrpFeedFetchEnabled,
+			schedule: jrpFeedFetchSchedule,
+			command: 'feed-fetch-jrp',
+			jobName: 'JRP FTP Feed Fetch',
+			logPrefix: 'JRP FTP feed fetch',
+			reportLogFile: 'logs/feed-fetch-jrp.log',
+		},
+		{
+			enabled: jrpFeedApplyEnabled,
+			schedule: jrpFeedApplySchedule,
+			command: 'feed-apply-jrp',
+			jobName: 'JRP Prices Apply',
+			logPrefix: 'JRP prices apply',
+			reportLogFile: 'logs/feed-apply-jrp.log',
+		},
+		{
 			enabled: feedsPruneEnabled,
 			schedule: feedsPruneSchedule,
 			command: 'feed-prune-apply',
@@ -355,6 +379,10 @@ module.exports = {
 		keystoneFeedFetchCatchupSchedule,
 		keystoneFeedApplyEnabled,
 		keystoneFeedApplySchedule,
+		jrpFeedFetchEnabled,
+		jrpFeedFetchSchedule,
+		jrpFeedApplyEnabled,
+		jrpFeedApplySchedule,
 		feedsPruneEnabled,
 		feedsPruneSchedule,
 		lowridersSeedEnabled,

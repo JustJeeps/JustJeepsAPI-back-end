@@ -64,6 +64,8 @@
 
 const DAY_HOURS = 24;
 
+const { EXPECTED_COLUMNS: JRP_COLUMNS, FEED_ID: JRP_FEED_ID, REMOTE_FILE: JRP_REMOTE_FILE } = require('./jrp');
+
 // Keystone publishes Inventory.csv and SpecialOrder.csv with the same layout
 // (verified against the bucket copies of 2026-10-14). The signature alone
 // cannot tell them apart; the name the file arrived with breaks the tie.
@@ -116,6 +118,32 @@ const FEED_DEFINITIONS = [
 		// is nothing to do until the next window.
 		fetchCommand: 'feed-fetch-keystone',
 		maxUploadBytes: 600 * 1024 * 1024, // SpecialOrder.csv chega a 460MB (upload assinado direto ao bucket)
+	},
+	{
+		// JRP publishes one CSV (JUSJEE.csv) on its FTPS server every morning
+		// (seen written 08:42 ET) and overwrites it in place. Pulled by
+		// feed-fetch-jrp, applied by seed-jrp (config/jrp.js has the constants).
+		name: JRP_FEED_ID,
+		label: 'JRP (FTP)',
+		fileSpecs: [
+			{
+				name: JRP_REMOTE_FILE,
+				label: 'JRP inventory and prices',
+				signature: [...JRP_COLUMNS],
+				sheet: null,
+			},
+		],
+		seedCommand: 'seed-jrp',
+		// Scheduled job (9:50) that runs feed-sync plus seed-jrp on its own; Run
+		// now refuses while it holds the cron gate.
+		applyCommand: 'feed-apply-jrp',
+		recordsOwnRuns: true,
+		legacyDir: 'jrp_files',
+		// One fetch a day, so 36h means the last fetch brought nothing new
+		// (same reasoning as keystone-ftp).
+		staleAfterHours: 36,
+		fetch: 'ftp',
+		fetchCommand: 'feed-fetch-jrp',
 	},
 	{
 		// One vendor, three files: the wholesale CSV carries inventory, the gold

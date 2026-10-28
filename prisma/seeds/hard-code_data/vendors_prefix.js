@@ -139,6 +139,7 @@ module.exports = [
   {
     jj_prefix: "AFE",
     brand_name: "aFe Power",
+    jrp_code: "aFe Power",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "A15",
     meyer_code: "AFE",
@@ -154,6 +155,7 @@ module.exports = [
   {
     jj_prefix: "AIR",
     brand_name: "AIRAID",
+    jrp_code: "Airaid",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "A86",
     meyer_code: "AIR",
@@ -220,6 +222,7 @@ module.exports = [
   {
     jj_prefix: "ALR",
     brand_name: "AlphaRex",
+    jrp_code: "AlphaRex",
     vendors: "Meyer, Keystone",
     keystone_code: "ALP",
     meyer_code: "ALR",
@@ -638,6 +641,7 @@ module.exports = [
   {
     jj_prefix: "BIL",
     brand_name: "Bilstein",
+    jrp_code: "Bilstein",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "B52",
     meyer_code: "BIL",
@@ -757,6 +761,7 @@ module.exports = [
   {
     jj_prefix: "BOR",
     brand_name: "Borla Performance",
+    jrp_code: "Borla Performance",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "B25",
     meyer_code: "BRL",
@@ -1427,6 +1432,7 @@ module.exports = [
   {
     jj_prefix: "ESP",
     brand_name: "Energy Suspension",
+    jrp_code: "Energy Suspension",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "E12",
     meyer_code: "ENG",
@@ -1647,6 +1653,7 @@ module.exports = [
   {
     jj_prefix: "FLM",
     brand_name: "FlowMaster",
+    jrp_code: "Flowmaster",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "F13",
     meyer_code: "FLO",
@@ -1932,6 +1939,7 @@ module.exports = [
   {
     jj_prefix: "HOL",
     brand_name: "Holley",
+    jrp_code: "Holley",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "H19",
     meyer_code: "BAM",
@@ -1984,6 +1992,7 @@ module.exports = [
   {
     jj_prefix: "HU",
     brand_name: "Husky Liners",
+    jrp_code: "Husky Liners",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "H21",
     meyer_code: "HSL",
@@ -2256,6 +2265,7 @@ module.exports = [
   {
     jj_prefix: "KCH",
     brand_name: "KC HILITES",
+    jrp_code: "KC HiLiTES",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "K13",
     meyer_code: "KCL",

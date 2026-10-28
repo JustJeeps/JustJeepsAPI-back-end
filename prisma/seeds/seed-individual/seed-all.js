@@ -35,6 +35,7 @@ const otherSeeds = [
   // "seed-aev",
   "seed-ctp",
   "seed-keyparts",
+  // "seed-jrp": JRP applies through the feed-apply-jrp cron; add here only after the first verified production run
   "update-warn-cad-map-prices",
   "update-teraflex-cad-map-prices",
   "update-wheelpros-cad-map-prices",

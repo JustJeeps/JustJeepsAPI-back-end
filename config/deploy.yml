@@ -184,6 +184,12 @@ env:
     # of the bucket (never in the repository); an alternative is
     # KEYSTONE_FTP_CA_PEM as a secret holding the PEM content.
     KEYSTONE_FTP_CA_OBJECT_KEY: certs/keystone-ftp-ca.pem
+    # JRP feed: explicit FTPS (AUTH TLS) on 21. Both crons stay off until the
+    # first production dry run of seed-jrp is checked; then set
+    # CRON_FEED_FETCH_JRP_ENABLED and CRON_FEED_APPLY_JRP_ENABLED to "true"
+    # (defaults: fetch 9:20, apply 9:50).
+    JRP_FTP_PORT: "21"
+    JRP_FTP_MAX_ATTEMPTS: "10"
     # Who can do what: allowlists via env so that a code deploy is not needed
     # when someone joins or leaves the team (the code only holds the default).
     MAGENTO_STATUS_ALLOWED_USERS: "jerry,tess,jacob,david,rafael,ricardo,paula"
@@ -263,6 +269,10 @@ env:
     - KEYSTONE_KEY_DS
     - KEYSTONE_FTP_USER
     - KEYSTONE_FTP_PASS
+    # JRP
+    - JRP_FTP_HOST
+    - JRP_FTP_USER
+    - JRP_FTP_PASS
     # Meyer
     - MEYER_USERNAME
     - MEYER_PASSWORD
