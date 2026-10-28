@@ -143,15 +143,15 @@ Apply, successful run:
 
 ```
 [jrp] source batch=<batchId> sha=<sha8> file=<feed-cache path>/JUSJEE.csv
-[jrp] parsed rows=<n> valid=<n> invalid=<n>
-[jrp] match matched=<n> ambiguous=<n> unmatched=<n> skipped-inactive=<n>
+[jrp] parsed rows=<n> valid=<n> invalid=<n> duplicates=<n>
+[jrp] match matched=<n> ambiguous=<n> collisions=<n> unmatched=<n> skipped-inactive=<n>
 [jrp] unmatched sample (25 of <n>): brand | JRPSKU | OEMSKU | reason
 [jrp]   <brand> | <JRPSKU> | <OEMSKU> | <reason>
 [jrp] gates ok: rows=<n> (last <n|none>), invalid=<n>, matched=<n> (min 1500)
 [jrp] vendor JRP id=<id>
 [jrp] applied staged=<n> inserted=<n> updated=<n> unchanged=<n> stale=<n> (listed only, nothing deleted)
 [jrp] report json=reports/jrp-ftp/<runId>/unmatched.json csv=reports/jrp-ftp/<runId>/unmatched.csv
-[jrp] done status=success parsed=<n> matched=<n> ambiguous=<n> unmatched=<n> invalid=<n> skipped-inactive=<n> map-below-cost=<n> inserted=<n> updated=<n> stale=<n> failures=0
+[jrp] done status=success parsed=<n> matched=<n> ambiguous=<n> duplicates=<n> collisions=<n> unmatched=<n> invalid=<n> skipped-inactive=<n> map-below-cost=<n> inserted=<n> updated=<n> stale=<n> failures=0
 ```
 
 The sample lists `no-brand-mapping` rows first, then rotates across brand labels in
@@ -183,11 +183,11 @@ Apply runs (`feed = 'jrp-ftp'`):
 | `sourceRowCount` | rows parsed (the shrink gate compares with the last success) |
 | `rowsInserted` / `rowsUpdated` | rows written |
 | `rowsMarkedStale` | JRP rows in `VendorProduct` missing from the matched feed (listed only) |
-| `rowsSkipped` | invalid + unmatched + skipped-inactive (1 on `skipped-unchanged`) |
+| `rowsSkipped` | invalid + duplicates + unmatched + collisions + skipped-inactive (1 on `skipped-unchanged`) |
 | `rowsDeleted` | always 0 |
 | `status` / `error` | `success`, `skipped-unchanged` or `failed` with the message |
 
-Matched, ambiguous, `map-below-cost` and the invalid reasons have no column; they are in the
+Matched, ambiguous, duplicates, collisions, `map-below-cost` and the invalid reasons have no column; they are in the
 `done` log line and in the report's `counts`.
 
 ## When it fails
@@ -200,6 +200,7 @@ Matched, ambiguous, `map-below-cost` and the invalid reasons have no column; the
 | `JUSJEE.csv shrank to <n> bytes (current batch has <n>, minimum 70%), truncated download?` | file much smaller than the current one | Fetch refused. If JRP really removed brands, check the file with the probe before anything else. |
 | `JUSJEE.csv has an unexpected header. ...` | JRP changed its columns | Fetch refused. Follow "When a vendor changes its columns" in [FEEDS.md](./FEEDS.md), and check `lib/feeds/jrp/parseRow.js` still reads the new layout. |
 | `JUSJEE.csv has <n> line(s) with an odd number of quotes ...` | stitched or corrupted download | Fetch refused; fetch again. |
+| `File has <n> line(s) with an odd number of quotes (first at line <n>). Corrupted upload?` | apply quote parity gate: the file came through the panel or the CLI, which skip the check the fetch runs | Apply refused, nothing written. Download the file again and upload it, or run "Fetch now". |
 | `Feed shrank: <n> rows parsed vs <n> in the last successful run ...` | apply shrink gate | Apply refused, nothing written. Look at the file before forcing anything. |
 | `Too many invalid rows: X of Y (a%, maximum 2.00%) ...` | malformed file | Apply refused, nothing written. The parsed line lists the reasons. |
 | `Feed has no data rows.` | empty file | Apply refused. |
@@ -223,10 +224,12 @@ reports/jrp-ftp/<runId>/unmatched.csv
 | `unmatched` | `no-brand-mapping` | the `BRAND` label is on no `vendors_prefix.js` row (a brand we have not mapped yet) |
 | `unmatched` | `no-sku-match` | brand known, but no product of that prefix has this part number |
 | `ambiguous` | `ambiguous:<sku1>\|<sku2>` | applied, but more than one product had this part number: `product_sku` is the one the tie-break chose, the reason lists the others |
+| `duplicate` | `duplicate-jrpsku` | the feed repeated this JRPSKU; the first copy in feed order was applied, this one was not |
+| `collision` | `feed-collision:kept=<JRPSKU>` | another feed row landed on the same product (part numbers that differ only by separators, such as Holley 12-125 and 121-25); the row whose part number equals the product's `searchable_sku` as written was applied, this one was not |
 | `inactive` | `skipped-inactive` | brand mapped, but its prefix is not in the active list |
 | `stale` | `missing-from-feed` | a JRP row in `VendorProduct` that is not in this feed; listed only, never deleted |
 
-The JSON has the same lists (`unmatched`, `ambiguous`, `inactive`, `stale`) plus the run `counts`. These objects are outside the `feeds/`
+The JSON has the same lists (`unmatched`, `ambiguous`, `duplicates`, `collisions`, `inactive`, `stale`) plus the run `counts`. These objects are outside the `feeds/`
 prefix, so the retention prune never touches them, and nothing else deletes them either.
 
 ## Activating a new brand

@@ -102,6 +102,7 @@ BRAND label -> jrp_code on vendors_prefix -> jj_prefix
 - Products are loaded once per active prefix present in the file.
 - **Airaid strip.** Airaid part numbers carry the brand letters (`AIR100-262` is our `AIR-100-262`). `OEM_STRIP` in `config/jrp.js` (`{ AIR: /^AIR/ }`) removes a leading `AIR` before matching. If the strip would leave nothing, the original value is used.
 - **Ambiguous.** When two of our products have the same canonical part number, the row still counts as matched. The tie-break is: exact upper-case equality with `searchable_sku`, then the active product (`status = 1`), then the smaller sku.
+- **Feed collision.** Two feed rows can land on one product, because the canonical form drops separators (today's file has six Holley pairs such as `12-125` and `121-25`). Only one row per product is written: the one whose part number equals the product's `searchable_sku` as written, then the smallest `JRPSKU`. The others are listed as `feed-collision` in the report and counted as skipped.
 - No hit gives reason `no-sku-match` in the unmatched report.
 
 Read-only match counts on 2026-10-27 (catalog SKUs with the prefix / matched): AlphaRex
@@ -113,7 +114,10 @@ always look bad and says nothing. The apply gate is a **minimum matched count** 
 
 ## 5. What is written
 
-One `VendorProduct` row per matched `JRPSKU`, keyed `(vendor_id, vendor_sku)`:
+One `VendorProduct` row per matched `JRPSKU`, keyed `(vendor_id, vendor_sku)`. A `JRPSKU`
+repeated in the file is applied once, from its first copy in feed order; the other copies are
+listed as `duplicate-jrpsku` in the report and counted as skipped. The `DISTINCT ON (jrpsku)`
+in the stage stays as a safety net.
 
 | Column | Value |
 |---|---|
@@ -167,6 +171,7 @@ Every gate fails before anything is written.
 | Gate | Rule | Result |
 |---|---|---|
 | Same file | sha256 equal to the last successful apply | `skipped-unchanged` (`--force` bypasses only this gate) |
+| Quote parity | a line with an odd number of double quotes (the fetch runs the same check, the panel and CLI uploads do not) | `failed`, nothing written |
 | Shrink | rows parsed below 70% of `sourceRowCount` of the last successful run | `failed`, nothing written |
 | Empty | no data rows | `failed`, nothing written |
 | Invalid ratio | invalid rows above `MAX_INVALID_RATIO` (2%) | `failed`, nothing written |
