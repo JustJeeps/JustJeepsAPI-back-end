@@ -19,7 +19,7 @@ const LISTS = {
 		{ brandLabel: 'Holley', jrpSku: 'HOL1-2135', oemSku: '1-2135', productSku: 'HOL-12135', keptJrpSku: null, reason: 'feed-collision' },
 	],
 	inactive: [{ brandLabel: 'Bilstein', jrpSku: 'BIL1', oemSku: '1', prefix: 'BIL', reason: 'skipped-inactive' }],
-	stale: [{ vendorSku: 'ARX9', productSku: 'ALR-9' }],
+	stale: [{ vendorSku: 'ARX9', productSku: 'ALR-9', reason: 'missing-from-feed' }, { vendorSku: 'HOL1-2135', productSku: 'HOL-12135', reason: 'feed-collision' }],
 };
 
 test('report keys are deterministic under reports/jrp-ftp/<runId>/, outside the feeds/ retention prefix', () => {
@@ -44,7 +44,7 @@ test('the JSON body carries the run, the counts and the full lists', () => {
 		feed: 'jrp-ftp',
 		runId: 42,
 		generatedAt: '2026-10-27T13:00:00.000Z',
-		counts: { matched: 3, unmatched: 2, ambiguous: 1, duplicates: 1, collisions: 2, inactive: 1, stale: 1 },
+		counts: { matched: 3, unmatched: 2, ambiguous: 1, duplicates: 1, collisions: 2, inactive: 1, stale: 2 },
 		unmatched: LISTS.unmatched,
 		ambiguous: LISTS.ambiguous,
 		duplicates: LISTS.duplicates,
@@ -66,6 +66,7 @@ test('the CSV has one line per entry, quoted, with formula text neutralized', ()
 		'"collision","Holley","HOL1-2135","1-2135","HOL-12135","feed-collision:unresolved"',
 		'"inactive","Bilstein","BIL1","1","","skipped-inactive"',
 		'"stale","","ARX9","","ALR-9","missing-from-feed"',
+		'"stale","","HOL1-2135","","HOL-12135","feed-collision"',
 	]);
 });
 

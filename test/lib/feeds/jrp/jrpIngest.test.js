@@ -81,7 +81,7 @@ test('stale rows are listed and counted, never deleted or zeroed', async () => {
 	assert.deepStrictEqual(db.vendorProducts.get('ARXOLD'), staleRow);
 	assert.strictEqual(world.runs[0].finished.counts.markedStale, 1);
 	const report = JSON.parse(world.uploads[0].text);
-	assert.deepStrictEqual(report.stale, [{ vendorSku: 'ARXOLD', productSku: 'ALR-OLD' }]);
+	assert.deepStrictEqual(report.stale, [{ vendorSku: 'ARXOLD', productSku: 'ALR-OLD', reason: 'missing-from-feed' }]);
 	assert.match(world.uploads[1].text, /"stale","","ARXOLD","","ALR-OLD","missing-from-feed"/);
 	assert.deepStrictEqual(db.writes, [], 'existing vendor found by name, not created');
 });
@@ -117,6 +117,22 @@ test('duplicate JRPSKU rows: the first copy is applied, the rest go to the repor
 	assert.deepStrictEqual(report.duplicates, [{ brandLabel: 'AlphaRex', jrpSku: 'ARX210081', oemSku: '210081', reason: 'duplicate-jrpsku' }]);
 	assert.match(world.uploads[1].text, /"duplicate","AlphaRex","ARX210081","210081","","duplicate-jrpsku"/);
 	assert.ok(world.log.lines.some((line) => /parsed rows=2 valid=2 invalid=0 duplicates=1/.test(line)), 'duplicates are logged');
+});
+
+test('a collision loser already in VendorProduct is reported as a stale collision, not as missing from the feed', async () => {
+	const feedRow = (jrpSku, oemSku, cost) => ({ brandLabel: 'AlphaRex', jrpSku, oemSku, description: '', stock: 1, stockText: '1', cost, map: 99, mapBelowCost: false });
+	const readFeed = async () => ({ rowsRead: 2, rows: [feedRow('ARX2100-81', '2100-81', 54.99), feedRow('ARX210081', '210081', 618.99)], invalid: [] });
+	const loserRow = { product_sku: 'ALR-210081', vendor_id: 18, vendor_sku: 'ARX2100-81', vendor_cost: 54.99, vendor_inventory: 3, vendor_inventory_string: '3' };
+	const db = createFakeDb({ vendors: [VENDOR], vendorProducts: [loserRow] });
+	const world = createWorld({ db, readFeed, env: { JRP_MIN_MATCHED: '1' } });
+
+	await runJrpIngest(world.deps);
+
+	assert.deepStrictEqual(db.vendorProducts.get('ARX2100-81'), loserRow, 'never deleted or zeroed');
+	const report = JSON.parse(world.uploads[0].text);
+	assert.deepStrictEqual(report.stale, [{ vendorSku: 'ARX2100-81', productSku: 'ALR-210081', reason: 'feed-collision' }]);
+	assert.match(world.uploads[1].text, /"stale","","ARX2100-81","","ALR-210081","feed-collision"/);
+	assert.strictEqual(world.runs[0].finished.counts.markedStale, 1);
 });
 
 test('shrink gate: far fewer rows than the last successful run fails before any write', async () => {

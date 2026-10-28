@@ -229,6 +229,7 @@ reports/jrp-ftp/<runId>/unmatched.csv
 | `collision` | `feed-collision:unresolved` | several feed rows landed on this product and none (or more than one) equals its `searchable_sku` as written; nothing was written for the product, check the catalog part number |
 | `inactive` | `skipped-inactive` | brand mapped, but its prefix is not in the active list |
 | `stale` | `missing-from-feed` | a JRP row in `VendorProduct` that is not in this feed; listed only, never deleted |
+| `stale` | `feed-collision` | a JRP row in `VendorProduct` whose JRPSKU is in this feed but lost a collision today (another row was written for its product); its old cost and stock stay until someone deletes it by hand |
 
 The JSON has the same lists (`unmatched`, `ambiguous`, `duplicates`, `collisions`, `inactive`, `stale`) plus the run `counts`. These objects are outside the `feeds/`
 prefix, so the retention prune never touches them, and nothing else deletes them either.
