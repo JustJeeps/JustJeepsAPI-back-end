@@ -161,6 +161,25 @@ test('quote parity gate: a stray quote in the file fails before parsing or any w
 	assert.strictEqual(world.runs[0].finished.status, 'failed');
 });
 
+test('quote parity gate: the real check runs on the materialized file', async () => {
+	const fs = require('fs');
+	const os = require('os');
+	const path = require('path');
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jrp-odd-'));
+	const file = path.join(dir, 'JUSJEE.csv');
+	fs.writeFileSync(file, '"BRAND","JRPSKU","OEMSKU","DESCRIPTION","IN-STOCK","COST","MAP"\n"Bilstein","BIL1","1","6" pipe","0","1.00","2.00"\n');
+	const world = createWorld();
+	world.deps.materialize = async () => ({ files: { 'JUSJEE.csv': file }, batchId: 'batch-1' });
+	try {
+		const result = await runJrpIngest(world.deps);
+		assert.strictEqual(result.status, 'failed');
+		assert.match(result.error, /1 line\(s\) with an odd number of quotes \(first at line 2\)/);
+		assertNothingWritten(world);
+	} finally {
+		fs.rmSync(dir, { recursive: true, force: true });
+	}
+});
+
 test('invalid ratio gate: too many invalid rows fails before any write', async () => {
 	const readFeed = async () => ({
 		rowsRead: 100,
