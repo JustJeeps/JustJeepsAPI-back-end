@@ -34,3 +34,18 @@ test('invalid rows are counted apart with their reason and JRPSKU', async () => 
 	assert.deepStrictEqual(result.rows.map((row) => row.jrpSku), ['ARX2']);
 	assert.deepStrictEqual(result.invalid, [{ jrpSku: 'ARX1', reason: 'bad-stock' }]);
 });
+
+test('a byte-order mark and spaces around the header names are ignored', async () => {
+	const os = require('os');
+	const fs = require('fs');
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'jrp-bom-'));
+	const file = path.join(dir, 'JUSJEE.csv');
+	fs.writeFileSync(file, '\uFEFF"BRAND"," JRPSKU ","OEMSKU","DESCRIPTION","IN-STOCK","COST","MAP"\n"Bilstein","BIL1","1","d","0","1.00","2.00"\n');
+	try {
+		const result = await readFeed(file, { stockPlusValue: 4 });
+		assert.deepStrictEqual(result.invalid, []);
+		assert.deepStrictEqual(result.rows.map((row) => [row.brandLabel, row.jrpSku]), [['Bilstein', 'BIL1']]);
+	} finally {
+		fs.rmSync(dir, { recursive: true, force: true });
+	}
+});

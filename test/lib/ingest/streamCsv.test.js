@@ -34,3 +34,13 @@ test('a row that never closes its quote fails fast instead of buffering the rest
 		/Row exceeds the maximum size/
 	);
 });
+
+test('a leading byte-order mark is dropped and mapHeaders reaches the parser', async () => {
+	const file = tmpFile('\uFEFF" VCPN ",Cost\nA1,1\n');
+	const rows = [];
+	const normalize = ({ header }) => header.trim();
+
+	await streamCsvBatched(file, { batchSize: 10, mapHeaders: normalize }, async (batch) => rows.push(...batch));
+
+	assert.deepStrictEqual(rows, [{ VCPN: 'A1', Cost: '1' }]);
+});
