@@ -32,7 +32,7 @@ function parseArgs(argv) {
     excludeBrands: ['rough country', 'metalcloak','KeyParts','American Expedition Vehicles (MAP)','Mopar' ],
     onlyBrands: [],
     excludeVendors: ['quadratec'],
-    excludeVendorsContains: ['omix', 'keyparts'],
+    excludeVendorsContains: ['quadratec', 'omix', 'keyparts'],
     limit: null,
     batchSize: 1000,
     delayMs: 400,

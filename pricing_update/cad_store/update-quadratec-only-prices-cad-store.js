@@ -10,6 +10,7 @@ dotenv.config();
 const VENDOR_ID = Number(process.env.PRICE_UPDATE_VENDOR_ID || 4);
 const DEFAULT_VENDOR_NAME = process.env.PRICE_UPDATE_VENDOR_NAME || 'quadratec';
 const JOB_LABEL = process.env.PRICE_UPDATE_JOB_LABEL || 'Quadratec-Only';
+const STINGER_OFFROAD_BRAND = 'Stinger Off-Road';
 const DERIVE_USD_COST_FROM_CAD = process.env.PRICE_UPDATE_DERIVE_USD_COST_FROM_CAD === '1';
 const STORE_ID_CAD = Number(process.env.CAD_STORE_ID || 0);
 const STORE_ID_CAD_MIRROR = Number(process.env.CAD_STORE_ID_MIRROR || 1);
@@ -24,6 +25,14 @@ const MAGENTO_CONFIG = {
 
 function normalizeVendorName(value) {
   return (value || '').trim().toLowerCase();
+}
+
+function isStingerOffRoadQuadratecEdgeCase(product, normalizedVendor) {
+  if (!product) return false;
+  if (normalizedVendor !== 'quadratec') return false;
+  const isStingerBrand = (product.brand_name || '').trim().toLowerCase() === STINGER_OFFROAD_BRAND.toLowerCase();
+  const hasQuadratecInVendors = (product.vendors || '').toLowerCase().includes('quadratec');
+  return isStingerBrand && hasQuadratecInVendors;
 }
 
 function isSamePrice(a, b) {
@@ -465,10 +474,25 @@ async function getQuadratecOnlyPriceRows(vendorName, limit = null, sku = null) {
   const products = await prisma.product.findMany({
     where: {
       status: 1,
-      vendors: {
-        equals: vendorName,
-        mode: 'insensitive',
-      },
+      OR: [
+        {
+          vendors: {
+            equals: vendorName,
+            mode: 'insensitive',
+          },
+        },
+        // Edge case: Stinger Off-Road rows are often tagged as "Quadratec, Stinger website".
+        {
+          brand_name: {
+            equals: STINGER_OFFROAD_BRAND,
+            mode: 'insensitive',
+          },
+          vendors: {
+            contains: 'quadratec',
+            mode: 'insensitive',
+          },
+        },
+      ],
       sku: {
         ...(skuFilter
           ? { equals: skuFilter }
@@ -482,6 +506,7 @@ async function getQuadratecOnlyPriceRows(vendorName, limit = null, sku = null) {
     select: {
       sku: true,
       price: true,
+      brand_name: true,
       vendors: true,
       vendorProducts: {
         where: { vendor_id: VENDOR_ID },
@@ -511,7 +536,10 @@ async function getQuadratecOnlyPriceRows(vendorName, limit = null, sku = null) {
   let minPriceFloorAppliedCount = 0;
 
   for (const product of products) {
-    if (normalizeVendorName(product.vendors) !== normalizedVendor) {
+    if (
+      normalizeVendorName(product.vendors) !== normalizedVendor &&
+      !isStingerOffRoadQuadratecEdgeCase(product, normalizedVendor)
+    ) {
       skippedVendorMismatch++;
       continue;
     }

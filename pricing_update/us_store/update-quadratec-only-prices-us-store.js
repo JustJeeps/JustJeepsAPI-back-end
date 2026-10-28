@@ -12,6 +12,9 @@ const STORE_ID_US = 2;
 const MIN_FINAL_MARGIN = 0.15;
 const MIN_PRICE_USD = 11.95;
 const DEFAULT_MAGENTO_REST_BASE_URL = 'https://justjeeps.com/rest/default/V1';
+const EXTRA_BRANDS_BY_VENDOR = {
+  quadratec: ['crown automotive'],
+};
 
 function resolveMagentoRestBaseUrl() {
   const configured = (
@@ -46,6 +49,11 @@ const MAGENTO_CONFIG = {
 
 function normalizeVendorName(value) {
   return (value || '').trim().toLowerCase();
+}
+
+function getExtraBrandsForVendor(vendorName) {
+  const normalizedVendor = normalizeVendorName(vendorName);
+  return EXTRA_BRANDS_BY_VENDOR[normalizedVendor] || [];
 }
 
 function parseArgs(argv) {
@@ -170,13 +178,26 @@ async function getQuadratecOnlyPriceRows(vendorName, limit = null) {
     throw new Error('--vendor requires a non-empty value');
   }
 
+  const extraBrands = getExtraBrandsForVendor(normalizedVendor);
+  const extraBrandWhere = extraBrands.map((brand) => ({
+    brand_name: {
+      equals: brand,
+      mode: 'insensitive',
+    },
+  }));
+
   const products = await prisma.product.findMany({
     where: {
       status: 1,
-      vendors: {
-        equals: vendorName,
-        mode: 'insensitive',
-      },
+      OR: [
+        {
+          vendors: {
+            equals: vendorName,
+            mode: 'insensitive',
+          },
+        },
+        ...extraBrandWhere,
+      ],
       sku: {
         not: {
           endsWith: '-',
@@ -186,6 +207,7 @@ async function getQuadratecOnlyPriceRows(vendorName, limit = null) {
     select: {
       sku: true,
       vendors: true,
+      brand_name: true,
       vendorProducts: {
         where: { vendor_id: VENDOR_ID_QUADRATEC },
         select: {
@@ -201,6 +223,7 @@ async function getQuadratecOnlyPriceRows(vendorName, limit = null) {
 
   const rows = [];
   let skippedVendorMismatch = 0;
+  let includedByExtraBrand = 0;
   let skippedMissingRetail = 0;
   let skippedInvalidPrice = 0;
   let usedEdgeCaseMarginCount = 0;
@@ -210,11 +233,21 @@ async function getQuadratecOnlyPriceRows(vendorName, limit = null) {
   let sumFinalMargin = 0;
   let minMarginFloorAppliedCount = 0;
   let minPriceFloorAppliedCount = 0;
+  const extraBrandsSet = new Set(extraBrands.map((value) => normalizeVendorName(value)));
 
   for (const product of products) {
-    if (normalizeVendorName(product.vendors) !== normalizedVendor) {
+    const productVendorName = normalizeVendorName(product.vendors);
+    const productBrandName = normalizeVendorName(product.brand_name);
+    const vendorMatched = productVendorName === normalizedVendor;
+    const matchedByExtraBrand = extraBrandsSet.has(productBrandName);
+
+    if (!vendorMatched && !matchedByExtraBrand) {
       skippedVendorMismatch++;
       continue;
+    }
+
+    if (!vendorMatched && matchedByExtraBrand) {
+      includedByExtraBrand++;
     }
 
     const vp = product.vendorProducts?.[0];
@@ -266,6 +299,7 @@ async function getQuadratecOnlyPriceRows(vendorName, limit = null) {
     rows,
     scanned: products.length,
     skippedVendorMismatch,
+    includedByExtraBrand,
     skippedMissingRetail,
     skippedInvalidPrice,
     usedEdgeCaseMarginCount,
@@ -312,6 +346,7 @@ function chunk(array, size) {
 
 function printUsage() {
   console.log('Update Magento US store base prices for products where vendors is Quadratec only.');
+  console.log('Also includes brand exceptions for Quadratec vendor scope (currently: Crown Automotive).');
   console.log('Formula:');
   console.log('  - Standard: round((vendor_retail_price_usd * 0.95) / 0.85, 0) - 0.05');
   console.log('  - Edge case (retail == cost): round((vendor_retail_price_usd * 1.2) / 0.85, 0) - 0.05');
@@ -369,6 +404,7 @@ async function main() {
     rows,
     scanned,
     skippedVendorMismatch,
+    includedByExtraBrand,
     skippedMissingRetail,
     skippedInvalidPrice,
     usedEdgeCaseMarginCount,
@@ -383,6 +419,7 @@ async function main() {
   console.log(`📦 Products scanned: ${scanned}`);
   console.log(`✅ Price rows prepared: ${rows.length}`);
   console.log(`⚠️ Skipped (vendor mismatch): ${skippedVendorMismatch}`);
+  console.log(`🏷️ Included by extra brand rule: ${includedByExtraBrand}`);
   console.log(`⚠️ Skipped (missing retail price): ${skippedMissingRetail}`);
   console.log(`⚠️ Skipped (invalid computed price): ${skippedInvalidPrice}`);
   console.log(`🧩 Edge-case formula used (retail == cost): ${usedEdgeCaseMarginCount}`);
