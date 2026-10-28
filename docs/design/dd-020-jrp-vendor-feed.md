@@ -4,10 +4,10 @@
 
 | Attribute | Value |
 |-----------|-------|
-| Version | 0.1.0 |
-| Status | Built and tested; crons off and seed-jrp out of seed-all until the first verified production run |
+| Version | 0.2.0 |
+| Status | Built, reviewed, sandbox-verified and adversarially tested; not merged or deployed yet; crons off and seed-jrp out of seed-all until the first verified production run |
 | Created | 2026-10-27 |
-| Last Updated | 2026-10-27 |
+| Last Updated | 2026-10-28 |
 | Author | Ricardo Tassio, with Claude Code |
 | Runbook | [JRP_FEED.md](../JRP_FEED.md) |
 | Feed platform | [FEEDS.md](../FEEDS.md) |
@@ -57,18 +57,27 @@ match; it is only the vendor's own key.
 10 of the 25 brands in the ticket are in the file today. The other 15 were not approved on
 JRP's portal yet.
 
-| JRP `BRAND` label | Our `jj_prefix` |
-|---|---|
-| aFe Power | AFE |
-| Airaid | AIR |
-| AlphaRex | ALR |
-| Bilstein | BIL |
-| Borla Performance | BOR |
-| Energy Suspension | ESP |
-| Flowmaster | FLM |
-| Holley | HOL |
-| Husky Liners | HU |
-| KC HiLiTES | KCH |
+Counts measured read-only on 2026-10-27 against the file of that day (26,451 rows) and the
+production catalog (2,506 SKUs under the 10 prefixes), reproduced exactly by the sandbox run.
+
+| JRP `BRAND` label | Code inside `JRPSKU` | Our `jj_prefix` | Our `brand_name` | Feed rows | Catalog SKUs | Matched |
+|---|---|---|---|---|---|---|
+| aFe Power | AFE | AFE | aFe Power | 7,083 | 57 | 48 |
+| Airaid | none (the OEMSKU itself starts with AIR) | AIR | AIRAID | 381 | 33 | 11 |
+| AlphaRex | ARX | ALR | AlphaRex | 583 | 407 | 388 |
+| Bilstein | BIL | BIL | Bilstein | 5,219 | 794 | 749 |
+| Borla Performance | BOR | BOR | Borla Performance | 1,673 | 723 | 670 |
+| Energy Suspension | none | ESP | Energy Suspension | 3,423 | 199 | 155 |
+| Flowmaster | FLO | FLM | FlowMaster | 926 | 43 | 39 |
+| Holley | HOL | HOL | Holley | 1,911 | 1 | 0 |
+| Husky Liners | HUS | HU | Husky Liners | 4,475 | 62 | 39 |
+| KC HiLiTES | KCH | KCH | KC HILITES | 777 | 187 | 125 |
+
+Total matched: 2,224. The code inside `JRPSKU` is listed for reading the file only; it is
+never used to match (Flowmaster is FLO there and FLM here, Husky is HUS there and HU here).
+`JRPSKU` is what we store as `vendor_sku`. Airaid has the strip rule of section 4. Holley is
+mapped but has one catalog SKU, absent from the feed; it is also the brand whose part numbers
+collide after the separators are dropped (`12-125` and `121-25`), which section 4 covers.
 
 The label lives in a `jrp_code` field on the brand's row of
 `prisma/seeds/hard-code_data/vendors_prefix.js`, verbatim from the file. The lookup is case
@@ -224,3 +233,65 @@ production run; the crons stay off until then too. The steps are in the runbook:
 - Turn the two crons on after the first verified run, then decide about adding `seed-jrp` to seed-all.
 - The reports have no retention; revisit if the `reports/jrp-ftp/` folder grows too much.
 - The other 15 brands, as JRP approves them.
+- Low findings of the adversarial test left open on purpose (section 11): a `COST` of `0` is accepted and written; the Airaid strip is case sensitive; an error while releasing the lock or closing the stage pool after a successful apply makes `seed-jrp` exit 1; `JRP_MIN_MATCHED` accepts `0x10` and `1e3`; the dedupe keeps the first copy of a repeated `JRPSKU` even when only a later copy would match; a quoted `DESCRIPTION` with an embedded newline fails the quote parity gate (fetch and apply); `IN-STOCK` outside `0` to `3` and `4+`, or an empty `MAP`, is invalid, so a format change on more than 2% of the rows stops the feed.
+- A catch-up fetch, after a week of logged publish times (final review item #6).
+- `rowsMarkedStale` in the panel reads as if acted on (listed only) and a `skipped-locked` apply exits 0 (final review items #7 and #8, parked).
+
+## 11. Process record (for audit)
+
+How this feed was built and checked, with pointers to the evidence. The step-by-step
+ledger, with every ruling and every deferred finding, is
+[2026-10-27-jrp-vendor-feed-ledger.md](../plans/2026-10-27-jrp-vendor-feed-ledger.md).
+
+### Steps
+
+1. **Plan** approved on 2026-10-13, turned into the task plan
+   [2026-10-27-jrp-vendor-feed.md](../plans/2026-10-27-jrp-vendor-feed.md) after a read-only
+   discovery of the real server and file on 2026-10-27 (`scripts/jrp-ftp-probe.js`).
+2. **Implementation** on branch `feat/jrp-vendor-feed` from `main` `e336c75`, seven tasks, one
+   fresh Opus implementer per task and an Opus reviewer after each task (spec compliance and
+   code quality), then one Opus review of the whole branch, one fix wave and a scoped
+   re-review. Front end on `feat/jrp-export-columns` from `master` `cb57e75`.
+3. **Sandbox verification** on 2026-10-27 against a throwaway Postgres (port 5456) holding
+   the 2,506 production Product rows of the 10 prefixes, copied read-only: real FTPS fetch,
+   dry run (26,451 parsed, 0 invalid, 2,224 matched, 89 ambiguous, 31 map below cost, nothing
+   written), real apply (vendor JRP created, 2,224 inserted), rerun skipped by hash in 1 ms,
+   forced rerun 0 inserted and 0 updated. The production database was never written.
+4. **Adversarial test** on 2026-10-27, after the final review: an independent Opus agent ran
+   hostile inputs against the real modules (CSV shape, values, matching, gates, orchestration
+   through the fake world, fetch gates, injection), and the file of the day was profiled.
+   No critical finding, no unwanted write. Four medium findings were fixed the same day:
+   feed collisions (commits `925c7f5`, `441c62c`), duplicate `JRPSKU` (`f4e3c69`), BOM or
+   spaces in the header (`1fdc337`), quote parity on apply (`2648ec8`). An Opus review of
+   those fixes added `4d661ab` (stale reason for collision losers) and `7eb5e31` (tests).
+   Branch HEAD after this: `7eb5e31`, 32 commits, 833 tests, 828 pass, 5 pre-existing skips.
+5. **Not done at the time of writing:** merge, deploy, first production run.
+
+### Rulings taken during the build
+
+- JRP is a vendor, resolved by name, never by id; no migration (shared production database).
+- Only the 10 brands in the real file are mapped; the ticket's other 15 wait for the feed.
+- The apply gate is a minimum matched count (1,500), not an unmatched ratio.
+- `MAP` is parsed, validated and counted, never written; `-0.01` means no MAP.
+- Stale rows keep their last cost and stock; nothing is deleted or zeroed by a job (team policy).
+- Reports live under `reports/jrp-ftp/<runId>/`, outside the `feeds/` retention prefix; nothing prunes them.
+- `seed-jrp` stays out of `seed-all` and both crons are born off: the first production run is manual.
+- Feed collisions: at most one row per product, only an exact row is written, otherwise nothing.
+- Duplicate `JRPSKU`: first copy in feed order wins; the rest are reported.
+- The sandbox used the real FTP and the real bucket; three small orphan report folders (`reports/jrp-ftp/2`, `/4`, `/6`) were accepted.
+
+### Rules that an auditor can check in code
+
+| Rule | Where | Test |
+|---|---|---|
+| Brand label to prefix, case and whitespace insensitive | `config/jrp.js` `brandLabelToPrefix` | `test/config/jrp.test.js` |
+| Active brands, env override | `config/jrp.js` `activeBrands` | `test/config/jrp.test.js` |
+| Row validation and the `4+` stock | `lib/feeds/jrp/parseRow.js` | `test/lib/feeds/jrp/parseRow.test.js` |
+| BOM and header trim | `lib/ingest/streamCsv.js`, `lib/feeds/jrp/readFeed.js` | `test/lib/ingest/streamCsv.test.js`, `readFeed.test.js` |
+| Duplicate `JRPSKU` | `lib/feeds/jrp/dedupeRows.js` | `test/lib/feeds/jrp/dedupeRows.test.js` |
+| Part number match, Airaid strip, catalog tie-break, feed collisions | `lib/feeds/jrp/matchRows.js`, `lib/competitors/skuMatch.js` | `test/lib/feeds/jrp/matchRows.test.js` |
+| Gates, all before any write | `lib/feeds/jrp/jrpGates.js`, `lib/feeds/jrp/jrpIngest.js` | `jrpGates.test.js`, `jrpIngest.test.js` |
+| Staged diff, `staleStrategy: 'none'`, stale listing | `lib/feeds/jrp/jrpWrite.js` | `jrpIngest.test.js` (fake world) |
+| Report bodies and keys | `lib/feeds/jrp/unmatchedReport.js` | `unmatchedReport.test.js` |
+| Fetch gates (size, shrink, header, quote parity) | `services/feeds/jrpFetchService.js` | `test/services/feeds/jrpFetchService.test.js` |
+| Crons off by default | `config/cron-jobs.js` | `test/config/cronJobs.test.js` |
