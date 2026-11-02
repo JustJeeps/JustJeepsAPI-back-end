@@ -67,8 +67,11 @@ function previewLines(items) {
 	return [...byBrand].flatMap(([prefix, list]) => list.map((i) => `  ${prefix} ${i.competitorSku} $${i.price}${i.available ? '' : ' (out of stock)'} ${i.url}`));
 }
 
+function readSnapshot(deps, file) {
+	return deps.validateSnapshot(JSON.parse(deps.readFile(file)));
+}
+
 async function collectPayload({ deps, args, runId }) {
-	if (args.fromSnapshot) return deps.validateSnapshot(JSON.parse(deps.readFile(args.fromSnapshot)));
 	const brands = deps.filterBrands(deps.brands, args.brands);
 	const { payload, invalidSample } = await deps.collect({ brands, runId, sample: sampleOf(args) });
 	if (invalidSample.length) deps.logger.info(`[niagara] invalid sample: ${JSON.stringify(invalidSample.slice(0, 10))}`);
@@ -106,42 +109,70 @@ function startedByOf(args, sample, env) {
 	return env.INGEST_TRIGGER || 'cron';
 }
 
+// File writes after the database write are best effort: a full disk must not
+// turn a run that wrote rows into a "failed" one.
+function bestEffort(deps, label, fn) {
+	try {
+		return fn();
+	} catch (error) {
+		deps.logger.warn(`[niagara] could not save the ${label}: ${error.message}`);
+		return null;
+	}
+}
+
 async function runIngest(deps, args) {
 	const startedAt = deps.now();
 	const stamp = stampOf(startedAt);
-	const sample = sampleOf(args);
+	// A snapshot is read before the run starts, so a saved sample replayed with
+	// --from-snapshot is still labelled sample and never becomes the baseline.
+	let snapshot = null;
+	try {
+		snapshot = args.fromSnapshot ? readSnapshot(deps, args.fromSnapshot) : null;
+	} catch (error) {
+		deps.logger.error(`[niagara] ${errorDetail(error)}`);
+		return { exitCode: 1, error: errorDetail(error) };
+	}
+	const sample = sampleOf(args) || (snapshot && snapshot.sample) || null;
 	const prisma = deps.getPrisma();
 	const sourceRef = args.fromSnapshot || `${deps.baseUrl}${sample ? ' (sample)' : ''}${args.dryRun ? ' (dry-run)' : ''}`;
 	const run = await deps.startRun(FEED, { sourceKind: args.fromSnapshot ? 'snapshot' : 'api', sourceRef, startedBy: startedByOf(args, sample, deps.env) });
 	const finish = (outcome) => run.finish(outcome).catch((error) => deps.logger.warn(`[niagara] could not record the run outcome: ${error.message}`));
 	deps.logger.info(`[niagara] run ${run.id} started${args.dryRun ? ' (dry-run)' : ''}${sample ? ` (sample ${JSON.stringify(sample)})` : ''} source=${sourceRef}`);
 
+	let payload;
+	let snapshotPath = null;
+	let result;
 	try {
-		const payload = await collectPayload({ deps, args, runId: run.id });
-		const snapshotPath = args.fromSnapshot ? null
-			: saveFile(deps, deps.snapshotFileName({ runId: run.id, dryRun: args.dryRun, sample: Boolean(sample), stamp }), JSON.stringify(payload));
-		const result = await deps.ingest({ prisma, payload, baselineRows: await lastFullRunRows(prisma), dryRun: args.dryRun });
-		const reportPath = saveFile(deps, `niagara-run-${run.id}-report-${stamp}.csv`, deps.buildReportCsv(result.report));
-
-		const partial = Boolean(payload.collection && payload.collection.partial);
-		const status = args.dryRun ? 'dry-run' : partial ? 'partial' : 'success';
-		const counts = { ...result.counts, markedStale: result.counts.markedStale || 0 };
-		await finish({ status, counts, sourceRowCount: result.matched, ...(partial ? { error: 'NIAGARA_PARTIAL: the crawl stopped on its budget' } : {}) });
-		if (status === 'success' && !sample && snapshotPath) saveFile(deps, 'latest-snapshot.json', JSON.stringify(payload));
-		if (!args.dryRun) {
-			const files = [...(snapshotPath ? [{ filePath: snapshotPath, extension: 'json', contentType: 'application/json' }] : []), { filePath: reportPath, extension: 'csv', contentType: 'text/csv' }];
-			await archiveFiles(deps, files, startedAt, status);
+		payload = snapshot || await collectPayload({ deps, args, runId: run.id });
+		if (!snapshot) {
+			snapshotPath = bestEffort(deps, 'snapshot', () => saveFile(deps, deps.snapshotFileName({ runId: run.id, dryRun: args.dryRun, sample: Boolean(sample), stamp }), JSON.stringify(payload)));
 		}
-		const summary = { runId: run.id, status, items: payload.items.length, matched: result.matched, matchRate: Number(result.matchRate.toFixed(3)), ...counts, collection: payload.collection, report: reportPath };
-		deps.logger.info(`[niagara] SUMMARY ${JSON.stringify(summary)}`);
-		if (partial) deps.logger.warn(`[niagara] run ${run.id} is PARTIAL: rows written, exit code ${EXIT_PARTIAL}`);
-		return { exitCode: partial && !args.dryRun ? EXIT_PARTIAL : 0, summary };
+		result = await deps.ingest({ prisma, payload, baselineRows: await lastFullRunRows(prisma), dryRun: args.dryRun });
 	} catch (error) {
 		const detail = errorDetail(error);
 		deps.logger.error(`[niagara] run ${run.id} FAILED: ${detail}`);
 		await finish({ status: 'failed', error: detail });
 		return { exitCode: 1, error: detail };
 	}
+
+	const partial = Boolean(payload.collection && payload.collection.partial);
+	const status = args.dryRun ? 'dry-run' : partial ? 'partial' : 'success';
+	const counts = { ...result.counts, markedStale: result.counts.markedStale || 0 };
+	await finish({ status, counts, sourceRowCount: result.matched, ...(partial ? { error: 'NIAGARA_PARTIAL: the crawl stopped on its budget' } : {}) });
+
+	const reportPath = bestEffort(deps, 'report', () => saveFile(deps, `niagara-run-${run.id}-report-${stamp}.csv`, deps.buildReportCsv(result.report)));
+	if (status === 'success' && !sample && snapshotPath) bestEffort(deps, 'latest snapshot', () => saveFile(deps, 'latest-snapshot.json', JSON.stringify(payload)));
+	if (!args.dryRun) {
+		const files = [
+			...(snapshotPath ? [{ filePath: snapshotPath, extension: 'json', contentType: 'application/json' }] : []),
+			...(reportPath ? [{ filePath: reportPath, extension: 'csv', contentType: 'text/csv' }] : []),
+		];
+		await archiveFiles(deps, files, startedAt, status);
+	}
+	const summary = { runId: run.id, status, items: payload.items.length, matched: result.matched, matchRate: Number(result.matchRate.toFixed(3)), ...counts, collection: payload.collection, report: reportPath };
+	deps.logger.info(`[niagara] SUMMARY ${JSON.stringify(summary)}`);
+	if (partial) deps.logger.warn(`[niagara] run ${run.id} is PARTIAL: rows written, exit code ${EXIT_PARTIAL}`);
+	return { exitCode: partial && !args.dryRun ? EXIT_PARTIAL : 0, summary };
 }
 
 async function runSeedNiagara(deps) {

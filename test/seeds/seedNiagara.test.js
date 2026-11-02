@@ -113,3 +113,27 @@ test('a bad argument fails before any run is recorded', async () => {
 	assert.strictEqual((await runSeedNiagara(deps)).exitCode, 1);
 	assert.deepStrictEqual(calls.startRun, []);
 });
+
+test('a saved sample replayed with --from-snapshot stays a sample and never sets the baseline', async () => {
+	const { deps, calls } = makeDeps({ argv: ['--from-snapshot', '/tmp/x.json'] });
+	deps.readFile = () => JSON.stringify(payload({ sample: { brands: ['BIL'], maxPages: 1 } }));
+	await runSeedNiagara(deps);
+	assert.strictEqual(calls.startRun[0].startedBy, 'sample');
+	assert.strictEqual(calls.files['/snap/latest-snapshot.json'], undefined);
+});
+
+test('a file write failing after the database write keeps the run a success', async () => {
+	const { deps, calls } = makeDeps();
+	deps.writeFile = () => { throw new Error('ENOSPC: no space left on device'); };
+	const result = await runSeedNiagara(deps);
+	assert.strictEqual(result.exitCode, 0);
+	assert.deepStrictEqual(calls.finish.map((f) => f.status), ['success']);
+	assert.deepStrictEqual(calls.archive, []);
+});
+
+test('an unreadable snapshot fails before any run is recorded', async () => {
+	const { deps, calls } = makeDeps({ argv: ['--from-snapshot', '/tmp/x.json'] });
+	deps.readFile = () => 'not json';
+	assert.strictEqual((await runSeedNiagara(deps)).exitCode, 1);
+	assert.deepStrictEqual(calls.startRun, []);
+});
