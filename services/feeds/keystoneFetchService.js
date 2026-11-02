@@ -37,6 +37,15 @@ const sha256File = (filePath) =>
 			.on('end', () => resolve(hash.digest('hex')));
 	});
 
+// Export time of a fetched batch: the oldest vendor date, or null when any
+// file came without one (claiming the other file's date would hide a vendor
+// that stopped publishing one of them). Recorded on a skip so the panel can
+// tell an identical re-export from a vendor that stopped publishing.
+function oldestVendorDate(files) {
+	if (files.some((file) => !file.sourceModifiedAt)) return null;
+	return new Date(Math.min(...files.map((file) => new Date(file.sourceModifiedAt).getTime())));
+}
+
 async function runKeystoneFetch({
 	ftpClient,
 	store,
@@ -125,7 +134,12 @@ async function runKeystoneFetch({
 		if (current) {
 			const currentShas = new Map(current.artifacts.map((artifact) => [artifact.fileName, artifact.sha256]));
 			if (files.every((file) => currentShas.get(file.fileName) === file.sha256)) {
-				await finishRun({ status: 'skipped-unchanged', rowsSkipped: 1, artifactBatchId: current.batchId });
+				await finishRun({
+					status: 'skipped-unchanged',
+					rowsSkipped: 1,
+					artifactBatchId: current.batchId,
+					sourceMtime: oldestVendorDate(files),
+				});
 				fs.rmSync(scratchDir, { recursive: true, force: true });
 				return { skipped: true, batchId: current.batchId };
 			}

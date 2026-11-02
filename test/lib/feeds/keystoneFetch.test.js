@@ -175,6 +175,45 @@ test('hashes equal to the current batch become a skip with no upload at all', as
 	assert.strictEqual(fixture.runs[0].artifactBatchId, 'current-batch');
 });
 
+test('a skip records the oldest vendor date of the batch, so the panel knows the feed is not late', async () => {
+	const currentBatch = {
+		batchId: 'current-batch',
+		artifacts: [
+			{ fileName: 'Inventory.csv', sha256: sha256(INVENTORY) },
+			{ fileName: 'SpecialOrder.csv', sha256: sha256(SPECIAL) },
+		],
+	};
+	const fixture = makeFixture({
+		currentBatch,
+		vendorModifiedAt: {
+			'Inventory.csv': new Date('2026-11-02T12:11:00Z'),
+			'SpecialOrder.csv': new Date('2026-11-02T12:12:30Z'),
+		},
+	});
+
+	await runKeystoneFetch({ ftpClient: fixture.ftpClient, store: fixture.store, prisma: fixture.prisma, catalog: fixture.catalogStub, cacheDir: fixture.cacheDir, env: fixture.env });
+
+	assert.strictEqual(fixture.runs[0].status, 'skipped-unchanged');
+	assert.deepStrictEqual(fixture.runs[0].sourceMtime, new Date('2026-11-02T12:11:00Z'));
+});
+
+test('a skip with a file missing its vendor date records no sourceMtime', async () => {
+	// One unknown date means the export time of the batch is unknown: claiming
+	// the other file's date would hide a vendor that stopped publishing one file.
+	const currentBatch = {
+		batchId: 'current-batch',
+		artifacts: [
+			{ fileName: 'Inventory.csv', sha256: sha256(INVENTORY) },
+			{ fileName: 'SpecialOrder.csv', sha256: sha256(SPECIAL) },
+		],
+	};
+	const fixture = makeFixture({ currentBatch, vendorModifiedAt: { 'Inventory.csv': new Date('2026-11-02T12:11:00Z') } });
+
+	await runKeystoneFetch({ ftpClient: fixture.ftpClient, store: fixture.store, prisma: fixture.prisma, catalog: fixture.catalogStub, cacheDir: fixture.cacheDir, env: fixture.env });
+
+	assert.strictEqual(fixture.runs[0].sourceMtime, null);
+});
+
 test('a download that shrinks against the current batch is rejected (a truncated one would pass the fixed floor)', async () => {
 	// The current batch is much bigger: the new download has a size the floor finds
 	// plausible, but it is half of the previous one, and with staleStrategy delete

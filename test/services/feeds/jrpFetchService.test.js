@@ -126,6 +126,29 @@ test('a sha256 equal to the current batch is skipped-unchanged and nothing is up
 	assert.ok(!fs.existsSync(path.join(fixture.cacheDir, FEED_NAME)), 'no cache batch for a skip');
 });
 
+test('a skip records when the vendor republished the identical file, so the panel knows the feed is not late', async () => {
+	// JRP re-exports the same stock over a weekend with a new date. Without the
+	// date on the run, the panel measured age from the old batch and showed
+	// "overdue" next to a vendor that had published on time (2026-11-02).
+	const publishedAt = new Date('2026-11-02T09:41:02Z');
+	const currentBatch = { batchId: 'current-batch', artifacts: [{ fileName: REMOTE_FILE, sha256: sha256(FEED), sizeBytes: Buffer.byteLength(FEED) }] };
+	const fixture = makeFixture({ currentBatch, modifiedAt: publishedAt });
+
+	await fixture.run();
+
+	assert.strictEqual(fixture.lastRun().status, 'skipped-unchanged');
+	assert.deepStrictEqual(fixture.lastRun().sourceMtime, publishedAt);
+});
+
+test('a skip without a vendor date records no sourceMtime', async () => {
+	const currentBatch = { batchId: 'current-batch', artifacts: [{ fileName: REMOTE_FILE, sha256: sha256(FEED), sizeBytes: Buffer.byteLength(FEED) }] };
+	const fixture = makeFixture({ currentBatch, modifiedAt: null });
+
+	await fixture.run();
+
+	assert.strictEqual(fixture.lastRun().sourceMtime, null);
+});
+
 test('a file below the minimum size fails before uploading or cataloguing', async () => {
 	const fixture = makeFixture();
 

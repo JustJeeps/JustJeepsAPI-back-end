@@ -145,7 +145,14 @@ async function fetchAndCatalog({ ftpClient, store, prisma, catalog, feedsConfig,
 	const file = await downloadAndValidate({ ftpClient, fileName, scratchDir, current, limits, feedsConfig });
 
 	if (isUnchanged(current, file)) {
-		await finishRun({ status: 'skipped-unchanged', rowsSkipped: 1, artifactBatchId: current.batchId });
+		// The vendor's date on the identical file: proof it published on time,
+		// which keeps the panel from flagging a quiet weekend as overdue.
+		await finishRun({
+			status: 'skipped-unchanged',
+			rowsSkipped: 1,
+			artifactBatchId: current.batchId,
+			sourceMtime: file.sourceModifiedAt ? new Date(file.sourceModifiedAt) : null,
+		});
 		fs.rmSync(scratchDir, { recursive: true, force: true });
 		return { skipped: true, batchId: current.batchId };
 	}
