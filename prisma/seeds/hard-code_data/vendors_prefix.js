@@ -65,6 +65,8 @@ module.exports = [
     {
     jj_prefix: "ADS",
     brand_name: "Adams Driveshaft",
+    niagara_code: "adams-driveshaft",
+    niagara_sku_prefixes: ["ADS-"],
     vendors: "Meyer",
     keystone_code: "",
     meyer_code: "ADS",
@@ -75,6 +77,7 @@ module.exports = [
   {
     jj_prefix: "ADD",
     brand_name: "Addictive Desert Designs",
+    niagara_code: "addictive-desert-designs",
     vendors: "Keystone, Meyer",
     keystone_code: "ADD",
     meyer_code: "ADD",
@@ -139,6 +142,8 @@ module.exports = [
   {
     jj_prefix: "AFE",
     brand_name: "aFe Power",
+    niagara_code: "afe-power",
+    niagara_sku_prefixes: ["AFE-"],
     jrp_code: "aFe Power",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "A15",
@@ -155,6 +160,7 @@ module.exports = [
   {
     jj_prefix: "AIR",
     brand_name: "AIRAID",
+    niagara_code: "airaid",
     jrp_code: "Airaid",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "A86",
@@ -170,6 +176,7 @@ module.exports = [
   {
     jj_prefix: "ABZ",
     brand_name: "AirBedz",
+    niagara_code: "airbedz",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "ABZ",
     meyer_code: "ABZ",
@@ -181,6 +188,7 @@ module.exports = [
   {
     jj_prefix: "AID",
     brand_name: "Air Design",
+    niagara_code: "airdesign",
     vendors: "Keystone, Quadratec",
     keystone_code: "AIR",
     meyer_code: "",
@@ -222,6 +230,7 @@ module.exports = [
   {
     jj_prefix: "ALR",
     brand_name: "AlphaRex",
+    niagara_code: "alpharex",
     jrp_code: "AlphaRex",
     vendors: "Meyer, Keystone",
     keystone_code: "ALP",
@@ -290,6 +299,7 @@ module.exports = [
   {
     jj_prefix: "AMP",
     brand_name: "AMP Research",
+    niagara_code: "amp-research",
     vendors: "Meyer, Keystone, Quadratec, TWG -The Wheel Group (check invent)",
     keystone_code: "AMP",
     meyer_code: "AMP",
@@ -305,6 +315,7 @@ module.exports = [
     {
     jj_prefix: "AMT",
     brand_name: "AMP Tires",
+    niagara_code: "amp-tires",
     vendors: "Meyer, Keystone, Quadratec, TWG -The Wheel Group (check invent)",
     keystone_code: "WGH",
     meyer_code: "AMT",
@@ -329,6 +340,7 @@ module.exports = [
   {
     jj_prefix: "ANU",
     brand_name: "ANZO USA",
+    niagara_code: "anzo-usa",
     vendors: "Meyer, Keystone",
     keystone_code: "A1R",
     meyer_code: "ANZ",
@@ -348,6 +360,8 @@ module.exports = [
   {
     jj_prefix: "ARB",
     brand_name: "ARB",
+    niagara_code: "arb",
+    niagara_sku_prefixes: ["ARB-"],
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "ARB",
     meyer_code: "ARB",
@@ -370,6 +384,7 @@ module.exports = [
   {
     jj_prefix: "ARS",
     brand_name: "Aries Automotive",
+    niagara_code: "aries-automotive",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "A1S",
     meyer_code: "ARI",
@@ -384,6 +399,8 @@ module.exports = [
   {
     jj_prefix: "AML",
     brand_name: "Armorlite",
+    niagara_code: "armorlite",
+    niagara_sku_prefixes: ["AML-"],
     vendors: "Meyer, Quadratec",
     keystone_code: "AML",
     meyer_code: "AML",
@@ -460,6 +477,7 @@ module.exports = [
   {
     jj_prefix: "AVS",
     brand_name: "Auto Ventshade",
+    niagara_code: "auto-ventshade",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "V15",
     meyer_code: "AVE",
@@ -511,6 +529,7 @@ module.exports = [
   {
     jj_prefix: "BAJ",
     brand_name: "Baja Designs",
+    niagara_code: "baja-designs",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "B34",
     meyer_code: "BAJ",
@@ -539,6 +558,8 @@ module.exports = [
   {
     jj_prefix: "BAP",
     brand_name: "Banks Power",
+    niagara_code: "banks-power",
+    niagara_sku_prefixes: ["BAN-"],
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "B76",
     meyer_code: "BAN",
@@ -589,6 +610,7 @@ module.exports = [
   {
     jj_prefix: "BDS",
     brand_name: "BDS Suspension",
+    niagara_code: "bds-suspension",
     vendors: "Grand West",
     keystone_code: "",
     meyer_code: "",
@@ -599,6 +621,7 @@ module.exports = [
   {
     jj_prefix: "BED",
     brand_name: "BedRug",
+    niagara_code: "bedrug",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "B63",
     meyer_code: "WIS",
@@ -616,6 +639,8 @@ module.exports = [
   {
     jj_prefix: "BST",
     brand_name: "BESTOP",
+    niagara_code: "bestop",
+    niagara_sku_prefixes: ["BESTOP-"],
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "D34",
     meyer_code: "BES",
@@ -641,6 +666,8 @@ module.exports = [
   {
     jj_prefix: "BIL",
     brand_name: "Bilstein",
+    niagara_code: "bilstein",
+    niagara_sku_prefixes: ["BIL-"],
     jrp_code: "Bilstein",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "B52",
@@ -659,6 +686,7 @@ module.exports = [
   {
     jj_prefix: "BHO",
     brand_name: "Black Horse Offroad",
+    niagara_code: "black-horse-off-road",
     vendors: "Keystone, Quadratec, Meyer",
     keystone_code: "BLK",
     meyer_code: "BHO",
@@ -671,6 +699,7 @@ module.exports = [
   {
     jj_prefix: "BLR",
     brand_name: "Black Rhino",
+    niagara_code: "black-rhino-wheels",
     vendors: "WheelPros (don't DS to US)",//Quadratec
     keystone_code: "",
     meyer_code: "",
@@ -705,6 +734,7 @@ module.exports = [
   {
     jj_prefix: "BOA",
     brand_name: "Body Armor 4x4",
+    niagara_code: "body-armor-4x4",
     vendors: "Meyer, Keystone, Quadratec, TWG -The Wheel Group (check invent) ",
     keystone_code: "B96",
     meyer_code: "BOD",
@@ -718,6 +748,7 @@ module.exports = [
   {
     jj_prefix: "BOL",
     brand_name: "Bolt Lock",
+    niagara_code: "bolt-lock",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "S6R",
     meyer_code: "BOL",
@@ -776,6 +807,7 @@ module.exports = [
   {
     jj_prefix: "BRM",
     brand_name: "Brand Motion",
+    niagara_code: "brandmotion",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "B1M",
     meyer_code: "BRM",
@@ -804,6 +836,7 @@ module.exports = [
   {
     jj_prefix: "BUB",
     brand_name: "Bubba Rope",
+    niagara_code: "bubba-gear",
     vendors: "Meyer, Quadratec",
     keystone_code: "",
     meyer_code: "BUB",
@@ -814,6 +847,8 @@ module.exports = [
   {
     jj_prefix: "BUS",
     brand_name: "BUSHWACKER",
+    niagara_code: "bushwacker",
+    niagara_sku_prefixes: ["BUS-"],
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "L22",
     meyer_code: "BUS",
@@ -840,6 +875,7 @@ module.exports = [
   {
     jj_prefix: "CAM",
     brand_name: "Camco",
+    niagara_code: "camco",
     vendors: "Meyer, Keystone",
     keystone_code: "C1W",
     meyer_code: "CMC",
@@ -985,6 +1021,7 @@ module.exports = [
   {
     jj_prefix: "COR",
     brand_name: "Corsa Performance",
+    niagara_code: "corsa-performance",
     vendors: "Keystone, Quadratec (only - dont consider key)",
     keystone_code: "C1M",
     meyer_code: "",
@@ -998,6 +1035,7 @@ module.exports = [
   {
     jj_prefix: "COV",
     brand_name: "Covercraft",
+    niagara_code: "covercraft",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "C59",
     meyer_code: "COV",
@@ -1021,6 +1059,7 @@ module.exports = [
   {
     jj_prefix: "CBF",
     brand_name: "Combat Off Road",
+    niagara_code: "combat-off-road",
     vendors: "Meyer (MAP)",
     keystone_code: "",
     meyer_code: "CBF",
@@ -1030,6 +1069,8 @@ module.exports = [
   {
     jj_prefix: "CRO",
     brand_name: "Crown Automotive",
+    niagara_code: "crown-automotive",
+    niagara_sku_prefixes: ["CAS-"],
     vendors: "Keystone, Meyer, Quadratec",
     keystone_code: "C1Y",
     meyer_code: "CAS",
@@ -1075,6 +1116,7 @@ module.exports = [
   {
     jj_prefix: "CMF",
     brand_name: "Curt Manufacturing",
+    niagara_code: "curt-manufacturing",
     vendors: "Meyer, Keystone, Quadratec, Curt",
     keystone_code: "C93",
     meyer_code: "CUR",
@@ -1124,6 +1166,7 @@ module.exports = [
   {
     jj_prefix: "DSP",
     brand_name: "Dana Spicer",
+    niagara_code: "dana-spicer",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "DSP",
     meyer_code: "DNA",
@@ -1136,6 +1179,7 @@ module.exports = [
   {
     jj_prefix: "DAY",
     brand_name: "Daystar",
+    niagara_code: "daystar",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "D78",
     meyer_code: "DAY",
@@ -1149,6 +1193,7 @@ module.exports = [
   {
     jj_prefix: "DKD",
     brand_name: "Decked",
+    niagara_code: "decked",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "DCK",
     meyer_code: "DCK",
@@ -1162,6 +1207,7 @@ module.exports = [
   {
     jj_prefix: "DEZ",
     brand_name: "DeeZee",
+    niagara_code: "dee-zee-1",
     vendors: "Meyer, Quadratec",
     keystone_code: "",
     meyer_code: "DZE",
@@ -1175,6 +1221,7 @@ module.exports = [
   {
     jj_prefix: "DOD",
     brand_name: "Diode Dynamics",
+    niagara_code: "diode-dynamics",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "DIO",
     meyer_code: "DDY",
@@ -1223,6 +1270,7 @@ module.exports = [
   {
     jj_prefix: "DIL",
     brand_name: "Dirty Life",
+    niagara_code: "dirty-life",
     vendors: "Meyer, Keystone, Quadratec,TWG",
     keystone_code: "WGH",
     meyer_code: "DLW",
@@ -1243,6 +1291,7 @@ module.exports = [
   {
     jj_prefix: "DOM",
     brand_name: "Dometic",
+    niagara_code: "dometic",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "D7E",
     meyer_code: "DOM",
@@ -1255,6 +1304,7 @@ module.exports = [
   {
     jj_prefix: "DOR",
     brand_name: "Dorman",
+    niagara_code: "dorman",
     vendors: "Meyer, Keystone",
     keystone_code: "D18",
     meyer_code: "DOR",
@@ -1265,6 +1315,7 @@ module.exports = [
   {
     jj_prefix: "DRT",
     brand_name: "Draw-Tite",
+    niagara_code: "draw-tite",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "D70",
     meyer_code: "DRT",
@@ -1298,6 +1349,8 @@ module.exports = [
   {
     jj_prefix: "DV8",
     brand_name: "DV8 OffRoad",
+    niagara_code: "dv8-off-road",
+    niagara_sku_prefixes: ["DV8-"],
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "DV8",
     meyer_code: "DVE",
@@ -1346,6 +1399,7 @@ module.exports = [
   {
     jj_prefix: "EAT",
     brand_name: "EATON",
+    niagara_code: "eaton",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "E36",
     meyer_code: "EAT",
@@ -1389,6 +1443,7 @@ module.exports = [
   {
     jj_prefix: "EGR",
     brand_name: "EGR",
+    niagara_code: "egr",
     vendors: "Meyer, Quadratec, Keystone",
     keystone_code: "E17",
     meyer_code: "EGR",
@@ -1446,6 +1501,7 @@ module.exports = [
   {
     jj_prefix: "EVO",
     brand_name: "EVO Manufacturing",
+    niagara_code: "evo-manufacturing",
     vendors: "Meyer, Quadratec",
     keystone_code: "",
     meyer_code: "EVO",
@@ -1478,6 +1534,7 @@ module.exports = [
   {
     jj_prefix: "EXT",
     brand_name: "Extang",
+    niagara_code: "extang",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "E18",
     meyer_code: "EXT",
@@ -1522,6 +1579,8 @@ module.exports = [
   {
     jj_prefix: "FBF",
     brand_name: "Fab Fours",
+    niagara_code: "fab-fours",
+    niagara_sku_prefixes: ["FFR-"],
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "F66",
     meyer_code: "FFB",
@@ -1536,6 +1595,8 @@ module.exports = [
   {
     jj_prefix: "FBT",
     brand_name: "Fabtech",
+    niagara_code: "fabtech",
+    niagara_sku_prefixes: ["FAB-"],
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "F37",
     meyer_code: "FAB",
@@ -1550,6 +1611,7 @@ module.exports = [
   {
     jj_prefix: "F55",
     brand_name: "Factor 55",
+    niagara_code: "factor-55",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "FAC",
     meyer_code: "FCT",
@@ -1616,6 +1678,7 @@ module.exports = [
   {
     jj_prefix: "FTN",
     brand_name: "Firestone",
+    niagara_code: "firestone",
     vendors: "Tire Discounter",
     keystone_code: "",
     meyer_code: "",
@@ -1640,6 +1703,7 @@ module.exports = [
   {
     jj_prefix: "FIS",
     brand_name: "Fishbone Offroad",
+    niagara_code: "fishbone-offroad",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "FSH",
     meyer_code: "KEN",
@@ -1653,6 +1717,8 @@ module.exports = [
   {
     jj_prefix: "FLM",
     brand_name: "FlowMaster",
+    niagara_code: "flowmaster",
+    niagara_sku_prefixes: ["FLO-"],
     jrp_code: "Flowmaster",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "F13",
@@ -1715,6 +1781,7 @@ module.exports = [
   {
     jj_prefix: "FOR",
     brand_name: "Fuel Off-Road",
+    niagara_code: "fuel-off-road",
     vendors: "WheelPros (don't DS to US), Quadratec",
     keystone_code: "",
     meyer_code: "",
@@ -1802,6 +1869,8 @@ module.exports = [
   {
     jj_prefix: "GOR",
     brand_name: "Go Rhino",
+    niagara_code: "go-rhino",
+    niagara_sku_prefixes: ["RHI-"],
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "G26",
     meyer_code: "RHI",
@@ -1830,6 +1899,7 @@ module.exports = [
   {
     jj_prefix: "GRA",
     brand_name: "Gorilla Automotive",
+    niagara_code: "gorilla-automotive",
     vendors: "WheelPros (don't DS to US),Meyer, Keystone, Quadratec",
     keystone_code: "G20",
     meyer_code: "GOL",
@@ -1876,6 +1946,7 @@ module.exports = [
   {
     jj_prefix: "GTS",
     brand_name: "GT Styling",
+    niagara_code: "gt-styling",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "G49",
     meyer_code: "GST",
@@ -1906,6 +1977,7 @@ module.exports = [
   {
     jj_prefix: "HVC",
     brand_name: "Havoc Offroad",
+    niagara_code: "havoc-offroad",
     vendors: "Keystone, Quadratec, Meyer, Omix",
     keystone_code: "O32",
     meyer_code: "OMI",
@@ -1967,6 +2039,7 @@ module.exports = [
   {
     jj_prefix: "HIL",
     brand_name: "Hi-Lift Jack",
+    niagara_code: "hi-lift-jack",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "H12",
     meyer_code: "HIL",
@@ -1992,6 +2065,7 @@ module.exports = [
   {
     jj_prefix: "HU",
     brand_name: "Husky Liners",
+    niagara_code: "husky-liners",
     jrp_code: "Husky Liners",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "H21",
@@ -2055,6 +2129,8 @@ module.exports = [
     {
     jj_prefix: "ICO",
     brand_name: "ICON Vehicle Dynamics",
+    niagara_code: "icon-vehicle-dynamics",
+    niagara_sku_prefixes: ["ICON-"],
     vendors: "Meyer,Keystone, Quadratec",
     keystone_code: "i43",
     meyer_code: "ICO",
@@ -2147,6 +2223,7 @@ module.exports = [
   {
     jj_prefix: "JWS",
     brand_name: "J.W. Speaker",
+    niagara_code: "jw-speaker",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "J47",
     meyer_code: "JWS",
@@ -2209,6 +2286,8 @@ module.exports = [
   {
     jj_prefix: "JKS",
     brand_name: "JKS Manufacturing",
+    niagara_code: "jks-manufacturing",
+    niagara_sku_prefixes: ["JKS"],
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "J46",
     meyer_code: "JKS",
@@ -2265,6 +2344,7 @@ module.exports = [
   {
     jj_prefix: "KCH",
     brand_name: "KC HILITES",
+    niagara_code: "kc-hilites",
     jrp_code: "KC HiLiTES",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "K13",
@@ -2283,6 +2363,7 @@ module.exports = [
   {
     jj_prefix: "KEN",
     brand_name: "Kentrol",
+    niagara_code: "kentrol",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "KEN",
     meyer_code: "KEN",
@@ -2319,6 +2400,7 @@ module.exports = [
   {
     jj_prefix: "KLN",
     brand_name: "Kleinn",
+    niagara_code: "kleinn",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "K86",
     meyer_code: "KLN",
@@ -2333,6 +2415,7 @@ module.exports = [
   {
     jj_prefix: "KMC",
     brand_name: "KMC Wheels",
+    niagara_code: "kmc-wheels",
     vendors: "WheelPros (don't DS to US), Quadratec, Keystone",
     keystone_code: "A78",
     meyer_code: "",
@@ -2409,6 +2492,8 @@ module.exports = [
   {
     jj_prefix: "LUL",
     brand_name: "Lube Locker",
+    niagara_code: "lube-locker",
+    niagara_sku_prefixes: ["LUB-"],
     vendors: "Meyer, Quadratec",
     keystone_code: "",
     meyer_code: "LUB",
@@ -2486,6 +2571,7 @@ module.exports = [
   {
     jj_prefix: "MGF",
     brand_name: "MagnaFlow",
+    niagara_code: "magnaflow",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "M66",
     meyer_code: "MAG",
@@ -2624,6 +2710,8 @@ module.exports = [
   {
     jj_prefix: "MRW",
     brand_name: "Method Race Wheels",
+    niagara_code: "method-wheels",
+    niagara_sku_prefixes: ["METHOD-"],
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "MRW",
     meyer_code: "MRW",
@@ -2709,6 +2797,7 @@ module.exports = [
   {
     jj_prefix: "MIS",
     brand_name: "Mishimoto",
+    niagara_code: "mishimoto",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "M1N",
     meyer_code: "MIS",
@@ -2745,6 +2834,7 @@ module.exports = [
   {
     jj_prefix: "MO",
     brand_name: "MOPAR",
+    niagara_code: "mopar",
     vendors: "Downsview, Quadratec, Meyer",
     keystone_code: "",
     meyer_code: "MOP",
@@ -2767,6 +2857,7 @@ module.exports = [
   {
     jj_prefix: "MRY",
     brand_name: "MORryde",
+    niagara_code: "mor-ryde",
     vendors: "Keystone, Meyer, Quadratec",
     keystone_code: "M6R",
     meyer_code: "MRY",
@@ -2828,6 +2919,8 @@ module.exports = [
   {
     jj_prefix: "NFB",
     brand_name: "N-Fab",
+    niagara_code: "n-fab",
+    niagara_sku_prefixes: ["NFB-"],
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "N21",
     meyer_code: "NFB",
@@ -2874,6 +2967,7 @@ module.exports = [
   {
     jj_prefix: "NOC",
     brand_name: "NOCO",
+    niagara_code: "noco",
     vendors: "Meyer, Keystone",
     keystone_code: "N6C",
     meyer_code: "NOC",
@@ -2959,6 +3053,7 @@ module.exports = [
   {
     jj_prefix: "OPT",
     brand_name: "Optima Batteries",
+    niagara_code: "optima-batteries",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "O10",
     meyer_code: "OPT",
@@ -2969,6 +3064,7 @@ module.exports = [
   {
     jj_prefix: "ORL",
     brand_name: "Oracle Lighting",
+    niagara_code: "oracle-lighting",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "O37",
     meyer_code: "ORL",
@@ -2999,6 +3095,7 @@ module.exports = [
   {
     jj_prefix: "OVS",
     brand_name: "Overland Vehicle Systems",
+    niagara_code: "overland-vehicle-systems",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "OVS",
     meyer_code: "UDA",
@@ -3051,6 +3148,7 @@ module.exports = [
   {
     jj_prefix: "PAR",
     brand_name: "Paramount Automotive",
+    niagara_code: "paramount-automotive",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "P1Z",
     meyer_code: "PMT",
@@ -3072,6 +3170,7 @@ module.exports = [
   {
     jj_prefix: "PED",
     brand_name: "Pedal Commander",
+    niagara_code: "pedal-commander",
     vendors: "Keystone, Quadratec",
     keystone_code: "PED",
     meyer_code: "",
@@ -3122,6 +3221,8 @@ module.exports = [
   {
     jj_prefix: "PLC",
     brand_name: "Plasticolor",
+    niagara_code: "plasticolor",
+    niagara_sku_prefixes: ["PLA-"],
     vendors: "Keystone, Quadratec",
     keystone_code: "P23",
     meyer_code: "",
@@ -3156,6 +3257,7 @@ module.exports = [
   {
     jj_prefix: "PST",
     brand_name: "Power Stop",
+    niagara_code: "powerstop",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "P15",
     meyer_code: "PSB",
@@ -3273,6 +3375,8 @@ module.exports = [
   {
     jj_prefix: "PUT",
     brand_name: "Putco",
+    niagara_code: "putco",
+    niagara_sku_prefixes: ["PUT-"],
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "P45",
     meyer_code: "PUT",
@@ -3315,6 +3419,7 @@ module.exports = [
   {
     jj_prefix: "QKE",
     brand_name: "Quake LED",
+    niagara_code: "quake-led",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "QKE",
     meyer_code: "QAK",
@@ -3364,6 +3469,7 @@ module.exports = [
   {
     jj_prefix: "RAN",
     brand_name: "Rancho",
+    niagara_code: "rancho",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "R38",
     meyer_code: "RHO",
@@ -3387,6 +3493,7 @@ module.exports = [
     {
     jj_prefix: "RNH",
     brand_name: "Ranch Hand",
+    niagara_code: "ranch-hand",
     vendors: "Meyer, Keystone",
     keystone_code: "RNH",
     meyer_code: "RNH",
@@ -3400,6 +3507,7 @@ module.exports = [
   {
     jj_prefix: "RL",
     brand_name: "ReadyLIFT",
+    niagara_code: "readylift",
     vendors: "Meyer, Keystone, Quadratec, WheelPros (don't DS to US)",
     keystone_code: "R90",
     meyer_code: "RDY",
@@ -3459,6 +3567,7 @@ module.exports = [
   {
     jj_prefix: "RHI",
     brand_name: "Rhino-Rack",
+    niagara_code: "rhino-rack",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "RHR",
     meyer_code: "RHR",
@@ -3489,6 +3598,7 @@ module.exports = [
   {
     jj_prefix: "RG",
     brand_name: "Rightline Gear",
+    niagara_code: "rightline-gear",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "RTL",
     meyer_code: "RLG",
@@ -3501,6 +3611,8 @@ module.exports = [
   {
     jj_prefix: "RIG",
     brand_name: "Rigid Industries",
+    niagara_code: "rigid-industries",
+    niagara_sku_prefixes: ["RIG"],
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "R2G",
     meyer_code: "RIG",
@@ -3536,6 +3648,7 @@ module.exports = [
   {
     jj_prefix: "RAM",
     brand_name: "Road Armor",
+    niagara_code: "road-armor",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "RDA",
     meyer_code: "RDA",
@@ -3556,6 +3669,7 @@ module.exports = [
   {
     jj_prefix: "RKJ",
     brand_name: "RockJock",
+    niagara_code: "rockjock",
     vendors: "Meyer, Quadratec",
     keystone_code: "",
     meyer_code: "CUE",
@@ -3599,6 +3713,7 @@ module.exports = [
   {
     jj_prefix: "RSE",
     brand_name: "Rock Slide Engineering",
+    niagara_code: "rock-slide-engineering",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "RCK",
     meyer_code: "RSE",
@@ -3646,6 +3761,7 @@ module.exports = [
   {
     jj_prefix: "ROT",
     brand_name: "RotoPax",
+    niagara_code: "rotopax",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "RTO",
     meyer_code: "RPX",
@@ -3666,6 +3782,8 @@ module.exports = [
   {
     jj_prefix: "RC",
     brand_name: "Rough Country",
+    niagara_code: "rough-country",
+    niagara_sku_prefixes: ["RCS"],
     vendors: "Rough Country, Quadratec",
     keystone_code: "",
     meyer_code: "",
@@ -3679,6 +3797,7 @@ module.exports = [
   {
     jj_prefix: "RSI",
     brand_name: "RSI",
+    niagara_code: "rsi",
     vendors: "Keystone",
     keystone_code: "RSI",
     meyer_code: "",
@@ -3735,6 +3854,8 @@ module.exports = [
   {
     jj_prefix: "RR",
     brand_name: "Rugged Ridge",
+    niagara_code: "rugged-ridge",
+    niagara_sku_prefixes: ["DMC-"],
     vendors: "Omix-ADA, Quadratec, Keystone, Meyer",
     keystone_code: "O31",
     meyer_code: "OMI",
@@ -3773,6 +3894,7 @@ module.exports = [
   {
     jj_prefix: "SNB",
     brand_name: "S&B Filters",
+    niagara_code: "s-b-filters",
     vendors: "Meyer, Quadratec, Northridge 4x4",
     keystone_code: "",
     meyer_code: "SNB",
@@ -3869,6 +3991,7 @@ module.exports = [
   {
     jj_prefix: "SKY",
     brand_name: "Skyjacker Suspension",
+    niagara_code: "skyjacker-suspensions",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "S97",
     meyer_code: "SKY",
@@ -3910,6 +4033,8 @@ module.exports = [
   {
     jj_prefix: "SB",
     brand_name: "Smittybilt",
+    niagara_code: "smittybilt",
+    niagara_sku_prefixes: ["SMB-"],
     vendors: "Meyer, WheelPros (don't DS to US)",
     // keystone_code: "S53",
     meyer_code: "SMB",
@@ -3922,6 +4047,7 @@ module.exports = [
   {
     jj_prefix: "SFX",
     brand_name: "SpeedFX",
+    niagara_code: "speedfx",
     vendors: "Keystone",
     keystone_code: "S73",
     meyer_code: "",
@@ -3934,6 +4060,7 @@ module.exports = [
   {
     jj_prefix: "SPT",
     brand_name: "SpiderTrax",
+    niagara_code: "spidertrax",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "S2P",
     meyer_code: "SXO",
@@ -3972,6 +4099,7 @@ module.exports = [
   {
     jj_prefix: "SPA",
     brand_name: "Spyder Automotive",
+    niagara_code: "spyder-automotive",
     vendors: "Meyer, Keystone",
     keystone_code: "S2Z",
     meyer_code: "SPY",
@@ -3984,6 +4112,8 @@ module.exports = [
   {
     jj_prefix: "SMA",
     brand_name: "Steer Smarts",
+    niagara_code: "steer-smarts",
+    niagara_sku_prefixes: ["SMT-"],
     vendors: "Quadratec, Meyer",
     keystone_code: "",
     meyer_code: "SMT",
@@ -4011,6 +4141,8 @@ module.exports = [
   {
     jj_prefix: "SC",
     brand_name: "Superchips",
+    niagara_code: "superchips",
+    niagara_sku_prefixes: ["SPC-"],
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "S54",
     meyer_code: "SPC",
@@ -4024,6 +4156,7 @@ module.exports = [
   {
     jj_prefix: "SUP",
     brand_name: "Superlift",
+    niagara_code: "superlift",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "S30",
     meyer_code: "SPL",
@@ -4041,6 +4174,7 @@ module.exports = [
   {
     jj_prefix: "SUW",
     brand_name: "Superwinch",
+    niagara_code: "superwinch",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "S49",
     meyer_code: "SUW",
@@ -4145,6 +4279,8 @@ module.exports = [
   {
     jj_prefix: "TER",
     brand_name: "TeraFlex",
+    niagara_code: "teraflex",
+    niagara_sku_prefixes: ["TER"],
     vendors: "Meyer, Keystone, Quadratec, WheelPros (don't DS to US)",
     keystone_code: "TER",
     meyer_code: "TER",
@@ -4182,6 +4318,8 @@ module.exports = [
   {
     jj_prefix: "TIM",
     brand_name: "Timbren",
+    niagara_code: "timbren",
+    niagara_sku_prefixes: ["TIM-"],
     vendors: "Meyer, Keystone",
     keystone_code: "T1K",
     meyer_code: "TIM",
@@ -4206,6 +4344,8 @@ module.exports = [
   {
     jj_prefix: "TO",
     brand_name: "Toyo Tires",
+    niagara_code: "toyo-tires",
+    niagara_sku_prefixes: ["TOYO-"],
     vendors: "Quadratec, Tire Discounter",//no longer keystone and meyer
     keystone_code: "T43",
     quadratec_code: "Toyo Tires",
@@ -4259,6 +4399,8 @@ module.exports = [
   {
     jj_prefix: "TFX",
     brand_name: "TrailFX",
+    niagara_code: "trailfx",
+    niagara_sku_prefixes: ["TFX-"],
     vendors: "Keystone",
     keystone_code: "T83", // main vendor code
     keystone_code_site: "TLF",
@@ -4293,6 +4435,7 @@ module.exports = [
   {
     jj_prefix: "TRX",
     brand_name: "Truxedo",
+    niagara_code: "truxedo",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "T70",
     meyer_code: "TRX",
@@ -4349,6 +4492,7 @@ module.exports = [
   {
     jj_prefix: "TGA",
     brand_name: "Tyger Auto",
+    niagara_code: "tyger-auto",
     vendors: "Meyer",
     keystone_code: "",
     meyer_code: "TGA",
@@ -4399,6 +4543,7 @@ module.exports = [
     {
     jj_prefix: "UND",
     brand_name: "Undercover",
+    niagara_code: "undercover",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "U19",
     meyer_code: "UND",
@@ -4517,6 +4662,7 @@ module.exports = [
   {
     jj_prefix: "WA",
     brand_name: "Warrior Products",
+    niagara_code: "warrior-products",
     vendors: "Quadratec, Keystone",
     keystone_code: "W45",
     // meyer_code: "WRR",
@@ -4553,6 +4699,7 @@ module.exports = [
   {
     jj_prefix: "WES",
     brand_name: "Westin Automotive",
+    niagara_code: "westin-automotive",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "W16",
     meyer_code: "WES",
@@ -4617,6 +4764,7 @@ module.exports = [
   {
     jj_prefix: "XKG",
     brand_name: "XK Glow",
+    niagara_code: "xk-glow",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "XKG",
     meyer_code: "XKG",
@@ -4700,6 +4848,7 @@ module.exports = [
     {
       jj_prefix: "BAK",
       brand_name: "Bak Industries",
+      niagara_code: "bak-industries",
       vendors: "Meyer, Keystone",
       keystone_code: "B65",
       meyer_code: "BAK",
@@ -4743,6 +4892,8 @@ module.exports = [
   {
     jj_prefix: "ZAM",
     brand_name: "Z Automotive",
+    niagara_code: "z-automotive",
+    niagara_sku_prefixes: ["ZAT-"],
     vendors: "Meyer, Quadratec",
     keystone_code: "",
     meyer_code: "ZAT",
@@ -4753,6 +4904,7 @@ module.exports = [
   {
     jj_prefix: "ZOR",
     brand_name: "Zone Offroad",
+    niagara_code: "zone-offroad",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "ZOR",
     meyer_code: "ZOR",
@@ -4767,6 +4919,7 @@ module.exports = [
   {
     jj_prefix: "ZRD",
     brand_name: "ZROADZ",
+    niagara_code: "zroadz",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "T86",
     meyer_code: "ZRD",
