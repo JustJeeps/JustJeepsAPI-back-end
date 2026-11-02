@@ -356,6 +356,60 @@ test('listFeedStatuses marks stale by age and treats a missing batch as stale', 
 	assert.strictEqual(statuses[1].seedCommand, 'seed-omix');
 });
 
+// FTP feed: batch from Saturday, the vendor re-published the same bytes on
+// Monday. The 36h threshold must count from Monday's confirmation.
+async function ftpFeedWithOldBatch(prisma) {
+	const { batchId } = await catalog.registerArtifacts(prisma, {
+		feed: 'jrp-ftp',
+		source: 'ftp',
+		files: [{ ...file('JUSJEE.csv'), sourceModifiedAt: new Date('2026-10-31T08:42:00Z') }],
+	});
+	return {
+		batchId,
+		defs: [{ name: 'jrp-ftp', label: 'JRP (FTP)', files: ['JUSJEE.csv'], staleAfterHours: 36, maxUploadBytes: 1 }],
+	};
+}
+
+test('listFeedStatuses counts age from the vendor re-publishing an identical file', async () => {
+	const prisma = makePrismaStub();
+	const now = new Date('2026-11-02T14:00:00Z');
+	const { batchId, defs } = await ftpFeedWithOldBatch(prisma);
+	prisma._pushRun({ feed: 'jrp-ftp-fetch', status: 'skipped-unchanged', artifactBatchId: batchId, sourceMtime: new Date('2026-11-02T09:41:00Z') });
+
+	const [status] = await catalog.listFeedStatuses(prisma, defs, { now });
+
+	assert.strictEqual(status.stale, false);
+	assert.strictEqual(Math.round(status.ageHours), 4, 'from the confirmation, not from Saturday');
+	assert.deepStrictEqual(status.confirmedAt, new Date('2026-11-02T09:41:00Z'));
+	assert.deepStrictEqual(status.currentBatch.dataAsOf, new Date('2026-10-31T08:42:00Z'), 'the data date itself does not change');
+});
+
+test('listFeedStatuses ignores confirmations of another batch or without a vendor date', async () => {
+	const prisma = makePrismaStub();
+	const now = new Date('2026-11-02T14:00:00Z');
+	const { defs } = await ftpFeedWithOldBatch(prisma);
+	prisma._pushRun({ feed: 'jrp-ftp-fetch', status: 'skipped-unchanged', artifactBatchId: 'older-batch', sourceMtime: new Date('2026-11-02T09:41:00Z') });
+	prisma._pushRun({ feed: 'jrp-ftp-fetch', status: 'skipped-unchanged', artifactBatchId: null, sourceMtime: null });
+
+	const [status] = await catalog.listFeedStatuses(prisma, defs, { now });
+
+	assert.strictEqual(status.stale, true);
+	assert.strictEqual(status.confirmedAt, null);
+});
+
+test('listFeedStatuses still flags a feed whose vendor keeps an old file on the server', async () => {
+	// The vendor stopped exporting: the fetch finds the same bytes with the
+	// same old date. That confirms nothing new, so the alert stays.
+	const prisma = makePrismaStub();
+	const now = new Date('2026-11-02T14:00:00Z');
+	const { batchId, defs } = await ftpFeedWithOldBatch(prisma);
+	prisma._pushRun({ feed: 'jrp-ftp-fetch', status: 'skipped-unchanged', artifactBatchId: batchId, sourceMtime: new Date('2026-10-31T08:42:00Z') });
+
+	const [status] = await catalog.listFeedStatuses(prisma, defs, { now });
+
+	assert.strictEqual(status.stale, true);
+});
+
 test('listFeedStatuses lists the newest copy of each file even when no batch is complete', async () => {
 	// Feed that just gained a file: the panel has no current batch to show, but
 	// the upload modal still needs to know that the CSV and the sheet can be
