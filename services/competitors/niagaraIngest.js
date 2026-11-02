@@ -54,7 +54,9 @@ function logMatch(logger, result) {
 // baselineRows: rows written by the last successful full run, or null.
 async function ingestNiagara({ prisma, payload, brands, thresholds, logger, dryRun = false, baselineRows = null }) {
 	const sample = Boolean(payload.sample);
-	const competitor = await resolveCompetitor(prisma, COMPETITOR, dryRun);
+	// Look the competitor up only; it is created after the guards, just before
+	// the write, so a refused run writes nothing at all.
+	const existing = await resolveCompetitor(prisma, COMPETITOR, true);
 	const prefixes = [...new Set(payload.items.map((i) => i.jjPrefix))];
 	const products = prefixes.length ? await loadProducts(prisma, prefixes) : [];
 	const result = matchItems(payload.items, { indexes: buildIndexes(products), brands });
@@ -67,10 +69,10 @@ async function ingestNiagara({ prisma, payload, brands, thresholds, logger, dryR
 	const counts = {
 		inserted: 0, updated: 0, unchanged: 0, deleted: 0,
 		skipped: result.unmatched.length + result.collisions.length + (payload.collection?.invalidCount || 0),
-		markedStale: sample || !competitor ? null : await countStale(prisma, competitor.id, result.rows),
+		markedStale: sample || !existing ? null : await countStale(prisma, existing.id, result.rows),
 	};
 	const summary = {
-		competitorId: competitor ? competitor.id : null, matched, matchRate: payload.items.length ? matched / payload.items.length : 0,
+		competitorId: existing ? existing.id : null, matched, matchRate: payload.items.length ? matched / payload.items.length : 0,
 		counts, byBrand: result.byBrand, dryRun, sample,
 		report: { unmatched: result.unmatched, ambiguous: result.ambiguous, collisions: result.collisions },
 	};
@@ -80,10 +82,17 @@ async function ingestNiagara({ prisma, payload, brands, thresholds, logger, dryR
 		return summary;
 	}
 
-	const written = await upsertCompetitorRows({ prisma, competitorId: competitor.id, rows: result.rows });
+	const competitor = existing || await resolveCompetitor(prisma, COMPETITOR, false);
+	let progress = { inserted: 0, updated: 0 };
+	let written;
+	try {
+		written = await upsertCompetitorRows({ prisma, competitorId: competitor.id, rows: result.rows, onBatch: (c) => { progress = c; } });
+	} catch (error) {
+		throw new NiagaraIngestError('NIAGARA_WRITE_FAILED', `write stopped after ${progress.inserted} inserted and ${progress.updated} updated rows: ${error.message}`);
+	}
 	const finalCounts = { ...counts, ...written, unchanged: Math.max(0, matched - written.inserted - written.updated) };
 	logger.info(`[niagara] step=upsert inserted=${finalCounts.inserted} updated=${finalCounts.updated} unchanged=${finalCounts.unchanged}`);
-	return { ...summary, counts: finalCounts };
+	return { ...summary, competitorId: competitor.id, counts: finalCounts };
 }
 
 module.exports = { ingestNiagara, NiagaraIngestError, STALE_COUNT_SQL };

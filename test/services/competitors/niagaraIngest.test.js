@@ -90,3 +90,23 @@ test('a sample run skips the matched floor and the stale count', async () => {
 	assert.strictEqual(result.counts.markedStale, null);
 	assert.ok(prisma.raw.every((r) => !r.sql.includes('jsonb_array_elements_text')));
 });
+
+test('a refused run does not even create the competitor', async () => {
+	const prisma = makePrisma({ competitor: null });
+	await assert.rejects(ingestNiagara({ prisma, payload: payloadOf([item('BIL', 'NOPE')]), brands, thresholds, logger: silent, baselineRows: null }), /BELOW_MIN_MATCHED|NIAGARA_MATCH_GUARD/);
+	assert.deepStrictEqual(prisma.created, []);
+});
+
+test('a write that stops mid-way says how many rows were already written', async () => {
+	const prisma = makePrisma();
+	let calls = 0;
+	prisma.$transaction = async (ops) => {
+		calls += 1;
+		if (calls > 1) throw new Error('connection reset');
+		return Promise.all(ops);
+	};
+	const many = Array.from({ length: 2001 }, (_, i) => item('BIL', `BIL-24-186728${i ? `-${i}` : ''}`));
+	products.push(...many.slice(1).map((m, i) => ({ sku: `BIL-X${i}`, searchable_sku: m.competitorSku.slice(4), jj_prefix: 'BIL', status: 1 })));
+	await assert.rejects(ingestNiagara({ prisma, payload: payloadOf(many), brands, thresholds, logger: silent, baselineRows: null }), /NIAGARA_WRITE_FAILED: write stopped after 1 inserted and 1 updated rows/);
+	products.splice(2);
+});
