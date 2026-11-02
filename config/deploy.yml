@@ -175,6 +175,10 @@ env:
     CRON_SEED_TDOT_ENABLED: "true"
     CRON_SEED_TDOT_SCHEDULE: "43 1 * * *"
     TDOT_MIN_MATCHED: "28000"
+    # Niagara Jeeps competitor prices (DD-021). Born off: turn on only after the
+    # first manual production run (dry run, then a real run) checks the counts.
+    CRON_SEED_NIAGARA_ENABLED: "false"
+    CRON_SEED_NIAGARA_SCHEDULE: "13 4 * * *"
     # Stale delete floor, set from that run: a night that matches fewer than
     # 6000 still updates prices but refuses to delete anything.
     LOWRIDERS_MIN_MATCHED: "6000"
