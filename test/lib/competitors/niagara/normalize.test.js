@@ -52,3 +52,16 @@ test('dedupeItems keeps the cheaper copy of a repeated sku, whatever the case or
 	assert.deepStrictEqual(items, [b, c]);
 	assert.deepStrictEqual(duplicates, [a]);
 });
+
+test('the sku is stored in upper case and the handle is encoded in the link', () => {
+	const product = { id: 1, handle: 'kit #2', vendor: 'V', variants: [{ id: 5, sku: ' ppi101 ', price: '5.00' }] };
+	const [only] = normalizeProduct(product, options).items;
+	assert.strictEqual(only.competitorSku, 'PPI101');
+	assert.strictEqual(only.url, 'https://niagarajeeps.ca/products/kit%20%232');
+});
+
+test('dedupeItems never collapses the same sku of two brands', () => {
+	const a = { jjPrefix: 'BIL', competitorSku: 'X-1', price: 20 };
+	const b = { jjPrefix: 'RR', competitorSku: 'X-1', price: 10 };
+	assert.deepStrictEqual(dedupeItems([a, b]).items, [a, b]);
+});

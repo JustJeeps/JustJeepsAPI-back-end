@@ -101,7 +101,7 @@ team; PRO COMP / PRO COMP WHEELS (EXP or PCT) are not mapped. Adding a brand lat
 |---|---|
 | Kind | Competitor, `CompetitorProduct` only, never `VendorProduct` |
 | Name | `Niagara Jeeps`, resolved by name case-insensitive, created on the first real run, never in a dry run; no hardcoded id |
-| Values | `competitor_sku` = Niagara variant SKU (upsert key); `competitor_price` = Shopify `price`; `product_url` = handle URL (+ variant); `compare_at_price` kept in the snapshot only; out-of-stock variants are written like TDOT |
+| Values | `competitor_sku` = Niagara variant SKU in upper case (upsert key); `competitor_price` = Shopify `price`; `product_url` = handle URL (+ variant); `compare_at_price` kept in the snapshot only; out-of-stock variants are written like TDOT |
 | Pacing | one request at a time, 3 s plus up to 1 s jitter (never under 1 s), 3 attempts, Retry-After honored up to 2 min, one slow retry after a challenge and then a loud stop; we never try to solve a challenge |
 | Budgets | breaker at 5 consecutive failures, 1500 requests, 120 min (partial, exit 2) |
 | Brand purity | other vendors in a collection are dropped; past 5% the brand is dropped whole; a brand failing mid-way is dropped rather than written in part |
