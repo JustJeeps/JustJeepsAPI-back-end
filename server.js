@@ -1225,6 +1225,7 @@ const feedCatalog = require('./lib/feeds/catalog');
 const { createFeedStore } = require('./lib/feeds/feedStore');
 const { getFeedDefinitions } = require('./config/feeds');
 const { collectFeedFreshnessResults } = require('./lib/feeds/freshnessReport');
+const { buildProductSearchWhere } = require('./lib/products/productSearch');
 const { summarizeCronDigestEntries } = require('./lib/reports/cronDigest');
 const feedStore = createFeedStore();
 // Run logs go to Spaces as well as to disk: the files here are append-only and
@@ -1813,15 +1814,7 @@ app.get('/api/products', async (req, res) => {
 		const skip = (page - 1) * limit;
 		const search = req.query.search || '';
 
-		// Build where clause for search
-		const where = search ? {
-			OR: [
-				{ sku: { contains: search, mode: 'insensitive' } },
-				{ name: { contains: search, mode: 'insensitive' } },
-				{ brand_name: { contains: search, mode: 'insensitive' } },
-				{ searchable_sku: { contains: search, mode: 'insensitive' } },
-			]
-		} : {};
+		const where = buildProductSearchWhere(search);
 
 		const selectFields = {
 			sku: true,
