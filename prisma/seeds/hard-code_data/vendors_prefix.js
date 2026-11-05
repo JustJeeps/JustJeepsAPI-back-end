@@ -258,6 +258,7 @@ module.exports = [
   {
     jj_prefix: "AMR",
     brand_name: "American Racing",
+    niagara_code: "american-racing-wheels",
     vendors: "Keystone, Quadratec, WheelPros (don't DS to US)",
     keystone_code: "A78",
     meyer_code: "",
@@ -654,6 +655,8 @@ module.exports = [
   {
     jj_prefix: "BFG",
     brand_name: "BF Goodrich Tires",
+    niagara_code: "bfgoodrich",
+    niagara_sku_prefixes: ["BFG-"],
     vendors: "Tire Discounter, Quadratec", // no meyer anymore
     keystone_code: "BFG",
     meyer_code: "BFG",
@@ -792,6 +795,7 @@ module.exports = [
   {
     jj_prefix: "BOR",
     brand_name: "Borla Performance",
+    niagara_code: "borla",
     jrp_code: "Borla Performance",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "B25",
@@ -1761,6 +1765,7 @@ module.exports = [
   {
     jj_prefix: "FOX",
     brand_name: "Fox Racing",
+    niagara_code: "fox",
     vendors: "Meyer, Keystone, Quadratec, WheelPros (don't DS to US)",
     keystone_code: "F75",
     meyer_code: "FOX",
@@ -2024,6 +2029,7 @@ module.exports = [
   {
     jj_prefix: "HWG",
     brand_name: "Hellwig Suspension",
+    niagara_code: "hellwig",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "H63",
     meyer_code: "HWG",
@@ -2162,6 +2168,8 @@ module.exports = [
   {
     jj_prefix: "ION",
     brand_name: "ION Alloy Wheels",
+    niagara_code: "ion-alloy",
+    niagara_sku_prefixes: ["ION-"],
     vendors: "Meyer, Keystone",
     keystone_code: "WGH",
     meyer_code: "ION",
@@ -2331,6 +2339,8 @@ module.exports = [
   {
     jj_prefix: "K&N",
     brand_name: "K&N",
+    niagara_code: "k-n-filters",
+    niagara_sku_prefixes: ["KNN-"],
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "K33",
     meyer_code: "KNN",
@@ -2392,6 +2402,7 @@ module.exports = [
   {
     jj_prefix: "KIN",
     brand_name: "King Off Road",
+    niagara_code: "king-shocks",
     vendors: "Meyer, Quadratec",
     keystone_code: "KSH",
     meyer_code: "KIN",
@@ -2637,6 +2648,8 @@ module.exports = [
   {
     jj_prefix: "MAW",
     brand_name: "Mayhem Wheels",
+    niagara_code: "mayhem",
+    niagara_sku_prefixes: ["MAY-"],
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "WGH",
     meyer_code: "MAY",
@@ -2649,6 +2662,7 @@ module.exports = [
   {
     jj_prefix: "MBP",
     brand_name: "MBRP Inc",
+    niagara_code: "mbrp",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "M79",
     meyer_code: "MBR",
@@ -2750,6 +2764,7 @@ module.exports = [
   {
     jj_prefix: "MKT",
     brand_name: "MICKEY THOMPSON Tires/Wheels",
+    niagara_code: "mickey-thompson-off-road-tires",
     vendors: "Meyer, Keystone, Quadratec",
     meyer_code: "MTT",
     quadratec_code: "Mickey Thompson",
@@ -2844,6 +2859,7 @@ module.exports = [
   {
     jj_prefix: "MMT",
     brand_name: "Morimoto",
+    niagara_code: "morimoto",
     vendors: "WheelPros (don't DS to US), Meyer, Keystone",
     keystone_code: "MRM",
     meyer_code: "MML",
@@ -2955,6 +2971,7 @@ module.exports = [
   {
     jj_prefix: "NIT",
     brand_name: "Nitto Tire",
+    niagara_code: "nitto-tires",
     vendors: "Quadratec, Tire Discounter, WheelPros (don't DS to US)",//no longer Meyer
     keystone_code: "NTG",
     meyer_code: "",//no longer NIT
@@ -3452,6 +3469,7 @@ module.exports = [
   {
     jj_prefix: "RPG",
     brand_name: "Rampage Products",
+    niagara_code: "rampage",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "R92",
     meyer_code: "RAM",
@@ -4222,6 +4240,8 @@ module.exports = [
   {
     jj_prefix: "SYN",
     brand_name: "Synergy MFG",
+    niagara_code: "synergy",
+    niagara_sku_prefixes: ["SYN-"],
     vendors: "Meyer, Quadratec",
     keystone_code: "",
     meyer_code: "SYN",
@@ -4453,6 +4473,7 @@ module.exports = [
   {
     jj_prefix: "TFS",
     brand_name: "Tuff Stuff 4x4",
+    niagara_code: "tuff-stuff",
     vendors: "Meyer, Quadratec, WheelPros (don't DS to US)",
     keystone_code: "",
     meyer_code: "TSF",
@@ -4479,6 +4500,7 @@ module.exports = [
   {
     jj_prefix: "TY",
     brand_name: "Tuffy Products",
+    niagara_code: "tuffy",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "T60",
     meyer_code: "TFY",
@@ -4647,6 +4669,7 @@ module.exports = [
   {
     jj_prefix: "WAR",
     brand_name: "WARN",
+    niagara_code: "warn-industries",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "W36",
     meyer_code: "WAR",
@@ -4686,6 +4709,8 @@ module.exports = [
   {
     jj_prefix: "WTC",
     brand_name: "WeatherTech (MAP)",
+    niagara_code: "weathertech",
+    niagara_sku_prefixes: ["WTC-"],
     vendors: "Meyer, Keystone (W24 (usa), W2CWTC (cad),) CAD only, Quadratec (dont sell)",
     keystone_code: "W24",
     meyer_code: "WET",
@@ -4833,6 +4858,8 @@ module.exports = [
   {
     jj_prefix: "YUK",
     brand_name: "Yukon",
+    niagara_code: "yukon-gear-axle",
+    niagara_sku_prefixes: ["YUK-"],
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "Y11",
     meyer_code: "YUK",
