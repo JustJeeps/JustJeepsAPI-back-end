@@ -104,7 +104,7 @@ team; PRO COMP / PRO COMP WHEELS (EXP or PCT) are not mapped. Adding a brand lat
 | Values | `competitor_sku` = Niagara variant SKU in upper case (upsert key); `competitor_price` = Shopify `price`; `product_url` = handle URL (+ variant); `compare_at_price` kept in the snapshot only; out-of-stock variants are written like TDOT |
 | Pacing | one request at a time, 3 s plus up to 1 s jitter (never under 1 s), 3 attempts, Retry-After honored up to 2 min, one slow retry after a challenge and then a loud stop; we never try to solve a challenge |
 | Budgets | breaker at 5 consecutive failures, 1500 requests, 120 min (partial, exit 2) |
-| Brand purity | other vendors in a collection are dropped; past 5% the brand is dropped whole; a brand failing mid-way is dropped rather than written in part |
+| Brand purity | other vendors in a collection are dropped; past 25% the brand is dropped whole and counts as failed (was 5% until 2026-11-05: one house-brand product emptied dana-spicer); a brand failing mid-way is dropped rather than written in part |
 | Guards | collection: failed requests 10%, failed brands 20%, invalid variants 2%, min items 1000; match: min matched 200 (raise after the first run), drop under 0.8 of the last full successful run |
 | Stale rows | counted and reported, never deleted (team rule since 2026-10-07) |
 | Sample runs | `--brands`, `--max-pages`: labelled `sample`, skip the size floors, never set the baseline, skip the match drop (a few brands are no match for a full run; changed 2026-11-05) |

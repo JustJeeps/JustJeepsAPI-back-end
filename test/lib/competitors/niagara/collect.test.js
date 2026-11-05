@@ -70,17 +70,37 @@ test('a handle missing from the collections index is reported, not crawled', asy
 	assert.strictEqual(payload.collection.brandsFailed, 1);
 });
 
-test('another vendor in a collection is dropped; past 5% the whole brand is dropped as impure', async () => {
-	const mostlyOwn = Array.from({ length: 21 }, (_, i) => product(i + 1, `BIL-${i}`));
-	const one = site({ '/collections.json': index, '/collections/bilstein/products.json?page=1': { products: [...mostlyOwn, product(99, 'FOX-1', { vendor: 'FOX' })] } });
+test('another vendor in a collection is dropped; past 25% the whole brand is dropped as impure and counts as failed', async () => {
+	// dana-spicer on 2026-11-05: 1 of 8 products is Niagara's own house brand.
+	const houseBrand = [...Array.from({ length: 7 }, (_, i) => product(i + 1, `BIL-${i}`)), product(99, 'NJ-1', { vendor: 'NIAGARA JEEPS & TRUCKS' })];
+	const one = site({ '/collections.json': index, '/collections/bilstein/products.json?page=1': { products: houseBrand } });
 	const kept = await run(one.fetch, { brands: [brands[0]], config: { pageSize: 250 } });
-	assert.strictEqual(kept.payload.items.length, 21);
+	assert.strictEqual(kept.payload.brandStats[0].status, 'ok');
+	assert.strictEqual(kept.payload.items.length, 7);
 	assert.strictEqual(kept.payload.brandStats[0].foreign, 1);
 
 	const many = site({ '/collections.json': index, '/collections/bilstein/products.json?page=1': { products: [product(1, 'BIL-1'), product(2, 'FOX-2', { vendor: 'FOX' }), product(3, 'BIL-3')] } });
-	const dropped = await run(many.fetch, { brands: [brands[0]], config: { pageSize: 250, thresholds: { ...thresholds, minItems: 0 } } });
+	const dropped = await run(many.fetch, { brands: [brands[0]], config: { pageSize: 250, thresholds: { ...thresholds, minItems: 0, maxBrandsFailedRatio: 1 } } });
 	assert.strictEqual(dropped.payload.brandStats[0].status, 'impure');
 	assert.strictEqual(dropped.payload.items.length, 0);
+	assert.strictEqual(dropped.payload.collection.brandsFailed, 1);
+});
+
+test('a brand that fills every page up to the cap is flagged page-cap, not ok', async () => {
+	const full = site({ '/collections.json': index, '/collections/bilstein/products.json?page=1': { products: [product(1, 'BIL-1'), product(2, 'BIL-2')] }, '/collections/bilstein/products.json?page=2': { products: [product(3, 'BIL-3'), product(4, 'BIL-4')] } });
+	const capped = await run(full.fetch, { brands: [brands[0]], config: { maxPagesPerBrand: 2 } });
+	assert.strictEqual(capped.payload.brandStats[0].status, 'page-cap');
+	assert.strictEqual(capped.payload.items.length, 4);
+	const sampled = await run(full.fetch, { brands: [brands[0]], sample: { brands: ['BIL'], maxPages: 1 } });
+	assert.strictEqual(sampled.payload.brandStats[0].status, 'ok', 'a sample stops early on purpose');
+});
+
+test('a collections index that fills every page is treated as incomplete, so no brand is called missing', async () => {
+	const page = { collections: Array.from({ length: 250 }, (_, i) => ({ handle: `other-${i}`, products_count: 1 })) };
+	const { fetch } = site({ '/collections.json': page, '/collections/bilstein/products.json?page=1': { products: [product(1, 'BIL-1')] } });
+	const { payload } = await run(fetch, { brands: [brands[0]] });
+	assert.strictEqual(payload.brandStats[0].status, 'ok');
+	assert.strictEqual(payload.collection.brandsFailed, 0);
 });
 
 test('a Cloudflare challenge stops the run loudly', async () => {

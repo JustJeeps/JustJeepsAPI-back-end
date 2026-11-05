@@ -36,8 +36,9 @@ The last line is `[niagara] SUMMARY {...}`: `items` collected, `matched`, `inser
 (price or link changed), `unchanged`, `skipped` (unmatched, collisions, invalid), `markedStale`
 (rows of Niagara Jeeps not seen this run, kept), and `collection` (requests, retries,
 rateLimited, brands ok, failed, empty, impure). Each brand also logs one line with its status:
-`ok`, `short` (fewer products than the collection says), `empty`, `impure`, `failed`,
-`missing-handle`, `page-cap`, `over-budget`.
+`ok`, `short` (fewer products than the collection says), `empty`, `impure` (over 25% of another
+vendor, counted as failed), `failed`, `missing-handle`, `page-cap` (the last allowed page was full,
+so the brand may have more), `over-budget`.
 
 ## When it fails
 
