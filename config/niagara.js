@@ -19,6 +19,7 @@ const DEFAULTS = Object.freeze({
 	maxRequests: 1500,
 	maxRunMinutes: 120,
 	maxPagesPerBrand: 100,
+	snapshotMaxAgeHours: 72,
 	minItems: 1000,
 	minMatched: 200,
 	maxFailedRequestRatio: 0.1,
@@ -46,6 +47,7 @@ function ratioFrom(value, fallback) {
 function getNiagaraOfflineConfig(env = process.env) {
 	return {
 		maxPrice: intFrom(env.NIAGARA_MAX_PRICE, DEFAULTS.maxPrice, 1, 1000000),
+		snapshotMaxAgeHours: intFrom(env.NIAGARA_SNAPSHOT_MAX_AGE_HOURS, DEFAULTS.snapshotMaxAgeHours, 1, 24 * 30),
 		thresholds: {
 			minItems: intFrom(env.NIAGARA_MIN_ITEMS, DEFAULTS.minItems, 0, Number.MAX_SAFE_INTEGER),
 			minMatched: intFrom(env.NIAGARA_MIN_MATCHED, DEFAULTS.minMatched, 1, Number.MAX_SAFE_INTEGER),

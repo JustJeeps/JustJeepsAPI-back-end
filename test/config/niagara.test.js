@@ -13,6 +13,9 @@ test('defaults follow DD-021 and the User-Agent carries the contact', () => {
 	assert.strictEqual(c.consecutiveFailureLimit, 5);
 	assert.strictEqual(c.maxRequests, 1500);
 	assert.strictEqual(c.maxRunMinutes, 120);
+	assert.strictEqual(c.snapshotMaxAgeHours, 72);
+	assert.strictEqual(getNiagaraOfflineConfig({}).snapshotMaxAgeHours, 72);
+	assert.strictEqual(getNiagaraOfflineConfig({ NIAGARA_SNAPSHOT_MAX_AGE_HOURS: '0' }).snapshotMaxAgeHours, 1);
 	assert.strictEqual(c.userAgent, 'JustJeepsPriceMonitor/1.0 (+ops@example.test)');
 	assert.deepStrictEqual(c.thresholds, {
 		minItems: 1000, minMatched: 200, maxFailedRequestRatio: 0.1, maxBrandsFailedRatio: 0.2, maxInvalidRatio: 0.02, matchDropRatio: 0.8,

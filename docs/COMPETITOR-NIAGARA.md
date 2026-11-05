@@ -28,6 +28,10 @@ npm run seed-niagara -- --from-snapshot prisma/seeds/logs/niagara/latest-snapsho
 ```
 
 In production: `set -a; source .env.production; set +a; kamal app exec --reuse "npm run seed-niagara -- --dry-run"`.
+
+A snapshot is replayed only if it is at most 72 hours old (`NIAGARA_SNAPSHOT_MAX_AGE_HOURS`), has no
+price over the cap, no duplicate and still passes the collection guards. Only one run at a time:
+a second one exits with `NIAGARA_BUSY`.
 `SCRAPER_CONTACT_EMAIL` is required for any run that reads the site (it goes in the User-Agent).
 
 ## Reading the summary
@@ -47,7 +51,11 @@ so the brand may have more), `over-budget`.
 | `NIAGARA_CHALLENGED` | the site answered with the Cloudflare challenge | nothing was written; try again later; if it repeats from the server, collect from a laptop with `--collect-only` and ingest with `--from-snapshot` |
 | `NIAGARA_SOURCE_UNAVAILABLE` | 5 requests in a row failed | site down or blocking; nothing was written |
 | `NIAGARA_CANARY_FAILED` | too many failed requests or brands, broken prices, or too few items | read the message; nothing was written |
-| `NIAGARA_MATCH_GUARD` | matched under the floor or under 0.8 of the last full run | check the brand lines (a renamed collection shows `missing-handle`); nothing was written |
+| `NIAGARA_MATCH_GUARD` | a full run matched under the floor or under 0.8 of the last full run | check the brand lines (a renamed collection shows `missing-handle`) and the run's report CSV; nothing was written |
+| `NIAGARA_BUSY` | another Niagara run holds the lock | nothing was done; wait for the other run |
+| `NIAGARA_BAD_SNAPSHOT` | the `--from-snapshot` file is old, broken or fails the guards | collect a fresh one |
+| `NIAGARA_WRITE_FAILED` | the database write stopped mid-way | the run records the rows already written; rerun, it continues from what is there |
+| `NIAGARA_RUN_NOT_RECORDED` | rows were written but the run outcome was not saved | exit 1; check the IngestRun row by hand |
 | exit 2, status `partial` | the request or time budget ran out | rows written for the brands collected; raise `NIAGARA_MAX_REQUESTS` or `NIAGARA_MAX_RUN_MINUTES` if it repeats |
 
 ## Adding or fixing a brand

@@ -9,7 +9,8 @@
 //   npm run seed-niagara -- --brands=BIL,RC --max-pages=1 # sample run (skips the size floors)
 //   npm run seed-niagara -- --from-snapshot <file>        # ingest a saved snapshot, no network
 //
-// Exit codes: 0 success, 1 failed (nothing written), 2 partial (written, the
+// Exit codes: 0 success, 1 failed (nothing written, except NIAGARA_WRITE_FAILED
+// and NIAGARA_RUN_NOT_RECORDED, which say what was), 2 partial (written, the
 // crawl stopped on its budget). Nothing is ever deleted: rows not seen are
 // counted and reported.
 //
@@ -266,7 +267,10 @@ function buildDeps(argv) {
 
 	return {
 		argv, env: process.env, logger, now: () => new Date(), baseUrl: config.baseUrl || DEFAULTS.baseUrl,
-		brands, filterBrands, snapshotFileName, validateSnapshot, buildReportCsv, snapshotDir: SNAPSHOT_DIR,
+		brands, filterBrands, snapshotFileName, buildReportCsv, snapshotDir: SNAPSHOT_DIR,
+		validateSnapshot: (payload) => validateSnapshot(payload, {
+			now: () => new Date(), maxAgeHours: config.snapshotMaxAgeHours, maxPrice: config.maxPrice, thresholds: config.thresholds,
+		}),
 		readFile: (file) => fs.readFileSync(file, 'utf8'),
 		writeFile: (file, body) => {
 			fs.mkdirSync(path.dirname(file), { recursive: true });
