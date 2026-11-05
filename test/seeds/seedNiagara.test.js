@@ -43,6 +43,17 @@ test('parseArgs reads every mode and rejects unknown flags', () => {
 	assert.throws(() => parseArgs(['--collect-only', '--dry-run']), /cannot be combined/);
 });
 
+test('parseArgs refuses values that would silently widen a sample into a full run', () => {
+	assert.throws(() => parseArgs(['--brands=']), /--brands needs at least one prefix/);
+	assert.throws(() => parseArgs(['--brands=, ,']), /--brands needs at least one prefix/);
+	assert.throws(() => parseArgs(['--max-pages=abc']), /--max-pages must be a whole number/);
+	assert.throws(() => parseArgs(['--max-pages=1.5']), /--max-pages must be a whole number/);
+	assert.throws(() => parseArgs(['--max-pages=0']), /--max-pages must be a whole number/);
+	assert.throws(() => parseArgs(['--from-snapshot']), /--from-snapshot needs a file/);
+	assert.throws(() => parseArgs(['--from-snapshot=']), /--from-snapshot needs a file/);
+	assert.throws(() => parseArgs(['--from-snapshot', '--dry-run']), /--from-snapshot needs a file/);
+});
+
 test('--collect-only collects and saves a snapshot without ever opening the database', async () => {
 	const { deps, calls } = makeDeps({ argv: ['--collect-only', '--brands=BIL', '--max-pages=1'] });
 	const result = await runSeedNiagara(deps);

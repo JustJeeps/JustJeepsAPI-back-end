@@ -24,16 +24,35 @@ const EXIT_PARTIAL = 2;
 const PREVIEW_PER_BRAND = 10;
 const SNAPSHOT_DIR = path.join(__dirname, '..', 'logs', 'niagara');
 
+// A bad value must fail loudly: an empty --brands or a missing snapshot path
+// would otherwise turn a sample or a replay into a full live run that writes.
+function parseBrands(value) {
+	const brands = value.split(',').map((b) => b.trim()).filter(Boolean);
+	if (!brands.length) throw new Error('--brands needs at least one prefix, e.g. --brands=BIL,RC');
+	return brands;
+}
+
+function parseMaxPages(value) {
+	const pages = Number(value);
+	if (!/^\d+$/.test(value) || pages < 1) throw new Error(`--max-pages must be a whole number of 1 or more, got "${value}"`);
+	return pages;
+}
+
+function snapshotPathOf(value) {
+	if (!value || value.startsWith('--')) throw new Error('--from-snapshot needs a file path');
+	return value;
+}
+
 function parseArgs(argv) {
 	const args = { dryRun: false, collectOnly: false, brands: [], maxPages: null, fromSnapshot: null };
 	for (let i = 0; i < argv.length; i += 1) {
 		const arg = argv[i];
 		if (arg === '--dry-run') args.dryRun = true;
 		else if (arg === '--collect-only') args.collectOnly = true;
-		else if (arg.startsWith('--brands=')) args.brands = arg.slice('--brands='.length).split(',').map((b) => b.trim()).filter(Boolean);
-		else if (arg.startsWith('--max-pages=')) args.maxPages = Math.max(1, Number(arg.slice('--max-pages='.length)) || 1);
-		else if (arg === '--from-snapshot') args.fromSnapshot = argv[++i] || null;
-		else if (arg.startsWith('--from-snapshot=')) args.fromSnapshot = arg.slice('--from-snapshot='.length) || null;
+		else if (arg.startsWith('--brands=')) args.brands = parseBrands(arg.slice('--brands='.length));
+		else if (arg.startsWith('--max-pages=')) args.maxPages = parseMaxPages(arg.slice('--max-pages='.length));
+		else if (arg === '--from-snapshot') args.fromSnapshot = snapshotPathOf(argv[++i]);
+		else if (arg.startsWith('--from-snapshot=')) args.fromSnapshot = snapshotPathOf(arg.slice('--from-snapshot='.length));
 		else throw new Error(`unknown argument ${arg}`);
 	}
 	if (args.collectOnly && (args.dryRun || args.fromSnapshot)) throw new Error('--collect-only cannot be combined with --dry-run or --from-snapshot');
