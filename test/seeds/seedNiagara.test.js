@@ -8,7 +8,7 @@ const silent = { info() {}, warn() {}, error() {} };
 const item = { jjPrefix: 'BIL', competitorSku: 'BIL-1', price: 10, available: true, url: 'https://niagarajeeps.ca/products/x' };
 const payload = (extra = {}) => ({ schemaVersion: 1, source: 'niagara', items: [item], collection: { brandsOk: 1, partial: false }, ...extra });
 
-function makeDeps({ argv = [], collected = payload(), ingestResult, ingestError, lastRun = { sourceRowCount: 900 }, lockFree = true } = {}) {
+function makeDeps({ argv = [], collected = payload(), ingestResult, ingestError, lastRun = { sourceRowCount: 900 }, lockFree = true, finishFails = false } = {}) {
 	const calls = { startRun: [], finish: [], ingest: [], archive: [], files: {}, collect: [], prismaOpened: 0, lock: [] };
 	const prisma = { ingestRun: { findFirst: async () => lastRun } };
 	return {
@@ -25,7 +25,7 @@ function makeDeps({ argv = [], collected = payload(), ingestResult, ingestError,
 			writeFile: (file, body) => { calls.files[file] = body; },
 			collect: async (input) => { calls.collect.push(input); return { payload: collected, invalidSample: [] }; },
 			getPrisma: () => { calls.prismaOpened += 1; return prisma; },
-			startRun: async (feed, opts) => { calls.startRun.push({ feed, ...opts }); return { id: 42, finish: async (o) => { calls.finish.push(o); } }; },
+			startRun: async (feed, opts) => { calls.startRun.push({ feed, ...opts }); return { id: 42, finish: async (o) => { calls.finish.push(o); if (finishFails) throw new Error('db gone'); } }; },
 			ingest: async (input) => {
 				calls.ingest.push(input);
 				if (ingestError) throw ingestError;
@@ -177,4 +177,28 @@ test('--collect-only never takes the lock (it never opens the database)', async 
 	const { deps, calls } = makeDeps({ argv: ['--collect-only'] });
 	await runSeedNiagara(deps);
 	assert.deepStrictEqual(calls.lock, []);
+});
+
+test('a write that failed mid-way records the rows it had already written', async () => {
+	const error = Object.assign(new Error('NIAGARA_WRITE_FAILED: write stopped after 2000 inserted and 0 updated rows: reset'), { code: 'NIAGARA_WRITE_FAILED', counts: { inserted: 2000, updated: 0 } });
+	const { deps, calls } = makeDeps({ ingestError: error });
+	const result = await runSeedNiagara(deps);
+	assert.strictEqual(result.exitCode, 1);
+	assert.strictEqual(calls.finish[0].status, 'failed');
+	assert.deepStrictEqual(calls.finish[0].counts, { inserted: 2000, updated: 0 });
+});
+
+test('a match guard failure still saves the unmatched report for the operator', async () => {
+	const error = Object.assign(new Error('NIAGARA_MATCH_GUARD: matched 1'), { code: 'NIAGARA_MATCH_GUARD', report: { unmatched: [{ competitorSku: 'X' }], ambiguous: [], collisions: [] } });
+	const { deps, calls } = makeDeps({ ingestError: error });
+	await runSeedNiagara(deps);
+	assert.ok(Object.keys(calls.files).some((f) => /niagara-run-42-report-.*\.csv$/.test(f)), 'report csv saved');
+});
+
+test('rows written but the outcome not recorded exits non-zero so the cron shows it', async () => {
+	const { deps, calls } = makeDeps({ finishFails: true });
+	const result = await runSeedNiagara(deps);
+	assert.strictEqual(calls.finish[0].status, 'success');
+	assert.strictEqual(result.exitCode, 1);
+	assert.match(result.error, /NIAGARA_RUN_NOT_RECORDED/);
 });

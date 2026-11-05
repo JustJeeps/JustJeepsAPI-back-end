@@ -156,7 +156,12 @@ async function runIngestUnlocked(deps, args) {
 	const prisma = deps.getPrisma();
 	const sourceRef = args.fromSnapshot || `${deps.baseUrl}${sample ? ' (sample)' : ''}${args.dryRun ? ' (dry-run)' : ''}`;
 	const run = await deps.startRun(FEED, { sourceKind: args.fromSnapshot ? 'snapshot' : 'api', sourceRef, startedBy: startedByOf(args, sample, deps.env) });
-	const finish = (outcome) => run.finish(outcome).catch((error) => deps.logger.warn(`[niagara] could not record the run outcome: ${error.message}`));
+	// Resolves to false when the outcome could not be recorded, so a run that
+	// wrote rows does not exit 0 while its IngestRun stays "running".
+	const finish = (outcome) => run.finish(outcome).then(() => true, (error) => {
+		deps.logger.error(`[niagara] could not record the run outcome: ${error.message}`);
+		return false;
+	});
 	deps.logger.info(`[niagara] run ${run.id} started${args.dryRun ? ' (dry-run)' : ''}${sample ? ` (sample ${JSON.stringify(sample)})` : ''} source=${sourceRef}`);
 
 	let payload;
@@ -171,14 +176,18 @@ async function runIngestUnlocked(deps, args) {
 	} catch (error) {
 		const detail = errorDetail(error);
 		deps.logger.error(`[niagara] run ${run.id} FAILED: ${detail}`);
-		await finish({ status: 'failed', error: detail });
+		await finish({ status: 'failed', error: detail, ...(error.counts ? { counts: error.counts } : {}) });
+		if (error.report) {
+			const reportPath = bestEffort(deps, 'report', () => saveFile(deps, `niagara-run-${run.id}-report-${stamp}.csv`, deps.buildReportCsv(error.report)));
+			if (reportPath) deps.logger.info(`[niagara] match report of the refused run: ${reportPath}`);
+		}
 		return { exitCode: 1, error: detail };
 	}
 
 	const partial = Boolean(payload.collection && payload.collection.partial);
 	const status = args.dryRun ? 'dry-run' : partial ? 'partial' : 'success';
 	const counts = { ...result.counts, markedStale: result.counts.markedStale || 0 };
-	await finish({ status, counts, sourceRowCount: result.matched, ...(partial ? { error: 'NIAGARA_PARTIAL: the crawl stopped on its budget' } : {}) });
+	const recorded = await finish({ status, counts, sourceRowCount: result.matched, ...(partial ? { error: 'NIAGARA_PARTIAL: the crawl stopped on its budget' } : {}) });
 
 	const reportPath = bestEffort(deps, 'report', () => saveFile(deps, `niagara-run-${run.id}-report-${stamp}.csv`, deps.buildReportCsv(result.report)));
 	if (status === 'success' && !sample && snapshotPath) bestEffort(deps, 'latest snapshot', () => saveFile(deps, 'latest-snapshot.json', JSON.stringify(payload)));
@@ -192,6 +201,11 @@ async function runIngestUnlocked(deps, args) {
 	const summary = { runId: run.id, status, items: payload.items.length, matched: result.matched, matchRate: Number(result.matchRate.toFixed(3)), ...counts, collection: payload.collection, report: reportPath };
 	deps.logger.info(`[niagara] SUMMARY ${JSON.stringify(summary)}`);
 	if (partial) deps.logger.warn(`[niagara] run ${run.id} is PARTIAL: rows written, exit code ${EXIT_PARTIAL}`);
+	if (!recorded) {
+		const error = `NIAGARA_RUN_NOT_RECORDED: run ${run.id} finished (${status}) but its outcome was not saved`;
+		deps.logger.error(`[niagara] ${error}`);
+		return { exitCode: 1, error, summary };
+	}
 	return { exitCode: partial && !args.dryRun ? EXIT_PARTIAL : 0, summary };
 }
 

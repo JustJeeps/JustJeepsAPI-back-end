@@ -78,7 +78,7 @@ test('a match drop against the last full run aborts before any write', async () 
 	const prisma = makePrisma();
 	await assert.rejects(
 		ingestNiagara({ prisma, payload: payloadOf([item('BIL', 'BIL-24-186728')]), brands, thresholds, logger: silent, baselineRows: 100 }),
-		(err) => err instanceof NiagaraIngestError && err.failures.some((f) => f.code === 'MATCH_DROP'),
+		(err) => err instanceof NiagaraIngestError && err.failures.some((f) => f.code === 'MATCH_DROP') && Array.isArray(err.report.unmatched),
 	);
 	assert.ok(prisma.raw.every((r) => !r.sql.includes('INSERT')));
 });
@@ -107,6 +107,7 @@ test('a write that stops mid-way says how many rows were already written', async
 	};
 	const many = Array.from({ length: 2001 }, (_, i) => item('BIL', `BIL-24-186728${i ? `-${i}` : ''}`));
 	products.push(...many.slice(1).map((m, i) => ({ sku: `BIL-X${i}`, searchable_sku: m.competitorSku.slice(4), jj_prefix: 'BIL', status: 1 })));
-	await assert.rejects(ingestNiagara({ prisma, payload: payloadOf(many), brands, thresholds, logger: silent, baselineRows: null }), /NIAGARA_WRITE_FAILED: write stopped after 1 inserted and 1 updated rows/);
+	await assert.rejects(ingestNiagara({ prisma, payload: payloadOf(many), brands, thresholds, logger: silent, baselineRows: null }), (err) => /NIAGARA_WRITE_FAILED: write stopped after 1 inserted and 1 updated rows/.test(err.message)
+		&& err.counts.inserted === 1 && err.counts.updated === 1);
 	products.splice(2);
 });
