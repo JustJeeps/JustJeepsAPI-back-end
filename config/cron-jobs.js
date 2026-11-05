@@ -69,6 +69,10 @@ const lowridersSeedSchedule = process.env.CRON_SEED_LOWRIDERS_SCHEDULE || '13 3 
 // parity run sets TDOT_MIN_MATCHED. 01:43 sits off the */5 grid, before Lowriders.
 const tdotSeedEnabled = process.env.CRON_SEED_TDOT_ENABLED === 'true';
 const tdotSeedSchedule = process.env.CRON_SEED_TDOT_SCHEDULE || '43 1 * * *';
+// Niagara Jeeps competitor prices (DD-021): Shopify collections, ~200 paced
+// requests a night. Opt-in; 04:13 is after Lowriders and off the */5 grid.
+const niagaraSeedEnabled = process.env.CRON_SEED_NIAGARA_ENABLED === 'true';
+const niagaraSeedSchedule = process.env.CRON_SEED_NIAGARA_SCHEDULE || '13 4 * * *';
 const testCronEnabled = process.env.CRON_TEST_ENABLED === 'true';
 const testCronSchedule = process.env.CRON_TEST_SCHEDULE || '*/5 * * * *';
 const testCronCommand = process.env.CRON_TEST_COMMAND || 'seed-orders';
@@ -251,6 +255,14 @@ function getCronJobDefinitions({ includeDisabled = false } = {}) {
 			reportLogFile: 'prisma/seeds/logs/seed-tdot.log',
 		},
 		{
+			enabled: niagaraSeedEnabled,
+			schedule: niagaraSeedSchedule,
+			command: 'seed-niagara',
+			jobName: 'Niagara Jeeps Competitor Prices',
+			logPrefix: 'Niagara Jeeps competitor prices',
+			reportLogFile: 'prisma/seeds/logs/seed-niagara.log',
+		},
+		{
 			enabled: testCronEnabled,
 			schedule: testCronSchedule,
 			command: testCronCommand,
@@ -387,6 +399,8 @@ module.exports = {
 		feedsPruneSchedule,
 		lowridersSeedEnabled,
 		lowridersSeedSchedule,
+		niagaraSeedEnabled,
+		niagaraSeedSchedule,
 		testCronEnabled,
 		testCronSchedule,
 		testCronCommand,

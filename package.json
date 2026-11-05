@@ -71,6 +71,7 @@
     "seed-alpine": "node prisma/seeds/seed-individual/seed-alpine.js",
     "seed-wp-inventory": "node prisma/seeds/seed-individual/seed-wheelPros-inventory.js",
     "seed-lowriders": "node prisma/seeds/seed-individual/seed-lowriders.js",
+    "seed-niagara": "node prisma/seeds/seed-individual/seed-niagara.js",
     "seed-all": "node prisma/seeds/seed-individual/seed-all.js",
     "seed-orders-all": "node prisma/seeds/seed-individual/seed-orders-all.js",
     "seed-keystone-ftp": "node prisma/seeds/seed-individual/seed-keystone-ftp.js",

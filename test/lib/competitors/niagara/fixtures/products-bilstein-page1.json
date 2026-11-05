@@ -1,0 +1,11 @@
+{"products":[
+ {"id":101,"handle":"bilstein-5100-shock-24-186728","title":"Bilstein 5100 Shock | 24-186728","vendor":"BILSTEIN","variants":[
+  {"id":9001,"title":"Default Title","sku":"BIL-24-186728","price":"152.95","compare_at_price":null,"available":true}]},
+ {"id":102,"handle":"bilstein-b6-kit","title":"Bilstein B6 Kit","vendor":"BILSTEIN","variants":[
+  {"id":9002,"title":"Front | 24-285643","sku":"BIL-24-285643","price":"210.00","compare_at_price":"250.00","available":true},
+  {"id":9003,"title":"Rear | 24-285650","sku":"BIL-24-285650","price":"198.50","compare_at_price":"","available":false}]},
+ {"id":103,"handle":"bilstein-zero","title":"Bilstein Zero","vendor":"Bilstein","variants":[
+  {"id":9004,"title":"Default Title","sku":"BIL-ZERO","price":"0.00","compare_at_price":null,"available":true}]},
+ {"id":104,"handle":"bilstein-no-sku","title":"Bilstein Kit no sku","vendor":"BILSTEIN","variants":[
+  {"id":9005,"title":"Default Title","sku":"","price":"99.00","compare_at_price":null,"available":true}]}
+]}

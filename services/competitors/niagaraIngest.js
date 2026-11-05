@@ -1,0 +1,104 @@
+// Niagara Jeeps payload (DD-021) -> CompetitorProduct. Prisma is injected so
+// the tests run with a stub. Matching is per brand (lib/competitors/niagara/
+// match.js), the write is the shared competitor upsert, and stale rows are
+// only counted and reported: this job never deletes or hides anything.
+
+const { COMPETITOR } = require('../../config/niagara');
+const { buildIndexes, matchItems } = require('../../lib/competitors/niagara/match');
+const { checkMatch } = require('../../lib/competitors/niagara/canaries');
+const { resolveCompetitor, upsertCompetitorRows } = require('../../lib/competitors/competitorUpsert');
+
+const UNMATCHED_LOG_SAMPLE = 25;
+const AMBIGUOUS_LOG_LIMIT = 50;
+
+// Rows of this competitor that the run did not see. Counted, never deleted.
+const STALE_COUNT_SQL = `
+  SELECT count(*)::int AS stale FROM "CompetitorProduct" cp
+  WHERE cp.competitor_id = $1
+    AND NOT EXISTS (
+      SELECT 1 FROM jsonb_array_elements_text($2::jsonb) s(sku)
+      WHERE s.sku = cp.competitor_sku
+    );
+`;
+
+// counts: rows already committed when a write stops mid-way (each batch is its
+// own transaction). report: the match report, so a refused run still leaves
+// the unmatched list for the operator.
+class NiagaraIngestError extends Error {
+	constructor(code, message, { failures = [], counts = null, report = null } = {}) {
+		super(`${code}: ${message}`);
+		this.code = code;
+		this.failures = failures;
+		this.counts = counts;
+		this.report = report;
+	}
+}
+
+function loadProducts(prisma, prefixes) {
+	return prisma.product.findMany({
+		where: {
+			jj_prefix: { in: prefixes },
+			searchable_sku: { not: null },
+			NOT: [{ searchable_sku: '' }, { searchable_sku: { endsWith: '-' } }],
+		},
+		select: { sku: true, searchable_sku: true, status: true, jj_prefix: true },
+	});
+}
+
+async function countStale(prisma, competitorId, rows) {
+	const result = await prisma.$queryRawUnsafe(STALE_COUNT_SQL, competitorId, JSON.stringify(rows.map((r) => r.competitor_sku)));
+	return Number(result && result[0] && result[0].stale) || 0;
+}
+
+function logMatch(logger, result) {
+	logger.info(`[niagara] step=match matched=${result.rows.length} unmatched=${result.unmatched.length} ambiguous=${result.ambiguous.length} collisions=${result.collisions.length}`);
+	if (result.unmatched.length) logger.info(`[niagara] unmatched sample: ${result.unmatched.slice(0, UNMATCHED_LOG_SAMPLE).map((u) => u.competitorSku).join(', ')}`);
+	for (const a of result.ambiguous.slice(0, AMBIGUOUS_LOG_LIMIT)) logger.warn(`[niagara] ambiguous ${a.competitorSku} -> ${a.chosen} (candidates: ${a.candidates.join(', ')})`);
+}
+
+// baselineRows: rows written by the last successful full run, or null.
+async function ingestNiagara({ prisma, payload, brands, thresholds, logger, dryRun = false, baselineRows = null }) {
+	const sample = Boolean(payload.sample);
+	// Look the competitor up only; it is created after the guards, just before
+	// the write, so a refused run writes nothing at all.
+	const existing = await resolveCompetitor(prisma, COMPETITOR, true);
+	const prefixes = [...new Set(payload.items.map((i) => i.jjPrefix))];
+	const products = prefixes.length ? await loadProducts(prisma, prefixes) : [];
+	const result = matchItems(payload.items, { indexes: buildIndexes(products), brands });
+	logMatch(logger, result);
+
+	const matched = result.rows.length;
+	const report = { unmatched: result.unmatched, ambiguous: result.ambiguous, collisions: result.collisions };
+	const verdict = checkMatch({ matched, baselineRows }, thresholds, { sample });
+	if (!verdict.ok) throw new NiagaraIngestError('NIAGARA_MATCH_GUARD', verdict.failures.map((f) => f.message).join('; '), { failures: verdict.failures, report });
+
+	const counts = {
+		inserted: 0, updated: 0, unchanged: 0, deleted: 0,
+		skipped: result.unmatched.length + result.collisions.length + (payload.collection?.invalidCount || 0),
+		markedStale: sample || !existing ? null : await countStale(prisma, existing.id, result.rows),
+	};
+	const summary = {
+		competitorId: existing ? existing.id : null, matched, matchRate: payload.items.length ? matched / payload.items.length : 0,
+		counts, byBrand: result.byBrand, dryRun, sample,
+		report,
+	};
+	if (counts.markedStale) logger.warn(`[niagara] step=stale ${counts.markedStale} rows of ${COMPETITOR.name} were not seen in this run: kept, not deleted`);
+	if (dryRun) {
+		logger.info('[niagara] dry-run: no writes');
+		return summary;
+	}
+
+	const competitor = existing || await resolveCompetitor(prisma, COMPETITOR, false);
+	let progress = { inserted: 0, updated: 0 };
+	let written;
+	try {
+		written = await upsertCompetitorRows({ prisma, competitorId: competitor.id, rows: result.rows, onBatch: (c) => { progress = c; } });
+	} catch (error) {
+		throw new NiagaraIngestError('NIAGARA_WRITE_FAILED', `write stopped after ${progress.inserted} inserted and ${progress.updated} updated rows: ${error.message}`, { counts: { inserted: progress.inserted, updated: progress.updated } });
+	}
+	const finalCounts = { ...counts, ...written, unchanged: Math.max(0, matched - written.inserted - written.updated) };
+	logger.info(`[niagara] step=upsert inserted=${finalCounts.inserted} updated=${finalCounts.updated} unchanged=${finalCounts.unchanged}`);
+	return { ...summary, competitorId: competitor.id, counts: finalCounts };
+}
+
+module.exports = { ingestNiagara, NiagaraIngestError, STALE_COUNT_SQL };

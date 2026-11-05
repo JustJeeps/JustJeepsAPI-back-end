@@ -6,6 +6,8 @@ const JRP_ENV_NAMES = [
 	'CRON_FEED_FETCH_JRP_SCHEDULE',
 	'CRON_FEED_APPLY_JRP_ENABLED',
 	'CRON_FEED_APPLY_JRP_SCHEDULE',
+	'CRON_SEED_NIAGARA_ENABLED',
+	'CRON_SEED_NIAGARA_SCHEDULE',
 ];
 
 // config/cron-jobs.js reads env at load, so each case loads a fresh copy.
@@ -56,4 +58,17 @@ test('JRP crons turn on only with the exact value true and honour schedule overr
 	assert.strictEqual(findJob(cronJobs, 'feed-fetch-jrp').enabled, true);
 	assert.strictEqual(findJob(cronJobs, 'feed-fetch-jrp').schedule, '25 9 * * *');
 	assert.strictEqual(findJob(cronJobs, 'feed-apply-jrp').enabled, false);
+});
+
+test('the Niagara Jeeps cron is born off, at 04:13, and turns on only with true', () => {
+	const off = findJob(loadCronJobs({}), 'seed-niagara');
+	assert.strictEqual(off.enabled, false);
+	assert.strictEqual(off.schedule, '13 4 * * *');
+	assert.strictEqual(off.reportLogFile, 'prisma/seeds/logs/seed-niagara.log');
+	assert.ok(!loadCronJobs({}).getCronJobDefinitions().some((job) => job.command === 'seed-niagara'));
+
+	const on = findJob(loadCronJobs({ CRON_SEED_NIAGARA_ENABLED: 'true', CRON_SEED_NIAGARA_SCHEDULE: '33 4 * * *' }), 'seed-niagara');
+	assert.strictEqual(on.enabled, true);
+	assert.strictEqual(on.schedule, '33 4 * * *');
+	assert.strictEqual(findJob(loadCronJobs({ CRON_SEED_NIAGARA_ENABLED: '1' }), 'seed-niagara').enabled, false);
 });
