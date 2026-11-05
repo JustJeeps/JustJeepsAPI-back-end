@@ -29,13 +29,14 @@ test('validateSnapshot refuses another source, another version or broken items',
 test('buildReportCsv lists unmatched, collisions and ambiguous rows', () => {
 	const csv = buildReportCsv({
 		unmatched: [{ jjPrefix: 'BIL', competitorSku: 'BIL-9', url: 'https://niagarajeeps.ca/products/a' }],
-		collisions: [{ competitorSku: '24 1', productSku: 'BIL-24-1', keptSku: 'BIL-24-1' }],
+		collisions: [{ competitorSku: '24 1', productSku: 'BIL-24-1', keptSku: 'BIL-24-1' }, { competitorSku: '77', productSku: 'RC-77', keptSku: '', reason: 'same-sku-in-two-brands' }],
 		ambiguous: [{ competitorSku: 'X1', chosen: 'RR-X1', candidates: ['RR-X1', 'RR-X-1'] }],
 	});
 	assert.strictEqual(csv, [
 		'list,jj_prefix,competitor_sku,product_sku,detail,url',
 		'unmatched,BIL,BIL-9,,,https://niagarajeeps.ca/products/a',
 		'collision,,24 1,BIL-24-1,kept BIL-24-1,',
+		'collision,,77,RC-77,same sku matched in two brands: not written,',
 		'ambiguous,,X1,RR-X1,candidates RR-X1 RR-X-1,',
 		'',
 	].join('\n'));

@@ -64,14 +64,36 @@ test('two Niagara skus on one of our products: one row, the exact spelling wins,
 	assert.strictEqual(result.byBrand.BIL.collisions, 1);
 });
 
-test('the same part listed twice with the exact spelling keeps the cheaper price', () => {
-	const result = matchItems([item('BIL', 'BIL-24-285643', 5), item('BIL', '24-285643', 9)], { indexes: buildIndexes(products), brands });
-	assert.deepStrictEqual(result.rows.map((r) => [r.competitor_sku, r.competitor_price]), [['BIL-24-285643', 5]]);
+// The winner must not depend on price: rows are keyed on competitor_sku and
+// never deleted, so a winner that flips with the price leaves the old row
+// behind with a frozen price.
+test('the same part listed bare and behind their code keeps the bare spelling, whatever the prices', () => {
+	for (const [bare, coded] of [[9, 5], [5, 9]]) {
+		const result = matchItems([item('BIL', 'BIL-24-285643', coded), item('BIL', '24-285643', bare)], { indexes: buildIndexes(products), brands });
+		assert.deepStrictEqual(result.rows.map((r) => [r.competitor_sku, r.competitor_price]), [['24-285643', bare]]);
+	}
 });
 
-test('a collision with no exact spelling keeps the cheaper price', () => {
-	const result = matchItems([item('BIL', '24 186728', 9), item('BIL', '24_186728', 7)], { indexes: buildIndexes(products), brands });
-	assert.deepStrictEqual(result.rows.map((r) => [r.competitor_sku, r.competitor_price]), [['24_186728', 7]]);
+test('a collision with no exact spelling keeps the same spelling whatever the prices', () => {
+	for (const [a, b] of [[9, 7], [7, 9]]) {
+		const result = matchItems([item('BIL', '24 186728', a), item('BIL', '24_186728', b)], { indexes: buildIndexes(products), brands });
+		assert.deepStrictEqual(result.rows.map((r) => r.competitor_sku), ['24 186728']);
+	}
+});
+
+test('the same spelling listed twice keeps the cheaper price (same row either way)', () => {
+	const result = matchItems([item('BIL', '24-285643', 9), item('BIL', '24-285643', 5)], { indexes: buildIndexes(products), brands });
+	assert.deepStrictEqual(result.rows.map((r) => [r.competitor_sku, r.competitor_price]), [['24-285643', 5]]);
+});
+
+test('one Niagara sku matching products in two brands is written for neither', () => {
+	const shared = [...products, { sku: 'RC-24-186728', searchable_sku: '24-186728', jj_prefix: 'RC', status: 1 }];
+	const result = matchItems([item('BIL', '24-186728', 10), item('RC', '24-186728', 20), item('RC', '55658')], { indexes: buildIndexes(shared), brands });
+	assert.deepStrictEqual(result.rows.map((r) => r.competitor_sku), ['55658']);
+	assert.deepStrictEqual(result.collisions.filter((c) => c.reason === 'same-sku-in-two-brands').map((c) => c.productSku).sort(), ['BIL-24-186728', 'RC-24-186728']);
+	assert.strictEqual(result.byBrand.BIL.matched, 0);
+	assert.strictEqual(result.byBrand.RC.matched, 1);
+	assert.strictEqual(result.byBrand.BIL.collisions, 1);
 });
 
 test('byBrand counts matched and unmatched per jj_prefix', () => {
