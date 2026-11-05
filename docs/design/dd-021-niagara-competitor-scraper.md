@@ -107,7 +107,7 @@ team; PRO COMP / PRO COMP WHEELS (EXP or PCT) are not mapped. Adding a brand lat
 | Brand purity | other vendors in a collection are dropped; past 5% the brand is dropped whole; a brand failing mid-way is dropped rather than written in part |
 | Guards | collection: failed requests 10%, failed brands 20%, invalid variants 2%, min items 1000; match: min matched 200 (raise after the first run), drop under 0.8 of the last full successful run |
 | Stale rows | counted and reported, never deleted (team rule since 2026-10-07) |
-| Sample runs | `--brands`, `--max-pages`: labelled `sample`, skip the size floors, never set the baseline, keep the match drop |
+| Sample runs | `--brands`, `--max-pages`: labelled `sample`, skip the size floors, never set the baseline, skip the match drop (a few brands are no match for a full run; changed 2026-11-05) |
 | Cron | born off, out of seed-all, turned on after a manual production dry run and real run |
 
 ## 6. Verification record (2026-11-02)

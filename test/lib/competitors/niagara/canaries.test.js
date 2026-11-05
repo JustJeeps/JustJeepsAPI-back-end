@@ -27,9 +27,11 @@ test('checkMatch fails below the matched floor on a full run only', () => {
 	assert.strictEqual(checkMatch({ matched: 150, baselineRows: null }, thresholds, { sample: true }).ok, true);
 });
 
-test('checkMatch fails when matched drops under the ratio of the last full run, sample or not', () => {
+test('checkMatch fails when a full run matches under the ratio of the last full run', () => {
 	assert.deepStrictEqual(codes(checkMatch({ matched: 7000, baselineRows: 10000 }, thresholds)), ['MATCH_DROP']);
-	assert.deepStrictEqual(codes(checkMatch({ matched: 300, baselineRows: 10000 }, thresholds, { sample: true })), ['MATCH_DROP']);
+	// A sample covers a few brands or pages, so comparing it with a full run
+	// would refuse every sample once a baseline exists.
+	assert.strictEqual(checkMatch({ matched: 300, baselineRows: 10000 }, thresholds, { sample: true }).ok, true);
 	assert.strictEqual(checkMatch({ matched: 8000, baselineRows: 10000 }, thresholds).ok, true);
 	assert.strictEqual(checkMatch({ matched: 300, baselineRows: 0 }, thresholds).ok, true);
 });
