@@ -22,6 +22,7 @@ const FEED = 'niagara';
 const COMMAND = 'seed-niagara';
 const EXIT_PARTIAL = 2;
 const PREVIEW_PER_BRAND = 10;
+const LOCK_MARGIN_MINUTES = 30;
 const SNAPSHOT_DIR = path.join(__dirname, '..', 'logs', 'niagara');
 
 // A bad value must fail loudly: an empty --brands or a missing snapshot path
@@ -139,7 +140,7 @@ function bestEffort(deps, label, fn) {
 	}
 }
 
-async function runIngest(deps, args) {
+async function runIngestUnlocked(deps, args) {
 	const startedAt = deps.now();
 	const stamp = stampOf(startedAt);
 	// A snapshot is read before the run starts, so a saved sample replayed with
@@ -192,6 +193,24 @@ async function runIngest(deps, args) {
 	deps.logger.info(`[niagara] SUMMARY ${JSON.stringify(summary)}`);
 	if (partial) deps.logger.warn(`[niagara] run ${run.id} is PARTIAL: rows written, exit code ${EXIT_PARTIAL}`);
 	return { exitCode: partial && !args.dryRun ? EXIT_PARTIAL : 0, summary };
+}
+
+// One run at a time across processes: the cron and a manual `kamal app exec`
+// would otherwise both insert the same new SKUs (no unique key on
+// CompetitorProduct) and could create the competitor twice. The lease outlives
+// the run budget, and a live lease also keeps the boot-time stale-run cleanup
+// from marking this run as interrupted.
+async function runIngest(deps, args) {
+	if (!(await deps.lock.acquire(FEED, { leaseMinutes: deps.leaseMinutes }))) {
+		const error = 'NIAGARA_BUSY: another Niagara run holds the lock; nothing was done';
+		deps.logger.error(`[niagara] ${error}`);
+		return { exitCode: 1, error };
+	}
+	try {
+		return await runIngestUnlocked(deps, args);
+	} finally {
+		await deps.lock.release(FEED).catch((error) => deps.logger.warn(`[niagara] could not release the lock: ${error.message}`));
+	}
 }
 
 async function runSeedNiagara(deps) {
@@ -250,6 +269,11 @@ function buildDeps(argv) {
 		startRun: (...a) => require('../../../lib/ingest/ingestRun').startRun(...a),
 		ingest: (input) => require('../../../services/competitors/niagaraIngest').ingestNiagara({ ...input, brands, thresholds: config.thresholds, logger }),
 		archive: (input) => require('../../../services/logArchive/logArchiveService').createLogArchive({ logger }).archiveFile(input),
+		leaseMinutes: (config.maxRunMinutes || DEFAULTS.maxRunMinutes) + LOCK_MARGIN_MINUTES,
+		lock: {
+			acquire: (...a) => require('../../../lib/ingest/runLock').acquireIngestLock(...a),
+			release: (...a) => require('../../../lib/ingest/runLock').releaseIngestLock(...a),
+		},
 		disconnect: async () => {
 			if (prisma) await prisma.$disconnect();
 		},

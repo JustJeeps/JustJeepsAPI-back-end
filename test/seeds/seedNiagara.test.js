@@ -8,8 +8,8 @@ const silent = { info() {}, warn() {}, error() {} };
 const item = { jjPrefix: 'BIL', competitorSku: 'BIL-1', price: 10, available: true, url: 'https://niagarajeeps.ca/products/x' };
 const payload = (extra = {}) => ({ schemaVersion: 1, source: 'niagara', items: [item], collection: { brandsOk: 1, partial: false }, ...extra });
 
-function makeDeps({ argv = [], collected = payload(), ingestResult, ingestError, lastRun = { sourceRowCount: 900 } } = {}) {
-	const calls = { startRun: [], finish: [], ingest: [], archive: [], files: {}, collect: [], prismaOpened: 0 };
+function makeDeps({ argv = [], collected = payload(), ingestResult, ingestError, lastRun = { sourceRowCount: 900 }, lockFree = true } = {}) {
+	const calls = { startRun: [], finish: [], ingest: [], archive: [], files: {}, collect: [], prismaOpened: 0, lock: [] };
 	const prisma = { ingestRun: { findFirst: async () => lastRun } };
 	return {
 		calls,
@@ -32,6 +32,11 @@ function makeDeps({ argv = [], collected = payload(), ingestResult, ingestError,
 				return ingestResult || { matched: 1, matchRate: 1, counts: { inserted: 1, updated: 0, unchanged: 0, deleted: 0, skipped: 0, markedStale: 3 }, report: { unmatched: [], collisions: [], ambiguous: [] } };
 			},
 			archive: async (input) => { calls.archive.push(input); return { archived: true, key: input.filePath }; },
+			leaseMinutes: 150,
+			lock: {
+				acquire: async (feed, opts) => { calls.lock.push(['acquire', feed, opts.leaseMinutes]); return lockFree; },
+				release: async (feed) => { calls.lock.push(['release', feed]); },
+			},
 		},
 	};
 }
@@ -147,4 +152,29 @@ test('an unreadable snapshot fails before any run is recorded', async () => {
 	deps.readFile = () => 'not json';
 	assert.strictEqual((await runSeedNiagara(deps)).exitCode, 1);
 	assert.deepStrictEqual(calls.startRun, []);
+});
+
+test('a second run while one holds the niagara lock fails before recording a run', async () => {
+	const { deps, calls } = makeDeps({ lockFree: false });
+	const result = await runSeedNiagara(deps);
+	assert.strictEqual(result.exitCode, 1);
+	assert.match(result.error, /NIAGARA_BUSY/);
+	assert.deepStrictEqual(calls.startRun, []);
+	assert.deepStrictEqual(calls.collect, []);
+	assert.deepStrictEqual(calls.lock, [['acquire', 'niagara', 150]]);
+});
+
+test('the lock is held for the whole run and released after success and after failure', async () => {
+	const ok = makeDeps();
+	await runSeedNiagara(ok.deps);
+	assert.deepStrictEqual(ok.calls.lock, [['acquire', 'niagara', 150], ['release', 'niagara']]);
+	const bad = makeDeps({ ingestError: new Error('boom') });
+	await runSeedNiagara(bad.deps);
+	assert.deepStrictEqual(bad.calls.lock.map((c) => c[0]), ['acquire', 'release']);
+});
+
+test('--collect-only never takes the lock (it never opens the database)', async () => {
+	const { deps, calls } = makeDeps({ argv: ['--collect-only'] });
+	await runSeedNiagara(deps);
+	assert.deepStrictEqual(calls.lock, []);
 });
