@@ -149,14 +149,21 @@ env:
     # started 16s after Inventory.csv landed and took it home with Sunday's
     # SpecialOrder.csv; the export-skew gate now refuses that mix.
     #
-    # Since 2026-10-13 (asked by Ricardo): fetch at 9:30, after the weekday
-    # window, and apply the Keystone prices at 10:10 instead of waiting for the
-    # 19:32 seed-all. The 12:47 catch-up covers late Sundays (a batch it brings
-    # is applied by seed-all at 19:32); when nothing changed it uploads nothing.
+    # Since 2026-10-13 (asked by Ricardo): apply the Keystone prices in the
+    # morning instead of waiting for the 19:32 seed-all. The 12:47 catch-up
+    # covers late weekends (a batch it brings is applied by seed-all at 19:32);
+    # when the vendor still shows the batch we hold it downloads nothing.
+    #
+    # Since 2026-11-06: after the clocks went back on 2026-11-01 the vendor
+    # publishes between 9:04 and 10:04 Toronto (14:04-15:04 UTC, archived
+    # logs 11-02..11-05), so the 9:30 fetch kept pulling yesterday's export
+    # and the day's prices only came in through the catch-up. Fetch at 10:30,
+    # apply at 11:30 (the apply waits on the shared gate if the ~50 min
+    # download is still running).
     CRON_FEED_FETCH_KEYSTONE_ENABLED: "true"
-    CRON_FEED_FETCH_KEYSTONE_SCHEDULE: "30 9 * * *"
+    CRON_FEED_FETCH_KEYSTONE_SCHEDULE: "30 10 * * *"
     CRON_FEED_APPLY_KEYSTONE_ENABLED: "true"
-    CRON_FEED_APPLY_KEYSTONE_SCHEDULE: "10 10 * * *"
+    CRON_FEED_APPLY_KEYSTONE_SCHEDULE: "30 11 * * *"
     CRON_FEED_FETCH_KEYSTONE_CATCHUP_ENABLED: "true"
     CRON_FEED_FETCH_KEYSTONE_CATCHUP_SCHEDULE: "47 12 * * *"
     # Feeds retention: keeps the 2 newest versions of each feed file in Spaces
