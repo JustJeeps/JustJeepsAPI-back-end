@@ -29,7 +29,9 @@ async function main() {
 	});
 
 	const seconds = ((Date.now() - started) / 1000).toFixed(0);
-	if (result.skipped) {
+	if (result.notPublishedYet) {
+		console.log(`⏭️  Keystone has not published a new export yet (the FTP still shows batch ${result.batchId}), nothing downloaded (${seconds}s)`);
+	} else if (result.skipped) {
 		console.log(`⏭️  Keystone feeds identical to the current batch (${result.batchId}), nothing to upload (${seconds}s)`);
 	} else {
 		console.log(`✅ Batch ${result.batchId} catalogued with ${result.files.length} files in ${seconds}s`);

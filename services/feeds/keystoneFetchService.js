@@ -11,6 +11,8 @@
 //  - both files must come from the SAME vendor export (their dates within
 //    KEYSTONE_FTP_MAX_EXPORT_SKEW_HOURS), so a fetch that lands mid-publish
 //    does not catalog today's inventory with yesterday's special order;
+//  - the vendor's date and size equal to the current batch => skip BEFORE
+//    downloading (the export of the day is not out yet);
 //  - hashes equal to the current batch => skip without uploading (saves a
 //    ~460MB PUT), recorded as skipped-unchanged;
 //  - local cache warmed after cataloguing (the next seed-all does not
@@ -44,6 +46,23 @@ const sha256File = (filePath) =>
 function oldestVendorDate(files) {
 	if (files.some((file) => !file.sourceModifiedAt)) return null;
 	return new Date(Math.min(...files.map((file) => new Date(file.sourceModifiedAt).getTime())));
+}
+
+// True only when the vendor answered with a date and size for EVERY file and
+// they are exactly the ones of the batch we already hold. Any unknown (no
+// statFile, no answer, a manually uploaded batch without vendor dates) means
+// "cannot tell", and the fetch downloads as before.
+async function vendorStillShowsCurrent(ftpClient, current, fileNames) {
+	if (!current || typeof ftpClient.statFile !== 'function') return false;
+	const byName = new Map(current.artifacts.map((artifact) => [artifact.fileName, artifact]));
+	for (const fileName of fileNames) {
+		const held = byName.get(fileName);
+		const stat = await ftpClient.statFile(fileName);
+		if (!held?.sourceModifiedAt || !stat?.modifiedAt || !stat?.size) return false;
+		if (new Date(stat.modifiedAt).getTime() !== new Date(held.sourceModifiedAt).getTime()) return false;
+		if (Number(stat.size) !== Number(held.sizeBytes)) return false;
+	}
+	return true;
 }
 
 async function runKeystoneFetch({
@@ -90,6 +109,21 @@ async function runKeystoneFetch({
 		fs.mkdirSync(scratchDir, { recursive: true });
 
 		const current = await catalog.getCurrentBatch(prisma, FEED_NAME, feed.files);
+		// Keystone often has not published today's export yet when a fetch
+		// runs (since 2026-11 it lands between 9:04 and 10:04 Toronto). Seeing
+		// that from the vendor's date and size saves a 20 to 50 minute download
+		// of a file we already hold, with the shared cron gate held the whole time.
+		if (await vendorStillShowsCurrent(ftpClient, current, feed.files)) {
+			await finishRun({
+				status: 'skipped-unchanged',
+				rowsSkipped: 1,
+				artifactBatchId: current.batchId,
+				sourceMtime: oldestVendorDate(current.artifacts),
+			});
+			fs.rmSync(scratchDir, { recursive: true, force: true });
+			return { skipped: true, batchId: current.batchId, notPublishedYet: true };
+		}
+
 		const currentSizes = new Map((current?.artifacts || []).map((artifact) => [artifact.fileName, Number(artifact.sizeBytes)]));
 
 		const files = [];

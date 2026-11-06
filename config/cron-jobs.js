@@ -37,7 +37,7 @@ const cadDisabledUsWeeklySchedule = process.env.CRON_CAD_US_WEEKLY_SCHEDULE || '
 // because crons are keyed by command (runner, gate, history). When nothing
 // changed it ends with "identical to the current batch".
 const keystoneFeedFetchEnabled = process.env.CRON_FEED_FETCH_KEYSTONE_ENABLED === 'true';
-const keystoneFeedFetchSchedule = process.env.CRON_FEED_FETCH_KEYSTONE_SCHEDULE || '30 9 * * *';
+const keystoneFeedFetchSchedule = process.env.CRON_FEED_FETCH_KEYSTONE_SCHEDULE || '30 10 * * *';
 const keystoneFeedFetchCatchupEnabled = process.env.CRON_FEED_FETCH_KEYSTONE_CATCHUP_ENABLED === 'true';
 const keystoneFeedFetchCatchupSchedule = process.env.CRON_FEED_FETCH_KEYSTONE_CATCHUP_SCHEDULE || '47 12 * * *';
 // Keystone prices: applies the batch the 9:30 fetch brought without waiting
@@ -45,7 +45,7 @@ const keystoneFeedFetchCatchupSchedule = process.env.CRON_FEED_FETCH_KEYSTONE_CA
 // pass). If the fetch is still running the gate defers this until it ends; if
 // the fetch brought nothing new the seed sees the same file hash and skips.
 const keystoneFeedApplyEnabled = process.env.CRON_FEED_APPLY_KEYSTONE_ENABLED === 'true';
-const keystoneFeedApplySchedule = process.env.CRON_FEED_APPLY_KEYSTONE_SCHEDULE || '10 10 * * *';
+const keystoneFeedApplySchedule = process.env.CRON_FEED_APPLY_KEYSTONE_SCHEDULE || '30 11 * * *';
 // JRP feed (FTPS -> Spaces, then VendorProduct): opt-in. JRP writes JUSJEE.csv
 // around 8:42 ET, so the fetch runs at 9:20, apart from the Keystone fetch at
 // 9:30, and the apply at 9:50 (feed-sync + seed-jrp). If the fetch is still
