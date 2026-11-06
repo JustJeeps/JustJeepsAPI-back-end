@@ -191,3 +191,75 @@ test('without a pinned CA the warning points to AIA instead of predicting a TLS 
 	await run.download();
 	assert.deepStrictEqual(warnings, ['⚠️ jrp intermediate CA not found (env or bucket), it will be fetched through AIA if the server omits it']);
 });
+
+// statFile reads the vendor's date and size without transferring the file, so
+// a fetch can tell "nothing new was published" in seconds instead of pulling
+// ~460MB to find out (Keystone, 2026-11).
+function makeStatFtp({ lastMod, size, access }) {
+	const calls = { access: 0, download: 0, closed: 0 };
+	class Client {
+		constructor() {
+			this.ftp = {};
+		}
+		async access() {
+			calls.access += 1;
+			if (access) throw new Error(access);
+		}
+		async lastMod() {
+			if (lastMod instanceof Error) throw lastMod;
+			return lastMod;
+		}
+		async size() {
+			if (size instanceof Error) throw size;
+			return size;
+		}
+		async download() {
+			calls.download += 1;
+		}
+		close() {
+			calls.closed += 1;
+		}
+	}
+	return { calls, module: { Client, enterPassiveModeIPv4: passiveMode } };
+}
+
+function makeStatClient(ftp) {
+	return createFtpsClient({
+		secure: true,
+		envPrefix: 'JRP_FTP',
+		label: 'jrp',
+		host: 'ftp.example.test',
+		port: 21,
+		user: 'u',
+		password: 'p',
+		ftp: ftp.module,
+		env: { JRP_FTP_CA_PEM: PEM },
+		cacheDir: fs.mkdtempSync(path.join(os.tmpdir(), 'ftps-')),
+		fetchIntermediate: async () => assert.fail('must not fetch'),
+		log: quietLog,
+	});
+}
+
+test('statFile returns the vendor date and size without downloading', async () => {
+	const publishedAt = new Date('2026-11-05T14:52:22.000Z');
+	const ftp = makeStatFtp({ lastMod: publishedAt, size: 480000000 });
+
+	const stat = await makeStatClient(ftp).statFile('SpecialOrder.csv');
+
+	assert.deepStrictEqual(stat, { modifiedAt: publishedAt, size: 480000000 });
+	assert.strictEqual(ftp.calls.download, 0);
+	assert.strictEqual(ftp.calls.closed, 1);
+});
+
+test('statFile gives nulls when the vendor does not answer, so the caller downloads', async () => {
+	const ftp = makeStatFtp({ lastMod: new Error('500 MDTM not understood'), size: new Error('550 SIZE not allowed') });
+
+	assert.deepStrictEqual(await makeStatClient(ftp).statFile('Inventory.csv'), { modifiedAt: null, size: null });
+});
+
+test('statFile gives null when it cannot even log in, so the caller downloads', async () => {
+	const ftp = makeStatFtp({ access: '530 Login incorrect' });
+
+	assert.strictEqual(await makeStatClient(ftp).statFile('Inventory.csv'), null);
+	assert.strictEqual(ftp.calls.closed, 1);
+});
