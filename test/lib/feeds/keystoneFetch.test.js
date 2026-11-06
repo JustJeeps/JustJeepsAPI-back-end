@@ -20,7 +20,7 @@ const SPECIAL = `${KEYSTONE_HEADER}\nAIR LIFT,B2,A13,2,2,y,20,20\n`;
 // schedule that sometimes beats the vendor to publishing. A Date applies to
 // every file; a map by file name gives each one its own date, which is how a
 // fetch that lands mid-publish looks.
-function makeFixture({ ftpContents = { 'Inventory.csv': INVENTORY, 'SpecialOrder.csv': SPECIAL }, failUploadOf = null, currentBatch = null, vendorModifiedAt = null } = {}) {
+function makeFixture({ ftpContents = { 'Inventory.csv': INVENTORY, 'SpecialOrder.csv': SPECIAL }, failUploadOf = null, currentBatch = null, vendorModifiedAt = null, vendorStat = undefined } = {}) {
 	const cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'feedfetch-'));
 
 	const modifiedAtFor = (remoteFile) =>
@@ -36,6 +36,15 @@ function makeFixture({ ftpContents = { 'Inventory.csv': INVENTORY, 'SpecialOrder
 			return { modifiedAt: modifiedAtFor(remoteFile) };
 		},
 	};
+	// vendorStat: what statFile answers per file ({ modifiedAt, size } or null).
+	// Left undefined, the client has no statFile at all (older clients).
+	if (vendorStat !== undefined) {
+		ftpClient.stats = [];
+		ftpClient.statFile = async (remoteFile) => {
+			ftpClient.stats.push(remoteFile);
+			return vendorStat[remoteFile] ?? null;
+		};
+	}
 
 	const store = {
 		puts: [],
@@ -351,4 +360,102 @@ test('a file the vendor gives no date for cannot be compared, and does not block
 
 	assert.strictEqual(fixture.registered.length, 1);
 	assert.strictEqual(fixture.runs[0].status, 'success');
+});
+
+// Since 2026-11 Keystone publishes between 9:04 and 10:04 (Toronto), so a
+// fetch often finds yesterday's export still on the FTP. Reading the date and
+// size at the vendor tells that in seconds, instead of pulling ~460MB for
+// 20 to 50 minutes with the shared cron gate held.
+const PUBLISHED_INV = new Date('2026-11-05T14:50:46Z');
+const PUBLISHED_SPECIAL = new Date('2026-11-05T14:52:22Z');
+const batchPublishedAt = () => ({
+	batchId: 'current-batch',
+	artifacts: [
+		{ fileName: 'Inventory.csv', sha256: sha256(INVENTORY), sizeBytes: BigInt(INVENTORY.length), sourceModifiedAt: PUBLISHED_INV },
+		{ fileName: 'SpecialOrder.csv', sha256: sha256(SPECIAL), sizeBytes: BigInt(SPECIAL.length), sourceModifiedAt: PUBLISHED_SPECIAL },
+	],
+});
+const runWith = (fixture) =>
+	runKeystoneFetch({ ftpClient: fixture.ftpClient, store: fixture.store, prisma: fixture.prisma, catalog: fixture.catalogStub, cacheDir: fixture.cacheDir, env: fixture.env });
+
+test('the vendor still showing the export we already have is a skip WITHOUT downloading', async () => {
+	const fixture = makeFixture({
+		currentBatch: batchPublishedAt(),
+		vendorStat: {
+			'Inventory.csv': { modifiedAt: PUBLISHED_INV, size: INVENTORY.length },
+			'SpecialOrder.csv': { modifiedAt: PUBLISHED_SPECIAL, size: SPECIAL.length },
+		},
+	});
+
+	const result = await runWith(fixture);
+
+	assert.deepStrictEqual(result, { skipped: true, batchId: 'current-batch', notPublishedYet: true });
+	assert.deepStrictEqual(fixture.ftpClient.downloads, []);
+	assert.strictEqual(fixture.store.puts.length, 0);
+	assert.strictEqual(fixture.runs[0].status, 'skipped-unchanged');
+	assert.strictEqual(fixture.runs[0].artifactBatchId, 'current-batch');
+	assert.deepStrictEqual(fixture.runs[0].sourceMtime, PUBLISHED_INV);
+});
+
+test('one file with a newer date at the vendor downloads both', async () => {
+	const fixture = makeFixture({
+		currentBatch: batchPublishedAt(),
+		vendorStat: {
+			'Inventory.csv': { modifiedAt: new Date('2026-11-06T14:20:00Z'), size: INVENTORY.length },
+			'SpecialOrder.csv': { modifiedAt: PUBLISHED_SPECIAL, size: SPECIAL.length },
+		},
+	});
+
+	await runWith(fixture);
+
+	assert.deepStrictEqual(fixture.ftpClient.downloads, ['Inventory.csv', 'SpecialOrder.csv']);
+});
+
+test('same date but another size at the vendor downloads', async () => {
+	const fixture = makeFixture({
+		currentBatch: batchPublishedAt(),
+		vendorStat: {
+			'Inventory.csv': { modifiedAt: PUBLISHED_INV, size: INVENTORY.length + 1 },
+			'SpecialOrder.csv': { modifiedAt: PUBLISHED_SPECIAL, size: SPECIAL.length },
+		},
+	});
+
+	await runWith(fixture);
+
+	assert.strictEqual(fixture.ftpClient.downloads.length, 2);
+});
+
+test('a vendor that does not answer the check falls back to downloading', async () => {
+	const fixture = makeFixture({
+		currentBatch: batchPublishedAt(),
+		vendorStat: { 'Inventory.csv': null, 'SpecialOrder.csv': { modifiedAt: null, size: null } },
+	});
+
+	await runWith(fixture);
+
+	assert.strictEqual(fixture.ftpClient.downloads.length, 2);
+});
+
+test('a current batch without vendor dates (manual upload) never skips on the check', async () => {
+	const currentBatch = batchPublishedAt();
+	const fixture = makeFixture({
+		currentBatch: { ...currentBatch, artifacts: currentBatch.artifacts.map((a) => ({ ...a, sourceModifiedAt: null })) },
+		vendorStat: {
+			'Inventory.csv': { modifiedAt: PUBLISHED_INV, size: INVENTORY.length },
+			'SpecialOrder.csv': { modifiedAt: PUBLISHED_SPECIAL, size: SPECIAL.length },
+		},
+	});
+
+	await runWith(fixture);
+
+	assert.strictEqual(fixture.ftpClient.downloads.length, 2);
+});
+
+test('with no current batch the check is not even made', async () => {
+	const fixture = makeFixture({ vendorStat: {} });
+
+	await runWith(fixture);
+
+	assert.deepStrictEqual(fixture.ftpClient.stats, []);
+	assert.strictEqual(fixture.registered.length, 1);
 });
