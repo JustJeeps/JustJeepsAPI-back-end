@@ -47,6 +47,13 @@ test('a zero or missing cost is rejected: it would show as the cheapest vendor',
 	assert.deepStrictEqual(parseRow(raw({ UnitPrice: '-3' })), { ok: false, reason: 'bad-cost' });
 });
 
+test('a cost above the list price is rejected: Grandwest WAR rows come 6x too high', () => {
+	assert.deepStrictEqual(parseRow(raw({ UnitPrice: '23769.72', ListPrice: '3712.75' })), { ok: false, reason: 'cost-above-list' });
+	assert.strictEqual(parseRow(raw({ UnitPrice: '322.6', ListPrice: '322.6' })).ok, true, 'equal to list is fine');
+	assert.strictEqual(parseRow(raw({ ListPrice: '' })).ok, true, 'no list price, nothing to compare');
+	assert.strictEqual(parseRow(raw({ ListPrice: '0' })).ok, true, 'a zero list price is broken, not a reason to drop the row');
+});
+
 test('a quantity that is not a number, or is negative, is rejected', () => {
 	assert.deepStrictEqual(parseRow(raw({ Quantity: 'many' })), { ok: false, reason: 'bad-quantity' });
 	assert.deepStrictEqual(parseRow(raw({ Quantity: '-1' })), { ok: false, reason: 'bad-quantity' });
@@ -66,5 +73,5 @@ test('a missing item or line code is rejected', () => {
 });
 
 test('every reason returned is a declared reason', () => {
-	assert.deepStrictEqual([...INVALID_REASONS].sort(), ['bad-cost', 'bad-quantity', 'item-prefix-mismatch', 'missing-item', 'missing-line-code']);
+	assert.deepStrictEqual([...INVALID_REASONS].sort(), ['bad-cost', 'bad-quantity', 'cost-above-list', 'item-prefix-mismatch', 'missing-item', 'missing-line-code']);
 });
