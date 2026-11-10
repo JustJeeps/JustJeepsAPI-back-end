@@ -217,3 +217,15 @@ test('an old row whose Item is repeated or invalid today keeps its row and says 
 	assert.ok(csv.includes('"stale","","AFE-40-19019","AFE-40-19019","invalid-in-feed"'), csv);
 	assert.deepStrictEqual(world.db.vendorProducts.get('TYG-TG-BC9C8003').vendor_cost, 1, 'untouched');
 });
+
+test('an old row whose Item is still in the file but no longer matches says so, not missing', async () => {
+	const old = (item, sku) => ({ product_sku: sku, vendor_id: 21, vendor_sku: item, vendor_cost: 1, vendor_inventory: 1, vendor_inventory_string: '1' });
+	const db = createFakeDb({ vendors: [VENDOR], vendorProducts: [old('GOR-NOTINCATALOG', 'GOR-NOTINCATALOG'), old('ACC-11269', 'ACX-11269')] });
+	const world = createWorld({ db });
+
+	await runGrandwestIngest(world.deps);
+
+	const csv = world.uploads[1].text;
+	assert.ok(csv.includes('"stale","","GOR-NOTINCATALOG","GOR-NOTINCATALOG","unmatched-in-feed"'), csv);
+	assert.ok(csv.includes('"stale","","ACC-11269","ACX-11269","brand-not-carried-in-feed"'), csv);
+});
