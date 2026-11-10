@@ -74,3 +74,36 @@ test('a description on two lines is a healthy row, not a merge', async (t) => {
 
 	assert.deepStrictEqual([feed.rows.length, feed.merged], [2, []]);
 });
+
+test('a swallowed row is caught whatever the length of its line code', async (t) => {
+	const file = writeTemp(t, 'long-code.csv', `${HEADER}ACC-1,ACC,BOX 5'6" WIDE,10,12,1,\nBESTO-2,BESTO,MAT,999,1200,7,\nB-3,B,MAT,5,6,1,\n`);
+
+	const feed = await readFeed(file);
+
+	assert.deepStrictEqual(feed.rows, [], 'ACC-1 must not get the 999 of BESTO-2');
+	assert.deepStrictEqual(feed.merged.map((row) => row.item), ['ACC-1']);
+});
+
+test('a two-line description with commas and dashes is not taken for a swallowed row', async (t) => {
+	const file = writeTemp(t, 'healthy.csv', `${HEADER}BDS-1,BDS,"LIFT KIT\r\nJL-JT,4DR,GAS",10,12,1,\r\n`);
+
+	const feed = await readFeed(file);
+
+	assert.deepStrictEqual([feed.rows.length, feed.merged], [1, []]);
+});
+
+test('a trailing comma in the header adds no column and flags nothing', async (t) => {
+	const file = writeTemp(t, 'trailing.csv', 'Item,LineCode,Desciption,UnitPrice,ListPrice,Quantity,UPC,\nBDS-1,BDS,X,10,12,2,,\n');
+
+	const feed = await readFeed(file);
+
+	assert.deepStrictEqual([feed.rows.length, feed.merged], [1, []]);
+});
+
+test('a header that is not on line 1, or a wrong delimiter, fails with that reason', async (t) => {
+	const titled = writeTemp(t, 'titled.csv', `Grandwest price list\n${HEADER}BDS-1,BDS,X,10,12,2,\n`);
+	const tabbed = writeTemp(t, 'tabbed.csv', `${HEADER.replace(/,/g, '\t')}BDS-1\tBDS\tX\t10\t12\t2\t\n`);
+
+	await assert.rejects(readFeed(titled), /header.*line 1.*delimiter/i);
+	await assert.rejects(readFeed(tabbed), /header.*line 1.*delimiter/i);
+});
