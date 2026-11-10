@@ -141,6 +141,7 @@ module.exports = [
   },
   {
     jj_prefix: "AFE",
+    grandwest_code: "AFE",
     brand_name: "aFe Power",
     niagara_code: "afe-power",
     niagara_sku_prefixes: ["AFE-"],
@@ -175,6 +176,7 @@ module.exports = [
   },
   {
     jj_prefix: "ABZ",
+    grandwest_code: "PIT",
     brand_name: "AirBedz",
     niagara_code: "airbedz",
     vendors: "Meyer, Keystone, Quadratec",
@@ -187,6 +189,7 @@ module.exports = [
   },
   {
     jj_prefix: "AID",
+    grandwest_code: "ARD",
     brand_name: "Air Design",
     niagara_code: "airdesign",
     vendors: "Keystone, Quadratec",
@@ -229,6 +232,7 @@ module.exports = [
   },
   {
     jj_prefix: "ALR",
+    grandwest_code: "ALP",
     brand_name: "AlphaRex",
     niagara_code: "alpharex",
     jrp_code: "AlphaRex",
@@ -340,6 +344,7 @@ module.exports = [
   },
   {
     jj_prefix: "ANU",
+    grandwest_code: "ANZ",
     brand_name: "ANZO USA",
     niagara_code: "anzo-usa",
     vendors: "Meyer, Keystone",
@@ -384,6 +389,7 @@ module.exports = [
   },
   {
     jj_prefix: "ARS",
+    grandwest_code: "ARI",
     brand_name: "Aries Automotive",
     niagara_code: "aries-automotive",
     vendors: "Meyer, Keystone, Quadratec",
@@ -477,6 +483,7 @@ module.exports = [
   },
   {
     jj_prefix: "AVS",
+    grandwest_code: "AVS",
     brand_name: "Auto Ventshade",
     niagara_code: "auto-ventshade",
     vendors: "Meyer, Keystone, Quadratec",
@@ -529,6 +536,7 @@ module.exports = [
   },
   {
     jj_prefix: "BAJ",
+    grandwest_code: "BAJ",
     brand_name: "Baja Designs",
     niagara_code: "baja-designs",
     vendors: "Meyer, Keystone, Quadratec",
@@ -610,6 +618,7 @@ module.exports = [
   },
   {
     jj_prefix: "BDS",
+    grandwest_code: "BDS",
     brand_name: "BDS Suspension",
     niagara_code: "bds-suspension",
     vendors: "Grand West",
@@ -639,6 +648,7 @@ module.exports = [
   },
   {
     jj_prefix: "BST",
+    grandwest_code: "BES",
     brand_name: "BESTOP",
     niagara_code: "bestop",
     niagara_sku_prefixes: ["BESTOP-"],
@@ -668,6 +678,7 @@ module.exports = [
   },
   {
     jj_prefix: "BIL",
+    grandwest_code: "BIL",
     brand_name: "Bilstein",
     niagara_code: "bilstein",
     niagara_sku_prefixes: ["BIL-"],
@@ -723,6 +734,7 @@ module.exports = [
   },
   {
     jj_prefix: "BLX",
+    grandwest_code: "BLU",
     brand_name: "Blue Ox",
     vendors: "Meyer, Keystone",
     keystone_code: "B1B",
@@ -794,6 +806,7 @@ module.exports = [
   },
   {
     jj_prefix: "BOR",
+    grandwest_code: "BOR",
     brand_name: "Borla Performance",
     niagara_code: "borla",
     jrp_code: "Borla Performance",
@@ -899,6 +912,7 @@ module.exports = [
   },
   {
     jj_prefix: "CAR",
+    grandwest_code: "CAR",
     brand_name: "CARR",
     vendors: "keystone, Meyer",
     keystone_code: "C22",
@@ -993,6 +1007,7 @@ module.exports = [
   },
   {
     jj_prefix: "COB",
+    grandwest_code: "CBR",
     brand_name: "Cobra Electronics",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "C98",
@@ -1038,6 +1053,7 @@ module.exports = [
   },
   {
     jj_prefix: "COV",
+    grandwest_code: "COV",
     brand_name: "Covercraft",
     niagara_code: "covercraft",
     vendors: "Meyer, Keystone, Quadratec",
@@ -1119,6 +1135,7 @@ module.exports = [
   },
   {
     jj_prefix: "CMF",
+    grandwest_code: "CUR",
     brand_name: "Curt Manufacturing",
     niagara_code: "curt-manufacturing",
     vendors: "Meyer, Keystone, Quadratec, Curt",
@@ -1154,6 +1171,7 @@ module.exports = [
   },
   {
     jj_prefix: "DS",
+    grandwest_code: "DSS",
     brand_name: "DS18",
     vendors: "Meyer, Quadratec",
     keystone_code: "",
@@ -1182,6 +1200,7 @@ module.exports = [
   },
   {
     jj_prefix: "DAY",
+    grandwest_code: "DAY",
     brand_name: "Daystar",
     niagara_code: "daystar",
     vendors: "Meyer, Keystone, Quadratec",
@@ -1196,6 +1215,7 @@ module.exports = [
   },
   {
     jj_prefix: "DKD",
+    grandwest_code: "DEC",
     brand_name: "Decked",
     niagara_code: "decked",
     vendors: "Meyer, Keystone, Quadratec",
@@ -1210,6 +1230,7 @@ module.exports = [
   },
   {
     jj_prefix: "DEZ",
+    grandwest_code: "DEE",
     brand_name: "DeeZee",
     niagara_code: "dee-zee-1",
     vendors: "Meyer, Quadratec",
@@ -1318,6 +1339,7 @@ module.exports = [
   },
   {
     jj_prefix: "DRT",
+    grandwest_code: "DRA",
     brand_name: "Draw-Tite",
     niagara_code: "draw-tite",
     vendors: "Meyer, Keystone, Quadratec",
@@ -1341,6 +1363,7 @@ module.exports = [
   },
   {
     jj_prefix: "DUH",
+    grandwest_code: "DUH",
     brand_name: "DU-HA",
     vendors: "Keystone, Meyer",
     keystone_code: "D67",
@@ -1446,6 +1469,7 @@ module.exports = [
   },
   {
     jj_prefix: "EGR",
+    grandwest_code: "EGR",
     brand_name: "EGR",
     niagara_code: "egr",
     vendors: "Meyer, Quadratec, Keystone",
@@ -1537,6 +1561,7 @@ module.exports = [
   },
   {
     jj_prefix: "EXT",
+    grandwest_code: "EXT",
     brand_name: "Extang",
     niagara_code: "extang",
     vendors: "Meyer, Keystone, Quadratec",
@@ -1694,6 +1719,7 @@ module.exports = [
   },
   {
     jj_prefix: "FIR",
+    grandwest_code: "FIR",
     brand_name: "Firestone Airide",
     vendors: "Keystone, Meyer",
     keystone_code: "F36",
@@ -1720,6 +1746,7 @@ module.exports = [
   },
   {
     jj_prefix: "FLM",
+    grandwest_code: "FLO",
     brand_name: "FlowMaster",
     niagara_code: "flowmaster",
     niagara_sku_prefixes: ["FLO-"],
@@ -1751,6 +1778,7 @@ module.exports = [
 
   {
     jj_prefix: "FAD",
+    grandwest_code: "FOC",
     brand_name: "Focus Auto Design",
     vendors: "Quadratec, Keystone,Grand West, ",
     keystone_code: "T2G",
@@ -1764,6 +1792,7 @@ module.exports = [
   },
   {
     jj_prefix: "FOX",
+    grandwest_code: "FOX",
     brand_name: "Fox Racing",
     niagara_code: "fox",
     vendors: "Meyer, Keystone, Quadratec, WheelPros (don't DS to US)",
@@ -1873,6 +1902,7 @@ module.exports = [
   },
   {
     jj_prefix: "GOR",
+    grandwest_code: "GOR",
     brand_name: "Go Rhino",
     niagara_code: "go-rhino",
     niagara_sku_prefixes: ["RHI-"],
@@ -1950,6 +1980,7 @@ module.exports = [
   },
   {
     jj_prefix: "GTS",
+    grandwest_code: "GTS",
     brand_name: "GT Styling",
     niagara_code: "gt-styling",
     vendors: "Meyer, Keystone, Quadratec",
@@ -1981,6 +2012,7 @@ module.exports = [
   },
   {
     jj_prefix: "HVC",
+    grandwest_code: "HVC",
     brand_name: "Havoc Offroad",
     niagara_code: "havoc-offroad",
     vendors: "Keystone, Quadratec, Meyer, Omix",
@@ -2015,6 +2047,7 @@ module.exports = [
   },
   {
     jj_prefix: "HOL",
+    grandwest_code: "HOL",
     brand_name: "Holley",
     jrp_code: "Holley",
     vendors: "Meyer, Keystone, Quadratec",
@@ -2057,6 +2090,7 @@ module.exports = [
   },
   {
     jj_prefix: "HOP",
+    grandwest_code: "HOP",
     brand_name: "Hopkins",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "H22",
@@ -2070,6 +2104,7 @@ module.exports = [
   },
   {
     jj_prefix: "HU",
+    grandwest_code: "HUS",
     brand_name: "Husky Liners",
     niagara_code: "husky-liners",
     jrp_code: "Husky Liners",
@@ -2109,6 +2144,7 @@ module.exports = [
   },
   {
     jj_prefix: "HT",
+    grandwest_code: "HYP",
     brand_name: "Hypertech",
     vendors: "Keystone",
     keystone_code: "H58",
@@ -2134,6 +2170,7 @@ module.exports = [
 
     {
     jj_prefix: "ICO",
+    grandwest_code: "ICT",
     brand_name: "ICON Vehicle Dynamics",
     niagara_code: "icon-vehicle-dynamics",
     niagara_sku_prefixes: ["ICON-"],
@@ -2188,6 +2225,7 @@ module.exports = [
   },
     {
     jj_prefix: "IRM",
+    grandwest_code: "IRO",
     brand_name: "IRONMAN 4x4",
     vendors: "Meyer, Keystone",
     keystone_code: "IRN",
@@ -2230,6 +2268,7 @@ module.exports = [
   },
   {
     jj_prefix: "JWS",
+    grandwest_code: "JWS",
     brand_name: "J.W. Speaker",
     niagara_code: "jw-speaker",
     vendors: "Meyer, Keystone, Quadratec",
@@ -2293,6 +2332,7 @@ module.exports = [
   },
   {
     jj_prefix: "JKS",
+    grandwest_code: "JKS",
     brand_name: "JKS Manufacturing",
     niagara_code: "jks-manufacturing",
     niagara_sku_prefixes: ["JKS"],
@@ -2393,6 +2433,7 @@ module.exports = [
   },
   {
     jj_prefix: "KCR",
+    grandwest_code: "KIC",
     brand_name: "Kicker Jeep Audio & Electronics",
     vendors: "Meyer, Quadratec",
     keystone_code: "",
@@ -2547,6 +2588,7 @@ module.exports = [
 
     {
     jj_prefix: "LUV",
+    grandwest_code: "LUV",
     brand_name: "Luverne",
     vendors: "Meyer, Keystone, Curt",
     keystone_code: "L57",
@@ -2581,6 +2623,7 @@ module.exports = [
   },
   {
     jj_prefix: "MGF",
+    grandwest_code: "MAG",
     brand_name: "MagnaFlow",
     niagara_code: "magnaflow",
     vendors: "Meyer, Keystone, Quadratec",
@@ -2597,6 +2640,7 @@ module.exports = [
   },
   {
     jj_prefix: "MRS",
+    grandwest_code: "CYC",
     brand_name: "Magnum by Raptor Series",
     vendors: "Keystone, Quadratec, Meyer",
     keystone_code: "RPT",
@@ -2661,6 +2705,7 @@ module.exports = [
   },
   {
     jj_prefix: "MBP",
+    grandwest_code: "MBR",
     brand_name: "MBRP Inc",
     niagara_code: "mbrp",
     vendors: "Meyer, Keystone, Quadratec",
@@ -2685,6 +2730,7 @@ module.exports = [
   },
   {
     jj_prefix: "MCG",
+    grandwest_code: "MCG",
     brand_name: "McGard Wheel Locks",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "M15",
@@ -2858,6 +2904,7 @@ module.exports = [
   },
   {
     jj_prefix: "MMT",
+    grandwest_code: "MRM",
     brand_name: "Morimoto",
     niagara_code: "morimoto",
     vendors: "WheelPros (don't DS to US), Meyer, Keystone",
@@ -2934,6 +2981,7 @@ module.exports = [
   },
   {
     jj_prefix: "NFB",
+    grandwest_code: "NFA",
     brand_name: "N-Fab",
     niagara_code: "n-fab",
     niagara_sku_prefixes: ["NFB-"],
@@ -2983,6 +3031,7 @@ module.exports = [
   },
   {
     jj_prefix: "NOC",
+    grandwest_code: "NOC",
     brand_name: "NOCO",
     niagara_code: "noco",
     vendors: "Meyer, Keystone",
@@ -3080,6 +3129,7 @@ module.exports = [
   },
   {
     jj_prefix: "ORL",
+    grandwest_code: "ORA",
     brand_name: "Oracle Lighting",
     niagara_code: "oracle-lighting",
     vendors: "Meyer, Keystone, Quadratec",
@@ -3237,6 +3287,7 @@ module.exports = [
   },
   {
     jj_prefix: "PLC",
+    grandwest_code: "PLA",
     brand_name: "Plasticolor",
     niagara_code: "plasticolor",
     niagara_sku_prefixes: ["PLA-"],
@@ -3391,6 +3442,7 @@ module.exports = [
   },
   {
     jj_prefix: "PUT",
+    grandwest_code: "PUT",
     brand_name: "Putco",
     niagara_code: "putco",
     niagara_sku_prefixes: ["PUT-"],
@@ -3468,6 +3520,7 @@ module.exports = [
   },
   {
     jj_prefix: "RPG",
+    grandwest_code: "RPG",
     brand_name: "Rampage Products",
     niagara_code: "rampage",
     vendors: "Meyer, Keystone, Quadratec",
@@ -3510,6 +3563,7 @@ module.exports = [
   },
     {
     jj_prefix: "RNH",
+    grandwest_code: "RAN",
     brand_name: "Ranch Hand",
     niagara_code: "ranch-hand",
     vendors: "Meyer, Keystone",
@@ -3524,6 +3578,7 @@ module.exports = [
   },
   {
     jj_prefix: "RL",
+    grandwest_code: "RDY",
     brand_name: "ReadyLIFT",
     niagara_code: "readylift",
     vendors: "Meyer, Keystone, Quadratec, WheelPros (don't DS to US)",
@@ -3548,6 +3603,7 @@ module.exports = [
   },
   {
     jj_prefix: "REC",
+    grandwest_code: "REC",
     brand_name: "Recon",
     vendors: "Meyer, Keystone",
     keystone_code: "R89",
@@ -3584,6 +3640,7 @@ module.exports = [
   },
   {
     jj_prefix: "RHI",
+    grandwest_code: "RNO",
     brand_name: "Rhino-Rack",
     niagara_code: "rhino-rack",
     vendors: "Meyer, Keystone, Quadratec",
@@ -3628,6 +3685,7 @@ module.exports = [
   },
   {
     jj_prefix: "RIG",
+    grandwest_code: "RIG",
     brand_name: "Rigid Industries",
     niagara_code: "rigid-industries",
     niagara_sku_prefixes: ["RIG"],
@@ -3752,6 +3810,7 @@ module.exports = [
   },
   {
     jj_prefix: "ROL",
+    grandwest_code: "ROL",
     brand_name: "Roll-N-Lock by RealTruck",
     vendors: "Keystone, Meyer",
     keystone_code: "R75",
@@ -3778,6 +3837,7 @@ module.exports = [
   },
   {
     jj_prefix: "ROT",
+    grandwest_code: "PAX",
     brand_name: "RotoPax",
     niagara_code: "rotopax",
     vendors: "Meyer, Keystone, Quadratec",
@@ -3799,6 +3859,7 @@ module.exports = [
   },
   {
     jj_prefix: "RC",
+    grandwest_code: "RCT",
     brand_name: "Rough Country",
     niagara_code: "rough-country",
     niagara_sku_prefixes: ["RCS"],
@@ -3836,6 +3897,7 @@ module.exports = [
   },
   {
     jj_prefix: "RTX",
+    grandwest_code: "RTX",
     brand_name: "RTX Wheels",
     vendors: "Meyer",
     // keystone_code: "C1Y",
@@ -3871,6 +3933,7 @@ module.exports = [
   },
   {
     jj_prefix: "RR",
+    grandwest_code: "RGG",
     brand_name: "Rugged Ridge",
     niagara_code: "rugged-ridge",
     niagara_sku_prefixes: ["DMC-"],
@@ -3951,6 +4014,7 @@ module.exports = [
   },
   {
     jj_prefix: "SSU",
+    grandwest_code: "SSK",
     brand_name: "SeaSucker",
     vendors: "Keystone, Quadratec",
     keystone_code: "SSK",
@@ -3989,6 +4053,7 @@ module.exports = [
   },
   {
     jj_prefix: "SHM",
+    grandwest_code: "SHM",
     brand_name: "Schumacher",
     vendors: "Keystone",
     keystone_code: "SCH",
@@ -4008,6 +4073,7 @@ module.exports = [
   },
   {
     jj_prefix: "SKY",
+    grandwest_code: "SKY",
     brand_name: "Skyjacker Suspension",
     niagara_code: "skyjacker-suspensions",
     vendors: "Meyer, Keystone, Quadratec",
@@ -4050,6 +4116,7 @@ module.exports = [
   },
   {
     jj_prefix: "SB",
+    grandwest_code: "SMT",
     brand_name: "Smittybilt",
     niagara_code: "smittybilt",
     niagara_sku_prefixes: ["SMB-"],
@@ -4108,6 +4175,7 @@ module.exports = [
   },
   {
     jj_prefix: "SPB",
+    grandwest_code: "SPT",
     brand_name: "Sprint Booster",
     vendors: "Quadratec",
     keystone_code: "",
@@ -4116,6 +4184,7 @@ module.exports = [
   },
   {
     jj_prefix: "SPA",
+    grandwest_code: "SPY",
     brand_name: "Spyder Automotive",
     niagara_code: "spyder-automotive",
     vendors: "Meyer, Keystone",
@@ -4191,6 +4260,7 @@ module.exports = [
   },
   {
     jj_prefix: "SUW",
+    grandwest_code: "SUW",
     brand_name: "Superwinch",
     niagara_code: "superwinch",
     vendors: "Meyer, Keystone, Quadratec",
@@ -4270,6 +4340,7 @@ module.exports = [
   },
   {
     jj_prefix: "TR",
+    grandwest_code: "TRE",
     brand_name: "T-Rex",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "T86",
@@ -4288,6 +4359,7 @@ module.exports = [
   },
   {
     jj_prefix: "TEK",
+    grandwest_code: "TEK",
     brand_name: "Tekonsha",
     vendors: "Meyer, Keystone",
     keystone_code: "T1M",
@@ -4322,6 +4394,7 @@ module.exports = [
   },
   {
     jj_prefix: "TH",
+    grandwest_code: "THU",
     brand_name: "Thule Racks",
     vendors: "Meyer, Quadratec", // no longer keystone
     // keystone_code: "T22",
@@ -4337,6 +4410,7 @@ module.exports = [
   },
   {
     jj_prefix: "TIM",
+    grandwest_code: "TMB",
     brand_name: "Timbren",
     niagara_code: "timbren",
     niagara_sku_prefixes: ["TIM-"],
@@ -4406,6 +4480,7 @@ module.exports = [
   },
   {
     jj_prefix: "TMX",
+    grandwest_code: "TRI",
     brand_name: "Trimax",
     vendors: "Keystone, meyer",
     keystone_code: "F36",
@@ -4454,6 +4529,7 @@ module.exports = [
   },
   {
     jj_prefix: "TRX",
+    grandwest_code: "TRX",
     brand_name: "Truxedo",
     niagara_code: "truxedo",
     vendors: "Meyer, Keystone, Quadratec",
@@ -4499,6 +4575,7 @@ module.exports = [
   },
   {
     jj_prefix: "TY",
+    grandwest_code: "TFF",
     brand_name: "Tuffy Products",
     niagara_code: "tuffy",
     vendors: "Meyer, Keystone, Quadratec",
@@ -4513,6 +4590,7 @@ module.exports = [
   },
   {
     jj_prefix: "TGA",
+    grandwest_code: "TYG",
     brand_name: "Tyger Auto",
     niagara_code: "tyger-auto",
     vendors: "Meyer",
@@ -4564,6 +4642,7 @@ module.exports = [
   },
     {
     jj_prefix: "UND",
+    grandwest_code: "UND",
     brand_name: "Undercover",
     niagara_code: "undercover",
     vendors: "Meyer, Keystone, Quadratec",
@@ -4579,6 +4658,7 @@ module.exports = [
   },
   {
     jj_prefix: "UWS",
+    grandwest_code: "UWS",
     brand_name: "UWS Storage",
     vendors: "Meyer, Keystone, Curt",
     keystone_code: "U22",
@@ -4668,6 +4748,7 @@ module.exports = [
   },
   {
     jj_prefix: "WAR",
+    grandwest_code: "WAR",
     brand_name: "WARN",
     niagara_code: "warn-industries",
     vendors: "Meyer, Keystone, Quadratec",
@@ -4708,6 +4789,7 @@ module.exports = [
   },
   {
     jj_prefix: "WTC",
+    grandwest_code: "WET",
     brand_name: "WeatherTech (MAP)",
     niagara_code: "weathertech",
     niagara_sku_prefixes: ["WTC-"],
@@ -4723,6 +4805,7 @@ module.exports = [
   },
   {
     jj_prefix: "WES",
+    grandwest_code: "WES",
     brand_name: "Westin Automotive",
     niagara_code: "westin-automotive",
     vendors: "Meyer, Keystone, Quadratec",
@@ -4874,6 +4957,7 @@ module.exports = [
 
     {
       jj_prefix: "BAK",
+      grandwest_code: "BAK",
       brand_name: "Bak Industries",
       niagara_code: "bak-industries",
       vendors: "Meyer, Keystone",
@@ -4959,6 +5043,7 @@ module.exports = [
   },
   {
     jj_prefix: "ATM",
+    grandwest_code: "ATM",
     brand_name: "Auto Meter",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "A48",
