@@ -112,3 +112,15 @@ test('jrp-ftp is applied by seed-jrp and its scheduled apply holds the Run now g
 	assert.deepStrictEqual(jrp.syncCommands, ['seed-jrp']);
 	assert.strictEqual(jrp.applyCommand, 'feed-apply-jrp');
 });
+
+test('grandwest is a manual upload feed of one CSV, applied by seed-grandwest', () => {
+	const { EXPECTED_COLUMNS, FEED_ID, FILE_NAME } = require('../../config/grandwest');
+	const grandwest = feedsConfig.getFeedByName(FEED_ID);
+	assert.deepStrictEqual(grandwest.files, [FILE_NAME]);
+	assert.deepStrictEqual(feedsConfig.getFileSpec(grandwest, FILE_NAME).signature, [...EXPECTED_COLUMNS]);
+	assert.strictEqual(grandwest.fetch, undefined, 'nothing is pulled: the file is uploaded in the panel');
+	assert.strictEqual(grandwest.seedCommand, 'seed-grandwest');
+	assert.deepStrictEqual(grandwest.syncCommands, ['seed-grandwest']);
+	assert.strictEqual(grandwest.recordsOwnRuns, true);
+	assert.strictEqual(grandwest.staleAfterHours, 14 * 24);
+});

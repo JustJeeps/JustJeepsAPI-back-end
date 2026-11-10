@@ -65,6 +65,7 @@
 const DAY_HOURS = 24;
 
 const { EXPECTED_COLUMNS: JRP_COLUMNS, FEED_ID: JRP_FEED_ID, REMOTE_FILE: JRP_REMOTE_FILE } = require('./jrp');
+const { EXPECTED_COLUMNS: GRANDWEST_COLUMNS, FEED_ID: GRANDWEST_FEED_ID, FILE_NAME: GRANDWEST_FILE_NAME } = require('./grandwest');
 
 // Keystone publishes Inventory.csv and SpecialOrder.csv with the same layout
 // (verified against the bucket copies of 2026-10-14). The signature alone
@@ -219,6 +220,26 @@ const FEED_DEFINITIONS = [
 		syncCommands: ['seed-keyparts'],
 		recordsOwnRuns: true,
 		staleAfterHours: 90 * DAY_HOURS,
+	},
+	{
+		// Grandwest sends its price list by e-mail every few days (copies of
+		// 2026-11-06 and 2026-11-09 differ only in Quantity); someone drops it in
+		// the panel and clicks Run now. seed-grandwest writes cost and stock only
+		// for products we already have (config/grandwest.js has the constants).
+		name: GRANDWEST_FEED_ID,
+		label: 'Grandwest price list (CSV)',
+		fileSpecs: [
+			{
+				name: GRANDWEST_FILE_NAME,
+				label: 'Grandwest price list',
+				signature: [...GRANDWEST_COLUMNS],
+				sheet: null,
+			},
+		],
+		seedCommand: 'seed-grandwest',
+		syncCommands: ['seed-grandwest'],
+		recordsOwnRuns: true,
+		staleAfterHours: 14 * DAY_HOURS,
 	},
 	{
 		name: 'warn-map',

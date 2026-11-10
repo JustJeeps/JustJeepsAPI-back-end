@@ -66,6 +66,7 @@
     "freightcom": "node prisma/seeds/api-calls/freightcom-shipping-rates.js",
     "seed-aev": "node prisma/seeds/seed-individual/seed-aev.js",
     "seed-keyparts": "node prisma/seeds/seed-individual/seed-keyparts.js",
+    "seed-grandwest": "node prisma/seeds/seed-individual/seed-grandwest.js",
     "seed-ctp": "node prisma/seeds/seed-individual/seed-ctp.js",
     "fix-invent": "node prisma/seeds/seed-individual/fixVendorInventoryString.js",
     "seed-mopar": "node prisma/seeds/seed-individual/seed-mopar.js",
