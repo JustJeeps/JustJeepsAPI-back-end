@@ -3,13 +3,12 @@ const assert = require('node:assert');
 
 const gates = require('../../../../lib/feeds/grandwest/gates');
 
-test('descriptions that span two lines pass: every quote that opens also closes', () => {
-	assert.strictEqual(gates.quoteBalanceGate({ oddQuoteLines: 104, firstOddQuoteLine: 793 }), null);
-	assert.strictEqual(gates.quoteBalanceGate({ oddQuoteLines: 0, firstOddQuoteLine: null }), null);
+test('no swallowed rows, no objection', () => {
+	assert.strictEqual(gates.mergedRowsGate({ merged: [] }), null);
 });
 
-test('a quote left open fails before any write', () => {
-	assert.match(gates.quoteBalanceGate({ oddQuoteLines: 3, firstOddQuoteLine: 12 }), /quote.*line 12.*Aborted before any write/);
+test('one swallowed row stops the run and names the first Item', () => {
+	assert.match(gates.mergedRowsGate({ merged: [{ item: 'BDS-1', lineCode: 'BDS', reason: 'merged-rows' }] }), /1 row\(s\) swallowed.*BDS-1.*Aborted before any write/);
 });
 
 test('too few matches fails and names the env override', () => {

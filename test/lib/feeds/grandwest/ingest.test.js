@@ -130,19 +130,37 @@ test('too few matches fails before any write and records the failure', async () 
 	assert.ok(world.db.lockReleased && world.db.stage.closed);
 });
 
-test('a file with an unclosed quote fails before it is read', async (t) => {
+function tempFile(t, body) {
 	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'grandwest-'));
 	t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-	const file = path.join(dir, 'broken.csv');
-	fs.writeFileSync(file, 'Item,LineCode,Desciption,UnitPrice,ListPrice,Quantity,UPC\nBDS-001401,BDS,"OPEN QUOTE,10,12,1,\n');
-	let read = false;
-	const world = createWorld({ file, readFeed: async () => { read = true; return { rowsRead: 0, rows: [], invalid: [] }; } });
+	const file = path.join(dir, 'upload.csv');
+	fs.writeFileSync(file, body);
+	return file;
+}
+
+const HEADER = 'Item,LineCode,Desciption,UnitPrice,ListPrice,Quantity,UPC\n';
+
+test('a broken quote stops the run before any write: no price lands on the wrong Item', async (t) => {
+	const file = tempFile(t, `${HEADER}BDS-001401,BDS,"OPEN,10,12,1,\nWET-110002,WET,MUD FLAP,52,71,3,\nCUR-11000,CUR,"HITCH 5' 6"" BOX",180,246,4,\n`);
+	const world = createWorld({ file });
 
 	const result = await runGrandwestIngest(world.deps);
 
 	assert.strictEqual(result.status, 'failed');
-	assert.match(result.error, /unclosed quote/);
-	assert.strictEqual(read, false);
+	assert.match(result.error, /swallowed other rows \(first: BDS-001401\)/);
+	assert.deepStrictEqual([world.db.vendorProducts.size, world.diffCalls.length], [0, 0]);
+});
+
+test('an Item with a valid copy and a zero cost copy is not written, and every row is accounted for', async (t) => {
+	const file = tempFile(t, `${HEADER}WET-110002,WET,MUD FLAP,52.1,71,3,\nWET-110002,WET,MUD FLAP,0,71,3,\nBDS-001401,BDS,SPRING,235.48,322,3,\n`);
+	const world = createWorld({ file, env: { GRANDWEST_MIN_MATCHED: '1', GRANDWEST_MAX_INVALID_RATIO: '0.5' } });
+
+	const result = await runGrandwestIngest(world.deps);
+
+	assert.strictEqual(result.status, 'success');
+	assert.deepStrictEqual([...world.db.vendorProducts.keys()], ['BDS-001401']);
+	const { counts, sourceRowCount } = world.runs[0].finished;
+	assert.strictEqual(counts.inserted + counts.skipped, sourceRowCount, 'each row is written or skipped once');
 });
 
 test('more than 2% invalid rows fails before any write unless the override allows it', async () => {
@@ -185,4 +203,17 @@ test('a report upload failure after the write says a rerun is safe', async () =>
 
 	assert.strictEqual(result.status, 'failed');
 	assert.match(result.error, /VendorProduct was written, a rerun is safe.*Spaces down/);
+});
+
+test('an old row whose Item is repeated or invalid today keeps its row and says why in the report', async () => {
+	const old = (item, sku) => ({ product_sku: sku, vendor_id: 21, vendor_sku: item, vendor_cost: 1, vendor_inventory: 1, vendor_inventory_string: '1' });
+	const db = createFakeDb({ vendors: [VENDOR], vendorProducts: [old('TYG-TG-BC9C8003', 'TGA-TG-BC9C8003'), old('AFE-40-19019', 'AFE-40-19019')] });
+	const world = createWorld({ db });
+
+	await runGrandwestIngest(world.deps);
+
+	const csv = world.uploads[1].text;
+	assert.ok(csv.includes('"stale","","TYG-TG-BC9C8003","TGA-TG-BC9C8003","repeated-in-feed"'), csv);
+	assert.ok(csv.includes('"stale","","AFE-40-19019","AFE-40-19019","invalid-in-feed"'), csv);
+	assert.deepStrictEqual(world.db.vendorProducts.get('TYG-TG-BC9C8003').vendor_cost, 1, 'untouched');
 });

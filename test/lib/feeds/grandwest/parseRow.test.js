@@ -50,6 +50,7 @@ test('a zero or missing cost is rejected: it would show as the cheapest vendor',
 test('a quantity that is not a number, or is negative, is rejected', () => {
 	assert.deepStrictEqual(parseRow(raw({ Quantity: 'many' })), { ok: false, reason: 'bad-quantity' });
 	assert.deepStrictEqual(parseRow(raw({ Quantity: '-1' })), { ok: false, reason: 'bad-quantity' });
+	assert.deepStrictEqual(parseRow(raw({ Quantity: '1,200' })), { ok: false, reason: 'bad-quantity' }, 'never read 1,200 as 1');
 });
 
 test('an item that does not start with its line code is rejected', () => {

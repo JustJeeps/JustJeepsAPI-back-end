@@ -28,3 +28,18 @@ test('a file with no repeats is returned unchanged and in order', () => {
 	const rows = [row('BDS-1', 1), row('BDS-2', 2)];
 	assert.deepStrictEqual(dropRepeatedItems(rows), { rows, duplicates: [] });
 });
+
+test('an Item repeated with one invalid copy is still dropped: the valid copy is not trusted', () => {
+	const rows = [row('TYG-A1', 779), row('BDS-1', 10)];
+	const invalid = [{ item: 'TYG-A1', lineCode: 'TYG', reason: 'bad-cost' }];
+
+	const { rows: kept, duplicates } = dropRepeatedItems(rows, invalid);
+
+	assert.deepStrictEqual(kept.map((r) => r.item), ['BDS-1']);
+	assert.deepStrictEqual(duplicates, [{ item: 'TYG-A1', lineCode: 'TYG', reason: 'duplicate-item', copies: 2 }]);
+});
+
+test('an invalid row alone is not a repeat', () => {
+	const { rows: kept, duplicates } = dropRepeatedItems([row('BDS-1', 10)], [{ item: 'AFE-9', lineCode: 'AFE', reason: 'bad-cost' }]);
+	assert.deepStrictEqual([kept.length, duplicates], [1, []]);
+});
