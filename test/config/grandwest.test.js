@@ -24,6 +24,14 @@ test('minMatched reads GRANDWEST_MIN_MATCHED and falls back on garbage', () => {
 	assert.strictEqual(grandwest.minMatched({ GRANDWEST_MIN_MATCHED: '-5' }), fallback);
 });
 
+test('maxInvalidRatio reads GRANDWEST_MAX_INVALID_RATIO and refuses nonsense', () => {
+	assert.strictEqual(grandwest.maxInvalidRatio({}), 0.02);
+	assert.strictEqual(grandwest.maxInvalidRatio({ GRANDWEST_MAX_INVALID_RATIO: '0.05' }), 0.05);
+	assert.strictEqual(grandwest.maxInvalidRatio({ GRANDWEST_MAX_INVALID_RATIO: '0' }), 0.02, 'zero would refuse every file');
+	assert.strictEqual(grandwest.maxInvalidRatio({ GRANDWEST_MAX_INVALID_RATIO: '1' }), 0.02, 'one would disable the gate');
+	assert.strictEqual(grandwest.maxInvalidRatio({ GRANDWEST_MAX_INVALID_RATIO: 'x' }), 0.02);
+});
+
 test('lineCodeToPrefix maps the 85 Grandwest codes from vendors_prefix', () => {
 	const map = grandwest.lineCodeToPrefix(vendorsPrefix);
 	assert.strictEqual(map.size, 85);

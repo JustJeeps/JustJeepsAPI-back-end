@@ -31,6 +31,12 @@ function partNumberFor(lineCode, part) {
 	return rewrite(part) || part;
 }
 
+// Override for one run if a real file needs it (e.g. GRANDWEST_MAX_INVALID_RATIO=0.05).
+function maxInvalidRatio(env = process.env) {
+	const n = Number(env.GRANDWEST_MAX_INVALID_RATIO);
+	return Number.isFinite(n) && n > 0 && n < 1 ? n : MAX_INVALID_RATIO;
+}
+
 function minMatched(env = process.env) {
 	const n = Number(env.GRANDWEST_MIN_MATCHED);
 	return Number.isInteger(n) && n > 0 ? n : MIN_MATCHED;
@@ -65,6 +71,7 @@ module.exports = {
 	MIN_MATCHED,
 	PART_REWRITES,
 	partNumberFor,
+	maxInvalidRatio,
 	minMatched,
 	lineCodeToPrefix,
 };
