@@ -130,7 +130,10 @@ test('cad-store-prices publishes the weekly CSV to the live store, behind a warn
 		feedsConfig.getFileSpec(cad, 'cad-store-price-update.csv').signature,
 		['sku', 'price', 'black_friday_sale', 'store_view_code']
 	);
-	assert.strictEqual(cad.seedCommand, 'update-cad-csv-all-live');
+	assert.strictEqual(cad.seedCommand[0], 'update-cad-csv-all-live');
+	// seed-allProducts runs right after the publish, so the Product table (and
+	// the search page) reflects the prices and sale tiers that just went live.
+	assert.deepStrictEqual(cad.seedCommand, ['update-cad-csv-all-live', 'seed-allProducts']);
 	assert.strictEqual(cad.legacyDir, 'cad_store_files');
 	// It writes to the LIVE store: the panel must show the warning first, and
 	// the run needs more room than the default 30 minutes.
