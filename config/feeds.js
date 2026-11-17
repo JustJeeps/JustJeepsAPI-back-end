@@ -365,6 +365,36 @@ const FEED_DEFINITIONS = [
 		staleAfterHours: 365 * DAY_HOURS,
 	},
 	{
+		// The weekly CAD store price check: one CSV with the price and the Black
+		// Friday sale attribute per SKU (sale_20/sale_25/sale_30/no_sale).
+		// update-cad-csv-all-live WRITES PRICES AND ATTRIBUTES TO THE LIVE STORE,
+		// the same family as warn-map, which has no button on purpose. This one
+		// HAS a button deliberately: it is how the weekly check and the Black
+		// Friday tiers get published, and running it from the server avoids the
+		// Sucuri firewall challenging office IPs. The panel shows runWarning as
+		// an extra confirmation before starting it, and the run is triage only
+		// like every other.
+		name: 'cad-store-prices',
+		label: 'CAD store prices + Black Friday attributes (CSV)',
+		fileSpecs: [
+			{
+				name: 'cad-store-price-update.csv',
+				label: 'CAD store price update CSV',
+				signature: ['sku', 'price', 'black_friday_sale', 'store_view_code'],
+				sheet: null,
+			},
+		],
+		seedCommand: 'update-cad-csv-all-live',
+		syncCommands: ['update-cad-csv-all-live'],
+		legacyDir: 'cad_store_files',
+		// ~19k rows: price batches plus one Magento call per sale SKU. The
+		// default 30 min run slot is too tight for that.
+		runTimeoutMs: 90 * 60 * 1000,
+		runWarning: 'This publishes the prices and Black Friday attributes from the uploaded CSV to the LIVE store (justjeeps.com). Make sure the file is the current week\'s check before running.',
+		// A weekly drop: after two weeks the check is due again.
+		staleAfterHours: 14 * DAY_HOURS,
+	},
+	{
 		// Not a vendor file: seed-allProducts pulls the whole catalog straight
 		// from the Magento API (price, status, brand, black_friday_sale, ...)
 		// and upserts the Product table. It lives in this registry so the
@@ -412,6 +442,11 @@ function getFeedDefinitions() {
 			// uploads, feed-sync and freshness do not apply to it.
 			source: feed.source || 'file',
 			seedCommand: feed.seedCommand || null,
+			// Extra confirmation the panel shows before Run now, for the scripts
+			// that write to the live store. null = run starts with no ceremony.
+			runWarning: feed.runWarning || null,
+			// Per-feed ceiling for a panel run; null = the runner's default.
+			runTimeoutMs: Number(feed.runTimeoutMs) > 0 ? Number(feed.runTimeoutMs) : null,
 			syncCommands: feed.syncCommands || (feed.seedCommand ? [].concat(feed.seedCommand) : []),
 			recordsOwnRuns: Boolean(feed.recordsOwnRuns),
 			fetchCommand: feed.fetchCommand || null,

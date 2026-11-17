@@ -123,6 +123,29 @@ test('jrp-ftp is applied by seed-jrp and its scheduled apply holds the Run now g
 	assert.strictEqual(jrp.applyCommand, 'feed-apply-jrp');
 });
 
+test('cad-store-prices publishes the weekly CSV to the live store, behind a warning', () => {
+	const cad = feedsConfig.getFeedByName('cad-store-prices');
+	assert.deepStrictEqual(cad.files, ['cad-store-price-update.csv']);
+	assert.deepStrictEqual(
+		feedsConfig.getFileSpec(cad, 'cad-store-price-update.csv').signature,
+		['sku', 'price', 'black_friday_sale', 'store_view_code']
+	);
+	assert.strictEqual(cad.seedCommand, 'update-cad-csv-all-live');
+	assert.strictEqual(cad.legacyDir, 'cad_store_files');
+	// It writes to the LIVE store: the panel must show the warning first, and
+	// the run needs more room than the default 30 minutes.
+	assert.ok(cad.runWarning && /LIVE store/.test(cad.runWarning));
+	assert.strictEqual(cad.runTimeoutMs, 90 * 60 * 1000);
+	assert.strictEqual(cad.staleAfterHours, 14 * 24);
+});
+
+test('only live-store publishers carry a runWarning', () => {
+	for (const feed of feedsConfig.getFeedDefinitions()) {
+		if (feed.name === 'cad-store-prices') continue;
+		assert.strictEqual(feed.runWarning, null, `${feed.name} should not have a runWarning`);
+	}
+});
+
 test('magento-products is API-sourced: no files, run by seed-allProducts', () => {
 	const magento = feedsConfig.getFeedByName('magento-products');
 	assert.strictEqual(magento.source, 'api');
