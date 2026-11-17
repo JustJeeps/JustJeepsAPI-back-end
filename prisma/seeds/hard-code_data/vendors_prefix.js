@@ -127,6 +127,8 @@ module.exports = [
   {
     jj_prefix: "AEM",
     brand_name: "AEM",
+    jrp_code: "AEM Induction",
+    jrp_aliases: ["AEM Electronics"],
     vendors: "Keystone, Quadratec",
     keystone_code: "A18",
     meyer_code: "",
@@ -554,6 +556,7 @@ module.exports = [
   {
     jj_prefix: "BAE",
     brand_name: "Baer",
+    jrp_code: "Baer Brakes",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "B71",
     meyer_code: "BAE",
@@ -665,6 +668,7 @@ module.exports = [
   {
     jj_prefix: "BFG",
     brand_name: "BF Goodrich Tires",
+    jrp_code: "BFGoodrich",
     niagara_code: "bfgoodrich",
     niagara_sku_prefixes: ["BFG-"],
     vendors: "Tire Discounter, Quadratec", // no meyer anymore
@@ -1040,6 +1044,7 @@ module.exports = [
   {
     jj_prefix: "COR",
     brand_name: "Corsa Performance",
+    jrp_code: "Corsa",
     niagara_code: "corsa-performance",
     vendors: "Keystone, Quadratec (only - dont consider key)",
     keystone_code: "C1M",
@@ -1269,6 +1274,7 @@ module.exports = [
     {
     jj_prefix: "DEI",
     brand_name: "Design Engineering",
+    jrp_code: "DEI - Design Engineering",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "D40",
     meyer_code: "DEE",
@@ -1488,6 +1494,7 @@ module.exports = [
   {
     jj_prefix: "ELE",
     brand_name: "Element - Fire Extinguishers",
+    jrp_code: "Element Fire",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "EFE",
     meyer_code: "ELE",
@@ -2189,6 +2196,7 @@ module.exports = [
   {
     jj_prefix: "INJ",
     brand_name: "INJEN",
+    jrp_code: "INJEN Technology",
     vendors: "Keystone, Quadratec",
     keystone_code: "i24",
     // meyer_code: "ION",
@@ -2292,6 +2300,7 @@ module.exports = [
   {
     jj_prefix: "JBA",
     brand_name: "JBA Performance Exhaust",
+    jrp_code: "JBA Performance Exhaust",
     vendors: "Meyer, Keystone Quadratec",
     keystone_code: "J21",
     meyer_code: "JBA",
@@ -2625,6 +2634,7 @@ module.exports = [
     jj_prefix: "MGF",
     grandwest_code: "MAG",
     brand_name: "MagnaFlow",
+    jrp_code: "MagnaFlow Exhaust Products",
     niagara_code: "magnaflow",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "M66",
@@ -5045,6 +5055,7 @@ module.exports = [
     jj_prefix: "ATM",
     grandwest_code: "ATM",
     brand_name: "Auto Meter",
+    jrp_code: "Auto Meter Products",
     vendors: "Meyer, Keystone, Quadratec",
     keystone_code: "A48",
     meyer_code: "ATM",

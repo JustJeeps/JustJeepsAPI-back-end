@@ -19,8 +19,12 @@ const STOCK_PLUS_VALUE = 4; // IN-STOCK "4+" means at least 4
 // Airaid part numbers embed the brand letters (AIR100-262 is our AIR-100-262).
 const OEM_STRIP = Object.freeze({ AIR: /^AIR/ });
 
-// Brands approved on JRP's portal as of 2026-10-27.
-const DEFAULT_ACTIVE_BRANDS = Object.freeze(['AFE', 'AIR', 'ALR', 'BIL', 'BOR', 'ESP', 'FLM', 'HOL', 'HU', 'KCH']);
+// Brands approved on JRP's portal as of 2026-10-27, plus the ones JRP added to
+// the FTP file on 2026-11-11 (Artec and Holley EFI/Intech left out on purpose).
+const DEFAULT_ACTIVE_BRANDS = Object.freeze([
+	'AFE', 'AIR', 'ALR', 'BIL', 'BOR', 'ESP', 'FLM', 'HOL', 'HU', 'KCH',
+	'AEM', 'ATM', 'BAE', 'BFG', 'COR', 'DEI', 'ELE', 'INJ', 'JBA', 'MGF',
+]);
 
 function minMatched(env = process.env) {
 	const n = Number(env.JRP_MIN_MATCHED);

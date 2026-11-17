@@ -4,7 +4,10 @@ const assert = require('node:assert');
 const jrp = require('../../config/jrp');
 const vendorsPrefix = require('../../prisma/seeds/hard-code_data/vendors_prefix');
 
-const DEFAULT_PREFIXES = ['AFE', 'AIR', 'ALR', 'BIL', 'BOR', 'ESP', 'FLM', 'HOL', 'HU', 'KCH'];
+const DEFAULT_PREFIXES = [
+	'AEM', 'AFE', 'AIR', 'ALR', 'ATM', 'BAE', 'BFG', 'BIL', 'BOR', 'COR',
+	'DEI', 'ELE', 'ESP', 'FLM', 'HOL', 'HU', 'INJ', 'JBA', 'KCH', 'MGF',
+];
 
 test('constants match the 2026-10-27 discovery', () => {
 	assert.strictEqual(jrp.VENDOR_NAME, 'JRP');
@@ -34,7 +37,7 @@ test('minMatched reads JRP_MIN_MATCHED and falls back on garbage', () => {
 	assert.strictEqual(jrp.minMatched({ JRP_MIN_MATCHED: '-5' }), 1500);
 });
 
-test('activeBrands defaults to the 10 approved prefixes', () => {
+test('activeBrands defaults to the 20 approved prefixes', () => {
 	assert.deepStrictEqual([...jrp.activeBrands({})].sort(), DEFAULT_PREFIXES);
 	assert.deepStrictEqual([...jrp.activeBrands({ JRP_ACTIVE_BRANDS: '  ' })].sort(), DEFAULT_PREFIXES);
 });
@@ -70,10 +73,23 @@ test('vendors_prefix maps every JRP feed label to its prefix', () => {
 	const feedLabels = {
 		'aFe Power': 'AFE', Airaid: 'AIR', AlphaRex: 'ALR', Bilstein: 'BIL', 'Borla Performance': 'BOR',
 		'Energy Suspension': 'ESP', Flowmaster: 'FLM', Holley: 'HOL', 'Husky Liners': 'HU', 'KC HiLiTES': 'KCH',
+		// Labels JRP added to the FTP file on 2026-11-11.
+		'MagnaFlow Exhaust Products': 'MGF', 'Auto Meter Products': 'ATM', 'Baer Brakes': 'BAE', Corsa: 'COR',
+		BFGoodrich: 'BFG', 'DEI - Design Engineering': 'DEI', 'JBA Performance Exhaust': 'JBA',
+		'AEM Induction': 'AEM', 'AEM Electronics': 'AEM', 'INJEN Technology': 'INJ', 'Element Fire': 'ELE',
 	};
 	for (const [label, prefix] of Object.entries(feedLabels)) {
 		assert.strictEqual(map.get(label.toLowerCase()), prefix, label);
 	}
-	assert.strictEqual(map.size, DEFAULT_PREFIXES.length);
-	assert.deepStrictEqual([...map.values()].sort(), [...jrp.activeBrands({})].sort());
+	assert.strictEqual(map.size, Object.keys(feedLabels).length);
+	assert.deepStrictEqual([...new Set(map.values())].sort(), [...jrp.activeBrands({})].sort());
+});
+
+test('JRP labels that are a different company or would collide stay unmapped', () => {
+	const map = jrp.brandLabelToPrefix(vendorsPrefix);
+	// JRP's Artec makes turbo manifolds; our ARI is Artec Industries (Jeep armor).
+	assert.strictEqual(map.get('artec'), undefined);
+	// Holley EFI shares Holley's part numbers: mapping it would collide with the Holley rows.
+	assert.strictEqual(map.get('holley efi'), undefined);
+	assert.strictEqual(map.get('holley intech'), undefined);
 });

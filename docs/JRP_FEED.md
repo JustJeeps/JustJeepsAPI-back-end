@@ -88,7 +88,7 @@ Optional (code defaults apply when unset, documented in `.env.example`):
 | `JRP_FTP_DOWNLOAD_DEADLINE_MS` | 2700000 | absolute download deadline (45 min) |
 | `JRP_FTP_CA_PEM`, `JRP_FTP_CA_FILE`, `JRP_FTP_CA_OBJECT_KEY` | `certs/jrp-ftp-ca.pem` (object key) | pinned intermediate CA; without one it is fetched through AIA |
 | `JRP_MIN_MATCHED` | 1500 | minimum matched rows; a value that is not a positive integer falls back to 1500 |
-| `JRP_ACTIVE_BRANDS` | the 10 prefixes in `config/jrp.js` | comma separated `jj_prefix` list of brands to apply |
+| `JRP_ACTIVE_BRANDS` | the 20 prefixes in `config/jrp.js` | comma separated `jj_prefix` list of brands to apply |
 | `FEED_STALE_HOURS_JRP_FTP` | 36 | when the panel and digest call the feed stale |
 
 Without a pinned CA, a fetch logs `ℹ️ No pinned CA at certs/jrp-ftp-ca.pem in the bucket` and
