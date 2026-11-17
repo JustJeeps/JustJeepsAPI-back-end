@@ -1,18 +1,33 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { recordScriptRun, findFeedByCommand } = require('../../../lib/feeds/runRecorder');
+const { recordScriptRun, recordScriptRunStart, findFeedByCommand } = require('../../../lib/feeds/runRecorder');
 
 function makePrismaStub(existing = []) {
 	const created = [];
+	const updated = [];
+	const deleted = [];
 	return {
 		created,
+		updated,
+		deleted,
 		ingestRun: {
 			findFirst: async ({ where }) =>
-				existing.find((row) => row.feed === where.feed && row.startedAt >= where.startedAt.gte) || null,
+				existing.find((row) =>
+					row.feed === where.feed
+					&& row.startedAt >= where.startedAt.gte
+					&& (!where.id?.not || row.id !== where.id.not)) || null,
 			create: async ({ data }) => {
 				created.push(data);
 				return { id: created.length, ...data };
+			},
+			update: async ({ where, data }) => {
+				updated.push({ id: where.id, ...data });
+				return { id: where.id, ...data };
+			},
+			delete: async ({ where }) => {
+				deleted.push(where.id);
+				return { id: where.id };
 			},
 		},
 	};
@@ -121,6 +136,73 @@ test('a feed whose scripts record their own counts gets no bookkeeping row on su
 	});
 
 	assert.strictEqual(prisma.created.length, 0);
+});
+
+test('a run writes a running row at start, finalized in place at the end', async () => {
+	// The start row is the only trace that survives the process dying mid-run
+	// (staleRuns closes it as interrupted); on a normal end it becomes the
+	// final row instead of a second one.
+	const prisma = makePrismaStub();
+	const startedAt = new Date('2026-11-17T12:13:00Z');
+
+	const startRow = await recordScriptRunStart(prisma, {
+		feed: { name: 'cad-store-prices', ingestFeed: 'cad-store-prices' },
+		command: 'update-cad-csv-all-live && seed-allProducts',
+		startedAt,
+	});
+
+	assert.strictEqual(prisma.created.length, 1);
+	assert.strictEqual(prisma.created[0].status, 'running');
+	assert.strictEqual(prisma.created[0].feed, 'cad-store-prices');
+
+	await recordScriptRun(prisma, {
+		feed: { name: 'cad-store-prices', ingestFeed: 'cad-store-prices' },
+		command: 'update-cad-csv-all-live && seed-allProducts',
+		startedAt,
+		finishedAt: new Date('2026-11-17T13:40:00Z'),
+		status: 'success',
+		startRunId: startRow.id,
+	});
+
+	assert.strictEqual(prisma.created.length, 1, 'no second row: the start row is finalized');
+	assert.deepStrictEqual(prisma.updated.map((u) => ({ id: u.id, status: u.status })), [{ id: startRow.id, status: 'success' }]);
+});
+
+test('the start row is discarded when the seed recorded its own detailed run', async () => {
+	const startedAt = new Date('2026-08-06T12:00:00Z');
+	const prisma = makePrismaStub([{ id: 99, feed: 'quadratec', startedAt: new Date('2026-08-06T12:00:05Z') }]);
+
+	await recordScriptRun(prisma, {
+		feed: QUADRATEC,
+		command: 'seed-quadratec',
+		startedAt,
+		finishedAt: new Date('2026-08-06T12:01:00Z'),
+		status: 'success',
+		startRunId: 7,
+	});
+
+	assert.strictEqual(prisma.created.length, 0);
+	assert.strictEqual(prisma.updated.length, 0);
+	assert.deepStrictEqual(prisma.deleted, [7], 'the running row must not sit above the detailed one');
+});
+
+test('the start row is not mistaken for the seed recording its own run', async () => {
+	// findFirst sees rows from startedAt onwards; the start row itself is in
+	// that window and must be excluded, or every run would look instrumented.
+	const startedAt = new Date('2026-08-06T12:00:00Z');
+	const prisma = makePrismaStub([{ id: 7, feed: 'ctp', startedAt, status: 'running' }]);
+
+	await recordScriptRun(prisma, {
+		feed: CTP,
+		command: 'seed-ctp',
+		startedAt,
+		finishedAt: new Date('2026-08-06T12:00:30Z'),
+		status: 'success',
+		startRunId: 7,
+	});
+
+	assert.strictEqual(prisma.deleted.length, 0);
+	assert.deepStrictEqual(prisma.updated.map((u) => ({ id: u.id, status: u.status })), [{ id: 7, status: 'success' }]);
 });
 
 test('every script the daily sync runs maps to a feed, button or not', () => {
