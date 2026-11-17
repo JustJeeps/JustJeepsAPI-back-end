@@ -387,10 +387,11 @@ const FEED_DEFINITIONS = [
 		seedCommand: ['update-cad-csv-all-live', 'seed-allProducts'],
 		syncCommands: ['update-cad-csv-all-live'],
 		legacyDir: 'cad_store_files',
-		// ~19k rows published to Magento, then seed-allProducts pulls the whole
-		// catalog back into the Product table so the tool shows what was just
-		// published. The default 30 min run slot is too tight for that.
-		runTimeoutMs: 90 * 60 * 1000,
+		// Big CSVs run in one go: ~53k SKUs published one attribute call at a
+		// time, then seed-allProducts pulls the whole catalog back. Six hours is
+		// not a target, it is the ceiling that frees the run slot if the child
+		// ever truly hangs.
+		runTimeoutMs: 6 * 60 * 60 * 1000,
 		runWarning: 'This publishes the prices and Black Friday attributes from the uploaded CSV to the LIVE store (justjeeps.com). Make sure the file is the current week\'s check before running.',
 		// A weekly drop: after two weeks the check is due again.
 		staleAfterHours: 14 * DAY_HOURS,

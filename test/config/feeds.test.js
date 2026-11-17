@@ -138,7 +138,7 @@ test('cad-store-prices publishes the weekly CSV to the live store, behind a warn
 	// It writes to the LIVE store: the panel must show the warning first, and
 	// the run needs more room than the default 30 minutes.
 	assert.ok(cad.runWarning && /LIVE store/.test(cad.runWarning));
-	assert.strictEqual(cad.runTimeoutMs, 90 * 60 * 1000);
+	assert.strictEqual(cad.runTimeoutMs, 6 * 60 * 60 * 1000);
 	assert.strictEqual(cad.staleAfterHours, 14 * 24);
 });
 
