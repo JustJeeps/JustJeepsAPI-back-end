@@ -19,6 +19,8 @@ const FEEDS = {
 		}
 		// A feed may list several scripts, run in sequence.
 		if (name === 'quadratec') return { name: 'quadratec', seedCommand: ['seed-quadratec', 'seed-quad-inventory'] };
+		// API-sourced: no files, so there is no feed-sync to run first.
+		if (name === 'magento-products') return { name: 'magento-products', source: 'api', seedCommand: 'seed-allProducts' };
 		if (name === 'warn-map') {
 			return { name: 'warn-map', seedCommand: null, seedCommandNote: 'Updates prices on the live store, so it only runs in the daily sync' };
 		}
@@ -82,6 +84,16 @@ test('fetch mode is refused for a feed nobody fetches', () => {
 		() => fixture.runner.start('omix', { mode: 'fetch' }),
 		(error) => error.code === 'FEED_RUN_NOT_ALLOWED'
 	);
+});
+
+test('an API feed runs its seed alone, with no feed-sync first', () => {
+	// source: 'api' (the Magento products sync) has no files in the bucket, so
+	// a feed-sync would fail on "no batch" for a feed that never has one.
+	const fixture = makeFixture();
+	const record = fixture.runner.start('magento-products', { startedBy: 'tess' });
+
+	assert.strictEqual(fixture.spawned[0].args[1], 'npm run seed-allProducts');
+	assert.strictEqual(record.command, 'seed-allProducts');
 });
 
 test('the runner builds with no injected dependencies, as production does', () => {

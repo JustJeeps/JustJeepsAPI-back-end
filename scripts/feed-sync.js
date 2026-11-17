@@ -33,6 +33,10 @@ async function main() {
 	if (onlyFeed) {
 		const feed = feedsConfig.getFeedByName(onlyFeed);
 		if (!feed) throw new Error(`Unknown feed: ${onlyFeed}`);
+		if (feed.source === 'api') {
+			console.log(`ℹ️ [feed-sync] ${feed.name} is API-sourced (no files): nothing to sync`);
+			return;
+		}
 		const result = await sync.syncFeed(feed); // throws on any failure (strict mode)
 		console.log(`🔗 [feed-sync] ${feed.name}: batch ${result.batchId}${result.stale ? ' (STALE)' : ''} ready at api-calls/${feed.legacyDir || '.'}`);
 		return;

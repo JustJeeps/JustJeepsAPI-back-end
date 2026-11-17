@@ -11,7 +11,11 @@ test('feed registry has unique names and defined files', () => {
 	assert.strictEqual(new Set(names).size, names.length);
 
 	for (const feed of feeds) {
-		assert.ok(Array.isArray(feed.files) && feed.files.length >= 1, `${feed.name} has no files`);
+		if (feed.source === 'api') {
+			assert.ok(Array.isArray(feed.files) && feed.files.length === 0, `${feed.name} is API-sourced and must have no files`);
+		} else {
+			assert.ok(Array.isArray(feed.files) && feed.files.length >= 1, `${feed.name} has no files`);
+		}
 		assert.ok(Number.isFinite(feed.staleAfterHours) && feed.staleAfterHours > 0);
 		assert.ok(Number.isFinite(feed.maxUploadBytes) && feed.maxUploadBytes > 0);
 	}
@@ -44,6 +48,12 @@ test('quadratec requires the CSV, the gold sheet and the gold kit', () => {
 
 test('every file has a spec with a non-empty signature, and files is exactly the spec names', () => {
 	for (const feed of feedsConfig.getFeedDefinitions()) {
+		if (feed.source === 'api') {
+			// An API feed has no files on purpose (the seed pulls from the
+			// vendor API), so there are no specs to validate.
+			assert.deepStrictEqual(feed.fileSpecs, [], `${feed.name}: an API feed cannot have fileSpecs`);
+			continue;
+		}
 		assert.ok(Array.isArray(feed.fileSpecs) && feed.fileSpecs.length >= 1, `${feed.name} has no fileSpecs`);
 		assert.deepStrictEqual(feed.files, feed.fileSpecs.map((spec) => spec.name), `${feed.name}: files must derive from fileSpecs`);
 		for (const spec of feed.fileSpecs) {
@@ -111,6 +121,24 @@ test('jrp-ftp is applied by seed-jrp and its scheduled apply holds the Run now g
 	assert.strictEqual(jrp.seedCommand, 'seed-jrp');
 	assert.deepStrictEqual(jrp.syncCommands, ['seed-jrp']);
 	assert.strictEqual(jrp.applyCommand, 'feed-apply-jrp');
+});
+
+test('magento-products is API-sourced: no files, run by seed-allProducts', () => {
+	const magento = feedsConfig.getFeedByName('magento-products');
+	assert.strictEqual(magento.source, 'api');
+	assert.deepStrictEqual(magento.files, []);
+	assert.deepStrictEqual(magento.fileSpecs, []);
+	assert.strictEqual(magento.fetch, undefined, 'nothing is pulled into the bucket: the seed talks to the Magento API');
+	assert.strictEqual(magento.seedCommand, 'seed-allProducts');
+	assert.deepStrictEqual(magento.syncCommands, ['seed-allProducts']);
+	assert.strictEqual(magento.recordsOwnRuns, false);
+});
+
+test('every file feed defaults to source "file"', () => {
+	for (const feed of feedsConfig.getFeedDefinitions()) {
+		if (feed.name === 'magento-products') continue;
+		assert.strictEqual(feed.source, 'file', `${feed.name} should be a file feed`);
+	}
 });
 
 test('grandwest is a manual upload feed of one CSV, applied by seed-grandwest', () => {

@@ -364,6 +364,26 @@ const FEED_DEFINITIONS = [
 		syncCommands: ['seed-aev'],
 		staleAfterHours: 365 * DAY_HOURS,
 	},
+	{
+		// Not a vendor file: seed-allProducts pulls the whole catalog straight
+		// from the Magento API (price, status, brand, black_friday_sale, ...)
+		// and upserts the Product table. It lives in this registry so the
+		// panel's "Run now" can trigger it from the server right after prices
+		// or sale attributes change in Magento, without waiting for the nightly
+		// Magento Products Sync (config/cron-jobs.js runs the same script).
+		//
+		// source: 'api' means: no files, so no uploads, no feed-sync before the
+		// run, no batch in the catalog and no freshness line in the digest.
+		name: 'magento-products',
+		label: 'Magento products (API sync)',
+		source: 'api',
+		fileSpecs: [],
+		seedCommand: 'seed-allProducts',
+		syncCommands: ['seed-allProducts'],
+		// Irrelevant for an API feed (excluded from freshness), kept finite so
+		// the registry invariants stay uniform.
+		staleAfterHours: 365 * DAY_HOURS,
+	},
 ];
 
 const DEFAULT_MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
@@ -387,6 +407,10 @@ function getFeedDefinitions() {
 			files: feed.fileSpecs.map((spec) => spec.name),
 			legacyDir: (feed.legacyDirEnv ? process.env[feed.legacyDirEnv] : '') || feed.legacyDir || '',
 			ingestFeed: feed.ingestFeed || feed.name,
+			// 'file' feeds move through the catalog/bucket; an 'api' feed has no
+			// files at all (seed-allProducts pulls from the Magento API), so
+			// uploads, feed-sync and freshness do not apply to it.
+			source: feed.source || 'file',
 			seedCommand: feed.seedCommand || null,
 			syncCommands: feed.syncCommands || (feed.seedCommand ? [].concat(feed.seedCommand) : []),
 			recordsOwnRuns: Boolean(feed.recordsOwnRuns),
