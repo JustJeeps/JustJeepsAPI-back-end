@@ -121,6 +121,8 @@
     "update-wheelpros-cad-map-prices": "node pricing_update/cad_store/update-wheelpros-map-cad-store.js",
     "update-cad-store-prcsvices-from-": "node pricing_update/cad_store/update-prices-from-csv-cad-store.js",
     "update-cad-csv-live": "node pricing_update/cad_store/update-prices-from-csv-cad-store.js --live",
+    "update-cad-csv-bf-attributes-live": "node pricing_update/cad_store/update-prices-from-csv-cad-store.js --live --attributes-only",
+    "update-cad-csv-all-live": "node pricing_update/cad_store/update-prices-from-csv-cad-store.js --live --attributes",
     "magento-bf-no-sale": "node magento_update/update-black-friday-no-sale.js",
     "seed-attribute-magento": "node prisma/seeds/seed-individual/seed-attribute-magento.js",
     "magento-attributes-keyparts": "node prisma/seeds/seed-individual/seed-attribute-magento.js vendor \"KeyParts\"",
