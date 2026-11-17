@@ -8,7 +8,7 @@ const { parse } = require('csv-parse/sync');
 
 dotenv.config();
 
-const DEFAULT_CSV_PATH = 'pricing_update/cad_store/weekly check nov9.csv';
+const DEFAULT_CSV_PATH = 'pricing_update/cad_store/weekly check nov 17.csv';
 const DEFAULT_BATCH_SIZE = 500;
 const CAD_STORE_ID = Number(process.env.CAD_STORE_ID || 0);
 const CAD_STORE_ID_MIRROR = Number(process.env.CAD_STORE_ID_MIRROR || 1);
@@ -203,8 +203,10 @@ function shouldRetry(error) {
 }
 
 async function putBlackFridayAttribute(sku, optionId) {
-  const url = `${MAGENTO_CONFIG.baseURL}/products/${encodeURIComponent(sku)}`;
-  return axios.put(
+  // POST /products updates an existing SKU just like PUT /products/{sku},
+  // but POST passes the Sucuri firewall while PUT/GET get JS-challenged (307).
+  const url = `${MAGENTO_CONFIG.baseURL}/products`;
+  return axios.post(
     url,
     {
       product: {
@@ -230,7 +232,9 @@ async function putBlackFridayAttributeWithRetry(sku, optionId, retries = 3, retr
       return await putBlackFridayAttribute(sku, optionId);
     } catch (error) {
       if (attempt <= retries && shouldRetry(error)) {
-        await sleep(retryDelayMs * attempt);
+        // Back off harder on 429s: Sucuri rate limiting needs longer cool-downs
+        const delay = error?.response?.status === 429 ? 5000 * attempt : retryDelayMs * attempt;
+        await sleep(delay);
         continue;
       }
       throw error;
