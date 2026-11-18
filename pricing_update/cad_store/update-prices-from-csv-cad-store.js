@@ -40,6 +40,8 @@ function parseArgs(argv) {
     attributes: false,
     attributesOnly: false,
     concurrency: 10,
+    bulkSize: Number(process.env.MAGENTO_BULK_SIZE || 1000),
+    waitMinutes: Number(process.env.MAGENTO_BULK_WAIT_MINUTES || 240),
   };
 
   for (let i = 2; i < argv.length; i++) {
@@ -86,6 +88,22 @@ function parseArgs(argv) {
     }
     if (current === '--attributes-only') {
       args.attributesOnly = true;
+      continue;
+    }
+    if (current === '--bulk-size' && next) {
+      const value = Number(next);
+      if (Number.isInteger(value) && value > 0) {
+        args.bulkSize = value;
+      }
+      i++;
+      continue;
+    }
+    if (current === '--wait-minutes' && next) {
+      const value = Number(next);
+      if (Number.isFinite(value) && value >= 0) {
+        args.waitMinutes = value;
+      }
+      i++;
       continue;
     }
   }
@@ -202,39 +220,79 @@ function shouldRetry(error) {
   return false;
 }
 
-async function putBlackFridayAttribute(sku, optionId) {
-  // POST /products updates an existing SKU just like PUT /products/{sku},
-  // but POST passes the Sucuri firewall while PUT/GET get JS-challenged (307).
-  const url = `${MAGENTO_CONFIG.baseURL}/products`;
-  return axios.post(
-    url,
-    {
-      product: {
-        sku,
-        custom_attributes: [
-          { attribute_code: BLACK_FRIDAY_ATTRIBUTE_CODE, value: optionId },
-        ],
-      },
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${MAGENTO_CONFIG.token}`,
-        'Content-Type': 'application/json',
-      },
-      timeout: MAGENTO_CONFIG.timeout,
+// ---------------------------------------------------------------------------
+// Async bulk attribute updates.
+//
+// One-at-a-time product saves get rate limited at the edge (Sucuri answers
+// 429 to concurrent writes: 60% of a 53k-SKU run failed on 2026-11-17), and
+// sequentially 53k saves take a day. The async bulk API takes thousands of
+// updates in ONE request and Magento's queue consumers apply them server
+// side, so the firewall only ever sees a handful of sequential POSTs.
+//
+// Two safeguards:
+//  - the current values are read first (the same cheap paged GET the seeds
+//    use) and only the SKUs whose value actually CHANGES are queued;
+//  - a SKU the catalog does not know is never sent: POST /products CREATES a
+//    product when the SKU does not exist, and a typo in the CSV must not
+//    plant skeleton products in the live store.
+// ---------------------------------------------------------------------------
+
+const MAGENTO_REST_ROOT = MAGENTO_CONFIG.baseURL.replace(/\/V1\/?$/, '');
+// Magento\Framework\Bulk\OperationInterface status codes.
+const BULK_OP_COMPLETE = 1;
+const BULK_OP_FAILED = [2, 3, 5]; // retriably failed, not retriably failed, rejected
+const BULK_OP_OPEN = 4;
+
+async function fetchCurrentAttributeValues() {
+  const bySku = new Map();
+  const pageSize = Number(process.env.MAGENTO_ATTR_PAGE_SIZE || 5000);
+  const maxPages = Number(process.env.MAGENTO_ATTR_MAX_PAGES || 40);
+
+  for (let page = 1; page <= maxPages; page++) {
+    const url =
+      `${MAGENTO_CONFIG.baseURL}/products?fields=items[sku,custom_attributes[${BLACK_FRIDAY_ATTRIBUTE_CODE}]]` +
+      `&searchCriteria[pageSize]=${pageSize}&searchCriteria[currentPage]=${page}`;
+    const response = await axios.get(url, {
+      headers: { Authorization: `Bearer ${MAGENTO_CONFIG.token}`, Accept: 'application/json' },
+      timeout: Math.max(MAGENTO_CONFIG.timeout, 60000),
+    });
+    const items = Array.isArray(response.data?.items) ? response.data.items : [];
+    for (const item of items) {
+      if (!item?.sku) continue;
+      const attr = (item.custom_attributes || []).find(
+        (a) => a.attribute_code === BLACK_FRIDAY_ATTRIBUTE_CODE
+      );
+      bySku.set(String(item.sku), attr ? String(attr.value) : '');
     }
-  );
+    console.log(`   Current values page ${page}: ${items.length} products (total ${bySku.size})`);
+    if (items.length < pageSize) break;
+    await sleep(300);
+  }
+
+  return bySku;
 }
 
-async function putBlackFridayAttributeWithRetry(sku, optionId, retries = 3, retryDelayMs = 2000) {
-  for (let attempt = 1; attempt <= retries + 1; attempt++) {
+async function submitAttributeBulk(rows) {
+  const payload = rows.map((row) => ({
+    product: {
+      sku: row.sku,
+      custom_attributes: [{ attribute_code: BLACK_FRIDAY_ATTRIBUTE_CODE, value: row.value }],
+    },
+  }));
+
+  for (let attempt = 1; attempt <= 4; attempt++) {
     try {
-      return await putBlackFridayAttribute(sku, optionId);
+      const response = await axios.post(`${MAGENTO_REST_ROOT}/async/bulk/V1/products`, payload, {
+        headers: {
+          Authorization: `Bearer ${MAGENTO_CONFIG.token}`,
+          'Content-Type': 'application/json',
+        },
+        timeout: Math.max(MAGENTO_CONFIG.timeout, 120000),
+      });
+      return response.data?.bulk_uuid || null;
     } catch (error) {
-      if (attempt <= retries && shouldRetry(error)) {
-        // Back off harder on 429s: Sucuri rate limiting needs longer cool-downs
-        const delay = error?.response?.status === 429 ? 5000 * attempt : retryDelayMs * attempt;
-        await sleep(delay);
+      if (attempt <= 3 && shouldRetry(error)) {
+        await sleep(error?.response?.status === 429 ? 5000 * attempt : 2000 * attempt);
         continue;
       }
       throw error;
@@ -243,60 +301,95 @@ async function putBlackFridayAttributeWithRetry(sku, optionId, retries = 3, retr
   throw new Error('unreachable');
 }
 
-async function updateAttributes(attributes, concurrency, chunkDelayMs = 500) {
-  let updated = 0;
+async function getBulkOperations(uuid) {
+  const response = await axios.get(`${MAGENTO_REST_ROOT}/V1/bulk/${uuid}/status`, {
+    headers: { Authorization: `Bearer ${MAGENTO_CONFIG.token}`, Accept: 'application/json' },
+    timeout: MAGENTO_CONFIG.timeout,
+  });
+  return Array.isArray(response.data?.operations_list) ? response.data.operations_list : [];
+}
+
+async function updateAttributesBulk(attributes, { bulkSize, waitMinutes }) {
   const failedRows = [];
-  const groups = chunk(attributes, concurrency);
-  let consecutiveFailedGroups = 0;
 
+  console.log('   Reading current attribute values from Magento (paged GET)...');
+  const currentBySku = await fetchCurrentAttributeValues();
+
+  const unknown = attributes.filter((row) => !currentBySku.has(row.sku));
+  const unchanged = attributes.filter(
+    (row) => currentBySku.has(row.sku) && currentBySku.get(row.sku) === String(row.value)
+  );
+  const delta = attributes.filter(
+    (row) => currentBySku.has(row.sku) && currentBySku.get(row.sku) !== String(row.value)
+  );
+
+  console.log(`   Already at the target value (skipped): ${unchanged.length}`);
+  console.log(`   Not found in Magento (skipped, never created): ${unknown.length}`);
+  if (unknown.length) {
+    console.log('   Sample unknown SKUs:', unknown.slice(0, 5).map((row) => row.sku));
+    failedRows.push(...unknown.map((row) => ({ ...row, error: 'SKU not found in Magento' })));
+  }
+  console.log(`   To update: ${delta.length}`);
+
+  if (!delta.length) return { updated: 0, skipped: unchanged.length, failedRows };
+
+  // Queue the updates: a handful of sequential POSTs instead of one request
+  // per SKU, which is exactly the shape the firewall tolerates.
+  const bulks = [];
+  const groups = chunk(delta, bulkSize);
   for (let i = 0; i < groups.length; i++) {
-    const group = groups[i];
-    const results = await Promise.allSettled(
-      group.map((row) => putBlackFridayAttributeWithRetry(row.sku, row.value))
-    );
-
-    let groupFailures = 0;
-    results.forEach((result, idx) => {
-      const row = group[idx];
-      if (result.status === 'fulfilled') {
-        updated += 1;
-      } else {
-        groupFailures += 1;
-        const error = result.reason;
-        const msg = String(error?.response?.data?.message || error?.message || 'unknown error');
-        failedRows.push({
-          sku: row.sku,
-          black_friday_sale: row.black_friday_sale,
-          value: row.value,
-          error: msg,
-        });
-      }
-    });
-
-    consecutiveFailedGroups = groupFailures === group.length ? consecutiveFailedGroups + 1 : 0;
-
-    // Circuit breaker: stop hammering the server if everything is failing (e.g. firewall block)
-    if (consecutiveFailedGroups >= 5) {
-      console.log(
-        `🛑 Aborting: ${consecutiveFailedGroups} consecutive chunks failed entirely. ` +
-          'Server is likely rate limiting / blocking this IP. Wait a few minutes and rerun.'
-      );
-      break;
-    }
-
-    const processed = Math.min((i + 1) * concurrency, attributes.length);
-    if ((i + 1) % 10 === 0 || i === groups.length - 1) {
-      console.log(
-        `   Attribute progress: ${processed}/${attributes.length} (updated: ${updated}, failed: ${failedRows.length})`
-      );
-    }
-
-    if (chunkDelayMs > 0 && i < groups.length - 1) {
-      await sleep(chunkDelayMs);
-    }
+    const uuid = await submitAttributeBulk(groups[i]);
+    bulks.push({ uuid, rows: groups[i] });
+    console.log(`   Bulk ${i + 1}/${groups.length} queued (${groups[i].length} SKUs) | uuid ${uuid}`);
+    await sleep(1000);
   }
 
-  return { updated, failedRows };
+  // Follow the queue until every operation leaves "open" or the deadline hits.
+  const deadline = Date.now() + waitMinutes * 60 * 1000;
+  let updated = 0;
+  let pending = bulks.map((bulk) => ({ ...bulk, done: false }));
+
+  while (pending.some((bulk) => !bulk.done)) {
+    if (Date.now() > deadline) {
+      const openRows = pending.filter((b) => !b.done).reduce((sum, b) => sum + b.rows.length, 0);
+      console.log(`   ⚠️ Wait deadline (${waitMinutes} min) reached with ~${openRows} operations still queued; they keep processing on the server.`);
+      break;
+    }
+    await sleep(Number(process.env.MAGENTO_BULK_POLL_MS || 30000));
+
+    let complete = 0;
+    let open = 0;
+    for (const bulk of pending) {
+      if (bulk.done) {
+        complete += bulk.rows.length - bulk.failed;
+        continue;
+      }
+      let operations = [];
+      try {
+        operations = await getBulkOperations(bulk.uuid);
+      } catch (pollError) {
+        open += bulk.rows.length;
+        continue; // transient: poll again on the next pass
+      }
+      const openOps = operations.filter((op) => op.status === BULK_OP_OPEN).length;
+      const failedOps = operations.filter((op) => BULK_OP_FAILED.includes(op.status));
+      const completeOps = operations.filter((op) => op.status === BULK_OP_COMPLETE).length;
+      complete += completeOps;
+      open += openOps;
+      if (openOps === 0) {
+        bulk.done = true;
+        bulk.failed = failedOps.length;
+        for (const op of failedOps) {
+          const row = bulk.rows[op.id] || {};
+          failedRows.push({ ...row, error: String(op.result_message || `bulk operation status ${op.status}`) });
+        }
+      }
+    }
+    console.log(`   Bulk progress: ${complete} applied, ${open} queued, ${failedRows.length - unknown.length} failed (of ${delta.length})`);
+    updated = complete;
+  }
+
+  return { updated, skipped: unchanged.length, failedRows };
 }
 
 async function postBasePricesBatch(prices) {
@@ -348,7 +441,8 @@ async function main() {
   console.log(`- Update prices: ${updatePrices ? 'ON' : 'OFF'}`);
   console.log(`- Update ${BLACK_FRIDAY_ATTRIBUTE_CODE}: ${updateAttrs ? 'ON' : 'OFF'}`);
   console.log(`- Batch size (prices): ${args.batchSize}`);
-  console.log(`- Concurrency (attributes): ${args.concurrency}`);
+  console.log(`- Bulk size (attributes): ${args.bulkSize}`);
+  console.log(`- Bulk wait ceiling: ${args.waitMinutes} min`);
   console.log(`- Mirror CAD -> store_id ${CAD_STORE_ID_MIRROR}: ${args.noMirror ? 'OFF' : 'ON'}`);
 
   if (args.live && !MAGENTO_CONFIG.token) {
@@ -425,12 +519,17 @@ async function main() {
 
   let attributesUpdated = 0;
   let attributesFailed = 0;
+  let attributesSkipped = 0;
 
   if (updateAttrs && attributes.length) {
     console.log('');
-    console.log(`Updating ${BLACK_FRIDAY_ATTRIBUTE_CODE} on ${attributes.length} SKUs...`);
-    const result = await updateAttributes(attributes, args.concurrency);
+    console.log(`Updating ${BLACK_FRIDAY_ATTRIBUTE_CODE} on ${attributes.length} SKUs (async bulk)...`);
+    const result = await updateAttributesBulk(attributes, {
+      bulkSize: args.bulkSize,
+      waitMinutes: args.waitMinutes,
+    });
     attributesUpdated = result.updated;
+    attributesSkipped = result.skipped;
     attributesFailed = result.failedRows.length;
     failedRows.push(
       ...result.failedRows.map((row) => ({ ...row, type: 'attribute' }))
@@ -447,8 +546,13 @@ async function main() {
   }
   if (updateAttrs) {
     console.log(`- Attribute rows attempted: ${attributes.length}`);
+    console.log(`- Attribute rows already correct (skipped): ${attributesSkipped}`);
     console.log(`- Attribute rows updated: ${attributesUpdated}`);
     console.log(`- Attribute rows failed: ${attributesFailed}`);
+    if (failedRows.length) {
+      const samples = [...new Set(failedRows.map((row) => row.error))].slice(0, 5);
+      console.log('- Sample failure reasons:', samples);
+    }
   }
   console.log(`- Total rows failed: ${failedRows.length}`);
 
