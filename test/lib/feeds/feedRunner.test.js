@@ -24,14 +24,18 @@ const FEEDS = {
 		if (name === 'warn-map') {
 			return { name: 'warn-map', seedCommand: null, seedCommandNote: 'Updates prices on the live store, so it only runs in the daily sync' };
 		}
+		// Declares its own ceiling, tiny here so the timeout path runs in a test.
+		if (name === 'slow-feed') return { name: 'slow-feed', source: 'api', seedCommand: 'seed-slow', runTimeoutMs: 5 };
 		return null;
 	},
 };
 
 function makeFixture({ seedAllRunning = false, seedAllLockAgeMs = 60_000 } = {}) {
 	const spawned = [];
+	const groupSignals = [];
 	const child = () => {
 		const proc = new EventEmitter();
+		proc.pid = 4242;
 		proc.stdout = { pipe: () => {} };
 		proc.stderr = { pipe: () => {} };
 		proc.kill = () => proc.emit('close', 143);
@@ -40,7 +44,7 @@ function makeFixture({ seedAllRunning = false, seedAllLockAgeMs = 60_000 } = {})
 	let lastChild = null;
 	const spawn = (cmd, args, opts) => {
 		lastChild = child();
-		spawned.push({ cmd, args, env: opts.env });
+		spawned.push({ cmd, args, env: opts.env, detached: opts.detached });
 		return lastChild;
 	};
 	const fs = {
@@ -60,8 +64,9 @@ function makeFixture({ seedAllRunning = false, seedAllLockAgeMs = 60_000 } = {})
 		}),
 	};
 	// now() must follow the clock here: the lock age is measured against it.
-	const runner = createFeedRunner({ spawn, fs, fsp, feedsConfig: FEEDS, now: () => Date.now() });
-	return { runner, spawned, getChild: () => lastChild };
+	const killProcessGroup = (pid, signal) => groupSignals.push({ pid, signal });
+	const runner = createFeedRunner({ spawn, fs, fsp, feedsConfig: FEEDS, now: () => Date.now(), killProcessGroup });
+	return { runner, spawned, groupSignals, getChild: () => lastChild };
 }
 
 // Every other test injects stubs for spawn/fs/fsp, so a default parameter that
@@ -211,4 +216,29 @@ test("blocks while the feed's own scheduled job holds the cron gate, and only th
 	active = null;
 	fixture.runner.start('keystone-ftp');
 	assert.strictEqual(fixture.spawned.length, 2);
+});
+
+// 2026-11-17: the CAD store publish hit its ceiling, the runner killed only the
+// `sh` wrapper, and npm + node lived on as orphans for 14 more hours.
+test('a timeout signals the whole process group, not only the shell wrapper', async () => {
+	const fixture = makeFixture();
+	fixture.runner.start('slow-feed', { startedBy: 'tess' });
+
+	await new Promise((resolve) => setTimeout(resolve, 30));
+
+	assert.strictEqual(fixture.spawned[0].detached, true);
+	assert.deepStrictEqual(fixture.groupSignals, [{ pid: 4242, signal: 'SIGTERM' }]);
+});
+
+// `close` waits for stdout/stderr to end, and a surviving grandchild keeps the
+// pipe open: the slot stayed taken and every cron was deferred for 20 hours.
+test('the slot is released when the child exits, even if its pipes never close', () => {
+	const fixture = makeFixture();
+	fixture.runner.start('omix', { startedBy: 'tess' });
+	assert.strictEqual(fixture.runner.isBusy(), true);
+
+	fixture.getChild().emit('exit', 0);
+
+	assert.strictEqual(fixture.runner.isBusy(), false);
+	assert.strictEqual(fixture.runner.getRun('omix').status, 'success');
 });
