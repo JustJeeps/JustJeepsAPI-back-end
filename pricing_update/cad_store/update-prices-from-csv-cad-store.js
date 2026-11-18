@@ -90,11 +90,14 @@ function parseArgs(argv) {
       i++;
       continue;
     }
-    if (current === '--limit' && next) {
+    if (current === '--limit') {
+      // No silent fallback here: a mistyped limit must never turn a "try it
+      // on a few rows" run into a publish of the whole file.
       const value = Number(next);
-      if (Number.isInteger(value) && value > 0) {
-        args.limit = value;
+      if (!Number.isInteger(value) || value <= 0) {
+        throw new Error(`Invalid --limit "${next ?? ''}": expected a positive integer.`);
       }
+      args.limit = value;
       i++;
       continue;
     }
@@ -495,11 +498,18 @@ async function postBasePricesBatch(prices) {
 }
 
 function writeFailureReport(reportPath, rows) {
-  if (!reportPath || !rows.length) return;
+  if (!reportPath) return;
 
   const absoluteReport = path.isAbsolute(reportPath)
     ? reportPath
     : path.join(process.cwd(), reportPath);
+
+  if (!rows.length) {
+    // The path is fixed, so a clean run must not leave the previous run's
+    // failures behind looking like its own.
+    if (fs.existsSync(absoluteReport)) fs.rmSync(absoluteReport);
+    return;
+  }
 
   const dir = path.dirname(absoluteReport);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -599,9 +609,20 @@ async function main() {
     const { bySku: currentPrices, failedBatches: failedLookups } = await fetchCurrentBasePrices(
       prices.map((row) => row.sku)
     );
-    const { changed: pricesToSend, unchanged } = diffPriceRows(prices, currentPrices);
+    const { changed: pricesToSend, unchanged, unknown: unknownPrices } = diffPriceRows(
+      prices,
+      currentPrices,
+      { lookupComplete: failedLookups === 0 }
+    );
     pricesUnchanged = unchanged.length;
     console.log(`   Already at the target price (skipped): ${pricesUnchanged}`);
+    if (unknownPrices.length) {
+      console.log(`   Not found in Magento (skipped): ${unknownPrices.length} rows`);
+      console.log('   Sample unknown SKUs:', [...new Set(unknownPrices.map((row) => row.sku))].slice(0, 5));
+      failedRows.push(
+        ...unknownPrices.map((row) => ({ ...row, type: 'price', error: UNKNOWN_SKU_ERROR, skipped: true }))
+      );
+    }
     console.log(`   To update: ${pricesToSend.length}${failedLookups ? ` (${failedLookups} lookups failed, their rows are included)` : ''}`);
 
     batches = chunk(pricesToSend, args.batchSize);
@@ -612,7 +633,12 @@ async function main() {
         const res = await withMagentoRetry(() => postBasePricesBatch(batch));
         // HTTP 200 is not "applied": the body lists the rows Magento rejected.
         const rejected = collectBasePriceErrors(res.data, batch);
-        sentRows += Math.max(0, batch.length - rejected.length);
+        // One row can be rejected for more than one reason: count rows.
+        const rejectedSkus = new Set(rejected.map((row) => row.sku));
+        const rejectedRowCount = rejectedSkus.has('')
+          ? Math.min(batch.length, rejected.length)
+          : batch.filter((row) => rejectedSkus.has(row.sku)).length;
+        sentRows += batch.length - rejectedRowCount;
         sentBatches += 1;
         failedRows.push(...rejected.map((row) => ({ ...row, type: 'price' })));
         for (const row of rejected) {
@@ -662,7 +688,7 @@ async function main() {
     console.log(`- Price rows in the file: ${prices.length}`);
     console.log(`- Price rows already correct (skipped): ${pricesUnchanged}`);
     console.log(`- Price rows accepted: ${sentRows}`);
-    console.log(`- Price rows failed: ${failedRows.filter((row) => row.type === 'price').length}`);
+    console.log(`- Price errors reported: ${failedRows.filter((row) => row.type === 'price' && !row.skipped).length}`);
   }
   if (updateAttrs) {
     console.log(`- Attribute rows attempted: ${attributes.length}`);
@@ -676,7 +702,13 @@ async function main() {
   }
   console.log(`- Total rows failed: ${failedRows.length}`);
 
-  writeFailureReport(args.report || DEFAULT_REPORT_PATH, failedRows);
+  try {
+    writeFailureReport(args.report || DEFAULT_REPORT_PATH, failedRows);
+  } catch (reportError) {
+    // The publish already happened: a report that cannot be written must not
+    // be what marks the run as failed.
+    console.log(`⚠️ Could not write the failure report: ${reportError.message}`);
+  }
 
   // A failed row must not end as "success": the panel records the exit code,
   // and the catalog sync chained after this must not run over a partial publish.
