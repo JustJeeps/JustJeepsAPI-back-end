@@ -84,3 +84,27 @@ test('the run fails when a row failed, and a skipped unknown SKU alone does not 
 	assert.strictEqual(publishExitCode([{ sku: 'X', error: 'SKU not found in Magento', skipped: true }]), 0);
 	assert.strictEqual(publishExitCode([{ sku: 'X', skipped: true }, { sku: 'A', error: 'HTTP 429' }]), 1);
 });
+
+// Sending a SKU the store does not have can only be rejected, and that
+// rejection would fail every weekly run over one stale line in the CSV.
+test('a SKU missing from a complete lookup is unknown, and is not sent', () => {
+	const rows = [
+		{ sku: 'GHOST', price: 10, store_id: 0 },
+		{ sku: 'A', price: 11, store_id: 0 },
+	];
+	const current = new Map([['A', new Map([[0, 10]])]]);
+
+	const result = diffPriceRows(rows, current, { lookupComplete: true });
+
+	assert.deepStrictEqual(result.unknown, [rows[0]]);
+	assert.deepStrictEqual(result.changed, [rows[1]]);
+});
+
+test('with a lookup that failed in part, a missing SKU is sent rather than called unknown', () => {
+	const rows = [{ sku: 'MAYBE', price: 10, store_id: 0 }];
+
+	const result = diffPriceRows(rows, new Map(), { lookupComplete: false });
+
+	assert.deepStrictEqual(result.changed, rows);
+	assert.deepStrictEqual(result.unknown, []);
+});
