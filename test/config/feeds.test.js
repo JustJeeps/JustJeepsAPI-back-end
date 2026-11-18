@@ -178,3 +178,8 @@ test('grandwest is a manual upload feed of one CSV, applied by seed-grandwest', 
 	assert.strictEqual(grandwest.recordsOwnRuns, true);
 	assert.strictEqual(grandwest.staleAfterHours, 14 * 24);
 });
+
+test('the CAD store publish lets the orders sync run alongside it, and nothing else', () => {
+	const cad = feedsConfig.getFeedByName('cad-store-prices');
+	assert.deepStrictEqual(cad.cronsAllowedDuringRun, ['seed-orders-delta', 'seed-orders']);
+});

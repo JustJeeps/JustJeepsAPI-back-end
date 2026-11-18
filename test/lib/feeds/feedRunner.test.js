@@ -26,6 +26,10 @@ const FEEDS = {
 		}
 		// Declares its own ceiling, tiny here so the timeout path runs in a test.
 		if (name === 'slow-feed') return { name: 'slow-feed', source: 'api', seedCommand: 'seed-slow', runTimeoutMs: 5 };
+		// Only talks to the store, so the orders sync may run alongside it.
+		if (name === 'store-publish') {
+			return { name: 'store-publish', seedCommand: 'publish-store', cronsAllowedDuringRun: ['seed-orders-delta'] };
+		}
 		return null;
 	},
 };
@@ -241,4 +245,25 @@ test('the slot is released when the child exits, even if its pipes never close',
 
 	assert.strictEqual(fixture.runner.isBusy(), false);
 	assert.strictEqual(fixture.runner.getRun('omix').status, 'success');
+});
+
+// The CAD store publish never touches the Order tables, yet it froze the
+// 5-minute orders sync for 20 hours (2026-11-17).
+test('a running feed defers every cron except the ones it declares safe alongside it', () => {
+	const fixture = makeFixture();
+	assert.strictEqual(fixture.runner.isBlockingCron('seed-all'), false);
+
+	fixture.runner.start('store-publish', { startedBy: 'tess' });
+
+	assert.strictEqual(fixture.runner.isBlockingCron('seed-orders-delta'), false);
+	assert.strictEqual(fixture.runner.isBlockingCron('seed-all'), true);
+	fixture.getChild().emit('close', 0);
+	assert.strictEqual(fixture.runner.isBlockingCron('seed-all'), false);
+});
+
+test('a feed that declares nothing defers every cron, as before', () => {
+	const fixture = makeFixture();
+	fixture.runner.start('omix', { startedBy: 'tess' });
+
+	assert.strictEqual(fixture.runner.isBlockingCron('seed-orders-delta'), true);
 });

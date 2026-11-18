@@ -392,6 +392,11 @@ const FEED_DEFINITIONS = [
 		// not a target, it is the ceiling that frees the run slot if the child
 		// ever truly hangs.
 		runTimeoutMs: 6 * 60 * 60 * 1000,
+		// The publish only calls the store and seed-allProducts only writes
+		// Product, so the orders sync has nothing to collide with. Without this
+		// a long publish froze orders for 20 hours (2026-11-17). Every other
+		// cron still waits for the run to finish.
+		cronsAllowedDuringRun: ['seed-orders-delta', 'seed-orders'],
 		runWarning: 'This publishes the prices and Black Friday attributes from the uploaded CSV to the LIVE store (justjeeps.com). Make sure the file is the current week\'s check before running.',
 		// A weekly drop: after two weeks the check is due again.
 		staleAfterHours: 14 * DAY_HOURS,

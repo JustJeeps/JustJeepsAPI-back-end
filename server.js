@@ -1218,7 +1218,7 @@ const { authenticateToken, optionalAuth } = require('./middleware/auth');
 // Vendor feeds in Spaces: catalog/audit trail, panel and download
 const ingestRoutes = require('./routes/ingest');
 const feedRunner = require('./services/feeds/runnerInstance');
-// The reverse of the isBusy() check below: Run now refuses while the feed's own
+// The reverse of the isBlockingCron() check below: Run now refuses while the feed's own
 // scheduled job holds the gate.
 feedRunner.setActiveCronCommand(() => commandGate.getActive()?.command || null);
 const feedCatalog = require('./lib/feeds/catalog');
@@ -5316,8 +5316,9 @@ function registerCommandCronJob({
 	cron.schedule(schedule, () => {
 		// A manual feed run (panel button) runs the same seeds over the same
 		// staging tables, so this must not start on top of it. It is remembered
-		// instead of dropped, and runs when the way is clear.
-		if (feedRunner.isBusy()) {
+		// instead of dropped, and runs when the way is clear. A feed may let
+		// specific commands through (cronsAllowedDuringRun in config/feeds.js).
+		if (feedRunner.isBlockingCron(command)) {
 			commandGate.defer({ command, jobName });
 			upsertCronJobRecord(command, {
 				lastStatus: 'deferred',
