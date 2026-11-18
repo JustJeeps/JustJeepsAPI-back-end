@@ -6,10 +6,23 @@ const axios = require('axios');
 const dotenv = require('dotenv');
 const { parse } = require('csv-parse/sync');
 
+const {
+  dedupePriceRows,
+  diffPriceRows,
+  collectBasePriceErrors,
+  publishExitCode,
+} = require('../../lib/magento/cadStorePublish');
+
 dotenv.config();
 
 const DEFAULT_CSV_PATH = 'pricing_update/cad_store/weekly check nov 17.csv';
 const DEFAULT_BATCH_SIZE = 500;
+const PRICE_LOOKUP_BATCH_SIZE = 500;
+const PRICE_BATCH_DELAY_MS = Number(process.env.MAGENTO_PRICE_BATCH_DELAY_MS || 300);
+// Written on every live run: on 2026-11-17 13,301 rows failed and the reason
+// of none of them survived, because the report only existed with --report.
+const DEFAULT_REPORT_PATH = 'logs/cad-store-publish-failures.csv';
+const UNKNOWN_SKU_ERROR = 'SKU not found in Magento';
 const CAD_STORE_ID = Number(process.env.CAD_STORE_ID || 0);
 const CAD_STORE_ID_MIRROR = Number(process.env.CAD_STORE_ID_MIRROR || 1);
 
@@ -41,7 +54,10 @@ function parseArgs(argv) {
     attributesOnly: false,
     concurrency: 10,
     bulkSize: Number(process.env.MAGENTO_BULK_SIZE || 1000),
-    waitMinutes: Number(process.env.MAGENTO_BULK_WAIT_MINUTES || 240),
+    // The queue is applied on Magento's side whether we watch it or not, and
+    // this process holds the panel's run slot while it waits.
+    waitMinutes: Number(process.env.MAGENTO_BULK_WAIT_MINUTES || 20),
+    limit: null,
   };
 
   for (let i = 2; i < argv.length; i++) {
@@ -70,6 +86,14 @@ function parseArgs(argv) {
       const value = Number(next);
       if (Number.isInteger(value) && value > 0) {
         args.concurrency = value;
+      }
+      i++;
+      continue;
+    }
+    if (current === '--limit' && next) {
+      const value = Number(next);
+      if (Number.isInteger(value) && value > 0) {
+        args.limit = value;
       }
       i++;
       continue;
@@ -265,11 +289,73 @@ async function fetchCurrentAttributeValues() {
       bySku.set(String(item.sku), attr ? String(attr.value) : '');
     }
     console.log(`   Current values page ${page}: ${items.length} products (total ${bySku.size})`);
-    if (items.length < pageSize) break;
+    if (items.length < pageSize) return bySku;
     await sleep(300);
   }
 
-  return bySku;
+  // Reaching the cap means the catalog was NOT read to the end: carrying on
+  // would report every unread SKU as "not found in Magento".
+  throw new Error(
+    `Catalog read stopped at the ${maxPages}-page cap (${bySku.size} products); raise MAGENTO_ATTR_MAX_PAGES.`
+  );
+}
+
+// One retry policy for every write and lookup: 429 backs off longer because
+// the firewall needs a real cool-down.
+async function withMagentoRetry(request, retries = 3) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await request();
+    } catch (error) {
+      if (attempt > retries || !shouldRetry(error)) throw error;
+      await sleep(error?.response?.status === 429 ? 5000 * attempt : 2000 * attempt);
+    }
+  }
+}
+
+// sku -> store_id -> price, read in batches. A batch that cannot be read is
+// left out of the map, so its rows are sent rather than assumed unchanged.
+async function fetchCurrentBasePrices(skus) {
+  const bySku = new Map();
+  let failedBatches = 0;
+  const batches = chunk([...new Set(skus)], PRICE_LOOKUP_BATCH_SIZE);
+
+  for (let i = 0; i < batches.length; i++) {
+    try {
+      const response = await withMagentoRetry(() =>
+        axios.post(
+          `${MAGENTO_CONFIG.baseURL}/products/base-prices-information`,
+          { skus: batches[i] },
+          {
+            headers: {
+              Authorization: `Bearer ${MAGENTO_CONFIG.token}`,
+              'Content-Type': 'application/json',
+            },
+            timeout: Math.max(MAGENTO_CONFIG.timeout, 60000),
+          }
+        )
+      );
+      for (const item of Array.isArray(response.data) ? response.data : []) {
+        const sku = String(item?.sku || '').trim();
+        const storeId = Number(item?.store_id);
+        const price = Number(item?.price);
+        if (!sku || !Number.isInteger(storeId) || !Number.isFinite(price)) continue;
+        if (!bySku.has(sku)) bySku.set(sku, new Map());
+        bySku.get(sku).set(storeId, price);
+      }
+    } catch (error) {
+      failedBatches += 1;
+      console.log(
+        `   ⚠️ Price lookup ${i + 1}/${batches.length} failed (${error.response?.status || error.code || 'ERR'}); its rows will be sent without comparing.`
+      );
+    }
+    if ((i + 1) % 20 === 0 || i === batches.length - 1) {
+      console.log(`   Current prices read: ${i + 1}/${batches.length} lookups`);
+    }
+    await sleep(PRICE_BATCH_DELAY_MS);
+  }
+
+  return { bySku, failedBatches };
 }
 
 async function submitAttributeBulk(rows) {
@@ -327,7 +413,7 @@ async function updateAttributesBulk(attributes, { bulkSize, waitMinutes }) {
   console.log(`   Not found in Magento (skipped, never created): ${unknown.length}`);
   if (unknown.length) {
     console.log('   Sample unknown SKUs:', unknown.slice(0, 5).map((row) => row.sku));
-    failedRows.push(...unknown.map((row) => ({ ...row, error: 'SKU not found in Magento' })));
+    failedRows.push(...unknown.map((row) => ({ ...row, error: UNKNOWN_SKU_ERROR, skipped: true })));
   }
   console.log(`   To update: ${delta.length}`);
 
@@ -353,6 +439,7 @@ async function updateAttributesBulk(attributes, { bulkSize, waitMinutes }) {
     if (Date.now() > deadline) {
       const openRows = pending.filter((b) => !b.done).reduce((sum, b) => sum + b.rows.length, 0);
       console.log(`   ⚠️ Wait deadline (${waitMinutes} min) reached with ~${openRows} operations still queued; they keep processing on the server.`);
+      console.log('   Bulks still open (check with GET /V1/bulk/<uuid>/status):', pending.filter((b) => !b.done).map((b) => b.uuid));
       break;
     }
     await sleep(Number(process.env.MAGENTO_BULK_POLL_MS || 30000));
@@ -449,10 +536,17 @@ async function main() {
     throw new Error('Missing MAGENTO_KEY env var for live updates.');
   }
 
-  const { absolutePath, rows } = parseCsvRows(args.file);
-  const { prices, invalidRows } = updatePrices
+  const { absolutePath, rows: allRows } = parseCsvRows(args.file);
+  const rows = args.limit ? allRows.slice(0, args.limit) : allRows;
+  if (args.limit) console.log(`- Limit: first ${rows.length} of ${allRows.length} CSV rows`);
+  const { prices: rawPrices, invalidRows } = updatePrices
     ? toPriceRows(rows, args.noMirror)
     : { prices: [], invalidRows: [] };
+  const { rows: prices, duplicates: duplicatePrices } = dedupePriceRows(rawPrices);
+  if (duplicatePrices.length) {
+    console.log(`⚠️ Duplicate price rows ignored (first one kept): ${duplicatePrices.length}`);
+    console.log('   Sample:', duplicatePrices.slice(0, 5));
+  }
   const { attributes, invalidRows: invalidAttributeRows } = updateAttrs
     ? toAttributeRows(rows)
     : { attributes: [], invalidRows: [] };
@@ -496,17 +590,41 @@ async function main() {
   let batches = [];
   let sentRows = 0;
   let sentBatches = 0;
+  let pricesUnchanged = 0;
+  const loggedPriceErrors = new Set();
 
   if (updatePrices) {
-    batches = chunk(prices, args.batchSize);
+    console.log('');
+    console.log('Reading current prices from Magento to send only what changes...');
+    const { bySku: currentPrices, failedBatches: failedLookups } = await fetchCurrentBasePrices(
+      prices.map((row) => row.sku)
+    );
+    const { changed: pricesToSend, unchanged } = diffPriceRows(prices, currentPrices);
+    pricesUnchanged = unchanged.length;
+    console.log(`   Already at the target price (skipped): ${pricesUnchanged}`);
+    console.log(`   To update: ${pricesToSend.length}${failedLookups ? ` (${failedLookups} lookups failed, their rows are included)` : ''}`);
+
+    batches = chunk(pricesToSend, args.batchSize);
 
     for (let i = 0; i < batches.length; i++) {
       const batch = batches[i];
       try {
-        const res = await postBasePricesBatch(batch);
-        sentRows += batch.length;
+        const res = await withMagentoRetry(() => postBasePricesBatch(batch));
+        // HTTP 200 is not "applied": the body lists the rows Magento rejected.
+        const rejected = collectBasePriceErrors(res.data, batch);
+        sentRows += Math.max(0, batch.length - rejected.length);
         sentBatches += 1;
-        console.log(`✅ Batch ${i + 1}/${batches.length} sent (${batch.length} rows) | HTTP ${res.status}`);
+        failedRows.push(...rejected.map((row) => ({ ...row, type: 'price' })));
+        for (const row of rejected) {
+          const reason = row.error.replace(/\[[^\]]*\]$/, '').trim();
+          if (loggedPriceErrors.has(reason) || loggedPriceErrors.size >= 10) continue;
+          loggedPriceErrors.add(reason);
+          console.log(`   ⚠️ New rejection reason: ${row.error}`);
+        }
+        console.log(
+          `${rejected.length ? '⚠️' : '✅'} Batch ${i + 1}/${batches.length} sent (${batch.length} rows, ${rejected.length} rejected) | HTTP ${res.status}`
+        );
+        if (i < batches.length - 1) await sleep(PRICE_BATCH_DELAY_MS);
       } catch (error) {
         const msg = String(error.response?.data?.message || error.message || 'unknown error');
         console.log(`❌ Batch ${i + 1}/${batches.length} failed (${batch.length} rows): ${msg}`);
@@ -541,8 +659,10 @@ async function main() {
   if (updatePrices) {
     console.log(`- Price batches total: ${batches.length}`);
     console.log(`- Price batches sent: ${sentBatches}`);
-    console.log(`- Price rows attempted: ${prices.length}`);
-    console.log(`- Price rows sent: ${sentRows}`);
+    console.log(`- Price rows in the file: ${prices.length}`);
+    console.log(`- Price rows already correct (skipped): ${pricesUnchanged}`);
+    console.log(`- Price rows accepted: ${sentRows}`);
+    console.log(`- Price rows failed: ${failedRows.filter((row) => row.type === 'price').length}`);
   }
   if (updateAttrs) {
     console.log(`- Attribute rows attempted: ${attributes.length}`);
@@ -556,8 +676,13 @@ async function main() {
   }
   console.log(`- Total rows failed: ${failedRows.length}`);
 
-  if (args.report) {
-    writeFailureReport(args.report, failedRows);
+  writeFailureReport(args.report || DEFAULT_REPORT_PATH, failedRows);
+
+  // A failed row must not end as "success": the panel records the exit code,
+  // and the catalog sync chained after this must not run over a partial publish.
+  process.exitCode = publishExitCode(failedRows);
+  if (process.exitCode) {
+    console.log('❌ Finished with failed rows; see the failure report above.');
   }
 }
 
