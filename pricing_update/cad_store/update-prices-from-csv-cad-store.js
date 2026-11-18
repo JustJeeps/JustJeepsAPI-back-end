@@ -11,6 +11,7 @@ const {
   diffPriceRows,
   collectBasePriceErrors,
   publishExitCode,
+  readCustomAttribute,
 } = require('../../lib/magento/cadStorePublish');
 
 dotenv.config();
@@ -286,10 +287,7 @@ async function fetchCurrentAttributeValues() {
     const items = Array.isArray(response.data?.items) ? response.data.items : [];
     for (const item of items) {
       if (!item?.sku) continue;
-      const attr = (item.custom_attributes || []).find(
-        (a) => a.attribute_code === BLACK_FRIDAY_ATTRIBUTE_CODE
-      );
-      bySku.set(String(item.sku), attr ? String(attr.value) : '');
+      bySku.set(String(item.sku), readCustomAttribute(item, BLACK_FRIDAY_ATTRIBUTE_CODE));
     }
     console.log(`   Current values page ${page}: ${items.length} products (total ${bySku.size})`);
     if (items.length < pageSize) return bySku;

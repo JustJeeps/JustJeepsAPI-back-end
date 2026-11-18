@@ -6,6 +6,7 @@ const {
 	diffPriceRows,
 	collectBasePriceErrors,
 	publishExitCode,
+	readCustomAttribute,
 } = require('../../../lib/magento/cadStorePublish');
 
 test('keeps the first price row per SKU and store, and reports the duplicates', () => {
@@ -107,4 +108,20 @@ test('with a lookup that failed in part, a missing SKU is sent rather than calle
 
 	assert.deepStrictEqual(result.changed, rows);
 	assert.deepStrictEqual(result.unknown, []);
+});
+
+// With a `fields` filter on custom_attributes Magento keeps the original
+// array keys, so the JSON is an object ({"27": {...}}), not a list. The first
+// live run of the bulk path died on `.find is not a function` (2026-11-18).
+test('reads a custom attribute whether Magento sends a list or a keyed object', () => {
+	const entry = { attribute_code: 'black_friday_sale_attribute', value: '4589' };
+
+	assert.strictEqual(readCustomAttribute({ custom_attributes: [entry] }, 'black_friday_sale_attribute'), '4589');
+	assert.strictEqual(readCustomAttribute({ custom_attributes: { 27: entry } }, 'black_friday_sale_attribute'), '4589');
+});
+
+test('a product without the attribute reads as an empty value', () => {
+	assert.strictEqual(readCustomAttribute({ custom_attributes: [] }, 'x'), '');
+	assert.strictEqual(readCustomAttribute({}, 'x'), '');
+	assert.strictEqual(readCustomAttribute({ custom_attributes: { 3: { attribute_code: 'other', value: '1' } } }, 'x'), '');
 });
