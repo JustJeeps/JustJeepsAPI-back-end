@@ -34,7 +34,7 @@ const FEEDS = {
 	},
 };
 
-function makeFixture({ seedAllRunning = false, seedAllLockAgeMs = 60_000 } = {}) {
+function makeFixture({ seedAllRunning = false, seedAllLockAgeMs = 60_000, killGraceMs = 10_000 } = {}) {
 	const spawned = [];
 	const groupSignals = [];
 	const child = () => {
@@ -69,7 +69,7 @@ function makeFixture({ seedAllRunning = false, seedAllLockAgeMs = 60_000 } = {})
 	};
 	// now() must follow the clock here: the lock age is measured against it.
 	const killProcessGroup = (pid, signal) => groupSignals.push({ pid, signal });
-	const runner = createFeedRunner({ spawn, fs, fsp, feedsConfig: FEEDS, now: () => Date.now(), killProcessGroup });
+	const runner = createFeedRunner({ spawn, fs, fsp, feedsConfig: FEEDS, now: () => Date.now(), killProcessGroup, killGraceMs });
 	return { runner, spawned, groupSignals, getChild: () => lastChild };
 }
 
@@ -244,6 +244,9 @@ test('the slot is released when the child exits, even if its pipes never close',
 	fixture.getChild().emit('exit', 0);
 
 	assert.strictEqual(fixture.runner.isBusy(), false);
+	// Whatever outlived the shell is swept, so nothing keeps writing after the
+	// slot is handed to the next run.
+	assert.deepStrictEqual(fixture.groupSignals, [{ pid: 4242, signal: 'SIGKILL' }]);
 	assert.strictEqual(fixture.runner.getRun('omix').status, 'success');
 });
 
@@ -266,4 +269,20 @@ test('a feed that declares nothing defers every cron, as before', () => {
 	fixture.runner.start('omix', { startedBy: 'tess' });
 
 	assert.strictEqual(fixture.runner.isBlockingCron('seed-orders-delta'), true);
+});
+
+// SIGTERM takes the shell down at once; npm or node may take longer. Freeing
+// the slot on that first exit would let the next run start over a live child.
+test('after a timeout the slot stays taken until the tree is killed for good', async () => {
+	const fixture = makeFixture({ killGraceMs: 20 });
+	fixture.runner.start('slow-feed', { startedBy: 'tess' });
+	await new Promise((resolve) => setTimeout(resolve, 12));
+
+	fixture.getChild().emit('exit', null);
+	assert.strictEqual(fixture.runner.isBusy(), true);
+
+	await new Promise((resolve) => setTimeout(resolve, 40));
+	assert.deepStrictEqual(fixture.groupSignals.map((entry) => entry.signal), ['SIGTERM', 'SIGKILL']);
+	assert.strictEqual(fixture.runner.isBusy(), false);
+	assert.match(fixture.runner.getRun('slow-feed').error, /Timed out/);
 });
