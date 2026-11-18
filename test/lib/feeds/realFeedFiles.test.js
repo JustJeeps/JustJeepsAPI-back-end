@@ -37,6 +37,7 @@ const cases = [
 	{ feed: 'quickbooks', fileName: 'transactions_per_customer.csv', file: 'quickbooks/transactions_per_customer.csv' },
 	{ feed: 'jrp-ftp', fileName: 'JUSJEE.csv', file: 'jrp_files/JUSJEE.csv' },
 	{ feed: 'grandwest', fileName: 'grandwest-price-list.csv', file: 'grandwest_files/grandwest-price-list.csv', originalName: 'Price List 7265-1.csv' },
+	{ feed: 'cad-store-prices', fileName: 'cad-store-price-update.csv', file: 'cad_store_files/cad-store-price-update.csv', originalName: 'weekly check nov 17.csv' },
 ];
 
 for (const entry of cases) {
