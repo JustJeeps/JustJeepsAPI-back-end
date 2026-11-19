@@ -7,6 +7,35 @@ const prisma = require('../lib/prisma');
 
 const includeAllBrands = process.argv.includes('--all-brands');
 
+// --brands-file <path>: export ONLY the brands listed in the file (one brand
+// name per line, matched against Product.brand_name case-insensitively, blank
+// lines and #comments ignored). Used for ad hoc brand groups, e.g. the Black
+// Friday cart rule manufacturers (config/brand-lists/bf-cart-rule-brands.txt).
+// With a brands file the vendor exclusion list does not apply: the file says
+// exactly what goes in the sheet.
+function parseBrandsFileArg(argv) {
+  const index = argv.indexOf('--brands-file');
+  if (index === -1) return null;
+  const file = argv[index + 1];
+  if (!file) {
+    console.error('Missing path after --brands-file');
+    process.exit(1);
+  }
+  const absolute = path.isAbsolute(file) ? file : path.resolve(process.cwd(), file);
+  const lines = fs
+    .readFileSync(absolute, 'utf8')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('#'));
+  if (!lines.length) {
+    console.error(`No brand names found in ${absolute}`);
+    process.exit(1);
+  }
+  return { file: absolute, brands: lines };
+}
+
+const brandsFilter = parseBrandsFileArg(process.argv);
+
 const EXCLUDED_VENDORS = [
   'Curt',
   'AEV',
@@ -46,6 +75,31 @@ function getCompetitorValue(product, competitorName) {
 }
 
 async function run() {
+  // Case-insensitive brand match: the cart rule says "GOODYEAR" and "Injen",
+  // the catalog says "Goodyear" and "INJEN". Resolve the file's names against
+  // the DB's exact spellings first, and say which names matched nothing.
+  let resolvedBrands = null;
+  if (brandsFilter) {
+    const dbBrands = await prisma.product.findMany({
+      where: { brand_name: { not: null } },
+      distinct: ['brand_name'],
+      select: { brand_name: true },
+    });
+    const byLower = new Map(dbBrands.map((row) => [row.brand_name.toLowerCase(), row.brand_name]));
+    resolvedBrands = [];
+    const unmatched = [];
+    for (const name of brandsFilter.brands) {
+      const hit = byLower.get(name.toLowerCase());
+      if (hit) resolvedBrands.push(hit);
+      else unmatched.push(name);
+    }
+    console.error(`Brands file: ${brandsFilter.file}`);
+    console.error(`Brands requested: ${brandsFilter.brands.length} | matched in catalog: ${resolvedBrands.length}`);
+    if (unmatched.length) {
+      console.error(`⚠️ Not found in the catalog (left out of the export): ${unmatched.join(', ')}`);
+    }
+  }
+
   const products = await prisma.product.findMany({
     where: {
       status: 1,
@@ -57,13 +111,15 @@ async function run() {
           endsWith: '-',
         },
       },
-      ...(includeAllBrands
-        ? {}
-        : {
-            vendors: {
-              notIn: EXCLUDED_VENDORS,
-            },
-          }),
+      ...(resolvedBrands
+        ? { brand_name: { in: resolvedBrands } }
+        : includeAllBrands
+          ? {}
+          : {
+              vendors: {
+                notIn: EXCLUDED_VENDORS,
+              },
+            }),
     },
     select: {
       sku: true,
@@ -230,7 +286,10 @@ async function run() {
   const outputDir = path.join(__dirname, '..', 'reports');
   fs.mkdirSync(outputDir, { recursive: true });
   const now = new Date().toISOString().replace(/[:.]/g, '-');
-  const outputPath = path.join(outputDir, `AllProducts-${now}.xlsx`);
+  const baseName = brandsFilter
+    ? `BrandProducts-${path.basename(brandsFilter.file).replace(/\.[^.]+$/, '')}`
+    : 'AllProducts';
+  const outputPath = path.join(outputDir, `${baseName}-${now}.xlsx`);
 
   await workbook.xlsx.writeFile(outputPath);
 
