@@ -3316,10 +3316,24 @@ app.get('/api/orders/metrics', async (req, res) => {
 		const requesterUsername = (req.user?.username || '').toLowerCase();
 		const canViewSalesTotals = SALES_TOTALS_ALLOWED_USERS.has(requesterUsername);
 
-		const sumGrandTotal = (where) =>
+		// Orders are stored in their own currency (order_currency_code: CAD/USD),
+		// so the dollar values are grouped per currency instead of mixed together.
+		// Returns e.g. { CAD: 4153.2, USD: 310.5 } with only currencies present.
+		const sumGrandTotalByCurrency = (where) =>
 			prisma.order
-				.aggregate({ _sum: { grand_total: true }, where })
-				.then((result) => result._sum.grand_total || 0);
+				.groupBy({
+					by: ['order_currency_code'],
+					_sum: { grand_total: true },
+					where,
+				})
+				.then((rows) => {
+					const totals = {};
+					for (const row of rows) {
+						const currency = (row.order_currency_code || 'CAD').toUpperCase();
+						totals[currency] = (totals[currency] || 0) + (row._sum.grand_total || 0);
+					}
+					return totals;
+				});
 
     // Run all counts in parallel for performance
     const [
@@ -3408,13 +3422,13 @@ app.get('/api/orders/metrics', async (req, res) => {
 		// dollar values always match the numbers shown next to them.
 		const salesTotals = canViewSalesTotals
 			? await Promise.all([
-				sumGrandTotal(buildVisibleOrdersWhere({
+				sumGrandTotalByCurrency(buildVisibleOrdersWhere({
 					created_at: { gte: todayRange.start, lte: todayRange.end },
 				})),
-				sumGrandTotal(buildVisibleOrdersWhere({
+				sumGrandTotalByCurrency(buildVisibleOrdersWhere({
 					created_at: { gte: yesterdayRange.start, lte: yesterdayRange.end },
 				})),
-				sumGrandTotal(buildVisibleOrdersWhere({
+				sumGrandTotalByCurrency(buildVisibleOrdersWhere({
 					created_at: { gte: sevenDaysAgoRange.start },
 				})),
 			])
