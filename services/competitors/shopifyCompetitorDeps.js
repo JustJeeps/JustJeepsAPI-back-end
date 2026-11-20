@@ -8,15 +8,30 @@ const path = require('path');
 
 const LOCK_MARGIN_MINUTES = 30;
 
-function buildCompetitorDeps({ profile, argv, getConfig, getOfflineConfig, defaults, snapshotDir, vendorsPrefix }) {
+// Snapshot and report files. A name ending in .gz is gzipped on write and
+// gunzipped on read (DD-022); every other file is plain UTF-8 as before.
+function snapshotFiles() {
 	const fs = require('fs');
+	const zlib = require('zlib');
+	const isGzip = (file) => file.endsWith('.gz');
+	return {
+		readFile: (file) => (isGzip(file) ? zlib.gunzipSync(fs.readFileSync(file)).toString('utf8') : fs.readFileSync(file, 'utf8')),
+		writeFile: (file, body) => {
+			fs.mkdirSync(path.dirname(file), { recursive: true });
+			fs.writeFileSync(file, isGzip(file) ? zlib.gzipSync(body) : body);
+		},
+	};
+}
+
+function buildCompetitorDeps({ profile, argv, getConfig, getOfflineConfig, defaults, snapshotDir, vendorsPrefix }) {
 	const { createBrandReader } = require('../../lib/competitors/shopify/brands');
 	const { createCollector } = require('../../lib/competitors/shopify/collect');
 	const { createSnapshot } = require('../../lib/competitors/shopify/snapshot');
 	const { buildReportCsv } = require('../../lib/competitors/shopify/report');
 	const { readBrands, filterBrands } = createBrandReader(profile);
 	const collectStore = createCollector(profile);
-	const { snapshotFileName, validateSnapshot } = createSnapshot(profile);
+	const { snapshotFileName, validateSnapshot, latestSnapshotName } = createSnapshot(profile);
+	const { readFile, writeFile } = snapshotFiles();
 
 	const stamp = () => new Date().toISOString();
 	const logger = {
@@ -35,11 +50,9 @@ function buildCompetitorDeps({ profile, argv, getConfig, getOfflineConfig, defau
 		validateSnapshot: (payload) => validateSnapshot(payload, {
 			now: () => new Date(), maxAgeHours: config.snapshotMaxAgeHours, maxPrice: config.maxPrice, thresholds: config.thresholds,
 		}),
-		readFile: (file) => fs.readFileSync(file, 'utf8'),
-		writeFile: (file, body) => {
-			fs.mkdirSync(path.dirname(file), { recursive: true });
-			fs.writeFileSync(file, body);
-		},
+		readFile,
+		writeFile,
+		latestSnapshotName,
 		collect: ({ brands: selected, runId, sample }) => collectStore({
 			fetch, config, brands: selected, runId, logger, sample, sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 		}),
@@ -62,4 +75,4 @@ function buildCompetitorDeps({ profile, argv, getConfig, getOfflineConfig, defau
 	};
 }
 
-module.exports = { buildCompetitorDeps, LOCK_MARGIN_MINUTES };
+module.exports = { buildCompetitorDeps, snapshotFiles, LOCK_MARGIN_MINUTES };

@@ -50,6 +50,10 @@ function parseArgs(argv) {
 }
 
 const sampleOf = (args) => (args.brands.length || args.maxPages ? { brands: args.brands, maxPages: args.maxPages } : null);
+// A gzipped snapshot is archived as such; a plain one as before.
+const archiveTypeOf = (filePath) => (filePath.endsWith('.json.gz')
+	? { filePath, extension: 'json.gz', contentType: 'application/gzip' }
+	: { filePath, extension: 'json', contentType: 'application/json' });
 const stampOf = (date) => date.toISOString().replace(/[:.]/g, '-');
 const errorDetail = (error) => {
 	const message = String(error && error.message ? error.message : error);
@@ -183,10 +187,10 @@ async function runIngestUnlocked(profile, deps, args) {
 	const recorded = await finish({ status, counts, sourceRowCount: result.matched, ...(partial ? { error: `${code('PARTIAL')}: the crawl stopped on its budget` } : {}) });
 
 	const reportPath = save('report', () => saveFile(deps, `${FEED}-run-${run.id}-report-${stamp}.csv`, deps.buildReportCsv(result.report)));
-	if (status === 'success' && !sample && snapshotPath) save('latest snapshot', () => saveFile(deps, 'latest-snapshot.json', JSON.stringify(payload)));
+	if (status === 'success' && !sample && snapshotPath) save('latest snapshot', () => saveFile(deps, deps.latestSnapshotName || 'latest-snapshot.json', JSON.stringify(payload)));
 	if (!args.dryRun) {
 		const files = [
-			...(snapshotPath ? [{ filePath: snapshotPath, extension: 'json', contentType: 'application/json' }] : []),
+			...(snapshotPath ? [archiveTypeOf(snapshotPath)] : []),
 			...(reportPath ? [{ filePath: reportPath, extension: 'csv', contentType: 'text/csv' }] : []),
 		];
 		await archiveFiles(profile, deps, files, startedAt, status);
