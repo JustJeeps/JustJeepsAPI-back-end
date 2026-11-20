@@ -4,6 +4,7 @@ require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 
 const ExcelJS = require('exceljs');
 const prisma = require('../lib/prisma');
+const { COMPETITOR: MYTRUCKPOINT } = require('../config/mytruckpoint');
 
 const includeAllBrands = process.argv.includes('--all-brands');
 
@@ -201,6 +202,7 @@ async function run() {
     { header: 'PartsEngine Price', key: 'partsEngine_price' },
     { header: 'Lowriders Price', key: 'lowriders_price' },
     { header: 'Niagara Jeeps Price', key: 'niagara_price' },
+    { header: 'MyTruckPoint Price', key: 'mytruckpoint_price' },
     { header: 'Status', key: 'status' },
     { header: 'Name', key: 'name' },
     { header: 'Part Status Meyer', key: 'partStatus_meyer' },
@@ -269,6 +271,7 @@ async function run() {
       partsEngine_price: getCompetitorValue(product, 'Parts Engine'),
       lowriders_price: getCompetitorValue(product, 'Lowriders'),
       niagara_price: getCompetitorValue(product, 'Niagara Jeeps'),
+      mytruckpoint_price: getCompetitorValue(product, MYTRUCKPOINT.name),
       tdot_price: getCompetitorValue(product, 'TDOT'),
       omix_cost: "",
       quadratec_cost: getVendorValue(product, 'Quadratec', 'vendor_cost'),
