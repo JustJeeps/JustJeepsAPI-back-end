@@ -66,6 +66,15 @@ test('the uncoded sample keeps the first five SKUs without a code, so a second l
 	assert.strictEqual(skuCodePurity([item('FLDS_1', 'Mishimoto'), ...items], [], brand(['FLDS_', 'MIS'])).stats.uncoded, 0);
 });
 
+test('a second-scheme prefix never claims another brand code that starts with the same letters', () => {
+	const own = ['BKMQ_1', 'BKMQ_2', 'BKMQ_3', 'BKMQ_4', 'BKMQ_5', 'BKMQ_6', 'BKMQ_7', 'BKMQ_8'].map((sku) => item(sku, 'ReadyLift'));
+	const items = [...own, item('REATRBARS', 'ReadyLift'), item('REAL_9', 'Real Truck'), item('MISC_1', 'Misc')];
+	const result = skuCodePurity(items, items.map((i) => i.vendor), brand(['BKMQ_', 'REA']));
+	assert.strictEqual(result.impure, false);
+	assert.deepStrictEqual(result.kept.map((i) => i.competitorSku), [...own.map((i) => i.competitorSku), 'REATRBARS']);
+	assert.strictEqual(result.foreign, 2);
+});
+
 test('purityRule knows the sku-code rule', () => {
 	assert.strictEqual(purityRule('sku-code'), skuCodePurity);
 });
