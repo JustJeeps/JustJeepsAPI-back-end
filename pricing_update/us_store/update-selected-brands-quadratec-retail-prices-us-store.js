@@ -13,7 +13,7 @@ const MIN_FINAL_MARGIN = 0.15;
 const MIN_PRICE_USD = 11.95;
 const FAKE_PROMO_FACTOR = 0.85;
 const DEFAULT_BEAT_PERCENT = 7;
-const DEFAULT_BRANDS = ['OMIX-ADA', 'Rugged Ridge', 'Alloy'];
+const DEFAULT_BRANDS = ['OMIX-ADA', 'Rugged Ridge', 'Alloy', 'Meyer Products'];
 const DEFAULT_MAGENTO_REST_BASE_URL = 'https://justjeeps.com/rest/default/V1';
 
 function resolveMagentoRestBaseUrl() {
