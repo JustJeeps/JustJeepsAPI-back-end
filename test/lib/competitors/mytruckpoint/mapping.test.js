@@ -16,11 +16,15 @@ test('the mapping covers the brands found by the discovery of 2026-11-19', () =>
 	assert.ok(brands.length >= 74, `only ${brands.length} brands mapped`);
 });
 
-test('every mapped brand has a Shopify handle and at least one 4-letter SKU code', () => {
+// A prefix is a distributor code (BBGL_) or the text of a brand's second
+// listing scheme glued to the part number (MIS for Mishimoto, GTK- for Gate King).
+const PREFIX = /^([A-Z]{4}_|[A-Z][A-Z0-9]{1,3}-?)$/;
+
+test('every mapped brand has a Shopify handle, a 4-letter SKU code and only well-formed prefixes', () => {
 	for (const b of brands) {
 		assert.match(b.handle, /^[a-z0-9_-]+$/, `${b.jjPrefix} handle ${b.handle}`);
-		assert.ok(b.skuPrefixes.length > 0, `${b.jjPrefix} has no SKU code`);
-		for (const p of b.skuPrefixes) assert.match(p, /^[A-Z]{4}_$/, `${b.jjPrefix} code ${p}`);
+		assert.ok(b.skuPrefixes.some((p) => /^[A-Z]{4}_$/.test(p)), `${b.jjPrefix} has no SKU code`);
+		for (const p of b.skuPrefixes) assert.match(p, PREFIX, `${b.jjPrefix} prefix ${p}`);
 	}
 });
 
