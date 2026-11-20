@@ -28,7 +28,7 @@ test('a brand whose vendor text varies is kept whole when the SKU code is its ow
 	assert.strictEqual(result.kept.length, 3);
 	assert.strictEqual(result.foreign, 0);
 	assert.strictEqual(result.impure, false);
-	assert.deepStrictEqual(result.stats, { dominantVendor: 'WARN', uncoded: 0 });
+	assert.deepStrictEqual(result.stats, { dominantVendor: 'WARN', uncoded: 0, uncodedSample: [] });
 });
 
 test('foreign codes are dropped and SKUs without a code are dropped and counted', () => {
@@ -37,6 +37,7 @@ test('foreign codes are dropped and SKUs without a code are dropped and counted'
 	assert.deepStrictEqual(result.kept.map((i) => i.competitorSku), ['BCSQ_1', 'BCSQ_2', 'BCSQ_3', 'BCSQ_4']);
 	assert.strictEqual(result.foreign, 1);
 	assert.strictEqual(result.stats.uncoded, 1);
+	assert.deepStrictEqual(result.stats.uncodedSample, ['plain-6']);
 	assert.strictEqual(result.impure, false);
 });
 
@@ -56,7 +57,13 @@ test('a brand with no item of its own is impure, so a wrong mapping fails loud',
 test('a second configured prefix is accepted and an empty brand is not impure', () => {
 	const items = [item('BKJC_50-1'), item('AFE56-2')];
 	assert.strictEqual(skuCodePurity(items, ['aFe', 'AFE'], brand(['BKJC_', 'AFE'])).kept.length, 2);
-	assert.deepStrictEqual(skuCodePurity([], [], brand(['BKJC_'])), { kept: [], foreign: 0, impure: false, stats: { dominantVendor: '', uncoded: 0 } });
+	assert.deepStrictEqual(skuCodePurity([], [], brand(['BKJC_'])), { kept: [], foreign: 0, impure: false, stats: { dominantVendor: '', uncoded: 0, uncodedSample: [] } });
+});
+
+test('the uncoded sample keeps the first five SKUs without a code, so a second listing scheme is visible', () => {
+	const items = ['MISA1', 'MISA2', 'MISA3', 'MISA4', 'MISA5', 'MISA6'].map((sku) => item(sku, 'Mishimoto'));
+	assert.deepStrictEqual(skuCodePurity([item('FLDS_1', 'Mishimoto'), ...items], [], brand(['FLDS_'])).stats.uncodedSample, ['MISA1', 'MISA2', 'MISA3', 'MISA4', 'MISA5']);
+	assert.strictEqual(skuCodePurity([item('FLDS_1', 'Mishimoto'), ...items], [], brand(['FLDS_', 'MIS'])).stats.uncoded, 0);
 });
 
 test('purityRule knows the sku-code rule', () => {
