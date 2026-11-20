@@ -60,6 +60,13 @@ is dropped and counted (`uncoded`, with a sample of five in the brand stats). Th
 `impure` (dropped whole, counted as failed) when foreign codes pass 25% of its coded items, or when
 nothing is its own, which catches a wrong handle or a missing prefix.
 
+Twins under two schemes (`BBGL_X` and a second-scheme `XYZX` of the same part) have different
+SKUs, so they both reach the matcher, which keeps one per product by its stable rule (exact
+spelling, then raw, then the smaller SKU), not by availability. This is on purpose: rows are
+keyed on `competitor_sku` and never deleted, so a winner that changed with stock would leave the
+other row frozen at an old price under the same product. The cost is that the kept price may be
+the out-of-stock listing's.
+
 Matching is the shared matcher, unchanged: raw SKU first, then the SKU without each prefix, only
 inside the brand's own products, separators ignored and dots kept. `competitor_sku` is the full SKU
 in upper case; `product_url` is `https://www.mytruckpoint.ca/products/<handle>`.
@@ -124,7 +131,7 @@ golden test written before the move.
 
 ## 6. Verification record (2026-11-19, no database)
 
-- Suite: 1,138 tests, 0 failing. The Niagara golden and env name tests pass unchanged through the
+- Suite: 1,139 tests, 0 failing. The Niagara golden and env name tests pass unchanged through the
   refactor; an independent review of the refactor found no behaviour change.
 - Discovery: 5,395 collections read in 132 requests.
 - Full collect-only of the 74 brands, in six batches: about 140k items, every brand `ok` (0 impure,
@@ -132,6 +139,9 @@ golden test written before the move.
   requests, around 40 minutes.
 - Mishimoto went from 369 to 4,612 kept items once its second scheme was mapped.
 - Three prices checked against the live product pages: equal.
+- Adversarial review: no critical or high finding. Fixed: a second-scheme prefix (REA, MIS) could
+  claim another distributor's code starting with the same letters; the snapshot was serialized
+  twice. Accepted and documented above: twins under two schemes are not chosen by availability.
 
 Still to do, each with Ricardo's OK: sandbox Postgres run, deploy, production dry run, first real
 run, floors in `config/deploy.yml`, cron on.
