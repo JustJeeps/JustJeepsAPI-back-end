@@ -128,6 +128,7 @@ const ORDER_CANCEL_MANUAL_REFUND_RESTRICTED_USERS = userAllowlist('ORDER_CANCEL_
 const ORDER_PO_INIT_ALLOWED_USERS = userAllowlist('ORDER_PO_INIT_ALLOWED_USERS', 'tess,jerry,jacob,paula,karoline');
 const PURCHASER_REPORT_ALLOWED_USERS = userAllowlist('PURCHASER_REPORT_ALLOWED_USERS', 'tess,paula,karoline');
 const ORDER_CANCELLATION_REPORT_ALLOWED_USERS = userAllowlist('ORDER_CANCELLATION_REPORT_ALLOWED_USERS', 'tess,jerry,jacob,paula,karoline');
+const SALES_TOTALS_ALLOWED_USERS = userAllowlist('SALES_TOTALS_ALLOWED_USERS', 'tess,jerry,jacob');
 const ORDER_CANCEL_PO_INITIALS_BY_USER = Object.freeze({
 	jacob: 'JK',
 	jerry: 'JD',
@@ -3309,6 +3310,17 @@ app.get('/api/orders/metrics', async (req, res) => {
 
 		const notSetBaseOr = buildPoNotSetOr();
 
+		// Dollar value of sales (today/yesterday/7 days) is restricted: only
+		// allowlisted users get the fields in the response. With ENABLE_AUTH=false
+		// req.user is not populated, so the totals are omitted for everyone.
+		const requesterUsername = (req.user?.username || '').toLowerCase();
+		const canViewSalesTotals = SALES_TOTALS_ALLOWED_USERS.has(requesterUsername);
+
+		const sumGrandTotal = (where) =>
+			prisma.order
+				.aggregate({ _sum: { grand_total: true }, where })
+				.then((result) => result._sum.grand_total || 0);
+
     // Run all counts in parallel for performance
     const [
       notSetCount,
@@ -3392,6 +3404,22 @@ app.get('/api/orders/metrics', async (req, res) => {
 			prisma.order.count({ where: buildVisibleOrdersWhere() }),
     ]);
 
+		// Same date ranges and visibility rules as the counts above, so the
+		// dollar values always match the numbers shown next to them.
+		const salesTotals = canViewSalesTotals
+			? await Promise.all([
+				sumGrandTotal(buildVisibleOrdersWhere({
+					created_at: { gte: todayRange.start, lte: todayRange.end },
+				})),
+				sumGrandTotal(buildVisibleOrdersWhere({
+					created_at: { gte: yesterdayRange.start, lte: yesterdayRange.end },
+				})),
+				sumGrandTotal(buildVisibleOrdersWhere({
+					created_at: { gte: sevenDaysAgoRange.start },
+				})),
+			])
+			: null;
+
     res.json({
       notSetCount,
 			staleNotSetCount,
@@ -3402,6 +3430,13 @@ app.get('/api/orders/metrics', async (req, res) => {
 			kdNotSetCount,
       gwCount,
       totalCount,
+			...(salesTotals
+				? {
+					todaySalesTotal: salesTotals[0],
+					yesterdaySalesTotal: salesTotals[1],
+					last7DaysSalesTotal: salesTotals[2],
+				}
+				: {}),
     });
   } catch (error) {
     console.error('Error fetching order metrics:', error);
