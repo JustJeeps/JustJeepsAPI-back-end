@@ -1,0 +1,2048 @@
+{
+ "full": {
+  "result": {
+   "exitCode": 0,
+   "summary": {
+    "runId": 501,
+    "status": "success",
+    "items": 4,
+    "matched": 3,
+    "matchRate": 0.75,
+    "inserted": 1,
+    "updated": 1,
+    "unchanged": 1,
+    "deleted": 0,
+    "skipped": 3,
+    "markedStale": 1,
+    "collection": {
+     "brandsPlanned": 3,
+     "brandsOk": 2,
+     "brandsFailed": 1,
+     "brandsImpure": 1,
+     "brandsEmpty": 0,
+     "requests": 6,
+     "httpAttempts": 6,
+     "retries": 0,
+     "rateLimited": 0,
+     "challenged": 0,
+     "failedRequests": 0,
+     "rawProducts": 6,
+     "rawVariants": 8,
+     "invalidCount": 2,
+     "foreignCount": 1,
+     "duplicateCount": 0,
+     "items": 4,
+     "partial": false,
+     "durationMs": 0
+    },
+    "report": "/snap/niagara-run-501-report-2026-11-19T23-00-00-000Z.csv"
+   }
+  },
+  "logs": [
+   [
+    "info",
+    "[niagara] run 501 started source=https://niagarajeeps.ca"
+   ],
+   [
+    "info",
+    "[niagara] brand BIL (bilstein): ok pages=2 products=3 items=3 foreign=0"
+   ],
+   [
+    "info",
+    "[niagara] brand RR (rugged-ridge): impure pages=2 products=2 items=0 foreign=1"
+   ],
+   [
+    "info",
+    "[niagara] brand GOR (go-rhino): ok pages=1 products=1 items=1 foreign=0"
+   ],
+   [
+    "info",
+    "[niagara] invalid sample: [{\"productId\":6,\"variantId\":62,\"competitorSku\":\"RHI-2\",\"price\":\"0\",\"reason\":\"invalid-price\",\"handle\":\"go-rhino\"},{\"productId\":6,\"variantId\":63,\"competitorSku\":\"\",\"price\":\"9.00\",\"reason\":\"no-sku\",\"handle\":\"go-rhino\"}]"
+   ],
+   [
+    "info",
+    "[niagara] step=match matched=3 unmatched=1 ambiguous=0 collisions=0"
+   ],
+   [
+    "info",
+    "[niagara] unmatched sample: BIL-24-3"
+   ],
+   [
+    "warn",
+    "[niagara] step=stale 1 rows of Niagara Jeeps were not seen in this run: kept, not deleted"
+   ],
+   [
+    "info",
+    "[niagara] step=upsert inserted=1 updated=1 unchanged=1"
+   ],
+   [
+    "info",
+    "[niagara] archive: k/niagara-run-501-2026-11-19T23-00-00-000Z.json"
+   ],
+   [
+    "info",
+    "[niagara] archive: k/niagara-run-501-report-2026-11-19T23-00-00-000Z.csv"
+   ],
+   [
+    "info",
+    "[niagara] SUMMARY {\"runId\":501,\"status\":\"success\",\"items\":4,\"matched\":3,\"matchRate\":0.75,\"inserted\":1,\"updated\":1,\"unchanged\":1,\"deleted\":0,\"skipped\":3,\"markedStale\":1,\"collection\":{\"brandsPlanned\":3,\"brandsOk\":2,\"brandsFailed\":1,\"brandsImpure\":1,\"brandsEmpty\":0,\"requests\":6,\"httpAttempts\":6,\"retries\":0,\"rateLimited\":0,\"challenged\":0,\"failedRequests\":0,\"rawProducts\":6,\"rawVariants\":8,\"invalidCount\":2,\"foreignCount\":1,\"duplicateCount\":0,\"items\":4,\"partial\":false,\"durationMs\":0},\"report\":\"/snap/niagara-run-501-report-2026-11-19T23-00-00-000Z.csv\"}"
+   ]
+  ],
+  "files": {
+   "/snap/niagara-run-501-2026-11-19T23-00-00-000Z.json": "{\"schemaVersion\":1,\"source\":\"niagara\",\"runId\":501,\"capturedAt\":\"2026-11-19T23:00:00.000Z\",\"sample\":null,\"collection\":{\"brandsPlanned\":3,\"brandsOk\":2,\"brandsFailed\":1,\"brandsImpure\":1,\"brandsEmpty\":0,\"requests\":6,\"httpAttempts\":6,\"retries\":0,\"rateLimited\":0,\"challenged\":0,\"failedRequests\":0,\"rawProducts\":6,\"rawVariants\":8,\"invalidCount\":2,\"foreignCount\":1,\"duplicateCount\":0,\"items\":4,\"partial\":false,\"durationMs\":0},\"brandStats\":[{\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\",\"expectedCount\":3,\"pages\":2,\"products\":3,\"variants\":3,\"items\":3,\"invalid\":0,\"foreign\":0,\"dominantVendor\":\"BILSTEIN\",\"status\":\"ok\"},{\"jjPrefix\":\"RR\",\"handle\":\"rugged-ridge\",\"expectedCount\":2,\"pages\":2,\"products\":2,\"variants\":2,\"items\":0,\"invalid\":0,\"foreign\":1,\"dominantVendor\":\"RUGGED RIDGE\",\"status\":\"impure\"},{\"jjPrefix\":\"GOR\",\"handle\":\"go-rhino\",\"expectedCount\":1,\"pages\":1,\"products\":1,\"variants\":3,\"items\":1,\"invalid\":2,\"foreign\":0,\"dominantVendor\":\"GO RHINO\",\"status\":\"ok\"}],\"items\":[{\"competitorSku\":\"BIL-24-1\",\"price\":10,\"regularPrice\":null,\"available\":true,\"url\":\"https://niagarajeeps.ca/products/item-1\",\"productId\":1,\"variantId\":11,\"vendor\":\"Bilstein\",\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\"},{\"competitorSku\":\"24-2\",\"price\":20.5,\"regularPrice\":25,\"available\":false,\"url\":\"https://niagarajeeps.ca/products/item-2\",\"productId\":2,\"variantId\":21,\"vendor\":\"BILSTEIN\",\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\"},{\"competitorSku\":\"BIL-24-3\",\"price\":30,\"regularPrice\":null,\"available\":true,\"url\":\"https://niagarajeeps.ca/products/item-3\",\"productId\":3,\"variantId\":31,\"vendor\":\"Bilstein\",\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\"},{\"competitorSku\":\"RHI-1\",\"price\":60,\"regularPrice\":null,\"available\":true,\"url\":\"https://niagarajeeps.ca/products/item-6?variant=61\",\"productId\":6,\"variantId\":61,\"vendor\":\"Go Rhino\",\"jjPrefix\":\"GOR\",\"handle\":\"go-rhino\"}],\"failures\":[]}",
+   "/snap/niagara-run-501-report-2026-11-19T23-00-00-000Z.csv": "list,jj_prefix,competitor_sku,product_sku,detail,url\nunmatched,BIL,BIL-24-3,,,https://niagarajeeps.ca/products/item-3\n",
+   "/snap/latest-snapshot.json": "{\"schemaVersion\":1,\"source\":\"niagara\",\"runId\":501,\"capturedAt\":\"2026-11-19T23:00:00.000Z\",\"sample\":null,\"collection\":{\"brandsPlanned\":3,\"brandsOk\":2,\"brandsFailed\":1,\"brandsImpure\":1,\"brandsEmpty\":0,\"requests\":6,\"httpAttempts\":6,\"retries\":0,\"rateLimited\":0,\"challenged\":0,\"failedRequests\":0,\"rawProducts\":6,\"rawVariants\":8,\"invalidCount\":2,\"foreignCount\":1,\"duplicateCount\":0,\"items\":4,\"partial\":false,\"durationMs\":0},\"brandStats\":[{\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\",\"expectedCount\":3,\"pages\":2,\"products\":3,\"variants\":3,\"items\":3,\"invalid\":0,\"foreign\":0,\"dominantVendor\":\"BILSTEIN\",\"status\":\"ok\"},{\"jjPrefix\":\"RR\",\"handle\":\"rugged-ridge\",\"expectedCount\":2,\"pages\":2,\"products\":2,\"variants\":2,\"items\":0,\"invalid\":0,\"foreign\":1,\"dominantVendor\":\"RUGGED RIDGE\",\"status\":\"impure\"},{\"jjPrefix\":\"GOR\",\"handle\":\"go-rhino\",\"expectedCount\":1,\"pages\":1,\"products\":1,\"variants\":3,\"items\":1,\"invalid\":2,\"foreign\":0,\"dominantVendor\":\"GO RHINO\",\"status\":\"ok\"}],\"items\":[{\"competitorSku\":\"BIL-24-1\",\"price\":10,\"regularPrice\":null,\"available\":true,\"url\":\"https://niagarajeeps.ca/products/item-1\",\"productId\":1,\"variantId\":11,\"vendor\":\"Bilstein\",\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\"},{\"competitorSku\":\"24-2\",\"price\":20.5,\"regularPrice\":25,\"available\":false,\"url\":\"https://niagarajeeps.ca/products/item-2\",\"productId\":2,\"variantId\":21,\"vendor\":\"BILSTEIN\",\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\"},{\"competitorSku\":\"BIL-24-3\",\"price\":30,\"regularPrice\":null,\"available\":true,\"url\":\"https://niagarajeeps.ca/products/item-3\",\"productId\":3,\"variantId\":31,\"vendor\":\"Bilstein\",\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\"},{\"competitorSku\":\"RHI-1\",\"price\":60,\"regularPrice\":null,\"available\":true,\"url\":\"https://niagarajeeps.ca/products/item-6?variant=61\",\"productId\":6,\"variantId\":61,\"vendor\":\"Go Rhino\",\"jjPrefix\":\"GOR\",\"handle\":\"go-rhino\"}],\"failures\":[]}"
+  },
+  "prisma": [
+   [
+    "ingestRun.findFirst",
+    {
+     "where": {
+      "feed": "niagara",
+      "status": "success",
+      "startedBy": {
+       "notIn": [
+        "dry-run",
+        "sample"
+       ]
+      }
+     },
+     "orderBy": {
+      "startedAt": "desc"
+     },
+     "select": {
+      "sourceRowCount": true
+     }
+    }
+   ],
+   [
+    "competitor.findFirst",
+    {
+     "where": {
+      "name": {
+       "equals": "Niagara Jeeps",
+       "mode": "insensitive"
+      }
+     }
+    }
+   ],
+   [
+    "product.findMany",
+    {
+     "where": {
+      "jj_prefix": {
+       "in": [
+        "BIL",
+        "GOR"
+       ]
+      },
+      "searchable_sku": {
+       "not": null
+      },
+      "NOT": [
+       {
+        "searchable_sku": ""
+       },
+       {
+        "searchable_sku": {
+         "endsWith": "-"
+        }
+       }
+      ]
+     },
+     "select": {
+      "sku": true,
+      "searchable_sku": true,
+      "status": true,
+      "jj_prefix": true
+     }
+    }
+   ],
+   [
+    "$queryRawUnsafe",
+    "SELECT count(*)::int AS stale FROM \"CompetitorProduct\" cp",
+    [
+     7,
+     "[\"BIL-24-1\",\"24-2\",\"RHI-1\"]"
+    ]
+   ],
+   [
+    "$executeRawUnsafe",
+    "SELECT * FROM jsonb_to_recordset($2::jsonb) AS x(",
+    [
+     7,
+     "[{\"product_sku\":\"BIL-24-1\",\"competitor_sku\":\"BIL-24-1\",\"competitor_price\":10,\"product_url\":\"https://niagarajeeps.ca/products/item-1\"},{\"product_sku\":\"BIL-24-2\",\"competitor_sku\":\"24-2\",\"competitor_price\":20.5,\"product_url\":\"https://niagarajeeps.ca/products/item-2\"},{\"product_sku\":\"GOR-1\",\"competitor_sku\":\"RHI-1\",\"competitor_price\":60,\"product_url\":\"https://niagarajeeps.ca/products/item-6?variant=61\"}]"
+    ]
+   ],
+   [
+    "$executeRawUnsafe",
+    "SELECT * FROM jsonb_to_recordset($2::jsonb) AS x(",
+    [
+     7,
+     "[{\"product_sku\":\"BIL-24-1\",\"competitor_sku\":\"BIL-24-1\",\"competitor_price\":10,\"product_url\":\"https://niagarajeeps.ca/products/item-1\"},{\"product_sku\":\"BIL-24-2\",\"competitor_sku\":\"24-2\",\"competitor_price\":20.5,\"product_url\":\"https://niagarajeeps.ca/products/item-2\"},{\"product_sku\":\"GOR-1\",\"competitor_sku\":\"RHI-1\",\"competitor_price\":60,\"product_url\":\"https://niagarajeeps.ca/products/item-6?variant=61\"}]"
+    ]
+   ]
+  ],
+  "startRun": [
+   [
+    "niagara",
+    {
+     "sourceKind": "api",
+     "sourceRef": "https://niagarajeeps.ca",
+     "startedBy": "cron"
+    }
+   ]
+  ],
+  "finish": [
+   {
+    "status": "success",
+    "counts": {
+     "inserted": 1,
+     "updated": 1,
+     "unchanged": 1,
+     "deleted": 0,
+     "skipped": 3,
+     "markedStale": 1
+    },
+    "sourceRowCount": 3
+   }
+  ],
+  "archive": [
+   {
+    "filePath": "/snap/niagara-run-501-2026-11-19T23-00-00-000Z.json",
+    "command": "seed-niagara",
+    "startedAt": "2026-11-19T23:00:00.000Z",
+    "status": "success",
+    "source": "cron",
+    "extension": "json",
+    "contentType": "application/json"
+   },
+   {
+    "filePath": "/snap/niagara-run-501-report-2026-11-19T23-00-00-000Z.csv",
+    "command": "seed-niagara",
+    "startedAt": "2026-11-19T23:00:00.000Z",
+    "status": "success",
+    "source": "cron",
+    "extension": "csv",
+    "contentType": "text/csv"
+   }
+  ],
+  "lock": [
+   [
+    "acquire",
+    "niagara",
+    {
+     "leaseMinutes": 150
+    }
+   ],
+   [
+    "release",
+    "niagara"
+   ]
+  ],
+  "urls": [
+   [
+    "https://niagarajeeps.ca/collections.json?limit=250&page=1",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/bilstein/products.json?limit=2&page=1",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/bilstein/products.json?limit=2&page=2",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/rugged-ridge/products.json?limit=2&page=1",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/rugged-ridge/products.json?limit=2&page=2",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/go-rhino/products.json?limit=2&page=1",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ]
+  ]
+ },
+ "dryRun": {
+  "result": {
+   "exitCode": 0,
+   "summary": {
+    "runId": 501,
+    "status": "dry-run",
+    "items": 4,
+    "matched": 3,
+    "matchRate": 0.75,
+    "inserted": 0,
+    "updated": 0,
+    "unchanged": 0,
+    "deleted": 0,
+    "skipped": 3,
+    "markedStale": 0,
+    "collection": {
+     "brandsPlanned": 3,
+     "brandsOk": 2,
+     "brandsFailed": 1,
+     "brandsImpure": 1,
+     "brandsEmpty": 0,
+     "requests": 6,
+     "httpAttempts": 6,
+     "retries": 0,
+     "rateLimited": 0,
+     "challenged": 0,
+     "failedRequests": 0,
+     "rawProducts": 6,
+     "rawVariants": 8,
+     "invalidCount": 2,
+     "foreignCount": 1,
+     "duplicateCount": 0,
+     "items": 4,
+     "partial": false,
+     "durationMs": 0
+    },
+    "report": "/snap/niagara-run-501-report-2026-11-19T23-00-00-000Z.csv"
+   }
+  },
+  "logs": [
+   [
+    "info",
+    "[niagara] run 501 started (dry-run) source=https://niagarajeeps.ca (dry-run)"
+   ],
+   [
+    "info",
+    "[niagara] brand BIL (bilstein): ok pages=2 products=3 items=3 foreign=0"
+   ],
+   [
+    "info",
+    "[niagara] brand RR (rugged-ridge): impure pages=2 products=2 items=0 foreign=1"
+   ],
+   [
+    "info",
+    "[niagara] brand GOR (go-rhino): ok pages=1 products=1 items=1 foreign=0"
+   ],
+   [
+    "info",
+    "[niagara] invalid sample: [{\"productId\":6,\"variantId\":62,\"competitorSku\":\"RHI-2\",\"price\":\"0\",\"reason\":\"invalid-price\",\"handle\":\"go-rhino\"},{\"productId\":6,\"variantId\":63,\"competitorSku\":\"\",\"price\":\"9.00\",\"reason\":\"no-sku\",\"handle\":\"go-rhino\"}]"
+   ],
+   [
+    "info",
+    "[niagara] step=match matched=3 unmatched=1 ambiguous=0 collisions=0"
+   ],
+   [
+    "info",
+    "[niagara] unmatched sample: BIL-24-3"
+   ],
+   [
+    "info",
+    "[niagara] dry-run: no writes"
+   ],
+   [
+    "info",
+    "[niagara] SUMMARY {\"runId\":501,\"status\":\"dry-run\",\"items\":4,\"matched\":3,\"matchRate\":0.75,\"inserted\":0,\"updated\":0,\"unchanged\":0,\"deleted\":0,\"skipped\":3,\"markedStale\":0,\"collection\":{\"brandsPlanned\":3,\"brandsOk\":2,\"brandsFailed\":1,\"brandsImpure\":1,\"brandsEmpty\":0,\"requests\":6,\"httpAttempts\":6,\"retries\":0,\"rateLimited\":0,\"challenged\":0,\"failedRequests\":0,\"rawProducts\":6,\"rawVariants\":8,\"invalidCount\":2,\"foreignCount\":1,\"duplicateCount\":0,\"items\":4,\"partial\":false,\"durationMs\":0},\"report\":\"/snap/niagara-run-501-report-2026-11-19T23-00-00-000Z.csv\"}"
+   ]
+  ],
+  "files": {
+   "/snap/niagara-run-501-dry-run-2026-11-19T23-00-00-000Z.json": "{\"schemaVersion\":1,\"source\":\"niagara\",\"runId\":501,\"capturedAt\":\"2026-11-19T23:00:00.000Z\",\"sample\":null,\"collection\":{\"brandsPlanned\":3,\"brandsOk\":2,\"brandsFailed\":1,\"brandsImpure\":1,\"brandsEmpty\":0,\"requests\":6,\"httpAttempts\":6,\"retries\":0,\"rateLimited\":0,\"challenged\":0,\"failedRequests\":0,\"rawProducts\":6,\"rawVariants\":8,\"invalidCount\":2,\"foreignCount\":1,\"duplicateCount\":0,\"items\":4,\"partial\":false,\"durationMs\":0},\"brandStats\":[{\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\",\"expectedCount\":3,\"pages\":2,\"products\":3,\"variants\":3,\"items\":3,\"invalid\":0,\"foreign\":0,\"dominantVendor\":\"BILSTEIN\",\"status\":\"ok\"},{\"jjPrefix\":\"RR\",\"handle\":\"rugged-ridge\",\"expectedCount\":2,\"pages\":2,\"products\":2,\"variants\":2,\"items\":0,\"invalid\":0,\"foreign\":1,\"dominantVendor\":\"RUGGED RIDGE\",\"status\":\"impure\"},{\"jjPrefix\":\"GOR\",\"handle\":\"go-rhino\",\"expectedCount\":1,\"pages\":1,\"products\":1,\"variants\":3,\"items\":1,\"invalid\":2,\"foreign\":0,\"dominantVendor\":\"GO RHINO\",\"status\":\"ok\"}],\"items\":[{\"competitorSku\":\"BIL-24-1\",\"price\":10,\"regularPrice\":null,\"available\":true,\"url\":\"https://niagarajeeps.ca/products/item-1\",\"productId\":1,\"variantId\":11,\"vendor\":\"Bilstein\",\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\"},{\"competitorSku\":\"24-2\",\"price\":20.5,\"regularPrice\":25,\"available\":false,\"url\":\"https://niagarajeeps.ca/products/item-2\",\"productId\":2,\"variantId\":21,\"vendor\":\"BILSTEIN\",\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\"},{\"competitorSku\":\"BIL-24-3\",\"price\":30,\"regularPrice\":null,\"available\":true,\"url\":\"https://niagarajeeps.ca/products/item-3\",\"productId\":3,\"variantId\":31,\"vendor\":\"Bilstein\",\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\"},{\"competitorSku\":\"RHI-1\",\"price\":60,\"regularPrice\":null,\"available\":true,\"url\":\"https://niagarajeeps.ca/products/item-6?variant=61\",\"productId\":6,\"variantId\":61,\"vendor\":\"Go Rhino\",\"jjPrefix\":\"GOR\",\"handle\":\"go-rhino\"}],\"failures\":[]}",
+   "/snap/niagara-run-501-report-2026-11-19T23-00-00-000Z.csv": "list,jj_prefix,competitor_sku,product_sku,detail,url\nunmatched,BIL,BIL-24-3,,,https://niagarajeeps.ca/products/item-3\n"
+  },
+  "prisma": [
+   [
+    "ingestRun.findFirst",
+    {
+     "where": {
+      "feed": "niagara",
+      "status": "success",
+      "startedBy": {
+       "notIn": [
+        "dry-run",
+        "sample"
+       ]
+      }
+     },
+     "orderBy": {
+      "startedAt": "desc"
+     },
+     "select": {
+      "sourceRowCount": true
+     }
+    }
+   ],
+   [
+    "competitor.findFirst",
+    {
+     "where": {
+      "name": {
+       "equals": "Niagara Jeeps",
+       "mode": "insensitive"
+      }
+     }
+    }
+   ],
+   [
+    "product.findMany",
+    {
+     "where": {
+      "jj_prefix": {
+       "in": [
+        "BIL",
+        "GOR"
+       ]
+      },
+      "searchable_sku": {
+       "not": null
+      },
+      "NOT": [
+       {
+        "searchable_sku": ""
+       },
+       {
+        "searchable_sku": {
+         "endsWith": "-"
+        }
+       }
+      ]
+     },
+     "select": {
+      "sku": true,
+      "searchable_sku": true,
+      "status": true,
+      "jj_prefix": true
+     }
+    }
+   ]
+  ],
+  "startRun": [
+   [
+    "niagara",
+    {
+     "sourceKind": "api",
+     "sourceRef": "https://niagarajeeps.ca (dry-run)",
+     "startedBy": "dry-run"
+    }
+   ]
+  ],
+  "finish": [
+   {
+    "status": "dry-run",
+    "counts": {
+     "inserted": 0,
+     "updated": 0,
+     "unchanged": 0,
+     "deleted": 0,
+     "skipped": 3,
+     "markedStale": 0
+    },
+    "sourceRowCount": 3
+   }
+  ],
+  "archive": [],
+  "lock": [
+   [
+    "acquire",
+    "niagara",
+    {
+     "leaseMinutes": 150
+    }
+   ],
+   [
+    "release",
+    "niagara"
+   ]
+  ],
+  "urls": [
+   [
+    "https://niagarajeeps.ca/collections.json?limit=250&page=1",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/bilstein/products.json?limit=2&page=1",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/bilstein/products.json?limit=2&page=2",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/rugged-ridge/products.json?limit=2&page=1",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/rugged-ridge/products.json?limit=2&page=2",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/go-rhino/products.json?limit=2&page=1",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ]
+  ]
+ },
+ "sample": {
+  "result": {
+   "exitCode": 0,
+   "summary": {
+    "runId": 501,
+    "status": "success",
+    "items": 2,
+    "matched": 2,
+    "matchRate": 1,
+    "inserted": 1,
+    "updated": 1,
+    "unchanged": 0,
+    "deleted": 0,
+    "skipped": 0,
+    "markedStale": 0,
+    "collection": {
+     "brandsPlanned": 1,
+     "brandsOk": 1,
+     "brandsFailed": 0,
+     "brandsImpure": 0,
+     "brandsEmpty": 0,
+     "requests": 2,
+     "httpAttempts": 2,
+     "retries": 0,
+     "rateLimited": 0,
+     "challenged": 0,
+     "failedRequests": 0,
+     "rawProducts": 2,
+     "rawVariants": 2,
+     "invalidCount": 0,
+     "foreignCount": 0,
+     "duplicateCount": 0,
+     "items": 2,
+     "partial": false,
+     "durationMs": 0
+    },
+    "report": "/snap/niagara-run-501-report-2026-11-19T23-00-00-000Z.csv"
+   }
+  },
+  "logs": [
+   [
+    "info",
+    "[niagara] run 501 started (sample {\"brands\":[\"BIL\"],\"maxPages\":1}) source=https://niagarajeeps.ca (sample)"
+   ],
+   [
+    "info",
+    "[niagara] brand BIL (bilstein): ok pages=1 products=2 items=2 foreign=0"
+   ],
+   [
+    "info",
+    "[niagara] step=match matched=2 unmatched=0 ambiguous=0 collisions=0"
+   ],
+   [
+    "info",
+    "[niagara] step=upsert inserted=1 updated=1 unchanged=0"
+   ],
+   [
+    "info",
+    "[niagara] archive: k/niagara-run-501-sample-2026-11-19T23-00-00-000Z.json"
+   ],
+   [
+    "info",
+    "[niagara] archive: k/niagara-run-501-report-2026-11-19T23-00-00-000Z.csv"
+   ],
+   [
+    "info",
+    "[niagara] SUMMARY {\"runId\":501,\"status\":\"success\",\"items\":2,\"matched\":2,\"matchRate\":1,\"inserted\":1,\"updated\":1,\"unchanged\":0,\"deleted\":0,\"skipped\":0,\"markedStale\":0,\"collection\":{\"brandsPlanned\":1,\"brandsOk\":1,\"brandsFailed\":0,\"brandsImpure\":0,\"brandsEmpty\":0,\"requests\":2,\"httpAttempts\":2,\"retries\":0,\"rateLimited\":0,\"challenged\":0,\"failedRequests\":0,\"rawProducts\":2,\"rawVariants\":2,\"invalidCount\":0,\"foreignCount\":0,\"duplicateCount\":0,\"items\":2,\"partial\":false,\"durationMs\":0},\"report\":\"/snap/niagara-run-501-report-2026-11-19T23-00-00-000Z.csv\"}"
+   ]
+  ],
+  "files": {
+   "/snap/niagara-run-501-sample-2026-11-19T23-00-00-000Z.json": "{\"schemaVersion\":1,\"source\":\"niagara\",\"runId\":501,\"capturedAt\":\"2026-11-19T23:00:00.000Z\",\"sample\":{\"brands\":[\"BIL\"],\"maxPages\":1},\"collection\":{\"brandsPlanned\":1,\"brandsOk\":1,\"brandsFailed\":0,\"brandsImpure\":0,\"brandsEmpty\":0,\"requests\":2,\"httpAttempts\":2,\"retries\":0,\"rateLimited\":0,\"challenged\":0,\"failedRequests\":0,\"rawProducts\":2,\"rawVariants\":2,\"invalidCount\":0,\"foreignCount\":0,\"duplicateCount\":0,\"items\":2,\"partial\":false,\"durationMs\":0},\"brandStats\":[{\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\",\"expectedCount\":null,\"pages\":1,\"products\":2,\"variants\":2,\"items\":2,\"invalid\":0,\"foreign\":0,\"dominantVendor\":\"BILSTEIN\",\"status\":\"ok\"}],\"items\":[{\"competitorSku\":\"BIL-24-1\",\"price\":10,\"regularPrice\":null,\"available\":true,\"url\":\"https://niagarajeeps.ca/products/item-1\",\"productId\":1,\"variantId\":11,\"vendor\":\"Bilstein\",\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\"},{\"competitorSku\":\"24-2\",\"price\":20.5,\"regularPrice\":25,\"available\":false,\"url\":\"https://niagarajeeps.ca/products/item-2\",\"productId\":2,\"variantId\":21,\"vendor\":\"BILSTEIN\",\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\"}],\"failures\":[]}",
+   "/snap/niagara-run-501-report-2026-11-19T23-00-00-000Z.csv": "list,jj_prefix,competitor_sku,product_sku,detail,url\n"
+  },
+  "prisma": [
+   [
+    "ingestRun.findFirst",
+    {
+     "where": {
+      "feed": "niagara",
+      "status": "success",
+      "startedBy": {
+       "notIn": [
+        "dry-run",
+        "sample"
+       ]
+      }
+     },
+     "orderBy": {
+      "startedAt": "desc"
+     },
+     "select": {
+      "sourceRowCount": true
+     }
+    }
+   ],
+   [
+    "competitor.findFirst",
+    {
+     "where": {
+      "name": {
+       "equals": "Niagara Jeeps",
+       "mode": "insensitive"
+      }
+     }
+    }
+   ],
+   [
+    "product.findMany",
+    {
+     "where": {
+      "jj_prefix": {
+       "in": [
+        "BIL"
+       ]
+      },
+      "searchable_sku": {
+       "not": null
+      },
+      "NOT": [
+       {
+        "searchable_sku": ""
+       },
+       {
+        "searchable_sku": {
+         "endsWith": "-"
+        }
+       }
+      ]
+     },
+     "select": {
+      "sku": true,
+      "searchable_sku": true,
+      "status": true,
+      "jj_prefix": true
+     }
+    }
+   ],
+   [
+    "$executeRawUnsafe",
+    "SELECT * FROM jsonb_to_recordset($2::jsonb) AS x(",
+    [
+     7,
+     "[{\"product_sku\":\"BIL-24-1\",\"competitor_sku\":\"BIL-24-1\",\"competitor_price\":10,\"product_url\":\"https://niagarajeeps.ca/products/item-1\"},{\"product_sku\":\"BIL-24-2\",\"competitor_sku\":\"24-2\",\"competitor_price\":20.5,\"product_url\":\"https://niagarajeeps.ca/products/item-2\"}]"
+    ]
+   ],
+   [
+    "$executeRawUnsafe",
+    "SELECT * FROM jsonb_to_recordset($2::jsonb) AS x(",
+    [
+     7,
+     "[{\"product_sku\":\"BIL-24-1\",\"competitor_sku\":\"BIL-24-1\",\"competitor_price\":10,\"product_url\":\"https://niagarajeeps.ca/products/item-1\"},{\"product_sku\":\"BIL-24-2\",\"competitor_sku\":\"24-2\",\"competitor_price\":20.5,\"product_url\":\"https://niagarajeeps.ca/products/item-2\"}]"
+    ]
+   ]
+  ],
+  "startRun": [
+   [
+    "niagara",
+    {
+     "sourceKind": "api",
+     "sourceRef": "https://niagarajeeps.ca (sample)",
+     "startedBy": "sample"
+    }
+   ]
+  ],
+  "finish": [
+   {
+    "status": "success",
+    "counts": {
+     "inserted": 1,
+     "updated": 1,
+     "unchanged": 0,
+     "deleted": 0,
+     "skipped": 0,
+     "markedStale": 0
+    },
+    "sourceRowCount": 2
+   }
+  ],
+  "archive": [
+   {
+    "filePath": "/snap/niagara-run-501-sample-2026-11-19T23-00-00-000Z.json",
+    "command": "seed-niagara",
+    "startedAt": "2026-11-19T23:00:00.000Z",
+    "status": "success",
+    "source": "cron",
+    "extension": "json",
+    "contentType": "application/json"
+   },
+   {
+    "filePath": "/snap/niagara-run-501-report-2026-11-19T23-00-00-000Z.csv",
+    "command": "seed-niagara",
+    "startedAt": "2026-11-19T23:00:00.000Z",
+    "status": "success",
+    "source": "cron",
+    "extension": "csv",
+    "contentType": "text/csv"
+   }
+  ],
+  "lock": [
+   [
+    "acquire",
+    "niagara",
+    {
+     "leaseMinutes": 150
+    }
+   ],
+   [
+    "release",
+    "niagara"
+   ]
+  ],
+  "urls": [
+   [
+    "https://niagarajeeps.ca/collections.json?limit=250&page=1",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/bilstein/products.json?limit=2&page=1",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ]
+  ]
+ },
+ "collectOnly": {
+  "result": {
+   "exitCode": 0,
+   "payload": {
+    "schemaVersion": 1,
+    "source": "niagara",
+    "runId": null,
+    "capturedAt": "2026-11-19T23:00:00.000Z",
+    "sample": null,
+    "collection": {
+     "brandsPlanned": 3,
+     "brandsOk": 2,
+     "brandsFailed": 1,
+     "brandsImpure": 1,
+     "brandsEmpty": 0,
+     "requests": 6,
+     "httpAttempts": 6,
+     "retries": 0,
+     "rateLimited": 0,
+     "challenged": 0,
+     "failedRequests": 0,
+     "rawProducts": 6,
+     "rawVariants": 8,
+     "invalidCount": 2,
+     "foreignCount": 1,
+     "duplicateCount": 0,
+     "items": 4,
+     "partial": false,
+     "durationMs": 0
+    },
+    "brandStats": [
+     {
+      "jjPrefix": "BIL",
+      "handle": "bilstein",
+      "expectedCount": 3,
+      "pages": 2,
+      "products": 3,
+      "variants": 3,
+      "items": 3,
+      "invalid": 0,
+      "foreign": 0,
+      "dominantVendor": "BILSTEIN",
+      "status": "ok"
+     },
+     {
+      "jjPrefix": "RR",
+      "handle": "rugged-ridge",
+      "expectedCount": 2,
+      "pages": 2,
+      "products": 2,
+      "variants": 2,
+      "items": 0,
+      "invalid": 0,
+      "foreign": 1,
+      "dominantVendor": "RUGGED RIDGE",
+      "status": "impure"
+     },
+     {
+      "jjPrefix": "GOR",
+      "handle": "go-rhino",
+      "expectedCount": 1,
+      "pages": 1,
+      "products": 1,
+      "variants": 3,
+      "items": 1,
+      "invalid": 2,
+      "foreign": 0,
+      "dominantVendor": "GO RHINO",
+      "status": "ok"
+     }
+    ],
+    "items": [
+     {
+      "competitorSku": "BIL-24-1",
+      "price": 10,
+      "regularPrice": null,
+      "available": true,
+      "url": "https://niagarajeeps.ca/products/item-1",
+      "productId": 1,
+      "variantId": 11,
+      "vendor": "Bilstein",
+      "jjPrefix": "BIL",
+      "handle": "bilstein"
+     },
+     {
+      "competitorSku": "24-2",
+      "price": 20.5,
+      "regularPrice": 25,
+      "available": false,
+      "url": "https://niagarajeeps.ca/products/item-2",
+      "productId": 2,
+      "variantId": 21,
+      "vendor": "BILSTEIN",
+      "jjPrefix": "BIL",
+      "handle": "bilstein"
+     },
+     {
+      "competitorSku": "BIL-24-3",
+      "price": 30,
+      "regularPrice": null,
+      "available": true,
+      "url": "https://niagarajeeps.ca/products/item-3",
+      "productId": 3,
+      "variantId": 31,
+      "vendor": "Bilstein",
+      "jjPrefix": "BIL",
+      "handle": "bilstein"
+     },
+     {
+      "competitorSku": "RHI-1",
+      "price": 60,
+      "regularPrice": null,
+      "available": true,
+      "url": "https://niagarajeeps.ca/products/item-6?variant=61",
+      "productId": 6,
+      "variantId": 61,
+      "vendor": "Go Rhino",
+      "jjPrefix": "GOR",
+      "handle": "go-rhino"
+     }
+    ],
+    "failures": []
+   },
+   "snapshotPath": "/snap/niagara-collect-2026-11-19T23-00-00-000Z.json"
+  },
+  "logs": [
+   [
+    "info",
+    "[niagara] brand BIL (bilstein): ok pages=2 products=3 items=3 foreign=0"
+   ],
+   [
+    "info",
+    "[niagara] brand RR (rugged-ridge): impure pages=2 products=2 items=0 foreign=1"
+   ],
+   [
+    "info",
+    "[niagara] brand GOR (go-rhino): ok pages=1 products=1 items=1 foreign=0"
+   ],
+   [
+    "info",
+    "[niagara] invalid sample: [{\"productId\":6,\"variantId\":62,\"competitorSku\":\"RHI-2\",\"price\":\"0\",\"reason\":\"invalid-price\",\"handle\":\"go-rhino\"},{\"productId\":6,\"variantId\":63,\"competitorSku\":\"\",\"price\":\"9.00\",\"reason\":\"no-sku\",\"handle\":\"go-rhino\"}]"
+   ],
+   [
+    "info",
+    "[niagara] collect-only: 4 items from 2 brands, snapshot /snap/niagara-collect-2026-11-19T23-00-00-000Z.json"
+   ],
+   [
+    "info",
+    "  BIL BIL-24-1 $10 https://niagarajeeps.ca/products/item-1"
+   ],
+   [
+    "info",
+    "  BIL 24-2 $20.5 (out of stock) https://niagarajeeps.ca/products/item-2"
+   ],
+   [
+    "info",
+    "  BIL BIL-24-3 $30 https://niagarajeeps.ca/products/item-3"
+   ],
+   [
+    "info",
+    "  GOR RHI-1 $60 https://niagarajeeps.ca/products/item-6?variant=61"
+   ]
+  ],
+  "files": {
+   "/snap/niagara-collect-2026-11-19T23-00-00-000Z.json": "{\"schemaVersion\":1,\"source\":\"niagara\",\"runId\":null,\"capturedAt\":\"2026-11-19T23:00:00.000Z\",\"sample\":null,\"collection\":{\"brandsPlanned\":3,\"brandsOk\":2,\"brandsFailed\":1,\"brandsImpure\":1,\"brandsEmpty\":0,\"requests\":6,\"httpAttempts\":6,\"retries\":0,\"rateLimited\":0,\"challenged\":0,\"failedRequests\":0,\"rawProducts\":6,\"rawVariants\":8,\"invalidCount\":2,\"foreignCount\":1,\"duplicateCount\":0,\"items\":4,\"partial\":false,\"durationMs\":0},\"brandStats\":[{\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\",\"expectedCount\":3,\"pages\":2,\"products\":3,\"variants\":3,\"items\":3,\"invalid\":0,\"foreign\":0,\"dominantVendor\":\"BILSTEIN\",\"status\":\"ok\"},{\"jjPrefix\":\"RR\",\"handle\":\"rugged-ridge\",\"expectedCount\":2,\"pages\":2,\"products\":2,\"variants\":2,\"items\":0,\"invalid\":0,\"foreign\":1,\"dominantVendor\":\"RUGGED RIDGE\",\"status\":\"impure\"},{\"jjPrefix\":\"GOR\",\"handle\":\"go-rhino\",\"expectedCount\":1,\"pages\":1,\"products\":1,\"variants\":3,\"items\":1,\"invalid\":2,\"foreign\":0,\"dominantVendor\":\"GO RHINO\",\"status\":\"ok\"}],\"items\":[{\"competitorSku\":\"BIL-24-1\",\"price\":10,\"regularPrice\":null,\"available\":true,\"url\":\"https://niagarajeeps.ca/products/item-1\",\"productId\":1,\"variantId\":11,\"vendor\":\"Bilstein\",\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\"},{\"competitorSku\":\"24-2\",\"price\":20.5,\"regularPrice\":25,\"available\":false,\"url\":\"https://niagarajeeps.ca/products/item-2\",\"productId\":2,\"variantId\":21,\"vendor\":\"BILSTEIN\",\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\"},{\"competitorSku\":\"BIL-24-3\",\"price\":30,\"regularPrice\":null,\"available\":true,\"url\":\"https://niagarajeeps.ca/products/item-3\",\"productId\":3,\"variantId\":31,\"vendor\":\"Bilstein\",\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\"},{\"competitorSku\":\"RHI-1\",\"price\":60,\"regularPrice\":null,\"available\":true,\"url\":\"https://niagarajeeps.ca/products/item-6?variant=61\",\"productId\":6,\"variantId\":61,\"vendor\":\"Go Rhino\",\"jjPrefix\":\"GOR\",\"handle\":\"go-rhino\"}],\"failures\":[]}"
+  },
+  "prisma": [],
+  "startRun": [],
+  "finish": [],
+  "archive": [],
+  "lock": [],
+  "urls": [
+   [
+    "https://niagarajeeps.ca/collections.json?limit=250&page=1",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/bilstein/products.json?limit=2&page=1",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/bilstein/products.json?limit=2&page=2",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/rugged-ridge/products.json?limit=2&page=1",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/rugged-ridge/products.json?limit=2&page=2",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/go-rhino/products.json?limit=2&page=1",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ]
+  ]
+ },
+ "partial": {
+  "result": {
+   "exitCode": 2,
+   "summary": {
+    "runId": 501,
+    "status": "partial",
+    "items": 3,
+    "matched": 2,
+    "matchRate": 0.667,
+    "inserted": 1,
+    "updated": 1,
+    "unchanged": 0,
+    "deleted": 0,
+    "skipped": 1,
+    "markedStale": 1,
+    "collection": {
+     "brandsPlanned": 3,
+     "brandsOk": 1,
+     "brandsFailed": 2,
+     "brandsImpure": 0,
+     "brandsEmpty": 0,
+     "requests": 4,
+     "httpAttempts": 4,
+     "retries": 0,
+     "rateLimited": 0,
+     "challenged": 0,
+     "failedRequests": 0,
+     "rawProducts": 3,
+     "rawVariants": 5,
+     "invalidCount": 0,
+     "foreignCount": 0,
+     "duplicateCount": 0,
+     "items": 3,
+     "partial": true,
+     "durationMs": 0
+    },
+    "report": "/snap/niagara-run-501-report-2026-11-19T23-00-00-000Z.csv"
+   }
+  },
+  "logs": [
+   [
+    "info",
+    "[niagara] run 501 started source=https://niagarajeeps.ca"
+   ],
+   [
+    "info",
+    "[niagara] brand BIL (bilstein): ok pages=2 products=3 items=3 foreign=0"
+   ],
+   [
+    "info",
+    "[niagara] brand RR (rugged-ridge): over-budget pages=1 products=0 items=0 foreign=0"
+   ],
+   [
+    "info",
+    "[niagara] brand GOR (go-rhino): over-budget pages=0 products=0 items=0 foreign=0"
+   ],
+   [
+    "info",
+    "[niagara] step=match matched=2 unmatched=1 ambiguous=0 collisions=0"
+   ],
+   [
+    "info",
+    "[niagara] unmatched sample: BIL-24-3"
+   ],
+   [
+    "warn",
+    "[niagara] step=stale 1 rows of Niagara Jeeps were not seen in this run: kept, not deleted"
+   ],
+   [
+    "info",
+    "[niagara] step=upsert inserted=1 updated=1 unchanged=0"
+   ],
+   [
+    "info",
+    "[niagara] archive: k/niagara-run-501-2026-11-19T23-00-00-000Z.json"
+   ],
+   [
+    "info",
+    "[niagara] archive: k/niagara-run-501-report-2026-11-19T23-00-00-000Z.csv"
+   ],
+   [
+    "info",
+    "[niagara] SUMMARY {\"runId\":501,\"status\":\"partial\",\"items\":3,\"matched\":2,\"matchRate\":0.667,\"inserted\":1,\"updated\":1,\"unchanged\":0,\"deleted\":0,\"skipped\":1,\"markedStale\":1,\"collection\":{\"brandsPlanned\":3,\"brandsOk\":1,\"brandsFailed\":2,\"brandsImpure\":0,\"brandsEmpty\":0,\"requests\":4,\"httpAttempts\":4,\"retries\":0,\"rateLimited\":0,\"challenged\":0,\"failedRequests\":0,\"rawProducts\":3,\"rawVariants\":5,\"invalidCount\":0,\"foreignCount\":0,\"duplicateCount\":0,\"items\":3,\"partial\":true,\"durationMs\":0},\"report\":\"/snap/niagara-run-501-report-2026-11-19T23-00-00-000Z.csv\"}"
+   ],
+   [
+    "warn",
+    "[niagara] run 501 is PARTIAL: rows written, exit code 2"
+   ]
+  ],
+  "files": {
+   "/snap/niagara-run-501-2026-11-19T23-00-00-000Z.json": "{\"schemaVersion\":1,\"source\":\"niagara\",\"runId\":501,\"capturedAt\":\"2026-11-19T23:00:00.000Z\",\"sample\":null,\"collection\":{\"brandsPlanned\":3,\"brandsOk\":1,\"brandsFailed\":2,\"brandsImpure\":0,\"brandsEmpty\":0,\"requests\":4,\"httpAttempts\":4,\"retries\":0,\"rateLimited\":0,\"challenged\":0,\"failedRequests\":0,\"rawProducts\":3,\"rawVariants\":5,\"invalidCount\":0,\"foreignCount\":0,\"duplicateCount\":0,\"items\":3,\"partial\":true,\"durationMs\":0},\"brandStats\":[{\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\",\"expectedCount\":3,\"pages\":2,\"products\":3,\"variants\":3,\"items\":3,\"invalid\":0,\"foreign\":0,\"dominantVendor\":\"BILSTEIN\",\"status\":\"ok\"},{\"jjPrefix\":\"RR\",\"handle\":\"rugged-ridge\",\"expectedCount\":2,\"pages\":1,\"products\":0,\"variants\":2,\"items\":0,\"invalid\":0,\"foreign\":0,\"dominantVendor\":\"\",\"status\":\"over-budget\"},{\"jjPrefix\":\"GOR\",\"handle\":\"go-rhino\",\"expectedCount\":1,\"pages\":0,\"products\":0,\"variants\":0,\"items\":0,\"invalid\":0,\"foreign\":0,\"dominantVendor\":\"\",\"status\":\"over-budget\"}],\"items\":[{\"competitorSku\":\"BIL-24-1\",\"price\":10,\"regularPrice\":null,\"available\":true,\"url\":\"https://niagarajeeps.ca/products/item-1\",\"productId\":1,\"variantId\":11,\"vendor\":\"Bilstein\",\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\"},{\"competitorSku\":\"24-2\",\"price\":20.5,\"regularPrice\":25,\"available\":false,\"url\":\"https://niagarajeeps.ca/products/item-2\",\"productId\":2,\"variantId\":21,\"vendor\":\"BILSTEIN\",\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\"},{\"competitorSku\":\"BIL-24-3\",\"price\":30,\"regularPrice\":null,\"available\":true,\"url\":\"https://niagarajeeps.ca/products/item-3\",\"productId\":3,\"variantId\":31,\"vendor\":\"Bilstein\",\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\"}],\"failures\":[]}",
+   "/snap/niagara-run-501-report-2026-11-19T23-00-00-000Z.csv": "list,jj_prefix,competitor_sku,product_sku,detail,url\nunmatched,BIL,BIL-24-3,,,https://niagarajeeps.ca/products/item-3\n"
+  },
+  "prisma": [
+   [
+    "ingestRun.findFirst",
+    {
+     "where": {
+      "feed": "niagara",
+      "status": "success",
+      "startedBy": {
+       "notIn": [
+        "dry-run",
+        "sample"
+       ]
+      }
+     },
+     "orderBy": {
+      "startedAt": "desc"
+     },
+     "select": {
+      "sourceRowCount": true
+     }
+    }
+   ],
+   [
+    "competitor.findFirst",
+    {
+     "where": {
+      "name": {
+       "equals": "Niagara Jeeps",
+       "mode": "insensitive"
+      }
+     }
+    }
+   ],
+   [
+    "product.findMany",
+    {
+     "where": {
+      "jj_prefix": {
+       "in": [
+        "BIL"
+       ]
+      },
+      "searchable_sku": {
+       "not": null
+      },
+      "NOT": [
+       {
+        "searchable_sku": ""
+       },
+       {
+        "searchable_sku": {
+         "endsWith": "-"
+        }
+       }
+      ]
+     },
+     "select": {
+      "sku": true,
+      "searchable_sku": true,
+      "status": true,
+      "jj_prefix": true
+     }
+    }
+   ],
+   [
+    "$queryRawUnsafe",
+    "SELECT count(*)::int AS stale FROM \"CompetitorProduct\" cp",
+    [
+     7,
+     "[\"BIL-24-1\",\"24-2\"]"
+    ]
+   ],
+   [
+    "$executeRawUnsafe",
+    "SELECT * FROM jsonb_to_recordset($2::jsonb) AS x(",
+    [
+     7,
+     "[{\"product_sku\":\"BIL-24-1\",\"competitor_sku\":\"BIL-24-1\",\"competitor_price\":10,\"product_url\":\"https://niagarajeeps.ca/products/item-1\"},{\"product_sku\":\"BIL-24-2\",\"competitor_sku\":\"24-2\",\"competitor_price\":20.5,\"product_url\":\"https://niagarajeeps.ca/products/item-2\"}]"
+    ]
+   ],
+   [
+    "$executeRawUnsafe",
+    "SELECT * FROM jsonb_to_recordset($2::jsonb) AS x(",
+    [
+     7,
+     "[{\"product_sku\":\"BIL-24-1\",\"competitor_sku\":\"BIL-24-1\",\"competitor_price\":10,\"product_url\":\"https://niagarajeeps.ca/products/item-1\"},{\"product_sku\":\"BIL-24-2\",\"competitor_sku\":\"24-2\",\"competitor_price\":20.5,\"product_url\":\"https://niagarajeeps.ca/products/item-2\"}]"
+    ]
+   ]
+  ],
+  "startRun": [
+   [
+    "niagara",
+    {
+     "sourceKind": "api",
+     "sourceRef": "https://niagarajeeps.ca",
+     "startedBy": "cron"
+    }
+   ]
+  ],
+  "finish": [
+   {
+    "status": "partial",
+    "counts": {
+     "inserted": 1,
+     "updated": 1,
+     "unchanged": 0,
+     "deleted": 0,
+     "skipped": 1,
+     "markedStale": 1
+    },
+    "sourceRowCount": 2,
+    "error": "NIAGARA_PARTIAL: the crawl stopped on its budget"
+   }
+  ],
+  "archive": [
+   {
+    "filePath": "/snap/niagara-run-501-2026-11-19T23-00-00-000Z.json",
+    "command": "seed-niagara",
+    "startedAt": "2026-11-19T23:00:00.000Z",
+    "status": "partial",
+    "source": "cron",
+    "extension": "json",
+    "contentType": "application/json"
+   },
+   {
+    "filePath": "/snap/niagara-run-501-report-2026-11-19T23-00-00-000Z.csv",
+    "command": "seed-niagara",
+    "startedAt": "2026-11-19T23:00:00.000Z",
+    "status": "partial",
+    "source": "cron",
+    "extension": "csv",
+    "contentType": "text/csv"
+   }
+  ],
+  "lock": [
+   [
+    "acquire",
+    "niagara",
+    {
+     "leaseMinutes": 150
+    }
+   ],
+   [
+    "release",
+    "niagara"
+   ]
+  ],
+  "urls": [
+   [
+    "https://niagarajeeps.ca/collections.json?limit=250&page=1",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/bilstein/products.json?limit=2&page=1",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/bilstein/products.json?limit=2&page=2",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/rugged-ridge/products.json?limit=2&page=1",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ]
+  ]
+ },
+ "challenged": {
+  "result": {
+   "exitCode": 1,
+   "error": "NIAGARA_CHALLENGED: brand rugged-ridge page 1: the site answered with a Cloudflare challenge; nothing was written"
+  },
+  "logs": [
+   [
+    "info",
+    "[niagara] run 501 started source=https://niagarajeeps.ca"
+   ],
+   [
+    "info",
+    "[niagara] brand BIL (bilstein): ok pages=2 products=3 items=3 foreign=0"
+   ],
+   [
+    "warn",
+    "[niagara] brand rugged-ridge page 1: challenge page, waiting 60000ms before one retry"
+   ],
+   [
+    "error",
+    "[niagara] run 501 FAILED: NIAGARA_CHALLENGED: brand rugged-ridge page 1: the site answered with a Cloudflare challenge; nothing was written"
+   ]
+  ],
+  "files": {},
+  "prisma": [],
+  "startRun": [
+   [
+    "niagara",
+    {
+     "sourceKind": "api",
+     "sourceRef": "https://niagarajeeps.ca",
+     "startedBy": "cron"
+    }
+   ]
+  ],
+  "finish": [
+   {
+    "status": "failed",
+    "error": "NIAGARA_CHALLENGED: brand rugged-ridge page 1: the site answered with a Cloudflare challenge; nothing was written"
+   }
+  ],
+  "archive": [],
+  "lock": [
+   [
+    "acquire",
+    "niagara",
+    {
+     "leaseMinutes": 150
+    }
+   ],
+   [
+    "release",
+    "niagara"
+   ]
+  ],
+  "urls": [
+   [
+    "https://niagarajeeps.ca/collections.json?limit=250&page=1",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/bilstein/products.json?limit=2&page=1",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/bilstein/products.json?limit=2&page=2",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/rugged-ridge/products.json?limit=2&page=1",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/rugged-ridge/products.json?limit=2&page=1",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ]
+  ]
+ },
+ "guardRefusal": {
+  "result": {
+   "exitCode": 1,
+   "error": "NIAGARA_MATCH_GUARD: matched 3, minimum 50"
+  },
+  "logs": [
+   [
+    "info",
+    "[niagara] run 501 started source=https://niagarajeeps.ca"
+   ],
+   [
+    "info",
+    "[niagara] brand BIL (bilstein): ok pages=2 products=3 items=3 foreign=0"
+   ],
+   [
+    "info",
+    "[niagara] brand RR (rugged-ridge): impure pages=2 products=2 items=0 foreign=1"
+   ],
+   [
+    "info",
+    "[niagara] brand GOR (go-rhino): ok pages=1 products=1 items=1 foreign=0"
+   ],
+   [
+    "info",
+    "[niagara] invalid sample: [{\"productId\":6,\"variantId\":62,\"competitorSku\":\"RHI-2\",\"price\":\"0\",\"reason\":\"invalid-price\",\"handle\":\"go-rhino\"},{\"productId\":6,\"variantId\":63,\"competitorSku\":\"\",\"price\":\"9.00\",\"reason\":\"no-sku\",\"handle\":\"go-rhino\"}]"
+   ],
+   [
+    "info",
+    "[niagara] step=match matched=3 unmatched=1 ambiguous=0 collisions=0"
+   ],
+   [
+    "info",
+    "[niagara] unmatched sample: BIL-24-3"
+   ],
+   [
+    "error",
+    "[niagara] run 501 FAILED: NIAGARA_MATCH_GUARD: matched 3, minimum 50"
+   ],
+   [
+    "info",
+    "[niagara] match report of the refused run: /snap/niagara-run-501-report-2026-11-19T23-00-00-000Z.csv"
+   ]
+  ],
+  "files": {
+   "/snap/niagara-run-501-2026-11-19T23-00-00-000Z.json": "{\"schemaVersion\":1,\"source\":\"niagara\",\"runId\":501,\"capturedAt\":\"2026-11-19T23:00:00.000Z\",\"sample\":null,\"collection\":{\"brandsPlanned\":3,\"brandsOk\":2,\"brandsFailed\":1,\"brandsImpure\":1,\"brandsEmpty\":0,\"requests\":6,\"httpAttempts\":6,\"retries\":0,\"rateLimited\":0,\"challenged\":0,\"failedRequests\":0,\"rawProducts\":6,\"rawVariants\":8,\"invalidCount\":2,\"foreignCount\":1,\"duplicateCount\":0,\"items\":4,\"partial\":false,\"durationMs\":0},\"brandStats\":[{\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\",\"expectedCount\":3,\"pages\":2,\"products\":3,\"variants\":3,\"items\":3,\"invalid\":0,\"foreign\":0,\"dominantVendor\":\"BILSTEIN\",\"status\":\"ok\"},{\"jjPrefix\":\"RR\",\"handle\":\"rugged-ridge\",\"expectedCount\":2,\"pages\":2,\"products\":2,\"variants\":2,\"items\":0,\"invalid\":0,\"foreign\":1,\"dominantVendor\":\"RUGGED RIDGE\",\"status\":\"impure\"},{\"jjPrefix\":\"GOR\",\"handle\":\"go-rhino\",\"expectedCount\":1,\"pages\":1,\"products\":1,\"variants\":3,\"items\":1,\"invalid\":2,\"foreign\":0,\"dominantVendor\":\"GO RHINO\",\"status\":\"ok\"}],\"items\":[{\"competitorSku\":\"BIL-24-1\",\"price\":10,\"regularPrice\":null,\"available\":true,\"url\":\"https://niagarajeeps.ca/products/item-1\",\"productId\":1,\"variantId\":11,\"vendor\":\"Bilstein\",\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\"},{\"competitorSku\":\"24-2\",\"price\":20.5,\"regularPrice\":25,\"available\":false,\"url\":\"https://niagarajeeps.ca/products/item-2\",\"productId\":2,\"variantId\":21,\"vendor\":\"BILSTEIN\",\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\"},{\"competitorSku\":\"BIL-24-3\",\"price\":30,\"regularPrice\":null,\"available\":true,\"url\":\"https://niagarajeeps.ca/products/item-3\",\"productId\":3,\"variantId\":31,\"vendor\":\"Bilstein\",\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\"},{\"competitorSku\":\"RHI-1\",\"price\":60,\"regularPrice\":null,\"available\":true,\"url\":\"https://niagarajeeps.ca/products/item-6?variant=61\",\"productId\":6,\"variantId\":61,\"vendor\":\"Go Rhino\",\"jjPrefix\":\"GOR\",\"handle\":\"go-rhino\"}],\"failures\":[]}",
+   "/snap/niagara-run-501-report-2026-11-19T23-00-00-000Z.csv": "list,jj_prefix,competitor_sku,product_sku,detail,url\nunmatched,BIL,BIL-24-3,,,https://niagarajeeps.ca/products/item-3\n"
+  },
+  "prisma": [
+   [
+    "ingestRun.findFirst",
+    {
+     "where": {
+      "feed": "niagara",
+      "status": "success",
+      "startedBy": {
+       "notIn": [
+        "dry-run",
+        "sample"
+       ]
+      }
+     },
+     "orderBy": {
+      "startedAt": "desc"
+     },
+     "select": {
+      "sourceRowCount": true
+     }
+    }
+   ],
+   [
+    "competitor.findFirst",
+    {
+     "where": {
+      "name": {
+       "equals": "Niagara Jeeps",
+       "mode": "insensitive"
+      }
+     }
+    }
+   ],
+   [
+    "product.findMany",
+    {
+     "where": {
+      "jj_prefix": {
+       "in": [
+        "BIL",
+        "GOR"
+       ]
+      },
+      "searchable_sku": {
+       "not": null
+      },
+      "NOT": [
+       {
+        "searchable_sku": ""
+       },
+       {
+        "searchable_sku": {
+         "endsWith": "-"
+        }
+       }
+      ]
+     },
+     "select": {
+      "sku": true,
+      "searchable_sku": true,
+      "status": true,
+      "jj_prefix": true
+     }
+    }
+   ]
+  ],
+  "startRun": [
+   [
+    "niagara",
+    {
+     "sourceKind": "api",
+     "sourceRef": "https://niagarajeeps.ca",
+     "startedBy": "cron"
+    }
+   ]
+  ],
+  "finish": [
+   {
+    "status": "failed",
+    "error": "NIAGARA_MATCH_GUARD: matched 3, minimum 50"
+   }
+  ],
+  "archive": [],
+  "lock": [
+   [
+    "acquire",
+    "niagara",
+    {
+     "leaseMinutes": 150
+    }
+   ],
+   [
+    "release",
+    "niagara"
+   ]
+  ],
+  "urls": [
+   [
+    "https://niagarajeeps.ca/collections.json?limit=250&page=1",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/bilstein/products.json?limit=2&page=1",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/bilstein/products.json?limit=2&page=2",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/rugged-ridge/products.json?limit=2&page=1",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/rugged-ridge/products.json?limit=2&page=2",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/go-rhino/products.json?limit=2&page=1",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ]
+  ]
+ },
+ "firstRealRun": {
+  "result": {
+   "exitCode": 0,
+   "summary": {
+    "runId": 501,
+    "status": "success",
+    "items": 4,
+    "matched": 3,
+    "matchRate": 0.75,
+    "inserted": 1,
+    "updated": 1,
+    "unchanged": 1,
+    "deleted": 0,
+    "skipped": 3,
+    "markedStale": 0,
+    "collection": {
+     "brandsPlanned": 3,
+     "brandsOk": 2,
+     "brandsFailed": 1,
+     "brandsImpure": 1,
+     "brandsEmpty": 0,
+     "requests": 6,
+     "httpAttempts": 6,
+     "retries": 0,
+     "rateLimited": 0,
+     "challenged": 0,
+     "failedRequests": 0,
+     "rawProducts": 6,
+     "rawVariants": 8,
+     "invalidCount": 2,
+     "foreignCount": 1,
+     "duplicateCount": 0,
+     "items": 4,
+     "partial": false,
+     "durationMs": 0
+    },
+    "report": "/snap/niagara-run-501-report-2026-11-19T23-00-00-000Z.csv"
+   }
+  },
+  "logs": [
+   [
+    "info",
+    "[niagara] run 501 started source=https://niagarajeeps.ca"
+   ],
+   [
+    "info",
+    "[niagara] brand BIL (bilstein): ok pages=2 products=3 items=3 foreign=0"
+   ],
+   [
+    "info",
+    "[niagara] brand RR (rugged-ridge): impure pages=2 products=2 items=0 foreign=1"
+   ],
+   [
+    "info",
+    "[niagara] brand GOR (go-rhino): ok pages=1 products=1 items=1 foreign=0"
+   ],
+   [
+    "info",
+    "[niagara] invalid sample: [{\"productId\":6,\"variantId\":62,\"competitorSku\":\"RHI-2\",\"price\":\"0\",\"reason\":\"invalid-price\",\"handle\":\"go-rhino\"},{\"productId\":6,\"variantId\":63,\"competitorSku\":\"\",\"price\":\"9.00\",\"reason\":\"no-sku\",\"handle\":\"go-rhino\"}]"
+   ],
+   [
+    "info",
+    "[niagara] step=match matched=3 unmatched=1 ambiguous=0 collisions=0"
+   ],
+   [
+    "info",
+    "[niagara] unmatched sample: BIL-24-3"
+   ],
+   [
+    "info",
+    "[niagara] step=upsert inserted=1 updated=1 unchanged=1"
+   ],
+   [
+    "info",
+    "[niagara] archive: k/niagara-run-501-2026-11-19T23-00-00-000Z.json"
+   ],
+   [
+    "info",
+    "[niagara] archive: k/niagara-run-501-report-2026-11-19T23-00-00-000Z.csv"
+   ],
+   [
+    "info",
+    "[niagara] SUMMARY {\"runId\":501,\"status\":\"success\",\"items\":4,\"matched\":3,\"matchRate\":0.75,\"inserted\":1,\"updated\":1,\"unchanged\":1,\"deleted\":0,\"skipped\":3,\"markedStale\":0,\"collection\":{\"brandsPlanned\":3,\"brandsOk\":2,\"brandsFailed\":1,\"brandsImpure\":1,\"brandsEmpty\":0,\"requests\":6,\"httpAttempts\":6,\"retries\":0,\"rateLimited\":0,\"challenged\":0,\"failedRequests\":0,\"rawProducts\":6,\"rawVariants\":8,\"invalidCount\":2,\"foreignCount\":1,\"duplicateCount\":0,\"items\":4,\"partial\":false,\"durationMs\":0},\"report\":\"/snap/niagara-run-501-report-2026-11-19T23-00-00-000Z.csv\"}"
+   ]
+  ],
+  "files": {
+   "/snap/niagara-run-501-2026-11-19T23-00-00-000Z.json": "{\"schemaVersion\":1,\"source\":\"niagara\",\"runId\":501,\"capturedAt\":\"2026-11-19T23:00:00.000Z\",\"sample\":null,\"collection\":{\"brandsPlanned\":3,\"brandsOk\":2,\"brandsFailed\":1,\"brandsImpure\":1,\"brandsEmpty\":0,\"requests\":6,\"httpAttempts\":6,\"retries\":0,\"rateLimited\":0,\"challenged\":0,\"failedRequests\":0,\"rawProducts\":6,\"rawVariants\":8,\"invalidCount\":2,\"foreignCount\":1,\"duplicateCount\":0,\"items\":4,\"partial\":false,\"durationMs\":0},\"brandStats\":[{\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\",\"expectedCount\":3,\"pages\":2,\"products\":3,\"variants\":3,\"items\":3,\"invalid\":0,\"foreign\":0,\"dominantVendor\":\"BILSTEIN\",\"status\":\"ok\"},{\"jjPrefix\":\"RR\",\"handle\":\"rugged-ridge\",\"expectedCount\":2,\"pages\":2,\"products\":2,\"variants\":2,\"items\":0,\"invalid\":0,\"foreign\":1,\"dominantVendor\":\"RUGGED RIDGE\",\"status\":\"impure\"},{\"jjPrefix\":\"GOR\",\"handle\":\"go-rhino\",\"expectedCount\":1,\"pages\":1,\"products\":1,\"variants\":3,\"items\":1,\"invalid\":2,\"foreign\":0,\"dominantVendor\":\"GO RHINO\",\"status\":\"ok\"}],\"items\":[{\"competitorSku\":\"BIL-24-1\",\"price\":10,\"regularPrice\":null,\"available\":true,\"url\":\"https://niagarajeeps.ca/products/item-1\",\"productId\":1,\"variantId\":11,\"vendor\":\"Bilstein\",\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\"},{\"competitorSku\":\"24-2\",\"price\":20.5,\"regularPrice\":25,\"available\":false,\"url\":\"https://niagarajeeps.ca/products/item-2\",\"productId\":2,\"variantId\":21,\"vendor\":\"BILSTEIN\",\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\"},{\"competitorSku\":\"BIL-24-3\",\"price\":30,\"regularPrice\":null,\"available\":true,\"url\":\"https://niagarajeeps.ca/products/item-3\",\"productId\":3,\"variantId\":31,\"vendor\":\"Bilstein\",\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\"},{\"competitorSku\":\"RHI-1\",\"price\":60,\"regularPrice\":null,\"available\":true,\"url\":\"https://niagarajeeps.ca/products/item-6?variant=61\",\"productId\":6,\"variantId\":61,\"vendor\":\"Go Rhino\",\"jjPrefix\":\"GOR\",\"handle\":\"go-rhino\"}],\"failures\":[]}",
+   "/snap/niagara-run-501-report-2026-11-19T23-00-00-000Z.csv": "list,jj_prefix,competitor_sku,product_sku,detail,url\nunmatched,BIL,BIL-24-3,,,https://niagarajeeps.ca/products/item-3\n",
+   "/snap/latest-snapshot.json": "{\"schemaVersion\":1,\"source\":\"niagara\",\"runId\":501,\"capturedAt\":\"2026-11-19T23:00:00.000Z\",\"sample\":null,\"collection\":{\"brandsPlanned\":3,\"brandsOk\":2,\"brandsFailed\":1,\"brandsImpure\":1,\"brandsEmpty\":0,\"requests\":6,\"httpAttempts\":6,\"retries\":0,\"rateLimited\":0,\"challenged\":0,\"failedRequests\":0,\"rawProducts\":6,\"rawVariants\":8,\"invalidCount\":2,\"foreignCount\":1,\"duplicateCount\":0,\"items\":4,\"partial\":false,\"durationMs\":0},\"brandStats\":[{\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\",\"expectedCount\":3,\"pages\":2,\"products\":3,\"variants\":3,\"items\":3,\"invalid\":0,\"foreign\":0,\"dominantVendor\":\"BILSTEIN\",\"status\":\"ok\"},{\"jjPrefix\":\"RR\",\"handle\":\"rugged-ridge\",\"expectedCount\":2,\"pages\":2,\"products\":2,\"variants\":2,\"items\":0,\"invalid\":0,\"foreign\":1,\"dominantVendor\":\"RUGGED RIDGE\",\"status\":\"impure\"},{\"jjPrefix\":\"GOR\",\"handle\":\"go-rhino\",\"expectedCount\":1,\"pages\":1,\"products\":1,\"variants\":3,\"items\":1,\"invalid\":2,\"foreign\":0,\"dominantVendor\":\"GO RHINO\",\"status\":\"ok\"}],\"items\":[{\"competitorSku\":\"BIL-24-1\",\"price\":10,\"regularPrice\":null,\"available\":true,\"url\":\"https://niagarajeeps.ca/products/item-1\",\"productId\":1,\"variantId\":11,\"vendor\":\"Bilstein\",\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\"},{\"competitorSku\":\"24-2\",\"price\":20.5,\"regularPrice\":25,\"available\":false,\"url\":\"https://niagarajeeps.ca/products/item-2\",\"productId\":2,\"variantId\":21,\"vendor\":\"BILSTEIN\",\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\"},{\"competitorSku\":\"BIL-24-3\",\"price\":30,\"regularPrice\":null,\"available\":true,\"url\":\"https://niagarajeeps.ca/products/item-3\",\"productId\":3,\"variantId\":31,\"vendor\":\"Bilstein\",\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\"},{\"competitorSku\":\"RHI-1\",\"price\":60,\"regularPrice\":null,\"available\":true,\"url\":\"https://niagarajeeps.ca/products/item-6?variant=61\",\"productId\":6,\"variantId\":61,\"vendor\":\"Go Rhino\",\"jjPrefix\":\"GOR\",\"handle\":\"go-rhino\"}],\"failures\":[]}"
+  },
+  "prisma": [
+   [
+    "ingestRun.findFirst",
+    {
+     "where": {
+      "feed": "niagara",
+      "status": "success",
+      "startedBy": {
+       "notIn": [
+        "dry-run",
+        "sample"
+       ]
+      }
+     },
+     "orderBy": {
+      "startedAt": "desc"
+     },
+     "select": {
+      "sourceRowCount": true
+     }
+    }
+   ],
+   [
+    "competitor.findFirst",
+    {
+     "where": {
+      "name": {
+       "equals": "Niagara Jeeps",
+       "mode": "insensitive"
+      }
+     }
+    }
+   ],
+   [
+    "product.findMany",
+    {
+     "where": {
+      "jj_prefix": {
+       "in": [
+        "BIL",
+        "GOR"
+       ]
+      },
+      "searchable_sku": {
+       "not": null
+      },
+      "NOT": [
+       {
+        "searchable_sku": ""
+       },
+       {
+        "searchable_sku": {
+         "endsWith": "-"
+        }
+       }
+      ]
+     },
+     "select": {
+      "sku": true,
+      "searchable_sku": true,
+      "status": true,
+      "jj_prefix": true
+     }
+    }
+   ],
+   [
+    "competitor.findFirst",
+    {
+     "where": {
+      "name": {
+       "equals": "Niagara Jeeps",
+       "mode": "insensitive"
+      }
+     }
+    }
+   ],
+   [
+    "competitor.create",
+    {
+     "data": {
+      "name": "Niagara Jeeps",
+      "website": "https://niagarajeeps.ca/"
+     }
+    }
+   ],
+   [
+    "$executeRawUnsafe",
+    "SELECT * FROM jsonb_to_recordset($2::jsonb) AS x(",
+    [
+     8,
+     "[{\"product_sku\":\"BIL-24-1\",\"competitor_sku\":\"BIL-24-1\",\"competitor_price\":10,\"product_url\":\"https://niagarajeeps.ca/products/item-1\"},{\"product_sku\":\"BIL-24-2\",\"competitor_sku\":\"24-2\",\"competitor_price\":20.5,\"product_url\":\"https://niagarajeeps.ca/products/item-2\"},{\"product_sku\":\"GOR-1\",\"competitor_sku\":\"RHI-1\",\"competitor_price\":60,\"product_url\":\"https://niagarajeeps.ca/products/item-6?variant=61\"}]"
+    ]
+   ],
+   [
+    "$executeRawUnsafe",
+    "SELECT * FROM jsonb_to_recordset($2::jsonb) AS x(",
+    [
+     8,
+     "[{\"product_sku\":\"BIL-24-1\",\"competitor_sku\":\"BIL-24-1\",\"competitor_price\":10,\"product_url\":\"https://niagarajeeps.ca/products/item-1\"},{\"product_sku\":\"BIL-24-2\",\"competitor_sku\":\"24-2\",\"competitor_price\":20.5,\"product_url\":\"https://niagarajeeps.ca/products/item-2\"},{\"product_sku\":\"GOR-1\",\"competitor_sku\":\"RHI-1\",\"competitor_price\":60,\"product_url\":\"https://niagarajeeps.ca/products/item-6?variant=61\"}]"
+    ]
+   ]
+  ],
+  "startRun": [
+   [
+    "niagara",
+    {
+     "sourceKind": "api",
+     "sourceRef": "https://niagarajeeps.ca",
+     "startedBy": "cron"
+    }
+   ]
+  ],
+  "finish": [
+   {
+    "status": "success",
+    "counts": {
+     "inserted": 1,
+     "updated": 1,
+     "unchanged": 1,
+     "deleted": 0,
+     "skipped": 3,
+     "markedStale": 0
+    },
+    "sourceRowCount": 3
+   }
+  ],
+  "archive": [
+   {
+    "filePath": "/snap/niagara-run-501-2026-11-19T23-00-00-000Z.json",
+    "command": "seed-niagara",
+    "startedAt": "2026-11-19T23:00:00.000Z",
+    "status": "success",
+    "source": "cron",
+    "extension": "json",
+    "contentType": "application/json"
+   },
+   {
+    "filePath": "/snap/niagara-run-501-report-2026-11-19T23-00-00-000Z.csv",
+    "command": "seed-niagara",
+    "startedAt": "2026-11-19T23:00:00.000Z",
+    "status": "success",
+    "source": "cron",
+    "extension": "csv",
+    "contentType": "text/csv"
+   }
+  ],
+  "lock": [
+   [
+    "acquire",
+    "niagara",
+    {
+     "leaseMinutes": 150
+    }
+   ],
+   [
+    "release",
+    "niagara"
+   ]
+  ],
+  "urls": [
+   [
+    "https://niagarajeeps.ca/collections.json?limit=250&page=1",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/bilstein/products.json?limit=2&page=1",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/bilstein/products.json?limit=2&page=2",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/rugged-ridge/products.json?limit=2&page=1",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/rugged-ridge/products.json?limit=2&page=2",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ],
+   [
+    "https://niagarajeeps.ca/collections/go-rhino/products.json?limit=2&page=1",
+    {
+     "user-agent": "JustJeepsPriceMonitor/1.0 (+ops@example.com)",
+     "accept": "application/json"
+    }
+   ]
+  ]
+ },
+ "replay": {
+  "result": {
+   "exitCode": 0,
+   "summary": {
+    "runId": 501,
+    "status": "success",
+    "items": 4,
+    "matched": 3,
+    "matchRate": 0.75,
+    "inserted": 1,
+    "updated": 1,
+    "unchanged": 1,
+    "deleted": 0,
+    "skipped": 3,
+    "markedStale": 1,
+    "collection": {
+     "brandsPlanned": 3,
+     "brandsOk": 2,
+     "brandsFailed": 1,
+     "brandsImpure": 1,
+     "brandsEmpty": 0,
+     "requests": 6,
+     "httpAttempts": 6,
+     "retries": 0,
+     "rateLimited": 0,
+     "challenged": 0,
+     "failedRequests": 0,
+     "rawProducts": 6,
+     "rawVariants": 8,
+     "invalidCount": 2,
+     "foreignCount": 1,
+     "duplicateCount": 0,
+     "items": 4,
+     "partial": false,
+     "durationMs": 0
+    },
+    "report": "/snap/niagara-run-501-report-2026-11-19T23-00-00-000Z.csv"
+   }
+  },
+  "logs": [
+   [
+    "info",
+    "[niagara] run 501 started source=/snap/saved.json"
+   ],
+   [
+    "info",
+    "[niagara] step=match matched=3 unmatched=1 ambiguous=0 collisions=0"
+   ],
+   [
+    "info",
+    "[niagara] unmatched sample: BIL-24-3"
+   ],
+   [
+    "warn",
+    "[niagara] step=stale 1 rows of Niagara Jeeps were not seen in this run: kept, not deleted"
+   ],
+   [
+    "info",
+    "[niagara] step=upsert inserted=1 updated=1 unchanged=1"
+   ],
+   [
+    "info",
+    "[niagara] archive: k/niagara-run-501-report-2026-11-19T23-00-00-000Z.csv"
+   ],
+   [
+    "info",
+    "[niagara] SUMMARY {\"runId\":501,\"status\":\"success\",\"items\":4,\"matched\":3,\"matchRate\":0.75,\"inserted\":1,\"updated\":1,\"unchanged\":1,\"deleted\":0,\"skipped\":3,\"markedStale\":1,\"collection\":{\"brandsPlanned\":3,\"brandsOk\":2,\"brandsFailed\":1,\"brandsImpure\":1,\"brandsEmpty\":0,\"requests\":6,\"httpAttempts\":6,\"retries\":0,\"rateLimited\":0,\"challenged\":0,\"failedRequests\":0,\"rawProducts\":6,\"rawVariants\":8,\"invalidCount\":2,\"foreignCount\":1,\"duplicateCount\":0,\"items\":4,\"partial\":false,\"durationMs\":0},\"report\":\"/snap/niagara-run-501-report-2026-11-19T23-00-00-000Z.csv\"}"
+   ]
+  ],
+  "files": {
+   "/snap/saved.json": "{\"schemaVersion\":1,\"source\":\"niagara\",\"runId\":501,\"capturedAt\":\"2026-11-19T23:00:00.000Z\",\"sample\":null,\"collection\":{\"brandsPlanned\":3,\"brandsOk\":2,\"brandsFailed\":1,\"brandsImpure\":1,\"brandsEmpty\":0,\"requests\":6,\"httpAttempts\":6,\"retries\":0,\"rateLimited\":0,\"challenged\":0,\"failedRequests\":0,\"rawProducts\":6,\"rawVariants\":8,\"invalidCount\":2,\"foreignCount\":1,\"duplicateCount\":0,\"items\":4,\"partial\":false,\"durationMs\":0},\"brandStats\":[{\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\",\"expectedCount\":3,\"pages\":2,\"products\":3,\"variants\":3,\"items\":3,\"invalid\":0,\"foreign\":0,\"dominantVendor\":\"BILSTEIN\",\"status\":\"ok\"},{\"jjPrefix\":\"RR\",\"handle\":\"rugged-ridge\",\"expectedCount\":2,\"pages\":2,\"products\":2,\"variants\":2,\"items\":0,\"invalid\":0,\"foreign\":1,\"dominantVendor\":\"RUGGED RIDGE\",\"status\":\"impure\"},{\"jjPrefix\":\"GOR\",\"handle\":\"go-rhino\",\"expectedCount\":1,\"pages\":1,\"products\":1,\"variants\":3,\"items\":1,\"invalid\":2,\"foreign\":0,\"dominantVendor\":\"GO RHINO\",\"status\":\"ok\"}],\"items\":[{\"competitorSku\":\"BIL-24-1\",\"price\":10,\"regularPrice\":null,\"available\":true,\"url\":\"https://niagarajeeps.ca/products/item-1\",\"productId\":1,\"variantId\":11,\"vendor\":\"Bilstein\",\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\"},{\"competitorSku\":\"24-2\",\"price\":20.5,\"regularPrice\":25,\"available\":false,\"url\":\"https://niagarajeeps.ca/products/item-2\",\"productId\":2,\"variantId\":21,\"vendor\":\"BILSTEIN\",\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\"},{\"competitorSku\":\"BIL-24-3\",\"price\":30,\"regularPrice\":null,\"available\":true,\"url\":\"https://niagarajeeps.ca/products/item-3\",\"productId\":3,\"variantId\":31,\"vendor\":\"Bilstein\",\"jjPrefix\":\"BIL\",\"handle\":\"bilstein\"},{\"competitorSku\":\"RHI-1\",\"price\":60,\"regularPrice\":null,\"available\":true,\"url\":\"https://niagarajeeps.ca/products/item-6?variant=61\",\"productId\":6,\"variantId\":61,\"vendor\":\"Go Rhino\",\"jjPrefix\":\"GOR\",\"handle\":\"go-rhino\"}],\"failures\":[]}",
+   "/snap/niagara-run-501-report-2026-11-19T23-00-00-000Z.csv": "list,jj_prefix,competitor_sku,product_sku,detail,url\nunmatched,BIL,BIL-24-3,,,https://niagarajeeps.ca/products/item-3\n"
+  },
+  "prisma": [
+   [
+    "ingestRun.findFirst",
+    {
+     "where": {
+      "feed": "niagara",
+      "status": "success",
+      "startedBy": {
+       "notIn": [
+        "dry-run",
+        "sample"
+       ]
+      }
+     },
+     "orderBy": {
+      "startedAt": "desc"
+     },
+     "select": {
+      "sourceRowCount": true
+     }
+    }
+   ],
+   [
+    "competitor.findFirst",
+    {
+     "where": {
+      "name": {
+       "equals": "Niagara Jeeps",
+       "mode": "insensitive"
+      }
+     }
+    }
+   ],
+   [
+    "product.findMany",
+    {
+     "where": {
+      "jj_prefix": {
+       "in": [
+        "BIL",
+        "GOR"
+       ]
+      },
+      "searchable_sku": {
+       "not": null
+      },
+      "NOT": [
+       {
+        "searchable_sku": ""
+       },
+       {
+        "searchable_sku": {
+         "endsWith": "-"
+        }
+       }
+      ]
+     },
+     "select": {
+      "sku": true,
+      "searchable_sku": true,
+      "status": true,
+      "jj_prefix": true
+     }
+    }
+   ],
+   [
+    "$queryRawUnsafe",
+    "SELECT count(*)::int AS stale FROM \"CompetitorProduct\" cp",
+    [
+     7,
+     "[\"BIL-24-1\",\"24-2\",\"RHI-1\"]"
+    ]
+   ],
+   [
+    "$executeRawUnsafe",
+    "SELECT * FROM jsonb_to_recordset($2::jsonb) AS x(",
+    [
+     7,
+     "[{\"product_sku\":\"BIL-24-1\",\"competitor_sku\":\"BIL-24-1\",\"competitor_price\":10,\"product_url\":\"https://niagarajeeps.ca/products/item-1\"},{\"product_sku\":\"BIL-24-2\",\"competitor_sku\":\"24-2\",\"competitor_price\":20.5,\"product_url\":\"https://niagarajeeps.ca/products/item-2\"},{\"product_sku\":\"GOR-1\",\"competitor_sku\":\"RHI-1\",\"competitor_price\":60,\"product_url\":\"https://niagarajeeps.ca/products/item-6?variant=61\"}]"
+    ]
+   ],
+   [
+    "$executeRawUnsafe",
+    "SELECT * FROM jsonb_to_recordset($2::jsonb) AS x(",
+    [
+     7,
+     "[{\"product_sku\":\"BIL-24-1\",\"competitor_sku\":\"BIL-24-1\",\"competitor_price\":10,\"product_url\":\"https://niagarajeeps.ca/products/item-1\"},{\"product_sku\":\"BIL-24-2\",\"competitor_sku\":\"24-2\",\"competitor_price\":20.5,\"product_url\":\"https://niagarajeeps.ca/products/item-2\"},{\"product_sku\":\"GOR-1\",\"competitor_sku\":\"RHI-1\",\"competitor_price\":60,\"product_url\":\"https://niagarajeeps.ca/products/item-6?variant=61\"}]"
+    ]
+   ]
+  ],
+  "startRun": [
+   [
+    "niagara",
+    {
+     "sourceKind": "snapshot",
+     "sourceRef": "/snap/saved.json",
+     "startedBy": "cron"
+    }
+   ]
+  ],
+  "finish": [
+   {
+    "status": "success",
+    "counts": {
+     "inserted": 1,
+     "updated": 1,
+     "unchanged": 1,
+     "deleted": 0,
+     "skipped": 3,
+     "markedStale": 1
+    },
+    "sourceRowCount": 3
+   }
+  ],
+  "archive": [
+   {
+    "filePath": "/snap/niagara-run-501-report-2026-11-19T23-00-00-000Z.csv",
+    "command": "seed-niagara",
+    "startedAt": "2026-11-19T23:00:00.000Z",
+    "status": "success",
+    "source": "cron",
+    "extension": "csv",
+    "contentType": "text/csv"
+   }
+  ],
+  "lock": [
+   [
+    "acquire",
+    "niagara",
+    {
+     "leaseMinutes": null
+    }
+   ],
+   [
+    "release",
+    "niagara"
+   ]
+  ],
+  "urls": []
+ },
+ "busyLock": {
+  "result": {
+   "exitCode": 1,
+   "error": "NIAGARA_BUSY: another Niagara run holds the lock; nothing was done"
+  },
+  "logs": [
+   [
+    "error",
+    "[niagara] NIAGARA_BUSY: another Niagara run holds the lock; nothing was done"
+   ]
+  ],
+  "files": {},
+  "prisma": [],
+  "startRun": [],
+  "finish": [],
+  "archive": [],
+  "lock": [
+   [
+    "acquire",
+    "niagara",
+    {
+     "leaseMinutes": 150
+    }
+   ]
+  ],
+  "urls": []
+ }
+}
