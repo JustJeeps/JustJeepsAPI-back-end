@@ -36,6 +36,7 @@ const otherSeeds = [
   "seed-ctp",
   "seed-keyparts",
   // "seed-niagara": own cron since DD-021 (CRON_SEED_NIAGARA_ENABLED), a paced crawl of the Niagara Jeeps site
+  // "seed-mytruckpoint": own cron since DD-022 (CRON_SEED_MYTRUCKPOINT_ENABLED), a paced crawl of the MyTruckPoint site
   // "seed-jrp": JRP applies through the feed-apply-jrp cron; add here only after the first verified production run
   "update-warn-cad-map-prices",
   "update-teraflex-cad-map-prices",

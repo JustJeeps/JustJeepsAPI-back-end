@@ -8,6 +8,8 @@ const JRP_ENV_NAMES = [
 	'CRON_FEED_APPLY_JRP_SCHEDULE',
 	'CRON_SEED_NIAGARA_ENABLED',
 	'CRON_SEED_NIAGARA_SCHEDULE',
+	'CRON_SEED_MYTRUCKPOINT_ENABLED',
+	'CRON_SEED_MYTRUCKPOINT_SCHEDULE',
 ];
 
 // config/cron-jobs.js reads env at load, so each case loads a fresh copy.
@@ -58,6 +60,20 @@ test('JRP crons turn on only with the exact value true and honour schedule overr
 	assert.strictEqual(findJob(cronJobs, 'feed-fetch-jrp').enabled, true);
 	assert.strictEqual(findJob(cronJobs, 'feed-fetch-jrp').schedule, '25 9 * * *');
 	assert.strictEqual(findJob(cronJobs, 'feed-apply-jrp').enabled, false);
+});
+
+test('the MyTruckPoint cron is born off, evenings Monday to Saturday, and turns on only with true', () => {
+	const off = findJob(loadCronJobs({}), 'seed-mytruckpoint');
+	assert.strictEqual(off.enabled, false);
+	assert.strictEqual(off.schedule, '17 22 * * 1-6');
+	assert.strictEqual(off.jobName, 'MyTruckPoint Competitor Prices');
+	assert.strictEqual(off.reportLogFile, 'prisma/seeds/logs/seed-mytruckpoint.log');
+	assert.ok(!loadCronJobs({}).getCronJobDefinitions().some((job) => job.command === 'seed-mytruckpoint'));
+
+	const on = findJob(loadCronJobs({ CRON_SEED_MYTRUCKPOINT_ENABLED: 'true', CRON_SEED_MYTRUCKPOINT_SCHEDULE: '17 22 * * 1,3,5' }), 'seed-mytruckpoint');
+	assert.strictEqual(on.enabled, true);
+	assert.strictEqual(on.schedule, '17 22 * * 1,3,5');
+	assert.strictEqual(findJob(loadCronJobs({ CRON_SEED_MYTRUCKPOINT_ENABLED: 'yes' }), 'seed-mytruckpoint').enabled, false);
 });
 
 test('the Niagara Jeeps cron is born off, at 04:13, and turns on only with true', () => {
