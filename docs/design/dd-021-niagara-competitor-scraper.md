@@ -7,7 +7,7 @@
 | Version | 0.1.0 |
 | Status | Built and verified in a sandbox; cron off; first production run pending |
 | Created | 2026-11-02 |
-| Last Updated | 2026-11-02 |
+| Last Updated | 2026-11-19 (code shared with DD-022) |
 | Author | Ricardo Tassio, with Claude Code (plan by a Fable 5 planning pass) |
 | Parent PRD | [competitor-price-tracking-prd.md](../prd/competitor-price-tracking-prd.md) |
 | Siblings | [dd-018](./dd-018-lowriders-competitor-scraper.md) (Lowriders), [dd-019](./dd-019-tdot-in-house-scraper.md) (TDOT) |
@@ -77,6 +77,18 @@ team; PRO COMP / PRO COMP WHEELS (EXP or PCT) are not mapped. Adding a brand lat
 `niagara_code` line plus, when needed, its prefixes.
 
 ## 4. Code layout
+
+**Since 2026-11-19 (DD-022) the Shopify code is shared.** The store-neutral modules live in
+`lib/competitors/shopify/` (client, requester, collector, purity rules, snapshot, brand reader,
+normalize, match, canaries, report, csv), the ingest in `services/competitors/shopifyIngest.js`,
+the run orchestration in `services/competitors/shopifyCompetitorRun.js` and its production
+wiring in `shopifyCompetitorDeps.js`, and the env reader in `config/shopifyCompetitor.js`. Each
+store is a profile (`lib/competitors/<store>/profile.js`) that gives its feed key, error-code
+prefix, log tag, competitor row, `vendors_prefix` fields and purity rule. The Niagara paths
+below still exist as thin wrappers bound to the Niagara profile, so the exports, `NIAGARA_*`
+codes, `[niagara]` log lines and env names did not change. A golden test
+(`test/seeds/seedNiagaraGolden.test.js`) and an env name test (`test/config/niagaraEnvNames.test.js`),
+written on the code before the move, pin that. The table below is the layout as first built.
 
 | Piece | File |
 |---|---|
