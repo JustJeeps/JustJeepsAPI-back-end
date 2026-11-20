@@ -5,9 +5,9 @@
 | Attribute | Value |
 |-----------|-------|
 | Version | 0.1.0 |
-| Status | Built and verified without a database; cron off; first production run pending |
+| Status | Built; write path verified in a sandbox; cron off; first production run pending |
 | Created | 2026-11-19 |
-| Last Updated | 2026-11-19 |
+| Last Updated | 2026-11-20 |
 | Author | Ricardo Tassio, with Claude Code (plan by a Fable 5.2 planning pass, built with Opus 5.5) |
 | Parent PRD | [competitor-price-tracking-prd.md](../prd/competitor-price-tracking-prd.md) |
 | Siblings | [dd-021](./dd-021-niagara-competitor-scraper.md) (Niagara Jeeps, the other Shopify store), [dd-018](./dd-018-lowriders-competitor-scraper.md), [dd-019](./dd-019-tdot-in-house-scraper.md) |
@@ -143,13 +143,35 @@ golden test written before the move.
   claim another distributor's code starting with the same letters; the snapshot was serialized
   twice. Accepted and documented above: twins under two schemes are not chosen by availability.
 
-Still to do, each with Ricardo's OK: sandbox Postgres run, deploy, production dry run, first real
-run, floors in `config/deploy.yml`, cron on.
+### Sandbox write check (2026-11-20, Ricardo's OK)
+
+Throwaway Postgres on 127.0.0.1:5456 (101 migrations), loaded with a read-only export of our
+16,223 products of the 74 mapped brands and a control competitor "Niagara Jeeps" with 3 rows. The
+six collect batches were merged into one snapshot (144,172 items, 74 brands, all `ok` or `short`)
+and replayed with the real runner:
+
+| Run | Result |
+|---|---|
+| Dry run | matched 13,505 (83% of our 16,223 products, 9.4% of their listings); nothing written, competitor not created |
+| Real | competitor `MyTruckPoint` created after the guards; 13,505 inserted |
+| Rerun | 0 inserted, 0 updated, 13,505 unchanged |
+| One price changed by hand, one stale row added | 1 updated; stale row counted (`markedStale` 1) and kept |
+| Thin snapshot (500 items) | refused, `MYTRUCKPOINT_BAD_SNAPSHOT: BELOW_MIN_ITEMS`, exit 1 |
+| Niagara payload | refused, `not a MyTruckPoint payload`, exit 1 |
+
+The 3 Niagara rows kept their prices through every run. Matched per brand (ours matched / ours):
+best Go Rhino 2,121/2,161, Undercover 1,130/1,498, Aries 1,128/1,270, Luverne 1,122/1,134,
+Smittybilt 767/957, Bilstein 712/794. Costly for little: EBC 79 pages for 25, Dorman 37 pages
+for 1, Covercraft 25 pages for 0, BDS 12 pages for 0, Pedal Commander 10 pages for 0; together
+about 160 of the 650 requests of a run for 26 products.
+
+Still to do, each with Ricardo's OK: deploy, production dry run, first real run, floors in
+`config/deploy.yml` (start near `MYTRUCKPOINT_MIN_MATCHED` 10000), cron on.
 
 ## 7. Open items
 
 - The team review sheet (29 brands).
 - Floors `MYTRUCKPOINT_MIN_ITEMS` and `MYTRUCKPOINT_MIN_MATCHED` from the first real run.
-- Costly brands (EBC 79 requests, Dorman 37): keep only if the dry run shows matches.
+- Costly brands: EBC, Dorman, Covercraft, BDS and Pedal Commander cost about 160 requests a run for 26 products in the sandbox. Decide whether to unmap them after the production dry run confirms it.
 - Local snapshots are never pruned (Niagara's neither).
 - Rugged Ridge and TeraFlex spike.
