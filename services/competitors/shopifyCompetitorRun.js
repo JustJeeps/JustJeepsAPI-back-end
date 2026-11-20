@@ -162,12 +162,14 @@ async function runIngestUnlocked(profile, deps, args) {
 	deps.logger.info(`${tag} run ${run.id} started${args.dryRun ? ' (dry-run)' : ''}${sample ? ` (sample ${JSON.stringify(sample)})` : ''} source=${sourceRef}`);
 
 	let payload;
+	// Serialized once: a large store's payload is tens of MB.
+	let payloadBody = null;
 	let snapshotPath = null;
 	let result;
 	try {
 		payload = snapshot || await collectPayload({ deps, args, runId: run.id, tag });
 		if (!snapshot) {
-			snapshotPath = save('snapshot', () => saveFile(deps, deps.snapshotFileName({ runId: run.id, dryRun: args.dryRun, sample: Boolean(sample), stamp }), JSON.stringify(payload)));
+			snapshotPath = save('snapshot', () => saveFile(deps, deps.snapshotFileName({ runId: run.id, dryRun: args.dryRun, sample: Boolean(sample), stamp }), (payloadBody = JSON.stringify(payload))));
 		}
 		result = await deps.ingest({ prisma, payload, baselineRows: await lastFullRunRows(FEED, prisma), dryRun: args.dryRun });
 	} catch (error) {
@@ -187,7 +189,7 @@ async function runIngestUnlocked(profile, deps, args) {
 	const recorded = await finish({ status, counts, sourceRowCount: result.matched, ...(partial ? { error: `${code('PARTIAL')}: the crawl stopped on its budget` } : {}) });
 
 	const reportPath = save('report', () => saveFile(deps, `${FEED}-run-${run.id}-report-${stamp}.csv`, deps.buildReportCsv(result.report)));
-	if (status === 'success' && !sample && snapshotPath) save('latest snapshot', () => saveFile(deps, deps.latestSnapshotName || 'latest-snapshot.json', JSON.stringify(payload)));
+	if (status === 'success' && !sample && snapshotPath) save('latest snapshot', () => saveFile(deps, deps.latestSnapshotName || 'latest-snapshot.json', payloadBody || JSON.stringify(payload)));
 	if (!args.dryRun) {
 		const files = [
 			...(snapshotPath ? [archiveTypeOf(snapshotPath)] : []),
