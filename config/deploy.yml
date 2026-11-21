@@ -35,6 +35,11 @@ proxy:
     path: /api/health
     interval: 10
     timeout: 30
+  # Kamal 2.10 boots kamal-proxy v0.9.0 by default, which has no client
+  # connection timeouts (GHSA-g8jf-9mcc-x4f2, high: slow or idle connections
+  # take the API down). v0.10.2+ adds them. Apply with `kamal proxy reboot`.
+  run:
+    version: v0.10.3
 
 # =============================================================================
 # REGISTRY
