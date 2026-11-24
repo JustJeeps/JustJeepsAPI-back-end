@@ -16,7 +16,7 @@ const {
 
 dotenv.config();
 
-const DEFAULT_CSV_PATH = 'pricing_update/cad_store/weekly check nov 17.csv';
+const DEFAULT_CSV_PATH = 'pricing_update/cad_store/weekly check nov 23.csv';
 const DEFAULT_BATCH_SIZE = 500;
 const PRICE_LOOKUP_BATCH_SIZE = 500;
 const PRICE_BATCH_DELAY_MS = Number(process.env.MAGENTO_PRICE_BATCH_DELAY_MS || 300);

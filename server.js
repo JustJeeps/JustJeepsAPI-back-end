@@ -2679,6 +2679,22 @@ function mapProductsPartLabels(products, lookup) {
 	return products.map((product) => mapProductPartLabel(product, lookup));
 }
 
+// Same label mapping, but for the products nested inside order items
+// (GET /api/orders). The UI uses the label (e.g. "Suspension - Springs")
+// to flag SKUs with informational badges such as "Potential US Tariff".
+function mapOrdersItemsPartLabels(orders, lookup) {
+	if (!Array.isArray(orders) || orders.length === 0) return orders;
+	return orders.map((order) => {
+		if (!Array.isArray(order?.items) || order.items.length === 0) return order;
+		return {
+			...order,
+			items: order.items.map((item) =>
+				item?.product ? { ...item, product: mapProductPartLabel(item.product, lookup) } : item
+			),
+		};
+	});
+}
+
 async function getMagentoPartLabelLookup() {
 	const now = Date.now();
 	if (partLabelCache.lookup.size && now - partLabelCache.loadedAt < partLabelCacheTtlMs) {
@@ -3184,6 +3200,7 @@ app.get('/api/orders', async (req, res) => {
 									   shippingFreight: true,
 									   url_path: true,
 									   black_friday_sale: true,
+									   part: true,
 									vendorProducts: {
 										select: {
 											id: true,
@@ -3225,9 +3242,12 @@ app.get('/api/orders', async (req, res) => {
 		// "Returning customer" flag: best QuickBooks match (e-mail or phone, paid before) per row.
 		// Never fails the list: csv mode or a query error yields null on every row.
 		const returningCustomers = await loadReturningCustomerCandidates(prisma, orders, { isDbSource: isQuickBooksDbSource, logger });
+		// Part option IDs → Magento labels so the UI can flag SKUs (e.g. "Potential US Tariff").
+		const partLookup = await getMagentoPartLabelLookup();
+		const ordersWithPartLabels = mapOrdersItemsPartLabels(orders, partLookup);
 
 		res.json({
-			data: attachReturningCustomer(attachOpenOrdersSameCustomer(orders, openOrders), returningCustomers),
+			data: attachReturningCustomer(attachOpenOrdersSameCustomer(ordersWithPartLabels, openOrders), returningCustomers),
 			pagination: {
 				page,
 				limit,
