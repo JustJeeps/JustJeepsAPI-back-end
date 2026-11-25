@@ -1,7 +1,7 @@
 // Rough Country competitive pricing report.
 //
 // Compares the Just Jeeps effective selling price against competitor prices
-// (TDOT, Lowriders, Parts Engine, Niagara Jeeps). The Product.price column
+// (TDOT, Lowriders, Parts Engine, Niagara Jeeps, MyTruckPoint). The Product.price column
 // does NOT include the site-wide Rough Country discount, so the effective
 // price is computed as price * (1 - discount). Default discount is 15%,
 // override with --discount=<percent>.
@@ -15,7 +15,7 @@ const ExcelJS = require('exceljs');
 const prisma = require('../lib/prisma');
 
 const BRAND = 'Rough Country';
-const COMPETITORS = ['TDOT', 'Lowriders', 'Parts Engine', 'Niagara Jeeps'];
+const COMPETITORS = ['TDOT', 'Lowriders', 'Parts Engine', 'Niagara Jeeps', 'MyTruckPoint'];
 
 function getDiscountRate() {
   const arg = process.argv.find((a) => a.startsWith('--discount='));

@@ -20,6 +20,8 @@ test('a profile gives the error codes, the log tag and safe defaults', () => {
 	assert.strictEqual(profile.maxIndexPages, 20);
 	assert.strictEqual(profile.purity, 'vendor');
 	assert.strictEqual(profile.brandPagePath, null);
+	assert.strictEqual(profile.preferAvailable, false);
+	assert.strictEqual(defineStoreProfile({ ...spec, preferAvailable: true }).preferAvailable, true);
 	assert.ok(Object.isFrozen(profile) && Object.isFrozen(profile.competitor));
 });
 

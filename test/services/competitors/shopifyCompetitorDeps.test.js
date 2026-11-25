@@ -8,7 +8,7 @@ const { getNiagaraConfig, getNiagaraOfflineConfig, DEFAULTS } = require('../../.
 
 const DEPS_KEYS = [
 	'archive', 'argv', 'baseUrl', 'brands', 'buildReportCsv', 'collect', 'disconnect', 'env', 'filterBrands', 'getPrisma', 'ingest',
-	'leaseMinutes', 'lock', 'logger', 'now', 'readFile', 'snapshotDir', 'snapshotFileName', 'startRun', 'validateSnapshot', 'writeFile',
+	'latestSnapshotName', 'leaseMinutes', 'lock', 'logger', 'now', 'readFile', 'snapshotDir', 'snapshotFileName', 'startRun', 'validateSnapshot', 'writeFile',
 ];
 const vendorsPrefix = [{ jj_prefix: 'BIL', brand_name: 'Bilstein', niagara_code: 'bilstein', niagara_sku_prefixes: ['BIL-'] }];
 
@@ -37,6 +37,7 @@ test('the production deps of a store run have every key the runner reads, withou
 		assert.strictEqual(deps.baseUrl, 'https://niagarajeeps.ca');
 		assert.deepStrictEqual(deps.brands, [{ jjPrefix: 'BIL', brandName: 'Bilstein', handle: 'bilstein', skuPrefixes: ['BIL-'] }]);
 		assert.strictEqual(deps.snapshotFileName({ runId: 3, stamp: 's' }), 'niagara-run-3-s.json');
+		assert.strictEqual(deps.latestSnapshotName, 'latest-snapshot.json');
 		assert.strictEqual(prismaLoads, 0);
 	} finally {
 		Module._load = original;

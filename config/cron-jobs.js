@@ -73,6 +73,12 @@ const tdotSeedSchedule = process.env.CRON_SEED_TDOT_SCHEDULE || '43 1 * * *';
 // requests a night. Opt-in; 04:13 is after Lowriders and off the */5 grid.
 const niagaraSeedEnabled = process.env.CRON_SEED_NIAGARA_ENABLED === 'true';
 const niagaraSeedSchedule = process.env.CRON_SEED_NIAGARA_SCHEDULE || '13 4 * * *';
+// MyTruckPoint competitor prices (DD-022): Shopify collections, ~900 paced
+// requests, about 50 to 75 minutes. Opt-in. 22:17 starts after the 19:32
+// seed-all and ends before the 01:43 chain even at the 120-minute cap; Sunday
+// is left out because the Magento attribute jobs hold the queue that day.
+const mytruckpointSeedEnabled = process.env.CRON_SEED_MYTRUCKPOINT_ENABLED === 'true';
+const mytruckpointSeedSchedule = process.env.CRON_SEED_MYTRUCKPOINT_SCHEDULE || '17 22 * * 1-6';
 const testCronEnabled = process.env.CRON_TEST_ENABLED === 'true';
 const testCronSchedule = process.env.CRON_TEST_SCHEDULE || '*/5 * * * *';
 const testCronCommand = process.env.CRON_TEST_COMMAND || 'seed-orders';
@@ -263,6 +269,14 @@ function getCronJobDefinitions({ includeDisabled = false } = {}) {
 			reportLogFile: 'prisma/seeds/logs/seed-niagara.log',
 		},
 		{
+			enabled: mytruckpointSeedEnabled,
+			schedule: mytruckpointSeedSchedule,
+			command: 'seed-mytruckpoint',
+			jobName: 'MyTruckPoint Competitor Prices',
+			logPrefix: 'MyTruckPoint competitor prices',
+			reportLogFile: 'prisma/seeds/logs/seed-mytruckpoint.log',
+		},
+		{
 			enabled: testCronEnabled,
 			schedule: testCronSchedule,
 			command: testCronCommand,
@@ -401,6 +415,8 @@ module.exports = {
 		lowridersSeedSchedule,
 		niagaraSeedEnabled,
 		niagaraSeedSchedule,
+		mytruckpointSeedEnabled,
+		mytruckpointSeedSchedule,
 		testCronEnabled,
 		testCronSchedule,
 		testCronCommand,
