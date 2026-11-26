@@ -191,6 +191,14 @@ env:
     # together with the first manual production run (dry run, then a real run).
     CRON_SEED_NIAGARA_ENABLED: "true"
     CRON_SEED_NIAGARA_SCHEDULE: "13 4 * * *"
+    # MyTruckPoint competitor prices (DD-022). On since 2026-11-26, after the
+    # production dry run 2328 and the first real run 2329 (146,323 items,
+    # 13,507 matched). Floors at about 80% of that run: a night under them
+    # writes nothing.
+    CRON_SEED_MYTRUCKPOINT_ENABLED: "true"
+    CRON_SEED_MYTRUCKPOINT_SCHEDULE: "17 22 * * 1-6"
+    MYTRUCKPOINT_MIN_ITEMS: "120000"
+    MYTRUCKPOINT_MIN_MATCHED: "11000"
     # Stale delete floor, set from that run: a night that matches fewer than
     # 6000 still updates prices but refuses to delete anything.
     LOWRIDERS_MIN_MATCHED: "6000"
