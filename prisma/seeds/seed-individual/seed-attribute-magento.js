@@ -16,6 +16,16 @@ const axios = require('axios');
 const https = require('https');
 const prisma = require('../../../lib/prisma');
 const { USD_TO_CAD_RATE } = require('../../../utils/exchangeRate');
+const {
+  buildAttributeValues,
+  diffAttributeRows,
+  buildSkuLookupQuery,
+  indexCurrentValues,
+} = require('../../../lib/magento/vendorAttributesDelta');
+
+// MAGENTO_ATTRIBUTES_DRY_RUN=1 reads Magento and reports what would be sent,
+// without sending anything.
+const DRY_RUN = process.env.MAGENTO_ATTRIBUTES_DRY_RUN === '1';
 
 function toPositiveInt(value, fallback) {
   const parsed = Number.parseInt(value, 10);
@@ -73,12 +83,13 @@ function createRequestMetrics() {
     totalFallbackPosts: 0,
     statusCounts: {},
     byMethod: {
+      get: 0,
       put: 0,
       post: 0,
     },
     increment(method, statusCode) {
       const normalizedMethod = String(method || '').toLowerCase();
-      if (normalizedMethod === 'put' || normalizedMethod === 'post') {
+      if (normalizedMethod in this.byMethod) {
         this.byMethod[normalizedMethod] += 1;
       }
       this.totalHttpRequests += 1;
@@ -96,6 +107,7 @@ function createRequestMetrics() {
       console.log(`📡 HTTP Metrics (${label}):`);
       console.log(`   - Total Magento HTTP requests: ${this.totalHttpRequests}`);
       console.log(`   - HTTP request rate: ${reqPerMinute.toFixed(2)} requests/min`);
+      console.log(`   - GET lookups (current values): ${this.byMethod.get}`);
       console.log(`   - PUT requests: ${this.byMethod.put}`);
       console.log(`   - POST fallback requests: ${this.byMethod.post}`);
       console.log(`   - Retry attempts: ${this.totalRetries}`);
@@ -174,23 +186,66 @@ const VENDOR_CONFIGS = {
 };
 
 /**
+ * Reads the current cost_usd/inventory_vendor of one batch in a single GET.
+ * Returns null when the lookup fails: the caller then sends the whole batch,
+ * as before, instead of guessing that nothing changed.
+ */
+async function fetchCurrentAttributeValues(skus) {
+  for (let attempt = 1; attempt <= MAGENTO_CONFIG.maxRetries; attempt++) {
+    try {
+      const response = await magentoClient.get('/products', {
+        params: buildSkuLookupQuery(skus),
+        timeout: Math.max(MAGENTO_CONFIG.timeout, 30000),
+      });
+      requestMetrics.increment('get', response.status);
+      return indexCurrentValues(response.data?.items);
+    } catch (error) {
+      const status = error?.response?.status;
+      requestMetrics.increment('get', status);
+      if (attempt === MAGENTO_CONFIG.maxRetries || !isRetryableStatus(status)) {
+        console.log(`   ⚠️  Current values lookup failed (${status || error.message}); sending the whole batch`);
+        return null;
+      }
+      requestMetrics.totalRetries += 1;
+      await sleep(MAGENTO_CONFIG.retryDelayMs * attempt);
+    }
+  }
+  return null;
+}
+
+/**
+ * Keeps only the products whose attributes differ from what Magento has.
+ * Each PUT is a full product save on the Magento side, so an unchanged
+ * product must not be sent.
+ */
+async function selectChangedProducts(products) {
+  const rows = products.map((product) => ({
+    sku: product.sku,
+    values: buildAttributeValues(product, USD_TO_CAD_RATE),
+  }));
+  const current = await fetchCurrentAttributeValues(rows.map((row) => row.sku));
+  if (!current) {
+    return { changed: rows, unchanged: [], notFound: [], lookupFailed: true };
+  }
+  return { ...diffAttributeRows(rows, current), lookupFailed: false };
+}
+
+/**
  * Update a single product in Magento
  */
-async function updateMagentoProduct(sku, vendorCost, vendorInventory) {
+async function updateMagentoProduct(sku, values) {
   try {
-    const costUSD = (parseFloat(vendorCost) / USD_TO_CAD_RATE).toFixed(2);
-    
     const payload = {
       product: {
         sku: sku,
         custom_attributes: [
           {
             attribute_code: 'cost_usd',
-            value: costUSD
+            value: values.cost_usd
           },
           {
             attribute_code: 'inventory_vendor',
-            value: vendorInventory.toString()
+            value: values.inventory_vendor
           }
         ]
       }
@@ -224,36 +279,34 @@ async function updateMagentoProduct(sku, vendorCost, vendorInventory) {
  * Process products in parallel chunks
  */
 async function parallelUpdateMagentoProducts(products, concurrency = 10) {
-  const results = { successful: 0, failed: 0, errors: [] };
-  
-  // Process in chunks to avoid overwhelming the API
-  for (let i = 0; i < products.length; i += concurrency) {
-    const chunk = products.slice(i, i + concurrency);
-    console.log(`📦 Processing chunk ${Math.floor(i/concurrency) + 1}/${Math.ceil(products.length/concurrency)} (${chunk.length} products)...`);
-    
-    const promises = chunk.map(product => {
-      // Prefer vendor_inventory if present, else vendor_inventory_string, else 'NO INFO'
-      // For Rough Country, treat numeric zero inventory as a fallback case to inventory string.
-      let inventoryValue = product.vendor_inventory;
-      const isRoughCountryVendor =
-        typeof product.vendor_name === 'string' &&
-        product.vendor_name.toLowerCase().includes('rough country');
+  const results = { successful: 0, failed: 0, unchanged: 0, notFound: 0, errors: [] };
 
-      if (inventoryValue === null || inventoryValue === undefined) {
-        inventoryValue = product.vendor_inventory_string || 'NO INFO';
-      } else if (
-        isRoughCountryVendor &&
-        Number(inventoryValue) === 0 &&
-        product.vendor_inventory_string
-      ) {
-        inventoryValue = product.vendor_inventory_string;
-      }
-      return updateMagentoProduct(
-        product.sku,
-        product.vendor_cost,
-        inventoryValue
-      );
+  const selection = await selectChangedProducts(products);
+  results.unchanged = selection.unchanged.length;
+  results.notFound = selection.notFound.length;
+  console.log(
+    `🔎 ${selection.changed.length} changed, ${selection.unchanged.length} already right in Magento` +
+    (selection.notFound.length ? `, ${selection.notFound.length} not returned by the lookup (sent anyway)` : '') +
+    (selection.lookupFailed ? ' (lookup failed, sending all)' : '')
+  );
+
+  if (DRY_RUN) {
+    selection.changed.slice(0, 5).forEach((row) => {
+      console.log(`   [dry run] would send ${row.sku}: cost_usd=${row.values.cost_usd}, inventory_vendor=${row.values.inventory_vendor}`);
     });
+    results.successful = selection.changed.length;
+    results.successRate = '100.0';
+    return results;
+  }
+
+  const rows = selection.changed;
+
+  // Process in chunks to avoid overwhelming the API
+  for (let i = 0; i < rows.length; i += concurrency) {
+    const chunk = rows.slice(i, i + concurrency);
+    console.log(`📦 Processing chunk ${Math.floor(i/concurrency) + 1}/${Math.ceil(rows.length/concurrency)} (${chunk.length} products)...`);
+
+    const promises = chunk.map((row) => updateMagentoProduct(row.sku, row.values));
 
     const chunkResults = await Promise.all(promises);
     let chunkSuccess = 0;
@@ -279,13 +332,16 @@ async function parallelUpdateMagentoProducts(products, concurrency = 10) {
     }
 
     // Rate limiting between chunks
-    if (i + concurrency < products.length) {
+    if (i + concurrency < rows.length) {
       console.log('⏳ Waiting 1 second before next chunk...');
       await sleep(MAGENTO_CONFIG.chunkDelayMs);
     }
   }
 
-  results.successRate = ((results.successful / products.length) * 100).toFixed(1);
+  // Success rate over what was sent; a batch with nothing to send is a success.
+  results.successRate = rows.length
+    ? ((results.successful / rows.length) * 100).toFixed(1)
+    : '100.0';
   return results;
 }
 
@@ -368,6 +424,8 @@ async function seedVendor(vendorName, batchSize = 100, concurrency = 10, maxProd
     let totalProcessed = 0;
     let totalSuccessful = 0;
     let totalFailed = 0;
+    let totalUnchanged = 0;
+    let totalNotFound = 0;
     let lastSeenId = 0;
 
     const processingLimit = maxProducts || totalVendorProducts;
@@ -396,13 +454,15 @@ async function seedVendor(vendorName, batchSize = 100, concurrency = 10, maxProd
       const batchDuration = (batchEndTime - batchStartTime) / 1000;
 
       console.log(`\n📊 Batch completed in ${batchDuration.toFixed(1)}s:`);
-      console.log(`   - Successful: ${batchResult.successful}`);
+      console.log(`   - Already right (skipped): ${batchResult.unchanged}`);
+      console.log(`   - Sent OK: ${batchResult.successful}`);
       console.log(`   - Failed: ${batchResult.failed}`);
-      console.log(`   - Success rate: ${batchResult.successRate}%`);
-      console.log(`   - Throughput: ${(batchResult.successful / batchDuration).toFixed(1)} products/second`);
+      console.log(`   - Success rate (of sent): ${batchResult.successRate}%`);
 
       totalSuccessful += batchResult.successful;
       totalFailed += batchResult.failed;
+      totalUnchanged += batchResult.unchanged;
+      totalNotFound += batchResult.notFound;
       totalProcessed += products.length;
 
       // Progress tracking
@@ -427,10 +487,13 @@ async function seedVendor(vendorName, batchSize = 100, concurrency = 10, maxProd
     const totalTime = (Date.now() - startTime) / 1000;
     console.log(`\n🎉 ${vendorName} seeding completed!`);
     console.log(`📊 Final Results:`);
-    console.log(`   - Total processed: ${totalProcessed}`);
-    console.log(`   - Successful: ${totalSuccessful}`);
+    const totalSent = totalSuccessful + totalFailed;
+    console.log(`${DRY_RUN ? '   - DRY RUN: nothing was sent\n' : ''}   - Total processed: ${totalProcessed}`);
+    console.log(`   - Already right in Magento (skipped): ${totalUnchanged}`);
+    console.log(`   - ${DRY_RUN ? 'Would send' : 'Sent OK'}: ${totalSuccessful}`);
     console.log(`   - Failed: ${totalFailed}`);
-    console.log(`   - Success rate: ${((totalSuccessful / totalProcessed) * 100).toFixed(1)}%`);
+    console.log(`   - Not returned by the lookup (sent anyway): ${totalNotFound}`);
+    console.log(`   - Success rate (of sent): ${totalSent ? ((totalSuccessful / totalSent) * 100).toFixed(1) : '100.0'}%`);
     console.log(`   - Total time: ${(totalTime / 60).toFixed(1)} minutes`);
     console.log(`   - Average throughput: ${(totalProcessed / totalTime).toFixed(1)} products/second`);
 
